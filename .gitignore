@@ -1,9 +1,49 @@
 
-/src/GetStarted/Databases/*.pac
+**/*.bin
+**/*.pac
 
-/src/GetStarted/Databases/*.bin
+## --- .NET / Visual Studio ---
+[Bb]in/
+[Oo]bj/
+[Log]/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
 
-obj
-bin
-/.vs
-*.bin
+## --- JetBrains (Rider / Resharper) ---
+.idea/
+*.sln.DotSettings.user
+_ReSharper.Caches/
+
+## --- VS Code ---
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+## --- NuGet / Пакеты ---
+*.nupkg
+*.snupkg
+# Не игнорируйте project.assets.json, если используете старые форматы, 
+# но для SDK-style проектов (как ваш) папка obj уже в игноре.
+node_modules/
+
+## --- Операционная система ---
+.DS_Store
+Thumbs.db
+
+## --- Результаты тестов и логи ---
+*.log
+TestResults/
+*.trx
+*.coverage
+
+## --- Прочее ---
+.env
+.env.*
+!.env.example
+dist/
+publish/

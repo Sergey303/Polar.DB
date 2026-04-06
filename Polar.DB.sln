@@ -1,0 +1,42 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34316.72
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{BF0FA650-06B4-4B8A-AC4D-738F106B622B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F3F6FE52-C42B-4461-9803-EFBEF6D645DF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Tests", "tests\Polar.DB.Tests\Polar.DB.Tests.csproj", "{A5E282F5-BA91-40AB-9001-62BA60D97875}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB", "src\Polar.DB\Polar.DB.csproj", "{2F1DA542-2BCE-4AF3-9256-8BA824565916}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{36AD9BFD-026E-4817-8B73-817D8865E96E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CB794695-BDDE-450A-A3F5-707171CB65FC}"
+	ProjectSection(SolutionItems) = preProject
+		docs\DevelopersComments.txt = docs\DevelopersComments.txt
+		docs\FreeStyle.docx = docs\FreeStyle.docx
+		docs\NuGet_publish.txt = docs\NuGet_publish.txt
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A5E282F5-BA91-40AB-9001-62BA60D97875}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5E282F5-BA91-40AB-9001-62BA60D97875}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5E282F5-BA91-40AB-9001-62BA60D97875}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5E282F5-BA91-40AB-9001-62BA60D97875}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2F1DA542-2BCE-4AF3-9256-8BA824565916}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2F1DA542-2BCE-4AF3-9256-8BA824565916}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2F1DA542-2BCE-4AF3-9256-8BA824565916}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2F1DA542-2BCE-4AF3-9256-8BA824565916}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A5E282F5-BA91-40AB-9001-62BA60D97875} = {F3F6FE52-C42B-4461-9803-EFBEF6D645DF}
+		{2F1DA542-2BCE-4AF3-9256-8BA824565916} = {BF0FA650-06B4-4B8A-AC4D-738F106B622B}
+	EndGlobalSection
+EndGlobal
