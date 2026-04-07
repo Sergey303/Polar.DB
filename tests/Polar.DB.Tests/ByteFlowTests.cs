@@ -84,6 +84,59 @@ public class ByteFlowTests
     }
 
     [Fact]
+    public void Serialize_And_Deserialize_Nested_Record_Sequence_Union_RoundTrip()
+    {
+        var pointType = new PTypeRecord(
+            new NamedType("x", new PType(PTypeEnumeration.real)),
+            new NamedType("y", new PType(PTypeEnumeration.real)));
+        var shapeType = new PTypeUnion(
+            new NamedType("point", pointType),
+            new NamedType("name", new PType(PTypeEnumeration.sstring)),
+            new NamedType("weight", new PType(PTypeEnumeration.integer)));
+        var sceneType = new PTypeRecord(
+            new NamedType("id", new PType(PTypeEnumeration.integer)),
+            new NamedType("shapes", new PTypeSequence(shapeType)));
+
+        object[] value =
+        {
+            101,
+            new object[]
+            {
+                new object[] { 0, new object[] { 1.5, 2.5 } },
+                new object[] { 1, "origin" },
+                new object[] { 2, 9 }
+            }
+        };
+
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+        ByteFlow.Serialize(writer, value, sceneType);
+        writer.Flush();
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object[] restored = Assert.IsType<object[]>(ByteFlow.Deserialize(reader, sceneType));
+
+        Assert.Equal(101, Assert.IsType<int>(restored[0]));
+        var shapes = Assert.IsType<object[]>(restored[1]);
+        Assert.Equal(3, shapes.Length);
+
+        var first = Assert.IsType<object[]>(shapes[0]);
+        Assert.Equal(0, Assert.IsType<int>(first[0]));
+        var firstPoint = Assert.IsType<object[]>(first[1]);
+        Assert.Equal(1.5, Assert.IsType<double>(firstPoint[0]));
+        Assert.Equal(2.5, Assert.IsType<double>(firstPoint[1]));
+
+        var second = Assert.IsType<object[]>(shapes[1]);
+        Assert.Equal(1, Assert.IsType<int>(second[0]));
+        Assert.Equal("origin", Assert.IsType<string>(second[1]));
+
+        var third = Assert.IsType<object[]>(shapes[2]);
+        Assert.Equal(2, Assert.IsType<int>(third[0]));
+        Assert.Equal(9, Assert.IsType<int>(third[1]));
+    }
+
+    [Fact]
     public void Serialize_Record_WithWrongFieldCount_Throws()
     {
         var type = new PTypeRecord(

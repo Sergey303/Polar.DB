@@ -57,16 +57,27 @@ public class TypesRoundTripTests
     {
         var original = new PTypeUnion(
             new NamedType("i", new PType(PTypeEnumeration.integer)),
-            new NamedType("s", new PType(PTypeEnumeration.sstring)));
+            new NamedType("s", new PType(PTypeEnumeration.sstring)),
+            new NamedType(
+                "pair",
+                new PTypeRecord(
+                    new NamedType("x", new PType(PTypeEnumeration.real)),
+                    new NamedType("y", new PType(PTypeEnumeration.real)))));
 
         var po = original.ToPObject(8);
         var restored = Assert.IsType<PTypeUnion>(PType.FromPObject(po));
 
-        Assert.Equal(2, restored.Variants.Length);
+        Assert.Equal(3, restored.Variants.Length);
         Assert.Equal("i", restored.Variants[0].Name);
         Assert.Equal(PTypeEnumeration.integer, restored.Variants[0].Type.Vid);
         Assert.Equal("s", restored.Variants[1].Name);
         Assert.Equal(PTypeEnumeration.sstring, restored.Variants[1].Type.Vid);
+        Assert.Equal("pair", restored.Variants[2].Name);
+
+        var pairType = Assert.IsType<PTypeRecord>(restored.Variants[2].Type);
+        Assert.Equal(2, pairType.Fields.Length);
+        Assert.Equal(PTypeEnumeration.real, pairType.Fields[0].Type.Vid);
+        Assert.Equal(PTypeEnumeration.real, pairType.Fields[1].Type.Vid);
     }
 
     [Fact]

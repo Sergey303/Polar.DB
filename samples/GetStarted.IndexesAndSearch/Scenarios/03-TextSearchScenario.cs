@@ -1,3 +1,5 @@
+using Polar.DB;
+
 namespace GetStarted.IndexesAndSearch.Scenarios;
 
 internal sealed class TextSearchScenario : ScenarioBase

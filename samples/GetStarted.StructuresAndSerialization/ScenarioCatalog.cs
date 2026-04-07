@@ -13,5 +13,8 @@ internal static class ScenarioCatalog
             new FromGetStarted3Main301TypesAndSerializationScenario(),
             new FromGetStarted4Main401TypesAndSerializationScenario(),
             new FromGetStarted5ProgramIntroStructuresAndSerializationScenario(),
+            new PTypeFStringRoundTripScenario(),
+            new PTypeUnionAndByteFlowScenario(),
+            new RecordAccessorScenario(),
         };
 }
