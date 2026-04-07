@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net7.0;net8.0;net10.0</TargetFrameworks>
+      <TargetFramework>net10.0</TargetFramework>
+
     <LangVersion>10.0</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
@@ -10,6 +11,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Polar.DB\Polar.DB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Scenarios\" />
   </ItemGroup>
 
 </Project>

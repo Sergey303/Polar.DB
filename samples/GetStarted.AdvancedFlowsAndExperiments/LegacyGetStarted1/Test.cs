@@ -4,6 +4,7 @@ namespace GetStarted
 {
     public partial class Program
     {
+        public static string dbpath = @"D:/Home/data/GetStarted/";
         public static void Test()
         {
             PType tp_point = new PTypeRecord(
