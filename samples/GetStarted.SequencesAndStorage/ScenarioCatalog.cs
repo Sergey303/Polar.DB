@@ -1,6 +1,6 @@
-using GetStarted.SequencesAndIndexes.Scenarios;
+using GetStarted.SequencesAndStorage.Scenarios;
 
-namespace GetStarted.SequencesAndIndexes;
+namespace GetStarted.SequencesAndStorage;
 
 internal static class ScenarioCatalog
 {

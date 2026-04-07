@@ -31,7 +31,7 @@ public class SecondaryIndexesTests
         {
             new object[] { 1, "ALICE", 30, new object[] { "news", "tech" } },
             new object[] { 2, "BOB", 40, new object[] { "sports" } },
-            new object[] { 3, "ANNA", 30, new object[] { "news" } }
+            new object[] { 3, "BOB", 30, new object[] { "news" } }
         });
         scope.Sequence.Build();
 
@@ -53,8 +53,11 @@ public class SecondaryIndexesTests
 
         var sample = new object[] { 0, "BOB", 0, Array.Empty<object>() };
         var bySample = scope.Sequence.GetAllBySample(3, sample).Cast<object[]>().ToArray();
-        Assert.Single(bySample);
-        Assert.Equal(2, (int)bySample[0][0]);
+        Assert.Equal(new[] { 2, 3 }, bySample.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
+
+        var duplicateName = new object[] { 0, "ALICE", 0, Array.Empty<object>() };
+        var allBySameName = scope.Sequence.GetAllBySample(3, duplicateName).Cast<object[]>().ToArray();
+        Assert.Equal(new[] { 1 }, allBySameName.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
     }
 
     [Fact]
@@ -65,7 +68,6 @@ public class SecondaryIndexesTests
         var sIndex = new SVectorIndex(scope.StreamGen, scope.Sequence, r => new[] { (string)((object[])r)[1] });
         var ageIndex = new UVectorIndex(scope.StreamGen, scope.Sequence, new PType(PTypeEnumeration.integer), r => new IComparable[] { (int)((object[])r)[2] });
         var tagIndex = new UVecIndex(scope.StreamGen, scope.Sequence, TagsOf, tag => Hashfunctions.HashRot13((string)tag), ignorecase: true);
-
         scope.Sequence.uindexes = new IUIndex[] { sIndex, ageIndex, tagIndex };
 
         scope.Sequence.Load(new object[]
@@ -87,6 +89,7 @@ public class SecondaryIndexesTests
         var byTag = scope.Sequence.GetAllByValue(2, "NEWS", TagsOf, ignorecase: true).Cast<object[]>().ToArray();
         Assert.Equal(2, byTag.Length);
         Assert.Equal(new[] { 1, 2 }, byTag.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
+
     }
 
     private static IEnumerable<IComparable> TagsOf(object record)

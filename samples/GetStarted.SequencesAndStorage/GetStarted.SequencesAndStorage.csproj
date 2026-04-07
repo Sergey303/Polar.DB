@@ -6,7 +6,7 @@
     <LangVersion>10.0</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>GetStarted.SequencesAndIndexes</RootNamespace>
+    <RootNamespace>GetStarted.SequencesAndStorage</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

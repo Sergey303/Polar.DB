@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace GetStarted.SequencesAndIndexes;
+namespace GetStarted.SequencesAndStorage;
 
 internal static class Program
 {

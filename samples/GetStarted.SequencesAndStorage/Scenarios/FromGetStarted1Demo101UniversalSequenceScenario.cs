@@ -1,6 +1,6 @@
 using Polar.DB;
 
-namespace GetStarted.SequencesAndIndexes.Scenarios;
+namespace GetStarted.SequencesAndStorage.Scenarios;
 
 internal sealed class FromGetStarted1Demo101UniversalSequenceScenario : ISampleScenario
 {

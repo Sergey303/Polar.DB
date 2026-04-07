@@ -79,4 +79,23 @@ public class ScaleAndUtilitiesTests
             Assert.Equal(expected.numb, actual.numb);
         }
     }
+
+    [Fact]
+    public void GetDiaFunc64_BuildsDeterministicWindows_ForSortedLongKeys()
+    {
+        long[] keys = Enumerable.Range(0, 160).Select(i => (long)i * 10L).ToArray();
+        var getDia = Scale.GetDiaFunc64(keys);
+
+        Assert.NotNull(getDia);
+
+        foreach (var probe in new[] { 0L, 150L, 790L, 1590L })
+        {
+            var first = getDia(probe);
+            var second = getDia(probe);
+            Assert.Equal(first.start, second.start);
+            Assert.Equal(first.numb, second.numb);
+            Assert.True(first.numb > 0);
+            Assert.True(first.start >= 0);
+        }
+    }
 }
