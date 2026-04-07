@@ -1,8 +1,4 @@
-﻿using System;
-using System.Linq;
-
-
-namespace Polar.DB
+﻿namespace Polar.DB
 {
     public class Hashfunctions
     {

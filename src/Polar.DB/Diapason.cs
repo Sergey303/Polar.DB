@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Polar.DB
+﻿namespace Polar.DB
 {
     public struct Diapason
     {

@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using Polar.DB;
-
-namespace Polar.DB
+﻿namespace Polar.DB
 {
     public class Scale
     {
