@@ -4,6 +4,8 @@ Step 1 of the public PolarDB tutorial path.
 
 This project explains schema types, object-shaped values, and serialization basics.
 
+`NamedType` is used throughout these scenarios as the way field and variant names are attached to schema definitions (for example, `PTypeRecord` fields and `PTypeUnion` variants).
+
 ## Scenario IDs
 
 - `gs-legacy` - baseline extracted intro from the legacy sample.

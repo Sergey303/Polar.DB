@@ -4,6 +4,9 @@ Step 3 of the public PolarDB tutorial path.
 
 This project demonstrates the compact public indexing/search surface.
 
+The index implementations in this step (`UIndex`, `SVectorIndex`, `UVectorIndex`, `UVecIndex`) all follow the shared `IUIndex` contract, but tutorials focus on behavior of concrete indexes rather than interface internals.
+`ObjOff` is a low-level result transport primitive used inside index pipelines; it is covered by tests and intentionally not taught as a standalone scenario.
+
 ## Scenario IDs
 
 - `primary-key` - primary-key lookup and dynamic append in `USequence`.

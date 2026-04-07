@@ -5,6 +5,18 @@ namespace Polar.DB.Tests;
 public class TypesRoundTripTests
 {
     [Fact]
+    public void Record_Interpret_WithFieldNames_Uses_NamedType_Names()
+    {
+        var recordType = new PTypeRecord(
+            new NamedType("id", new PType(PTypeEnumeration.integer)),
+            new NamedType("name", new PType(PTypeEnumeration.sstring)));
+
+        var text = recordType.Interpret(new object[] { 7, "Ada" }, withfieldnames: true);
+
+        Assert.Equal("{id:7,name:\"Ada\"}", text);
+    }
+
+    [Fact]
     public void FString_RoundTrip_Preserves_Length()
     {
         var original = new PTypeFString(16);
@@ -88,5 +100,14 @@ public class TypesRoundTripTests
 
         var po = original.ToPObject(-1);
         Assert.Null(po);
+    }
+
+    [Fact]
+    public void FromPObject_For_ObjPair_Tag_Throws_As_Unimplemented()
+    {
+        var objPairTag = new object[] { 12, null };
+
+        var ex = Assert.Throws<Exception>(() => PType.FromPObject(objPairTag));
+        Assert.Equal("unknown tag for pobject", ex.Message);
     }
 }
