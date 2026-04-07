@@ -1,4 +1,4 @@
-﻿namespace Polar.Universal
+﻿namespace Polar.DB
 {
     public struct ObjOff
     {

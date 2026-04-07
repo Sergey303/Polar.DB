@@ -1,6 +1,6 @@
 using Polar.DB;
 
-namespace GetStarted.IndexesAndSearch;
+namespace GetStarted.IndexesAndSearch.Scenarios;
 
 internal sealed class HashFunctionsScenario : ScenarioBase
 {

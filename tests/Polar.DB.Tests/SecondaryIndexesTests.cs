@@ -1,4 +1,3 @@
-using Polar.Universal;
 using Xunit;
 
 namespace Polar.DB.Tests;

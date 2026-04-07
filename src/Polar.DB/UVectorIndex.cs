@@ -1,6 +1,4 @@
-﻿using Polar.DB;
-
-namespace Polar.Universal
+﻿namespace Polar.DB
 {
     public class UVectorIndex : IUIndex
     {

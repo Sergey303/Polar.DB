@@ -1,7 +1,6 @@
 using Polar.DB;
-using Polar.Universal;
 
-namespace GetStarted.IndexesAndSearch;
+namespace GetStarted.IndexesAndSearch.Scenarios;
 
 internal sealed class SkillHashScenario : ScenarioBase
 {

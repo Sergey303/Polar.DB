@@ -1,5 +1,4 @@
 using Polar.DB;
-using Polar.Universal;
 
 namespace GetStarted.SequencesAndIndexes.Scenarios;
 

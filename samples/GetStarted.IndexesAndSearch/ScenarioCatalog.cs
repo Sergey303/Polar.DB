@@ -1,3 +1,5 @@
+using GetStarted.IndexesAndSearch.Scenarios;
+
 namespace GetStarted.IndexesAndSearch;
 
 internal static class ScenarioCatalog
