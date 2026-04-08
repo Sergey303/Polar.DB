@@ -1,6 +1,6 @@
 # GetStarted.SequencesAndStorage
 
-Step 2 of the public PolarDB tutorial path.
+Step 2 of the public Polar.DB tutorial path.
 
 This project focuses on sequence storage, offsets, and recovery-oriented behavior.
 
@@ -20,3 +20,4 @@ dotnet run --project samples/GetStarted.SequencesAndStorage -- list
 dotnet run --project samples/GetStarted.SequencesAndStorage -- all
 dotnet run --project samples/GetStarted.SequencesAndStorage -- recovery-refresh
 ```
+

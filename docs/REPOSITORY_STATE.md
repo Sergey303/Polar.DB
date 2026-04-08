@@ -182,20 +182,13 @@ At the solution level:
 - `global.json` was added to pin SDK selection to .NET 10;
 - `Polar.DB` was moved to multi-targeting.
 
-Current target frameworks:
+Supported Frameworks are now documented in one canonical source:
 
-- `netstandard2.0`
-- `netstandard2.1`
-- `net7.0`
-- `net8.0`
-- `net10.0`
+- `README.md` -> `## Supported Frameworks`
 
-This is a pragmatic state:
+This avoids framework-list drift across docs. The main library project file is the implementation source, and README is the canonical public documentation source.
 
-- repository development uses a pinned modern SDK baseline;
-- the library remains consumable across a wider runtime surface.
-
-**Current expectation:** contributors should treat SDK choice as repository-controlled, while library consumers can still target broader .NET environments.
+**Current expectation:** contributors should treat SDK choice as repository-controlled and update README + project frameworks together.
 
 ---
 

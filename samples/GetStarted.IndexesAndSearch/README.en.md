@@ -1,6 +1,6 @@
 # GetStarted.IndexesAndSearch
 
-Step 3 of the public PolarDB tutorial path.
+Step 3 of the public Polar.DB tutorial path.
 
 This project demonstrates the compact public indexing/search surface.
 
@@ -24,3 +24,4 @@ dotnet run --project samples/GetStarted.IndexesAndSearch -- list
 dotnet run --project samples/GetStarted.IndexesAndSearch -- all
 dotnet run --project samples/GetStarted.IndexesAndSearch -- primary-key
 ```
+

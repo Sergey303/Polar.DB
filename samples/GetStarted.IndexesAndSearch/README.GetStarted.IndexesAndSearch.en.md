@@ -1,6 +1,6 @@
 # GetStarted.IndexesAndSearch
 
-This is the third tutorial project in the PolarDB samples.
+This is the third tutorial project in the Polar.DB samples.
 
 It focuses on the current lookup and search surface after the reader already understands types, serialization, sequences, and storage basics.
 
@@ -17,7 +17,7 @@ It focuses on the current lookup and search surface after the reader already und
 
 Indexes are easier to understand after storage basics are clear.
 
-This project is not about abstract theory alone. It is about seeing how real lookup scenarios are expressed in PolarDB code.
+This project is not about abstract theory alone. It is about seeing how real lookup scenarios are expressed in Polar.DB code.
 
 ## Recommended progression inside this project
 
@@ -40,3 +40,4 @@ dotnet run --project samples/GetStarted.IndexesAndSearch -- <scenario-id>
 Keep this project practical.
 
 Examples should show how to use the current API clearly and with small datasets that are easy to inspect from the console output.
+

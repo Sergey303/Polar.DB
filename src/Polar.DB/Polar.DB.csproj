@@ -1,10 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>netstandard2.0;netstandard2.1;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>netstandard2.0;netstandard2.1;net5.0;net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
         <LangVersion>10.0</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <PackageId>Polar.DB</PackageId>
+        <Title>Polar.DB</Title>
+        <Description>Polar.DB is a structured storage library for schema-defined records, append-oriented sequence flows, and index-based lookup scenarios with object-like and RecordAccessor-like access patterns.</Description>
+        <PackageTags>Polar.DB;storage;sequence;RecordAccessor;indexes</PackageTags>
+        <Authors>Polar.DB Contributors</Authors>
+        <!-- Legacy naming preserved here because this is an external historical URL. -->
+        <RepositoryUrl>https://github.com/agmarchuk/PolarDB</RepositoryUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
 </Project>
+

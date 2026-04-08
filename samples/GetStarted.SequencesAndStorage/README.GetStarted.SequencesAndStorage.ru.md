@@ -1,6 +1,6 @@
 # GetStarted.SequencesAndStorage
 
-Это второй учебный project в samples PolarDB.
+Это второй учебный project в samples Polar.DB.
 
 Он продолжает идеи из `GetStarted.StructuresAndSerialization` и переводит читателя от формы значения к поведению хранилища.
 
@@ -14,7 +14,7 @@
 
 ## Почему этот проект важен
 
-PolarDB — это не только схемы. Это ещё и надёжное структурное хранение.
+Polar.DB — это не только схемы. Это ещё и надёжное структурное хранение.
 
 Именно здесь читатель должен начать думать о таких вещах, как:
 - логические границы данных;
@@ -41,3 +41,4 @@ dotnet run --project samples/GetStarted.SequencesAndStorage -- <scenario-id>
 Этот проект должен оставаться сфокусированным именно на хранении и механике последовательностей.
 
 Полноценные tutorial по индексам, token search и поиску по множественным значениям должны жить в `GetStarted.IndexesAndSearch`.
+

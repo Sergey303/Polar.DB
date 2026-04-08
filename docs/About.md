@@ -15,4 +15,5 @@ G.M.Krecker, T.I.Lelchuk, A.G.Marchuk POLAR - A Programming Language for Multipr
 
 Цель проекта: создать библиотеку работы со структурированной информацией, эффективную для построения специализированных и универсальных баз данных и систем управления базами данных. Кроме библиотеки классов, в проекте нарабатываются полуфабрикатные или целостные решения по конретным задачам.
 
-Библиотека формируется в языке C# на платформе .NET Core. Репозиторий проекта: https://github.com/agmarchuk/PolarDB
+Библиотека формируется в языке C# на платформе .NET Core. Репозиторий проекта: https://github.com/agmarchuk/PolarDB (Legacy naming preserved here because this is an external historical URL.)
+

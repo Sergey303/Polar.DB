@@ -1,6 +1,6 @@
 # GetStarted.SequencesAndStorage
 
-Шаг 2 публичного учебного пути PolarDB.
+Шаг 2 публичного учебного пути Polar.DB.
 
 Проект посвящен хранению в последовательностях, работе со смещениями и сценариям восстановления.
 
@@ -20,3 +20,4 @@ dotnet run --project samples/GetStarted.SequencesAndStorage -- list
 dotnet run --project samples/GetStarted.SequencesAndStorage -- all
 dotnet run --project samples/GetStarted.SequencesAndStorage -- recovery-refresh
 ```
+

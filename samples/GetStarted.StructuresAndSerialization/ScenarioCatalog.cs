@@ -16,5 +16,6 @@ internal static class ScenarioCatalog
             new PTypeFStringRoundTripScenario(),
             new PTypeUnionAndByteFlowScenario(),
             new RecordAccessorScenario(),
+            new RecordAccessStylesScenario(),
         };
 }

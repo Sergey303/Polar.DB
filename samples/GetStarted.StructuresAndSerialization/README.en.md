@@ -1,6 +1,6 @@
 # GetStarted.StructuresAndSerialization
 
-Step 1 of the public PolarDB tutorial path.
+Step 1 of the public Polar.DB tutorial path.
 
 This project explains schema types, object-shaped values, and serialization basics.
 
@@ -17,6 +17,7 @@ This project explains schema types, object-shaped values, and serialization basi
 - `fstring` - `PTypeFString` schema round-trip (`PType -> object -> PType`).
 - `union-byteflow` - `PTypeUnion` with `ByteFlow.Serialize`/`Deserialize`.
 - `record-accessor` - named get/set mutation using `RecordAccessor`.
+- `record-access-styles` - object-like and RecordAccessor-like side-by-side parity example.
 
 ## Run
 
@@ -24,4 +25,6 @@ This project explains schema types, object-shaped values, and serialization basi
 dotnet run --project samples/GetStarted.StructuresAndSerialization -- list
 dotnet run --project samples/GetStarted.StructuresAndSerialization -- all
 dotnet run --project samples/GetStarted.StructuresAndSerialization -- record-accessor
+dotnet run --project samples/GetStarted.StructuresAndSerialization -- record-access-styles
 ```
+

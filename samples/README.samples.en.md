@@ -1,13 +1,13 @@
 # Samples
 
-This folder contains the public tutorial samples for PolarDB.
+This folder contains the public tutorial samples for Polar.DB.
 
 The goal of these projects is not to preserve every historical experiment. Their goal is to provide a clear learning path through the current public surface of the repository.
 
 ## Learning order
 
 1. **GetStarted.StructuresAndSerialization**
-   Start here if you are new to PolarDB. This project introduces Polar types, object-shaped values, interpretation, and text/binary serialization.
+   Start here if you are new to Polar.DB. This project introduces Polar types, object-shaped values, interpretation, and text/binary serialization.
 
 2. **GetStarted.SequencesAndStorage**
    Continue here after the first project. This project shows how records are stored in sequences, how append/flush/scan work, and how offset-based access fits into the storage model.
@@ -53,3 +53,4 @@ When adding a new scenario:
 - keep comments useful for a first-time reader;
 - avoid duplicating another scenario with only cosmetic differences;
 - prefer current APIs and current namespaces.
+

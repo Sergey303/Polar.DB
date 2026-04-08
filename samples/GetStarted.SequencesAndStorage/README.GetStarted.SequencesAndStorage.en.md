@@ -1,6 +1,6 @@
 # GetStarted.SequencesAndStorage
 
-This is the second tutorial project in the PolarDB samples.
+This is the second tutorial project in the Polar.DB samples.
 
 It builds on the basics from `GetStarted.StructuresAndSerialization` and moves from value shape to storage behavior.
 
@@ -14,7 +14,7 @@ It builds on the basics from `GetStarted.StructuresAndSerialization` and moves f
 
 ## Why this project matters
 
-PolarDB is not only about schemas. It is also about reliable structured storage.
+Polar.DB is not only about schemas. It is also about reliable structured storage.
 
 This project is where the reader should start thinking about:
 - logical data boundaries;
@@ -41,3 +41,4 @@ dotnet run --project samples/GetStarted.SequencesAndStorage -- <scenario-id>
 This project should stay focused on storage and sequence mechanics.
 
 Full index tutorials, token search, and multi-value lookup belong to `GetStarted.IndexesAndSearch`.
+

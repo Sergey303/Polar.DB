@@ -1,6 +1,6 @@
 # GetStarted.StructuresAndSerialization
 
-Шаг 1 публичного учебного пути PolarDB.
+Шаг 1 публичного учебного пути Polar.DB.
 
 Проект показывает схемы типов, объектное представление значений и основы сериализации.
 
@@ -25,3 +25,4 @@ dotnet run --project samples/GetStarted.StructuresAndSerialization -- list
 dotnet run --project samples/GetStarted.StructuresAndSerialization -- all
 dotnet run --project samples/GetStarted.StructuresAndSerialization -- record-accessor
 ```
+

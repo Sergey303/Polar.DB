@@ -1,6 +1,6 @@
 # Samples
 
-Public tutorial projects for PolarDB are organized as a three-step learning path:
+Public tutorial projects for Polar.DB are organized as a three-step learning path:
 
 1. `GetStarted.StructuresAndSerialization`
 2. `GetStarted.SequencesAndStorage`
@@ -33,3 +33,4 @@ dotnet run --project samples/GetStarted.IndexesAndSearch -- primary-key
 - Samples focus on current public APIs under `Polar.DB`.
 - Projects are intentionally compact and educational.
 - Runtime files are created under each sample output folder.
+

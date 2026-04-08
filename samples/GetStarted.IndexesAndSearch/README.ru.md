@@ -1,6 +1,6 @@
 # GetStarted.IndexesAndSearch
 
-Шаг 3 публичного учебного пути PolarDB.
+Шаг 3 публичного учебного пути Polar.DB.
 
 Проект показывает компактную публичную поверхность индексов и поиска.
 
@@ -24,3 +24,4 @@ dotnet run --project samples/GetStarted.IndexesAndSearch -- list
 dotnet run --project samples/GetStarted.IndexesAndSearch -- all
 dotnet run --project samples/GetStarted.IndexesAndSearch -- primary-key
 ```
+

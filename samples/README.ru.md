@@ -1,6 +1,6 @@
 # Samples
 
-Публичные учебные проекты PolarDB организованы как путь из трех шагов:
+Публичные учебные проекты Polar.DB организованы как путь из трех шагов:
 
 1. `GetStarted.StructuresAndSerialization`
 2. `GetStarted.SequencesAndStorage`
@@ -33,3 +33,4 @@ dotnet run --project samples/GetStarted.IndexesAndSearch -- primary-key
 - Примеры сфокусированы на актуальных публичных API из `Polar.DB`.
 - Проекты намеренно компактные и учебные.
 - Runtime-файлы создаются в выходной директории соответствующего sample-проекта.
+
