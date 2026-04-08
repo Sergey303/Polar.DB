@@ -15,9 +15,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{36AD
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CB794695-BDDE-450A-A3F5-707171CB65FC}"
 	ProjectSection(SolutionItems) = preProject
-		docs\DevelopersComments.txt = docs\DevelopersComments.txt
-		docs\FreeStyle.docx = docs\FreeStyle.docx
-		docs\NuGet_publish.txt = docs\NuGet_publish.txt
+		About.md = docs/About.md
+		BDLearningCourse.md = docs/BDLearningCourse.md
+		Concept.md = docs/Concept.md
+		Description.md = docs/Description.md
+		DevelopersComments.txt = docs/DevelopersComments.txt
+		LibsDescriptions.md = docs/LibsDescriptions.md
+		Mixture.md = docs/Mixture.md
+		Specifications.md = docs/Specifications.md
+		Starting.md = docs/Starting.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GetStarted.SequencesAndStorage", "samples\GetStarted.SequencesAndStorage\GetStarted.SequencesAndStorage.csproj", "{DAA0D7C7-0E96-4F24-94D4-032C90D20058}"
