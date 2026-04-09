@@ -519,12 +519,21 @@ public class UniversalSequenceBase
     {
         if (off < 8L || off > AppendOffset) throw new ArgumentOutOfRangeException(nameof(off));
 
+        EnsureAppendOffsetInvariant();
+
         long savedPosition = fs.Position;
         long originalLength = fs.Length;
+        long originalAppendOffset = AppendOffset;
         bool isAppendWrite = off == AppendOffset;
+        byte[] originalBytes = Array.Empty<byte>();
 
         try
         {
+            if (!isAppendWrite)
+            {
+                originalBytes = SnapshotBytes(off, originalLength);
+            }
+
             if (off != fs.Position) fs.Position = off;
 
             SetElement(v);
@@ -542,12 +551,19 @@ public class UniversalSequenceBase
         }
         catch
         {
-            if (isAppendWrite && fs.Length != originalLength)
+            if (fs.Length != originalLength)
             {
                 fs.SetLength(originalLength);
-                AppendOffset = originalLength;
             }
 
+            if (!isAppendWrite && originalBytes.Length > 0)
+            {
+                fs.Position = off;
+                fs.Write(originalBytes, 0, originalBytes.Length);
+                fs.Flush();
+            }
+
+            AppendOffset = originalAppendOffset;
             throw;
         }
         finally
@@ -590,9 +606,15 @@ public class UniversalSequenceBase
         long originalLength = fs.Length;
         long originalAppendOffset = AppendOffset;
         bool isAppendWrite = off == AppendOffset;
+        byte[] originalBytes = Array.Empty<byte>();
 
         try
         {
+            if (!isAppendWrite)
+            {
+                originalBytes = SnapshotBytes(off, originalLength);
+            }
+
             if (off != fs.Position) fs.Position = off;
 
             ByteFlow.Serialize(bw, v, tp);
@@ -613,6 +635,13 @@ public class UniversalSequenceBase
             if (fs.Length != originalLength)
             {
                 fs.SetLength(originalLength);
+            }
+
+            if (!isAppendWrite && originalBytes.Length > 0)
+            {
+                fs.Position = off;
+                fs.Write(originalBytes, 0, originalBytes.Length);
+                fs.Flush();
             }
 
             AppendOffset = originalAppendOffset;
@@ -1094,5 +1123,35 @@ public class UniversalSequenceBase
         if (AppendOffset != fs.Length)
             throw new InvalidOperationException(
                 "AppendOffset invariant is broken: logical append offset must match the physical stream length.");
+    }
+    
+    private byte[] SnapshotBytes(long off, long originalLength)
+    {
+        if (off < 0L || off > originalLength)
+            throw new ArgumentOutOfRangeException(nameof(off));
+
+        long snapshotLength = originalLength - off;
+        if (snapshotLength == 0L)
+            return Array.Empty<byte>();
+
+        if (snapshotLength > int.MaxValue)
+            throw new InvalidOperationException(
+                "Rollback snapshot is too large for an in-memory buffer.");
+
+        var buffer = new byte[(int)snapshotLength];
+        fs.Position = off;
+
+        int totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            int read = fs.Read(buffer, totalRead, buffer.Length - totalRead);
+            if (read == 0)
+                throw new EndOfStreamException(
+                    "Failed to snapshot original bytes before overwrite.");
+
+            totalRead += read;
+        }
+
+        return buffer;
     }
 }
