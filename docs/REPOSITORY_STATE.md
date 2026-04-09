@@ -407,7 +407,7 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | UniversalSequenceBase(PType tp_el, Stream media) | Covered | UniversalSequenceBaseRecoveryTests, UniversalSequenceBaseRefreshTests, UniversalSequenceBaseCoreTests | Constructor invoked in test helpers; recovery logic tested extensively. |
 | void Clear() | Covered | UniversalSequenceBaseCoreTests.Clear_ResetsState_And_SetsAppendOffsetTo8 | Directly tests clearing sequence and resetting header. |
 | void Flush() | Covered | UniversalSequenceBaseCoreTests.Flush_WritesHeader_And_PreservesPosition, Flush_On_EmptySequence_WritesHeader | Tests header writing and position preservation. |
-| void Close() | Covered indirectly | UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState, USequenceTests (using statements) | Used in persistence/reopen tests but no direct focused tests. |
+| void Close() | Covered | UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState, UniversalSequenceBaseCloseTests | Reopen scenarios plus direct close-and-reopen test. |
 | void Refresh() | Covered | UniversalSequenceBaseRefreshTests (5+ dedicated tests) | Comprehensive tests for recovery from corrupted/modified streams. |
 | long Count() | Covered | UniversalSequenceBaseCoreTests (multiple), RecoveryTests, RefreshTests | Used in nearly every test to verify element count. |
 | long ElementOffset(long ind) | Covered | UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly, ElementOffset_WithoutArgument_ReturnsAppendOffset | Tests fixed-size offset calculation. |
@@ -433,9 +433,9 @@ Evidence includes test file names, test method names, and brief notes on asserti
 |--------|--------|----------|-------|
 | USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty, IUIndex[] uindexes) | Covered | USequenceTests.Load_Skips_Empty_Records, USequenceBuildOrderTests | Integration tests use instance creation. |
 | void RestoreDynamic() | Covered | USequenceTests.RestoreDynamic_Indexes_Records_And_SavesState | Dedicated test for dynamic indexing after state file changes. |
-| void Clear() | Covered indirectly | USequenceTests.Load_Skips_Empty_Records | Called during Load() but no isolated test. |
-| void Flush() | Covered indirectly | Multiple tests call indirectly through Load() | Flushed to state file; verified through state file reading. |
-| void Close() | Covered indirectly | UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState, USequenceTests (using statements) | Used in reopen scenarios. |
+| void Clear() | Covered | USequenceLifecycleTests.Clear_Resets_Visible_Sequence_State_And_Keeps_Object_Reusable | Direct lifecycle reset test with reuse after clear. |
+| void Flush() | Covered | USequenceLifecycleTests.Flush_Persists_Current_State_File_Without_Build | Directly verifies flush keeps the sequence reusable and readable without Build(). |
+| void Close() | Covered | USequenceLifecycleTests.Close_Flushes_State_And_Reopen_Remains_Consistent | Direct close-and-reopen persistence test. |
 | void Refresh() | Covered | USequenceBuildOrderTests.Traversal_After_Reopen_RemainsConsistent | Tested for persistence across reopen. |
 | void Load(IEnumerable<object> flow) | Covered | USequenceTests.Load_Skips_Empty_Records | Tests loading data and skipping empty records. |
 | IEnumerable<object> ElementValues() | Covered | USequenceTests.ElementValues_And_Scan_Use_Only_Latest_Data, USequenceTraversalTests | Filters to original, non-empty records. |
@@ -452,8 +452,8 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
 | RecordAccessor(PTypeRecord recordType) | Covered | RecordAccessorTests (multiple) | Used in all test setup. |
-| PTypeRecord RecordType | Covered indirectly | Test fixture construction | Type accessible via public property. |
-| int FieldCount | Covered indirectly | RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length | Verified through CreateRecord() validation. |
+| PTypeRecord RecordType | Covered | RecordAccessorPropertyTests.RecordType_Returns_Original_Schema_Instance | Directly checks schema identity. |
+| int FieldCount | Covered | RecordAccessorPropertyTests.FieldCount_Returns_Number_Of_Declared_Fields | Directly checks declared field count. |
 | IEnumerable<string> FieldNames | Covered | RecordAccessorTests.FieldNames_Preserve_Schema_Order | Directly tested. |
 | bool HasField(string fieldName) | Covered | RecordAccessorTests.HasField_Returns_True_For_Existing_Field_And_False_For_Missing_Field, HasField_Throws_ArgumentNullException_For_Null | Direct positive/negative and null-argument coverage. |
 | int GetIndex(string fieldName) | Covered | RecordAccessorTests.GetIndex_Returns_Stable_Field_Position | Direct index resolution tested. |
@@ -480,8 +480,8 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | static void SerializeFormatted(TextWriter tw, object v, PType tp, int level) | Covered | TextFlowTests.SerializeFormatted_ForNestedRecord_ProducesReadableOutput | Nested formatting with line breaks tested. |
 | static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence serialization tested. |
 | static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level) | Covered | TextFlowPrimitiveTests.SerializeFlowToSequenseFormatted_Produces_Readable_Multiline_Output | Directly verifies multiline/readable formatted sequence output. |
-| static object Deserialize(TextReader tr, PType tp) | Covered | TextFlowTests.Serialize_And_Deserialize_Record_RoundTrip | Basic deserialization tested. |
-| static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence deserialization verified. |
+| static object Deserialize(TextReader tr, PType tp) | Covered | TextFlowTests.Serialize_And_Deserialize_Record_RoundTrip, TextFlowNegativeTests | Basic deserialization tested, including malformed-input failure cases. |
+| static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip, TextFlowNegativeTests | Sequence deserialization verified, with invalid-syntax failure coverage. |
 | void Skip() | Covered indirectly | Deserialization methods use it | Whitespace skipping implicitly tested. |
 | bool ReadBoolean() | Covered indirectly | Deserialization round-trips | Format preservation tested. |
 | byte ReadByte() | Covered indirectly | Type matrix deserialization | Basic type tested. |
@@ -500,8 +500,8 @@ Evidence includes test file names, test method names, and brief notes on asserti
 - Integration scenarios in USequence (load, build, index queries).
 
 ### Partially covered or missing areas
-- Close() operations across classes (covered indirectly in reopen scenarios).
-- USequence lifecycle methods (`Clear`, `Flush`, `Close`) remain mostly indirectly covered.
+- Close() operations across classes now have direct coverage in `UniversalSequenceBase`.
+- USequence lifecycle methods now have direct tests for `Clear`, `Flush`, and `Close`.
 - TextFlow instance methods (covered indirectly via static deserialization).
 
 ### Honest repository-level summary
