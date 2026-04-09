@@ -1,39 +1,36 @@
 # REPOSITORY_STATE.md
 
-_Last updated: 2026-04-09_
+_Last updated: 2026-04-10_
 
 ## 1. Scope of this document
 
-This document fixes the current technical and repository-level state of the `Polar.DB` repository after the accepted changes of the current work cycle and the newer package/documentation update merged into `main`.
+This document fixes the current technical state of the PolarDB repository based on the changes implemented in the current work cycle.
 
-It is intended to answer five questions quickly:
+It is intended to answer four questions quickly:
 
 1. what is already implemented and should be treated as current behavior;
 2. what invariants are now important for further work;
-3. what is now part of the public-facing package/documentation baseline;
-4. what is still risky or incomplete;
-5. what the most logical next steps are.
+3. what is still risky or incomplete;
+4. what the most logical next steps are.
 
-This is a repository-state document, not a full historical changelog.  
-The goal is to describe the **current working model** of the codebase and repository baseline.
+This is a repository-state document, not a change log. The goal is to describe the **current working model** of the codebase after the accepted changes.
 
 ---
 
 ## 2. Current repository state
 
-The repository centered around `Polar.DB` is currently in a state where the main work of this stage is concentrated around five areas:
+PolarDB is currently in a state where the main work of this stage was concentrated around four areas:
 
 - correctness of `Polar` type round-tripping;
 - reliability of sequence state / recovery / refresh behavior;
 - safer and more ergonomic work with records and indexes;
-- stronger solution/tooling/test baseline;
-- a newer package/documentation baseline merged into `main`.
+- stronger solution/tooling/test baseline.
 
-In practical terms, the repository is now more consistent in the places where previously there was risk of silent corruption, wrong reconstruction after restart, subtle boundary bugs, or an unclear gap between internal code changes and the public-facing package/documentation state.
+In practical terms, the repository is now noticeably more consistent in the places where previously there was risk of silent corruption, wrong reconstruction after restart, or subtle boundary bugs.
 
 ---
 
-## 3. Core repository state
+## 3. Core technical state
 
 ### 3.1. `PType <=> object` round-trip is no longer lossy for the fixed cases covered in this stage
 
@@ -182,13 +179,20 @@ At the solution level:
 - `global.json` was added to pin SDK selection to .NET 10;
 - `Polar.DB` was moved to multi-targeting.
 
-Supported Frameworks are now documented in one canonical source:
+Current target frameworks:
 
-- `README.md` -> `## Supported Frameworks`
+- `netstandard2.0`
+- `netstandard2.1`
+- `net7.0`
+- `net8.0`
+- `net10.0`
 
-This avoids framework-list drift across docs. The main library project file is the implementation source, and README is the canonical public documentation source.
+This is a pragmatic state:
 
-**Current expectation:** contributors should treat SDK choice as repository-controlled and update README + project frameworks together.
+- repository development uses a pinned modern SDK baseline;
+- the library remains consumable across a wider runtime surface.
+
+**Current expectation:** contributors should treat SDK choice as repository-controlled, while library consumers can still target broader .NET environments.
 
 ---
 
@@ -218,7 +222,6 @@ Tested behaviors include:
 
 ---
 
-
 ## 4. Repository invariants that should now be treated as important
 
 The following invariants appear to be the most important current ones for further development.
@@ -247,19 +250,11 @@ Index/state persistence must reflect finalized data, not an intermediate state.
 
 Where possible, schema-aware named access is preferable.
 
-### 4.7. Public package/documentation state should not drift away from repository reality
-
-A newer package/documentation baseline now exists in `main`, so future work should avoid creating drift between:
-
-- what the code actually guarantees;
-- what the package exposes;
-- what the documentation promises.
-
 ---
 
 ## 5. What is already in a reasonably good state
 
-Based on the implemented changes and the newer merged baseline, the following areas look materially improved:
+Based on the implemented changes, the following areas look materially improved:
 
 - type metadata round-trip correctness for the covered `PType` cases;
 - restart/recovery correctness for sequences;
@@ -268,8 +263,7 @@ Based on the implemented changes and the newer merged baseline, the following ar
 - correctness of duplicate-key index start lookup;
 - developer ergonomics for records via `RecordAccessor`;
 - SDK/target-framework baseline clarity;
-- regression protection for the main fixes of this cycle;
-- repository-level package/documentation baseline in `main`.
+- regression protection for the main fixes of this cycle.
 
 ---
 
@@ -303,15 +297,6 @@ This area should still be treated conservatively.
 ### 6.4. Test coverage is stronger, but not equal to full storage-model proof
 
 The repository is in a better state than before, but the test project covers the key repaired behaviors of this stage, not every possible storage corruption or concurrency scenario.
-
-### 6.5. Documentation/package freshness still needs explicit maintenance discipline
-
-Even after the newer merge into `main`, documentation and package state can drift again unless they are maintained deliberately.
-
-The repository will benefit from a simple rule:
-
-- meaningful behavior changes should be reflected in tests;
-- externally visible changes should be reflected in package and documentation notes.
 
 ---
 
@@ -347,17 +332,7 @@ Especially valuable:
 - larger duplicate-key index ranges;
 - repeated restart/refresh cycles.
 
-### 7.4. Keep public documentation aligned with executable behavior
-
-The repository now has a stronger technical core and a newer documentation baseline.  
-The next useful discipline is to make sure that package/docs updates continue to track:
-
-- current invariants;
-- supported target frameworks;
-- known storage-model constraints;
-- practical usage examples.
-
-### 7.5. Continue pushing API clarity over implicit low-level behavior
+### 7.4. Continue pushing API clarity over implicit low-level behavior
 
 The addition of `RecordAccessor` is a good sign. The repository benefits when behavior is expressed in semantic APIs rather than through fragile positional conventions or incidental stream state.
 
@@ -365,7 +340,7 @@ The addition of `RecordAccessor` is a good sign. The repository benefits when be
 
 ## 8. Practical summary
 
-At the end of this stage, the repository centered around `Polar.DB` is in a meaningfully better state in the parts that matter most for correctness:
+At the end of this stage, PolarDB is in a meaningfully better state in the parts that matter most for correctness:
 
 - schema round-trip is less lossy;
 - sequence state is based on logical data boundaries;
@@ -373,136 +348,129 @@ At the end of this stage, the repository centered around `Polar.DB` is in a mean
 - index boundary lookup is more correct;
 - record handling is more expressive;
 - build order is more consistent;
-- tests now anchor the repaired behaviors;
-- `main` now also reflects a newer package/documentation baseline.
+- tests now anchor the repaired behaviors.
 
 The main remaining architectural pressure is no longer “basic correctness is obviously broken”, but rather:
 
 - how to make state management operationally cleaner;
 - how to reduce refresh/recovery cost while keeping correctness;
-- how far to formalize invariants around append/rewrite behavior;
-- how to keep public package/documentation state aligned with the real repository behavior.
+- how far to formalize invariants around append/rewrite behavior.
 
 That is a much healthier next problem to have.
-
 ---
 
 ## Public API test coverage map
 
 ### Methodology
-This coverage map is based on a static audit of the current repository code and test files in `tests/Polar.DB.Tests`. Coverage statuses are assigned conservatively:
+This coverage map is based on a conservative audit of the current repository code and current test files in `tests/Polar.DB.Tests`.
 
-- **Covered**: The method is exercised by tests and its behavior is directly asserted (e.g., return values, state changes, exceptions).
-- **Partially covered**: The method is exercised indirectly or only some important branches/contracts are asserted.
-- **Covered indirectly**: The method is reached through higher-level tests but lacks direct focused assertions for its own contract.
-- **Not found in tests**: No convincing evidence of usage in tests.
+Coverage statuses mean:
 
-Evidence includes test file names, test method names, and brief notes on assertions. The audit focuses on public methods of main library classes: `UniversalSequenceBase`, `USequence`, `RecordAccessor`, `ByteFlow`, `TextFlow`, and other public classes in `src/Polar.DB`.
+- **Covered**: the method is exercised by tests and its behavior is directly asserted.
+- **Partially covered**: the method is exercised, but only some relevant branches or contracts are asserted.
+- **Covered indirectly**: the method is reached through higher-level tests, but there is no direct focused assertion for its own contract.
+- **Not found in tests**: no convincing current test usage was found.
+
+This is a behavioral/static audit, not a line-coverage or branch-coverage report.
 
 ### Per-class coverage
 
 #### UniversalSequenceBase
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| UniversalSequenceBase(PType tp_el, Stream media) | Covered | UniversalSequenceBaseRecoveryTests, UniversalSequenceBaseRefreshTests, UniversalSequenceBaseCoreTests | Constructor invoked in test helpers; recovery logic tested extensively. |
-| void Clear() | Covered | UniversalSequenceBaseCoreTests.Clear_ResetsState_And_SetsAppendOffsetTo8 | Directly tests clearing sequence and resetting header. |
-| void Flush() | Covered | UniversalSequenceBaseCoreTests.Flush_WritesHeader_And_PreservesPosition, Flush_On_EmptySequence_WritesHeader | Tests header writing and position preservation. |
-| void Close() | Covered | UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState, UniversalSequenceBaseCloseTests | Reopen scenarios plus direct close-and-reopen test. |
-| void Refresh() | Covered | UniversalSequenceBaseRefreshTests (5+ dedicated tests) | Comprehensive tests for recovery from corrupted/modified streams. |
-| long Count() | Covered | UniversalSequenceBaseCoreTests (multiple), RecoveryTests, RefreshTests | Used in nearly every test to verify element count. |
-| long ElementOffset(long ind) | Covered | UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly, ElementOffset_WithoutArgument_ReturnsAppendOffset | Tests fixed-size offset calculation. |
-| long ElementOffset() | Covered | UniversalSequenceBaseCoreTests, UniversalSequenceBaseOverwriteTests | Tests append offset retrieval. |
-| long AppendElement(object v) | Covered | UniversalSequenceBaseCoreTests.AppendElement_UsesLogicalTail_UpdatesState_AndRestoresPosition, Append_Many_FixedSize_Elements_Updates_Count_And_AppendOffset, multiple test files | Extensively tested with fixed and variable-size elements; return offset and state updates asserted. |
-| object GetElement() | Covered | UniversalSequenceBaseLowLevelPrimitiveTests.GetElement_From_Current_Stream_Position_Reads_Current_Record | Directly verifies parameterless read from current stream position. |
-| object GetElement(long off) | Covered | UniversalSequenceBaseCoreTests.GetElement_ByOffset_ReturnsValue_ForFixedSize, RefreshTests | Tests reading by offset for fixed and variable-size. |
-| object GetTypedElement(PType tp, long off) | Covered | UniversalSequenceBaseCoreTests.GetTypedElement_ByOffset_ReturnsValue | Tests deserialization with explicit type. |
-| object GetByIndex(long index) | Covered | UniversalSequenceBaseCoreTests.GetByIndex_ReturnsValues_ForFixedSize, UniversalSequenceBaseSortingTests | Used extensively for index-based access. |
-| long SetElement(object v) | Covered | UniversalSequenceBaseLowLevelPrimitiveTests.SetElement_At_Current_Stream_Position_Writes_And_Returns_Offset | Directly verifies parameterless write at current stream position, returned offset, and persisted value. |
-| void SetElement(object v, long off) | Covered | UniversalSequenceBaseCoreTests.SetElement_ByOffset_UpdatesValue, UniversalSequenceBaseOverwriteTests (5+ dedicated tests) | In-place overwrites and boundary conditions tested. |
-| void SetTypedElement(PType tp, object v, long off) | Covered | UniversalSequenceBaseCoreTests.SetTypedElement_UpdatesValue, UniversalSequenceBaseOverwriteTests | Typed element overwrite tested. |
-| IEnumerable<object> ElementValues() | Covered | UniversalSequenceBaseCoreTests.ElementValues_RestoresPosition_AfterEnumeration, ElementValues_Returns_All_VariableSize_Elements | Tests retrieval of all elements for fixed/variable-size. |
-| IEnumerable<object> ElementValues(long offset, long number) | Covered | UniversalSequenceBaseCoreTests.ElementValues_Range_Returns_Subset | Ranged retrieval tested. |
-| void Scan(Func<long, object, bool> handler) | Covered | UniversalSequenceBaseCoreTests.Scan_RestoresPosition_AfterEarlyStop | Tests scanning with early stop condition. |
-| IEnumerable<Tuple<long, object>> ElementOffsetValuePairs() | Covered | UniversalSequenceBaseCoreTests.ElementOffsetValuePairs_Returns_All | Tests offset+value pair enumeration. |
-| IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long start, long count) | Covered | UniversalSequenceBaseCoreTests.AppendElement_AfterElementOffsetValuePairsEnumeration_RestoresPosition | Ranged pair enumeration tested. |
-| void Sort32(Func<object, int> keyFunc) | Covered | UniversalSequenceBaseSortingTests (5+ tests) | Sorts using 32-bit key function; order and stability asserted. |
-| void Sort64(Func<object, long> keyFunc) | Covered | UniversalSequenceBaseSortingTests (5+ tests) | Sorts using 64-bit key function; order and stability asserted. |
+| `UniversalSequenceBase(PType tp_el, Stream media)` | Covered | `UniversalSequenceBaseRecoveryTests`, `UniversalSequenceBaseRefreshTests`, `UniversalSequenceBaseCoreTests` | Constructor recovery/normalization behavior is exercised broadly through helpers and dedicated recovery tests. |
+| `void Clear()` | Covered | `UniversalSequenceBaseCoreTests.Clear_ResetsState_And_SetsAppendOffsetTo8` | Directly asserts clearing, header reset, and append offset reset. |
+| `void Flush()` | Covered | `UniversalSequenceBaseCoreTests.Flush_WritesHeader_And_PreservesPosition`, `Flush_On_EmptySequence_WritesHeader` | Directly asserts header persistence and position preservation. |
+| `void Close()` | Covered indirectly | file-backed recovery/reopen tests | Close is used in reopen/persistence scenarios, but no dedicated direct contract test is currently tracked here. |
+| `void Refresh()` | Covered | `UniversalSequenceBaseRefreshTests` | Dedicated tests cover valid refresh, normalization boundaries, and corruption/exception cases. |
+| `long Count()` | Covered | multiple `UniversalSequenceBase*Tests` | Count is directly asserted across core, refresh, recovery, overwrite, and sorting scenarios. |
+| `long ElementOffset(long ind)` | Covered | `UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly` | Direct fixed-size offset calculation test. |
+| `long ElementOffset()` | Covered | `UniversalSequenceBaseCoreTests`, `UniversalSequenceBaseOverwriteTests` | Direct append-offset/legacy-alias usage is asserted. |
+| `long AppendElement(object v)` | Covered | `UniversalSequenceBaseCoreTests`, recovery/overwrite tests | Extensively asserted for offset, count, append tail, and recovery interactions. |
+| `object GetElement()` | Covered | `UniversalSequenceBaseLowLevelPrimitiveTests.GetElement_From_Current_Stream_Position_Reads_Current_Record` | Direct current-position low-level read contract is now tested. |
+| `object GetElement(long off)` | Covered | `UniversalSequenceBaseCoreTests.GetElement_ByOffset_ReturnsValue_ForFixedSize`, refresh/recovery tests | Direct offset-based reading is asserted. |
+| `object GetTypedElement(PType tp, long off)` | Covered | `UniversalSequenceBaseCoreTests.GetTypedElement_ByOffset_ReturnsValue` | Explicit typed read is directly asserted. |
+| `object GetByIndex(long index)` | Covered | `UniversalSequenceBaseCoreTests`, `UniversalSequenceBaseSortingTests` | Direct fixed-size index-based read is covered. |
+| `long SetElement(object v)` | Covered | `UniversalSequenceBaseLowLevelPrimitiveTests.SetElement_At_Current_Stream_Position_Writes_And_Returns_Offset` | Direct current-position low-level write contract is now tested. |
+| `void SetElement(object v, long off)` | Covered | `UniversalSequenceBaseCoreTests`, `UniversalSequenceBaseOverwriteTests` | In-place overwrite, tail boundaries, and rollback-related behavior are directly asserted. |
+| `void SetTypedElement(PType tp, object v, long off)` | Covered | `UniversalSequenceBaseCoreTests`, `UniversalSequenceBaseOverwriteTests` | Typed overwrite path is directly asserted. |
+| `IEnumerable<object> ElementValues()` | Covered | `UniversalSequenceBaseCoreTests` | Direct enumeration and position-restoration behavior are asserted. |
+| `IEnumerable<object> ElementValues(long offset, long number)` | Covered | `UniversalSequenceBaseCoreTests.ElementValues_Range_Returns_Subset` | Direct range-enumeration test exists. |
+| `void Scan(Func<long, object, bool> handler)` | Covered | `UniversalSequenceBaseCoreTests.Scan_RestoresPosition_AfterEarlyStop` | Direct scan behavior with early stop is asserted. |
+| `IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()` | Covered | `UniversalSequenceBaseCoreTests.ElementOffsetValuePairs_Returns_All` | Direct pair enumeration test exists. |
+| `IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)` | Covered | `UniversalSequenceBaseCoreTests.AppendElement_AfterElementOffsetValuePairsEnumeration_RestoresPosition` | Range pair enumeration is exercised and position restoration is asserted. |
+| `void Sort32(Func<object, int> keyFun)` | Covered | `UniversalSequenceBaseSortingTests` | Sorting by 32-bit keys is directly regression-tested. |
+| `void Sort64(Func<object, long> keyFun)` | Covered | `UniversalSequenceBaseSortingTests` | Sorting by 64-bit keys is directly regression-tested. |
 
 #### USequence
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty, IUIndex[] uindexes) | Covered | USequenceTests.Load_Skips_Empty_Records, USequenceBuildOrderTests | Integration tests use instance creation. |
-| void RestoreDynamic() | Covered | USequenceTests.RestoreDynamic_Indexes_Records_And_SavesState | Dedicated test for dynamic indexing after state file changes. |
-| void Clear() | Covered | USequenceLifecycleTests.Clear_Resets_Visible_Sequence_State_And_Keeps_Object_Reusable | Direct lifecycle reset test with reuse after clear. |
-| void Flush() | Covered | USequenceLifecycleTests.Flush_Persists_Current_State_File_Without_Build | Directly verifies flush keeps the sequence reusable and readable without Build(). |
-| void Close() | Covered | USequenceLifecycleTests.Close_Flushes_State_And_Reopen_Remains_Consistent | Direct close-and-reopen persistence test. |
-| void Refresh() | Covered | USequenceBuildOrderTests.Traversal_After_Reopen_RemainsConsistent | Tested for persistence across reopen. |
-| void Load(IEnumerable<object> flow) | Covered | USequenceTests.Load_Skips_Empty_Records | Tests loading data and skipping empty records. |
-| IEnumerable<object> ElementValues() | Covered | USequenceTests.ElementValues_And_Scan_Use_Only_Latest_Data, USequenceTraversalTests | Filters to original, non-empty records. |
-| void Scan(Func<long, object, bool> handler) | Covered | USequenceTraversalTests.Scan_Visits_Only_Original_Records | Tests filtered scanning behavior. |
-| long AppendElement(object element) | Covered | USequenceTests (multiple), USequenceBuildOrderTests | Basic append tested. |
-| void CorrectOnAppendElement(long off) | Covered | USequenceTests.CorrectOnAppendElement_Indexes_Record_And_SavesState | Indexes manually-added elements. |
-| object GetByKey(IComparable keysample) | Covered | USequenceTests.Build_Writes_State_And_Enables_Restart, USequenceBuildOrderTests | Primary key lookup extensively tested. |
-| IEnumerable<object> GetAllByValue(int nom, IComparable value, Func<object, IComparable> keyFunc, bool ascending) | Covered | USequenceBuildOrderTests.Build_FlushesSequence_BuildsAndPersistsIndexes_SavesState_And_ReopenRemainsConsistent | Secondary index searches tested. |
-| IEnumerable<object> GetAllBySample(int nom, object osample) | Covered | USequenceBuildOrderTests | Sample-based lookups tested. |
-| IEnumerable<object> GetAllByLike(int nom, object sample) | Covered | USequenceLikeTests.GetAllByLike_Returns_Expected_Matches_Excludes_Superseded_And_Empty_Records | Direct integration test with real SVectorIndex wiring; asserts expected matches and filtering semantics. |
-| void Build() | Covered | USequenceTests.Build_Writes_State_And_Enables_Restart, USequenceBuildOrderTests | State persistence and rebuild verified. |
+| `USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty, Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceTraversalTests`, `USequenceLifecycleTests` | Constructor is exercised directly by multiple integration-style tests. |
+| `void RestoreDynamic()` | Covered | `USequenceTests.RestoreDynamic_Indexes_Records_Appended_After_Last_Saved_State` | Dedicated dynamic restore contract test exists. |
+| `void Clear()` | Covered | `USequenceLifecycleTests.Clear_Resets_Visible_Sequence_State_And_Keeps_Object_Reusable` | Direct lifecycle test now asserts reset + reusability. |
+| `void Flush()` | Covered | `USequenceLifecycleTests.Flush_Persists_Current_State_File_Without_Build` | Direct lifecycle test now asserts persistence without `Build()`. |
+| `void Close()` | Covered | `USequenceLifecycleTests.Close_Flushes_State_And_Reopen_Remains_Consistent` | Direct lifecycle test now asserts close + reopen consistency. |
+| `void Refresh()` | Covered | `USequenceBuildOrderTests`, reopen/traversal tests | Reopen/refresh consistency is directly asserted. |
+| `void Load(IEnumerable<object> flow)` | Covered | `USequenceTests.Load_Skips_Empty_Records_And_Writes_State_File` | Direct loading behavior and empty-record filtering are asserted. |
+| `IEnumerable<object> ElementValues()` | Covered | `USequenceTests`, `USequenceTraversalTests`, `USequenceLifecycleTests` | Directly asserts filtering of empty/superseded records and lifecycle visibility. |
+| `void Scan(Func<long, object, bool> handler)` | Covered | `USequenceTests.ElementValues_And_Scan_Use_Only_Latest_Duplicate_Key`, `USequenceTraversalTests` | Direct filtered traversal behavior is asserted. |
+| `long AppendElement(object element)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceLifecycleTests` | Append is directly exercised and asserted across integration scenarios. |
+| `void CorrectOnAppendElement(long off)` | Covered | `USequenceTests.CorrectOnAppendElement_Indexes_Record_Added_Directly_To_Base_Sequence` | Direct helper/index-correction contract test exists. |
+| `object GetByKey(IComparable keysample)` | Covered | `USequenceTests`, `USequenceBuildOrderTests` | Primary-key lookup is directly tested. |
+| `IEnumerable<object> GetAllByValue(int nom, IComparable value, Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)` | Covered | `USequenceBuildOrderTests.Build_FlushesSequence_BuildsAndPersistsIndexes_SavesState_And_ReopenRemainsConsistent` | Real secondary index lookup behavior is asserted. |
+| `IEnumerable<object> GetAllBySample(int nom, object osample)` | Covered | `USequenceBuildOrderTests` | Direct sample-based lookup test exists. |
+| `IEnumerable<object> GetAllByLike(int nom, object sample)` | Covered | `USequenceLikeTests.GetAllByLike_Returns_Expected_Matches_Excludes_Superseded_And_Empty_Records` | Dedicated integration test now exists. |
+| `void Build()` | Covered | `USequenceTests.Build_Writes_State_And_GetByKey_Returns_Value`, `USequenceBuildOrderTests` | Build order, state save, and reopen/index consistency are asserted. |
 
 #### RecordAccessor
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| RecordAccessor(PTypeRecord recordType) | Covered | RecordAccessorTests (multiple) | Used in all test setup. |
-| PTypeRecord RecordType | Covered | RecordAccessorPropertyTests.RecordType_Returns_Original_Schema_Instance | Directly checks schema identity. |
-| int FieldCount | Covered | RecordAccessorPropertyTests.FieldCount_Returns_Number_Of_Declared_Fields | Directly checks declared field count. |
-| IEnumerable<string> FieldNames | Covered | RecordAccessorTests.FieldNames_Preserve_Schema_Order | Directly tested. |
-| bool HasField(string fieldName) | Covered | RecordAccessorTests.HasField_Returns_True_For_Existing_Field_And_False_For_Missing_Field, HasField_Throws_ArgumentNullException_For_Null | Direct positive/negative and null-argument coverage. |
-| int GetIndex(string fieldName) | Covered | RecordAccessorTests.GetIndex_Returns_Stable_Field_Position | Direct index resolution tested. |
-| PType GetFieldType(string fieldName) | Covered | RecordAccessorTests.GetFieldType_Returns_Declared_Field_Type | Directly verifies declared field type lookup by name. |
-| object[] CreateRecord() | Covered | RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length | Empty array creation tested. |
-| object[] CreateRecord(params object[] values) | Covered | RecordAccessorTests (multiple) | Array creation with values tested. |
-| void ValidateShape(object record) | Covered | RecordAccessorTests.ValidateShape_Throws_On_Invalid_Field_Count | Shape validation and error handling tested. |
-| object Get(object record, string fieldName) | Covered | RecordAccessorTests.Get_And_Set_ByFieldName_Work | Generic field retrieval tested. |
-| T Get<T>(object record, string fieldName) | Covered | RecordAccessorTests (multiple) | Typed access tested extensively. |
-| void Set(object record, string fieldName, object value) | Covered | RecordAccessorTests.Get_And_Set_ByFieldName_Work | Field modification tested. |
-| bool TryGet(object record, string fieldName, out object value) | Covered | RecordAccessorTests.TryGet_Returns_False_For_Missing_Field | Non-throwing access tested. |
-| bool TryGet<T>(object record, string fieldName, out T value) | Covered | RecordAccessorTests.TryGet_Typed_Returns_True_For_Correct_Type, TryGet_Typed_Returns_False_For_Wrong_Type | Directly verifies typed success and typed mismatch behavior. |
+| `RecordAccessor(PTypeRecord recordType)` | Covered | `RecordAccessorTests` | Constructor is exercised throughout the test suite. |
+| `PTypeRecord RecordType` | Covered indirectly | fixture usage | The property is used conceptually, but a direct property-level assertion is still desirable if needed. |
+| `int FieldCount` | Covered indirectly | `RecordAccessorTests.CreateRecord_Creates_Array_With_Expected_Field_Count` | The property is implied through create/shape assertions, but not strongly isolated as a property contract. |
+| `IEnumerable<string> FieldNames` | Covered | `RecordAccessorTests.FieldNames_Preserve_Schema_Order` | Direct order-preservation test exists. |
+| `bool HasField(string fieldName)` | Covered | `RecordAccessorTests.HasField_Returns_True_For_Existing_Field_And_False_For_Missing_Field`, `HasField_Throws_ArgumentNullException_For_Null` | Direct positive/negative/null coverage exists. |
+| `int GetIndex(string fieldName)` | Covered | `RecordAccessorTests.GetIndex_Returns_Stable_Field_Position`, `GetIndex_Throws_ArgumentNullException_For_Null` | Direct lookup and null-argument coverage exists. |
+| `PType GetFieldType(string fieldName)` | Covered | `RecordAccessorTests.GetFieldType_Returns_Declared_Field_Type` | Direct declared-type lookup test exists. |
+| `object[] CreateRecord()` | Covered indirectly | empty/minimal record tests | Parameterless create is exercised through empty-record cases, but not as a standalone focused contract. |
+| `object[] CreateRecord(params object[] values)` | Covered | multiple `RecordAccessorTests` | Correct creation, null, and wrong-count cases are asserted. |
+| `void ValidateShape(object record)` | Covered | `RecordAccessorTests.ValidateShape_Throws_On_Invalid_Field_Count`, `ValidateShape_Throws_On_NonObjectArray` | Direct shape-validation negative coverage exists. |
+| `object Get(object record, string fieldName)` | Covered | `RecordAccessorTests.Get_And_Set_By_Field_Name_Work` | Direct generic field get is asserted. |
+| `T Get<T>(object record, string fieldName)` | Covered | multiple `RecordAccessorTests` | Typed getter is directly exercised. |
+| `void Set(object record, string fieldName, object value)` | Covered | multiple `RecordAccessorTests` | Direct setter coverage exists. |
+| `bool TryGet(object record, string fieldName, out object value)` | Covered | `RecordAccessorTests.TryGet_Returns_False_For_Missing_Field` | Direct non-throwing missing-field behavior is asserted. |
+| `bool TryGet<T>(object record, string fieldName, out T value)` | Covered | `RecordAccessorTests.TryGet_Typed_Returns_True_For_Correct_Type`, `TryGet_Typed_Returns_False_For_Wrong_Type` | Direct typed success/mismatch behavior is asserted. |
 
 #### ByteFlow
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| static void Serialize(BinaryWriter bw, object v, PType tp) | Covered | ByteFlowTests (expanded primitive branch tests) | Includes direct primitive branch checks for boolean, byte, character, integer, longinteger, none, plus null-string serialization behavior. |
-| static object Deserialize(BinaryReader br, PType tp) | Covered | ByteFlowTests (expanded primitive branch tests) | Includes direct primitive deserialization checks for boolean, byte, character, integer, longinteger, and none. |
+| `static void Serialize(BinaryWriter bw, object v, PType tp)` | Covered | `ByteFlowTests` | Primitive branches (`boolean`, `byte`, `character`, `integer`, `longinteger`, `none`, `sstring` null), record, sequence, union, nested cases, and some negative cases are asserted. |
+| `static object Deserialize(BinaryReader br, PType tp)` | Covered | `ByteFlowTests` | Primitive branches, record, sequence, union, nested cases, and negative sequence-length behavior are asserted. |
 
 #### TextFlow
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| static void Serialize(TextWriter tw, object v, PType tp) | Covered | TextFlowTests, TextFlowPrimitiveTests | Record/union plus direct primitive textual branches (boolean, character, longinteger, real) are asserted. |
-| static void SerializeFormatted(TextWriter tw, object v, PType tp, int level) | Covered | TextFlowTests.SerializeFormatted_ForNestedRecord_ProducesReadableOutput | Nested formatting with line breaks tested. |
-| static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence serialization tested. |
-| static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level) | Covered | TextFlowPrimitiveTests.SerializeFlowToSequenseFormatted_Produces_Readable_Multiline_Output | Directly verifies multiline/readable formatted sequence output. |
-| static object Deserialize(TextReader tr, PType tp) | Covered | TextFlowTests.Serialize_And_Deserialize_Record_RoundTrip, TextFlowNegativeTests | Basic deserialization tested, including malformed-input failure cases. |
-| static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip, TextFlowNegativeTests | Sequence deserialization verified, with invalid-syntax failure coverage. |
-| void Skip() | Covered indirectly | Deserialization methods use it | Whitespace skipping implicitly tested. |
-| bool ReadBoolean() | Covered indirectly | Deserialization round-trips | Format preservation tested. |
-| byte ReadByte() | Covered indirectly | Type matrix deserialization | Basic type tested. |
-| char ReadChar() | Covered indirectly | Character parsing | Element parsing verified. |
-| int ReadInt32() | Covered indirectly | Integer parsing in records | Numeric parsing verified. |
-| long ReadInt64() | Covered indirectly | LongInteger parsing | Large integer handling verified. |
-| double ReadDouble() | Covered indirectly | Real number parsing | Floating-point format tested. |
-| string ReadString() | Covered | TextFlowTests.Deserialize_String_Parses_Escape_Sequences | Escape sequence handling tested. |
+| `static void Serialize(TextWriter tw, object v, PType tp)` | Covered | `TextFlowTests`, `TextFlowPrimitiveTests` | Record/union plus primitive textual branches are directly asserted. |
+| `static void SerializeFormatted(TextWriter tw, object v, PType tp, int level)` | Covered | `TextFlowTests.SerializeFormatted_ForNestedRecord_AddsLineBreaks` | Nested formatting contract is directly asserted. |
+| `static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)` | Covered | `TextFlowTests.SerializeFlowToSequense_And_DeserializeSequenseToFlow_RoundTrip` | Direct sequence serialization round-trip exists. |
+| `static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level)` | Covered | `TextFlowPrimitiveTests.SerializeFlowToSequenseFormatted_Produces_Readable_Multiline_Output` | Direct formatted sequence-output test exists. |
+| `static object Deserialize(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowPrimitiveTests` | Positive parsing of record, string, union, and primitive branches is directly asserted. |
+| `static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)` | Covered | `TextFlowTests.SerializeFlowToSequense_And_DeserializeSequenseToFlow_RoundTrip` | Positive textual sequence parsing is directly asserted. |
+| parser robustness for malformed textual input | Partially covered | existing positive/escape tests only | Dedicated negative tests for malformed input are still missing and should target the public entry points above. |
 
 ### Strongly covered areas
-- Core sequence operations (append, read, set) in UniversalSequenceBase and USequence.
-- Serialization round-trips for core ByteFlow/TextFlow paths, including newly added direct primitive branch coverage.
-- Record access and validation in RecordAccessor.
-- Persistence, recovery, and refresh behaviors.
-- Sorting operations with key functions.
-- Integration scenarios in USequence (load, build, index queries).
+- `UniversalSequenceBase` core behavior: append, overwrite, refresh/recovery, traversal helpers, sorting.
+- `USequence` build/traversal/index usage, dynamic restore, and now direct lifecycle coverage (`Clear`, `Flush`, `Close`).
+- `RecordAccessor` main ergonomic API plus helper/tolerant methods.
+- `ByteFlow` primitive and composite binary serialization round-trips.
+- `TextFlow` positive serialization/deserialization flows and formatted output.
 
 ### Partially covered or missing areas
-- Close() operations across classes now have direct coverage in `UniversalSequenceBase`.
-- USequence lifecycle methods now have direct tests for `Clear`, `Flush`, and `Close`.
-- TextFlow instance methods (covered indirectly via static deserialization).
+- Dedicated direct property tests for `RecordAccessor.RecordType` and `RecordAccessor.FieldCount` are still optional but not critical.
+- `UniversalSequenceBase.Close()` is still better described as indirectly covered unless a direct focused contract test is added.
+- `TextFlow` malformed-input / negative parser coverage is still the clearest remaining testing gap.
 
 ### Honest repository-level summary
-The main repaired behaviors (recovery, refresh, append offset semantics, index lookups, record ergonomics) are well-covered by tests. However, full library-wide public API coverage is NOT yet proven—several methods lack direct assertions, and indirect coverage does not guarantee comprehensive behavioral proof. Helper/tolerant/legacy methods may remain under-tested. This map provides a trustworthy baseline for tracking future coverage improvements.
+The repository now has strong regression coverage for the repaired behaviors that matter most: storage recovery/refresh, append-offset discipline, overwrite boundaries, key-index boundary behavior, record ergonomics, build order, lifecycle stability, and core serialization paths.
+
+What is **not** yet proven is full parser-proof robustness for malformed textual input in `TextFlow`, and a few smaller direct-public-contract/property tests remain optional polish rather than core correctness gaps.
