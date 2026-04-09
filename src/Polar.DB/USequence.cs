@@ -52,8 +52,18 @@
         public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
         public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
         public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
-        public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
+        public void Refresh()
+        {
+            sequence.Refresh();
+            primaryKeyIndex.Refresh();
+            if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
 
+            if (stateFileName != null)
+            {
+                RestoreDynamic();
+            }
+        }
+        
         public void Load(IEnumerable<object> flow)
         {
             Clear();
@@ -98,12 +108,13 @@
                 return true; // Реакция на не оригинал или пустой
             });
         }
-        public void AppendElement(object element)
+        public long AppendElement(object element)
         {
             long off = sequence.AppendElement(element);
             // Корректировка индексов
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+            return off; 
         }
         public void CorrectOnAppendElement(long off)
         {

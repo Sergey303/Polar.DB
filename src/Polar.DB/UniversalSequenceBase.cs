@@ -584,8 +584,11 @@ public class UniversalSequenceBase
 
         if (off < 8L || off > AppendOffset) throw new ArgumentOutOfRangeException(nameof(off));
 
+        EnsureAppendOffsetInvariant();
+
         long savedPosition = fs.Position;
         long originalLength = fs.Length;
+        long originalAppendOffset = AppendOffset;
         bool isAppendWrite = off == AppendOffset;
 
         try
@@ -607,12 +610,12 @@ public class UniversalSequenceBase
         }
         catch
         {
-            if (isAppendWrite && fs.Length != originalLength)
+            if (fs.Length != originalLength)
             {
                 fs.SetLength(originalLength);
-                AppendOffset = originalLength;
             }
 
+            AppendOffset = originalAppendOffset;
             throw;
         }
         finally

@@ -26,22 +26,50 @@ internal static class UniversalSequenceBaseTestHelpers
         return new UniversalSequenceBase(CreateVariableSequenceType(), stream);
     }
 
-    public static void AppendPeople(UniversalSequenceBase sequence, params object[][] rows)
-    {
-        foreach (var row in rows)
-            sequence.AppendElement(row);
-    }
-
-    public static string CreateTempFilePath(string fileName)
-    {
-        string dir = Path.Combine(Path.GetTempPath(), "PolarDbTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        return Path.Combine(dir, fileName);
-    }
-
     public static BinaryWriter CreateTailWriter(Stream stream)
     {
         return new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
+    }
+
+    public static void WriteHeader(Stream stream, long count)
+    {
+        long saved = stream.Position;
+        stream.Position = 0L;
+        using (var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true))
+        {
+            writer.Write(count);
+            writer.Flush();
+        }
+
+        stream.Position = Math.Min(saved, stream.Length);
+    }
+
+    public static void AppendFixedIntTail(Stream stream, int value)
+    {
+        stream.Position = stream.Length;
+        using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
+        writer.Write(value);
+        writer.Flush();
+    }
+
+    public static void AppendRawBytes(Stream stream, params byte[] bytes)
+    {
+        stream.Position = stream.Length;
+        stream.Write(bytes, 0, bytes.Length);
+        stream.Flush();
+    }
+
+    public static void AppendSerializedTail(Stream stream, PType type, object value)
+    {
+        stream.Position = stream.Length;
+        using var writer = CreateTailWriter(stream);
+        ByteFlow.Serialize(writer, value, type);
+        writer.Flush();
+    }
+
+    public static long HeaderCount(MemoryStream stream)
+    {
+        return BitConverter.ToInt64(stream.ToArray(), 0);
     }
 
     public sealed class TempFileScope : IDisposable
