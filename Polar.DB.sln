@@ -19,11 +19,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CB794695-B
 		BDLearningCourse.md = docs/BDLearningCourse.md
 		Concept.md = docs/Concept.md
 		Description.md = docs/Description.md
-		DevelopersComments.txt = docs/DevelopersComments.txt
 		LibsDescriptions.md = docs/LibsDescriptions.md
 		Mixture.md = docs/Mixture.md
 		Specifications.md = docs/Specifications.md
 		Starting.md = docs/Starting.md
+		REPOSITORY_STATE.md = docs/REPOSITORY_STATE.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GetStarted.SequencesAndStorage", "samples\GetStarted.SequencesAndStorage\GetStarted.SequencesAndStorage.csproj", "{DAA0D7C7-0E96-4F24-94D4-032C90D20058}"

@@ -10,6 +10,7 @@ The repository also includes index/search samples around the current public APIs
 
 - `netstandard2.0`
 - `netstandard2.1`
+- `netstandard3.1`
 - `net5.0`
 - `net6.0`
 - `net7.0`
