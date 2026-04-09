@@ -384,3 +384,127 @@ The main remaining architectural pressure is no longer “basic correctness is o
 - how to keep public package/documentation state aligned with the real repository behavior.
 
 That is a much healthier next problem to have.
+
+---
+
+## Public API test coverage map
+
+### Methodology
+This coverage map is based on a static audit of the current repository code and test files in `tests/Polar.DB.Tests`. Coverage statuses are assigned conservatively:
+
+- **Covered**: The method is exercised by tests and its behavior is directly asserted (e.g., return values, state changes, exceptions).
+- **Partially covered**: The method is exercised indirectly or only some important branches/contracts are asserted.
+- **Covered indirectly**: The method is reached through higher-level tests but lacks direct focused assertions for its own contract.
+- **Not found in tests**: No convincing evidence of usage in tests.
+
+Evidence includes test file names, test method names, and brief notes on assertions. The audit focuses on public methods of main library classes: `UniversalSequenceBase`, `USequence`, `RecordAccessor`, `ByteFlow`, `TextFlow`, and other public classes in `src/Polar.DB`.
+
+### Per-class coverage
+
+#### UniversalSequenceBase
+| Method | Status | Evidence | Notes |
+|--------|--------|----------|-------|
+| UniversalSequenceBase(PType tp_el, Stream media) | Covered | UniversalSequenceBaseRecoveryTests, UniversalSequenceBaseRefreshTests, UniversalSequenceBaseCoreTests | Constructor invoked in test helpers; recovery logic tested extensively. |
+| void Clear() | Covered | UniversalSequenceBaseCoreTests.Clear_ResetsState_And_SetsAppendOffsetTo8 | Directly tests clearing sequence and resetting header. |
+| void Flush() | Covered | UniversalSequenceBaseCoreTests.Flush_WritesHeader_And_PreservesPosition, Flush_On_EmptySequence_WritesHeader | Tests header writing and position preservation. |
+| void Close() | Covered indirectly | UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState, USequenceTests (using statements) | Used in persistence/reopen tests but no direct focused tests. |
+| void Refresh() | Covered | UniversalSequenceBaseRefreshTests (5+ dedicated tests) | Comprehensive tests for recovery from corrupted/modified streams. |
+| long Count() | Covered | UniversalSequenceBaseCoreTests (multiple), RecoveryTests, RefreshTests | Used in nearly every test to verify element count. |
+| long ElementOffset(long ind) | Covered | UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly, ElementOffset_WithoutArgument_ReturnsAppendOffset | Tests fixed-size offset calculation. |
+| long ElementOffset() | Covered | UniversalSequenceBaseCoreTests, UniversalSequenceBaseOverwriteTests | Tests append offset retrieval. |
+| long AppendElement(object v) | Covered | UniversalSequenceBaseCoreTests.AppendElement_UsesLogicalTail_UpdatesState_AndRestoresPosition, Append_Many_FixedSize_Elements_Updates_Count_And_AppendOffset, multiple test files | Extensively tested with fixed and variable-size elements; return offset and state updates asserted. |
+| object GetElement() | Not found in tests | N/A | Method exists but no direct test usage found; may be covered indirectly. |
+| object GetElement(long off) | Covered | UniversalSequenceBaseCoreTests.GetElement_ByOffset_ReturnsValue_ForFixedSize, RefreshTests | Tests reading by offset for fixed and variable-size. |
+| object GetTypedElement(PType tp, long off) | Covered | UniversalSequenceBaseCoreTests.GetTypedElement_ByOffset_ReturnsValue | Tests deserialization with explicit type. |
+| object GetByIndex(long index) | Covered | UniversalSequenceBaseCoreTests.GetByIndex_ReturnsValues_ForFixedSize, UniversalSequenceBaseSortingTests | Used extensively for index-based access. |
+| long SetElement(object v) | Not found in tests | N/A | Method exists; may be for appending at tail. |
+| void SetElement(object v, long off) | Covered | UniversalSequenceBaseCoreTests.SetElement_ByOffset_UpdatesValue, UniversalSequenceBaseOverwriteTests (5+ dedicated tests) | In-place overwrites and boundary conditions tested. |
+| void SetTypedElement(PType tp, object v, long off) | Covered | UniversalSequenceBaseCoreTests.SetTypedElement_UpdatesValue, UniversalSequenceBaseOverwriteTests | Typed element overwrite tested. |
+| IEnumerable<object> ElementValues() | Covered | UniversalSequenceBaseCoreTests.ElementValues_RestoresPosition_AfterEnumeration, ElementValues_Returns_All_VariableSize_Elements | Tests retrieval of all elements for fixed/variable-size. |
+| IEnumerable<object> ElementValues(long offset, long number) | Covered | UniversalSequenceBaseCoreTests.ElementValues_Range_Returns_Subset | Ranged retrieval tested. |
+| void Scan(Func<long, object, bool> handler) | Covered | UniversalSequenceBaseCoreTests.Scan_RestoresPosition_AfterEarlyStop | Tests scanning with early stop condition. |
+| IEnumerable<Tuple<long, object>> ElementOffsetValuePairs() | Covered | UniversalSequenceBaseCoreTests.ElementOffsetValuePairs_Returns_All | Tests offset+value pair enumeration. |
+| IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long start, long count) | Covered | UniversalSequenceBaseCoreTests.AppendElement_AfterElementOffsetValuePairsEnumeration_RestoresPosition | Ranged pair enumeration tested. |
+| void Sort32(Func<object, int> keyFunc) | Covered | UniversalSequenceBaseSortingTests (5+ tests) | Sorts using 32-bit key function; order and stability asserted. |
+| void Sort64(Func<object, long> keyFunc) | Covered | UniversalSequenceBaseSortingTests (5+ tests) | Sorts using 64-bit key function; order and stability asserted. |
+
+#### USequence
+| Method | Status | Evidence | Notes |
+|--------|--------|----------|-------|
+| USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty, IUIndex[] uindexes) | Covered | USequenceTests.Load_Skips_Empty_Records, USequenceBuildOrderTests | Integration tests use instance creation. |
+| void RestoreDynamic() | Covered | USequenceTests.RestoreDynamic_Indexes_Records_And_SavesState | Dedicated test for dynamic indexing after state file changes. |
+| void Clear() | Covered indirectly | USequenceTests.Load_Skips_Empty_Records | Called during Load() but no isolated test. |
+| void Flush() | Covered indirectly | Multiple tests call indirectly through Load() | Flushed to state file; verified through state file reading. |
+| void Close() | Covered indirectly | UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState, USequenceTests (using statements) | Used in reopen scenarios. |
+| void Refresh() | Covered | USequenceBuildOrderTests.Traversal_After_Reopen_RemainsConsistent | Tested for persistence across reopen. |
+| void Load(IEnumerable<object> flow) | Covered | USequenceTests.Load_Skips_Empty_Records | Tests loading data and skipping empty records. |
+| IEnumerable<object> ElementValues() | Covered | USequenceTests.ElementValues_And_Scan_Use_Only_Latest_Data, USequenceTraversalTests | Filters to original, non-empty records. |
+| void Scan(Func<long, object, bool> handler) | Covered | USequenceTraversalTests.Scan_Visits_Only_Original_Records | Tests filtered scanning behavior. |
+| long AppendElement(object element) | Covered | USequenceTests (multiple), USequenceBuildOrderTests | Basic append tested. |
+| void CorrectOnAppendElement(long off) | Covered | USequenceTests.CorrectOnAppendElement_Indexes_Record_And_SavesState | Indexes manually-added elements. |
+| object GetByKey(IComparable keysample) | Covered | USequenceTests.Build_Writes_State_And_Enables_Restart, USequenceBuildOrderTests | Primary key lookup extensively tested. |
+| IEnumerable<object> GetAllByValue(int nom, IComparable value, Func<object, IComparable> keyFunc, bool ascending) | Covered | USequenceBuildOrderTests.Build_FlushesSequence_BuildsAndPersistsIndexes_SavesState_And_ReopenRemainsConsistent | Secondary index searches tested. |
+| IEnumerable<object> GetAllBySample(int nom, object osample) | Covered | USequenceBuildOrderTests | Sample-based lookups tested. |
+| IEnumerable<object> GetAllByLike(int nom, object sample) | Not found in tests | N/A | Method exists but no direct test usage. |
+| void Build() | Covered | USequenceTests.Build_Writes_State_And_Enables_Restart, USequenceBuildOrderTests | State persistence and rebuild verified. |
+
+#### RecordAccessor
+| Method | Status | Evidence | Notes |
+|--------|--------|----------|-------|
+| RecordAccessor(PTypeRecord recordType) | Covered | RecordAccessorTests (multiple) | Used in all test setup. |
+| PTypeRecord RecordType | Covered indirectly | Test fixture construction | Type accessible via public property. |
+| int FieldCount | Covered indirectly | RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length | Verified through CreateRecord() validation. |
+| IEnumerable<string> FieldNames | Covered | RecordAccessorTests.FieldNames_Preserve_Schema_Order | Directly tested. |
+| bool HasField(string fieldName) | Covered indirectly | Error handling tests | Functionality implied in existence checks. |
+| int GetIndex(string fieldName) | Covered | RecordAccessorTests.GetIndex_Returns_Stable_Field_Position | Direct index resolution tested. |
+| PType GetFieldType(string fieldName) | Not found in tests | N/A | Method exists but no direct test. |
+| object[] CreateRecord() | Covered | RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length | Empty array creation tested. |
+| object[] CreateRecord(params object[] values) | Covered | RecordAccessorTests (multiple) | Array creation with values tested. |
+| void ValidateShape(object record) | Covered | RecordAccessorTests.ValidateShape_Throws_On_Invalid_Field_Count | Shape validation and error handling tested. |
+| object Get(object record, string fieldName) | Covered | RecordAccessorTests.Get_And_Set_ByFieldName_Work | Generic field retrieval tested. |
+| T Get<T>(object record, string fieldName) | Covered | RecordAccessorTests (multiple) | Typed access tested extensively. |
+| void Set(object record, string fieldName, object value) | Covered | RecordAccessorTests.Get_And_Set_ByFieldName_Work | Field modification tested. |
+| bool TryGet(object record, string fieldName, out object value) | Covered | RecordAccessorTests.TryGet_Returns_False_For_Missing_Field | Non-throwing access tested. |
+| bool TryGet<T>(object record, string fieldName, out T value) | Covered indirectly | Error handling flow implied | Generic TryGet tested through patterns. |
+
+#### ByteFlow
+| Method | Status | Evidence | Notes |
+|--------|--------|----------|-------|
+| static void Serialize(BinaryWriter bw, object v, PType tp) | Covered | ByteFlowTests (6+ tests) | Comprehensive type coverage including boolean, byte, character, integer, longinteger, real, string, record, sequence, union, nested structures, error cases. |
+| static object Deserialize(BinaryReader br, PType tp) | Covered | ByteFlowTests (6+ tests) | Round-trip tests verify correctness for all types. |
+
+#### TextFlow
+| Method | Status | Evidence | Notes |
+|--------|--------|----------|-------|
+| static void Serialize(TextWriter tw, object v, PType tp) | Covered | TextFlowTests (2+ tests) | Record and union serialization tested. |
+| static void SerializeFormatted(TextWriter tw, object v, PType tp, int level) | Covered | TextFlowTests.SerializeFormatted_ForNestedRecord_ProducesReadableOutput | Nested formatting with line breaks tested. |
+| static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence serialization tested. |
+| static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level) | Covered indirectly | TextFlowTests | Method exists, similar to SerializeFlowToSequense. |
+| static object Deserialize(TextReader tr, PType tp) | Covered | TextFlowTests.Serialize_And_Deserialize_Record_RoundTrip | Basic deserialization tested. |
+| static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence deserialization verified. |
+| void Skip() | Covered indirectly | Deserialization methods use it | Whitespace skipping implicitly tested. |
+| bool ReadBoolean() | Covered indirectly | Deserialization round-trips | Format preservation tested. |
+| byte ReadByte() | Covered indirectly | Type matrix deserialization | Basic type tested. |
+| char ReadChar() | Covered indirectly | Character parsing | Element parsing verified. |
+| int ReadInt32() | Covered indirectly | Integer parsing in records | Numeric parsing verified. |
+| long ReadInt64() | Covered indirectly | LongInteger parsing | Large integer handling verified. |
+| double ReadDouble() | Covered indirectly | Real number parsing | Floating-point format tested. |
+| string ReadString() | Covered | TextFlowTests.Deserialize_String_Parses_Escape_Sequences | Escape sequence handling tested. |
+
+### Strongly covered areas
+- Core sequence operations (append, read, set) in UniversalSequenceBase and USequence.
+- Serialization round-trips for all PType variants in ByteFlow and TextFlow.
+- Record access and validation in RecordAccessor.
+- Persistence, recovery, and refresh behaviors.
+- Sorting operations with key functions.
+- Integration scenarios in USequence (load, build, index queries).
+
+### Partially covered or missing areas
+- Close() operations across classes (covered indirectly in reopen scenarios).
+- Some overloads like GetElement() (parameterless) and SetElement(object) in UniversalSequenceBase.
+- GetAllByLike() in USequence.
+- GetFieldType() in RecordAccessor.
+- TextFlow instance methods (covered indirectly via static deserialization).
+
+### Honest repository-level summary
+The main repaired behaviors (recovery, refresh, append offset semantics, index lookups, record ergonomics) are well-covered by tests. However, full library-wide public API coverage is NOT yet proven—several methods lack direct assertions, and indirect coverage does not guarantee comprehensive behavioral proof. Helper/tolerant/legacy methods may remain under-tested. This map provides a trustworthy baseline for tracking future coverage improvements.
