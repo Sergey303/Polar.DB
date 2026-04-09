@@ -1,6 +1,6 @@
 # REPOSITORY_STATE.md
 
-_Last updated: 2026-04-08_
+_Last updated: 2026-04-09_
 
 ## 1. Scope of this document
 
@@ -413,11 +413,11 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | long ElementOffset(long ind) | Covered | UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly, ElementOffset_WithoutArgument_ReturnsAppendOffset | Tests fixed-size offset calculation. |
 | long ElementOffset() | Covered | UniversalSequenceBaseCoreTests, UniversalSequenceBaseOverwriteTests | Tests append offset retrieval. |
 | long AppendElement(object v) | Covered | UniversalSequenceBaseCoreTests.AppendElement_UsesLogicalTail_UpdatesState_AndRestoresPosition, Append_Many_FixedSize_Elements_Updates_Count_And_AppendOffset, multiple test files | Extensively tested with fixed and variable-size elements; return offset and state updates asserted. |
-| object GetElement() | Not found in tests | N/A | Method exists but no direct test usage found; may be covered indirectly. |
+| object GetElement() | Covered | UniversalSequenceBaseLowLevelPrimitiveTests.GetElement_From_Current_Stream_Position_Reads_Current_Record | Directly verifies parameterless read from current stream position. |
 | object GetElement(long off) | Covered | UniversalSequenceBaseCoreTests.GetElement_ByOffset_ReturnsValue_ForFixedSize, RefreshTests | Tests reading by offset for fixed and variable-size. |
 | object GetTypedElement(PType tp, long off) | Covered | UniversalSequenceBaseCoreTests.GetTypedElement_ByOffset_ReturnsValue | Tests deserialization with explicit type. |
 | object GetByIndex(long index) | Covered | UniversalSequenceBaseCoreTests.GetByIndex_ReturnsValues_ForFixedSize, UniversalSequenceBaseSortingTests | Used extensively for index-based access. |
-| long SetElement(object v) | Not found in tests | N/A | Method exists; may be for appending at tail. |
+| long SetElement(object v) | Covered | UniversalSequenceBaseLowLevelPrimitiveTests.SetElement_At_Current_Stream_Position_Writes_And_Returns_Offset | Directly verifies parameterless write at current stream position, returned offset, and persisted value. |
 | void SetElement(object v, long off) | Covered | UniversalSequenceBaseCoreTests.SetElement_ByOffset_UpdatesValue, UniversalSequenceBaseOverwriteTests (5+ dedicated tests) | In-place overwrites and boundary conditions tested. |
 | void SetTypedElement(PType tp, object v, long off) | Covered | UniversalSequenceBaseCoreTests.SetTypedElement_UpdatesValue, UniversalSequenceBaseOverwriteTests | Typed element overwrite tested. |
 | IEnumerable<object> ElementValues() | Covered | UniversalSequenceBaseCoreTests.ElementValues_RestoresPosition_AfterEnumeration, ElementValues_Returns_All_VariableSize_Elements | Tests retrieval of all elements for fixed/variable-size. |
@@ -445,7 +445,7 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | object GetByKey(IComparable keysample) | Covered | USequenceTests.Build_Writes_State_And_Enables_Restart, USequenceBuildOrderTests | Primary key lookup extensively tested. |
 | IEnumerable<object> GetAllByValue(int nom, IComparable value, Func<object, IComparable> keyFunc, bool ascending) | Covered | USequenceBuildOrderTests.Build_FlushesSequence_BuildsAndPersistsIndexes_SavesState_And_ReopenRemainsConsistent | Secondary index searches tested. |
 | IEnumerable<object> GetAllBySample(int nom, object osample) | Covered | USequenceBuildOrderTests | Sample-based lookups tested. |
-| IEnumerable<object> GetAllByLike(int nom, object sample) | Not found in tests | N/A | Method exists but no direct test usage. |
+| IEnumerable<object> GetAllByLike(int nom, object sample) | Covered | USequenceLikeTests.GetAllByLike_Returns_Expected_Matches_Excludes_Superseded_And_Empty_Records | Direct integration test with real SVectorIndex wiring; asserts expected matches and filtering semantics. |
 | void Build() | Covered | USequenceTests.Build_Writes_State_And_Enables_Restart, USequenceBuildOrderTests | State persistence and rebuild verified. |
 
 #### RecordAccessor
@@ -455,9 +455,9 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | PTypeRecord RecordType | Covered indirectly | Test fixture construction | Type accessible via public property. |
 | int FieldCount | Covered indirectly | RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length | Verified through CreateRecord() validation. |
 | IEnumerable<string> FieldNames | Covered | RecordAccessorTests.FieldNames_Preserve_Schema_Order | Directly tested. |
-| bool HasField(string fieldName) | Covered indirectly | Error handling tests | Functionality implied in existence checks. |
+| bool HasField(string fieldName) | Covered | RecordAccessorTests.HasField_Returns_True_For_Existing_Field_And_False_For_Missing_Field, HasField_Throws_ArgumentNullException_For_Null | Direct positive/negative and null-argument coverage. |
 | int GetIndex(string fieldName) | Covered | RecordAccessorTests.GetIndex_Returns_Stable_Field_Position | Direct index resolution tested. |
-| PType GetFieldType(string fieldName) | Not found in tests | N/A | Method exists but no direct test. |
+| PType GetFieldType(string fieldName) | Covered | RecordAccessorTests.GetFieldType_Returns_Declared_Field_Type | Directly verifies declared field type lookup by name. |
 | object[] CreateRecord() | Covered | RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length | Empty array creation tested. |
 | object[] CreateRecord(params object[] values) | Covered | RecordAccessorTests (multiple) | Array creation with values tested. |
 | void ValidateShape(object record) | Covered | RecordAccessorTests.ValidateShape_Throws_On_Invalid_Field_Count | Shape validation and error handling tested. |
@@ -465,21 +465,21 @@ Evidence includes test file names, test method names, and brief notes on asserti
 | T Get<T>(object record, string fieldName) | Covered | RecordAccessorTests (multiple) | Typed access tested extensively. |
 | void Set(object record, string fieldName, object value) | Covered | RecordAccessorTests.Get_And_Set_ByFieldName_Work | Field modification tested. |
 | bool TryGet(object record, string fieldName, out object value) | Covered | RecordAccessorTests.TryGet_Returns_False_For_Missing_Field | Non-throwing access tested. |
-| bool TryGet<T>(object record, string fieldName, out T value) | Covered indirectly | Error handling flow implied | Generic TryGet tested through patterns. |
+| bool TryGet<T>(object record, string fieldName, out T value) | Covered | RecordAccessorTests.TryGet_Typed_Returns_True_For_Correct_Type, TryGet_Typed_Returns_False_For_Wrong_Type | Directly verifies typed success and typed mismatch behavior. |
 
 #### ByteFlow
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| static void Serialize(BinaryWriter bw, object v, PType tp) | Covered | ByteFlowTests (6+ tests) | Comprehensive type coverage including boolean, byte, character, integer, longinteger, real, string, record, sequence, union, nested structures, error cases. |
-| static object Deserialize(BinaryReader br, PType tp) | Covered | ByteFlowTests (6+ tests) | Round-trip tests verify correctness for all types. |
+| static void Serialize(BinaryWriter bw, object v, PType tp) | Covered | ByteFlowTests (expanded primitive branch tests) | Includes direct primitive branch checks for boolean, byte, character, integer, longinteger, none, plus null-string serialization behavior. |
+| static object Deserialize(BinaryReader br, PType tp) | Covered | ByteFlowTests (expanded primitive branch tests) | Includes direct primitive deserialization checks for boolean, byte, character, integer, longinteger, and none. |
 
 #### TextFlow
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| static void Serialize(TextWriter tw, object v, PType tp) | Covered | TextFlowTests (2+ tests) | Record and union serialization tested. |
+| static void Serialize(TextWriter tw, object v, PType tp) | Covered | TextFlowTests, TextFlowPrimitiveTests | Record/union plus direct primitive textual branches (boolean, character, longinteger, real) are asserted. |
 | static void SerializeFormatted(TextWriter tw, object v, PType tp, int level) | Covered | TextFlowTests.SerializeFormatted_ForNestedRecord_ProducesReadableOutput | Nested formatting with line breaks tested. |
 | static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence serialization tested. |
-| static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level) | Covered indirectly | TextFlowTests | Method exists, similar to SerializeFlowToSequense. |
+| static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level) | Covered | TextFlowPrimitiveTests.SerializeFlowToSequenseFormatted_Produces_Readable_Multiline_Output | Directly verifies multiline/readable formatted sequence output. |
 | static object Deserialize(TextReader tr, PType tp) | Covered | TextFlowTests.Serialize_And_Deserialize_Record_RoundTrip | Basic deserialization tested. |
 | static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp) | Covered | TextFlowTests.SerializeFlowToSequense_And_Deserialize_RoundTrip | Sequence deserialization verified. |
 | void Skip() | Covered indirectly | Deserialization methods use it | Whitespace skipping implicitly tested. |
@@ -493,7 +493,7 @@ Evidence includes test file names, test method names, and brief notes on asserti
 
 ### Strongly covered areas
 - Core sequence operations (append, read, set) in UniversalSequenceBase and USequence.
-- Serialization round-trips for all PType variants in ByteFlow and TextFlow.
+- Serialization round-trips for core ByteFlow/TextFlow paths, including newly added direct primitive branch coverage.
 - Record access and validation in RecordAccessor.
 - Persistence, recovery, and refresh behaviors.
 - Sorting operations with key functions.
@@ -501,9 +501,7 @@ Evidence includes test file names, test method names, and brief notes on asserti
 
 ### Partially covered or missing areas
 - Close() operations across classes (covered indirectly in reopen scenarios).
-- Some overloads like GetElement() (parameterless) and SetElement(object) in UniversalSequenceBase.
-- GetAllByLike() in USequence.
-- GetFieldType() in RecordAccessor.
+- USequence lifecycle methods (`Clear`, `Flush`, `Close`) remain mostly indirectly covered.
 - TextFlow instance methods (covered indirectly via static deserialization).
 
 ### Honest repository-level summary

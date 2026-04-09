@@ -183,4 +183,76 @@ public class RecordAccessorTests
         oneFieldAccessor.Set(record, "id", 43);
         Assert.Equal(43, oneFieldAccessor.Get<int>(record, "id"));
     }
+
+    [Fact]
+    public void HasField_Returns_True_For_Existing_Field_And_False_For_Missing_Field()
+    {
+        Assert.True(PersonAccessor.HasField("id"));
+        Assert.False(PersonAccessor.HasField("missing"));
+    }
+
+    [Fact]
+    public void HasField_Throws_ArgumentNullException_For_Null()
+    {
+        Assert.Throws<ArgumentNullException>(() => PersonAccessor.HasField(null!));
+    }
+
+    [Fact]
+    public void GetFieldType_Returns_Declared_Field_Type()
+    {
+        var idType = PersonAccessor.GetFieldType("id");
+        var nameType = PersonAccessor.GetFieldType("name");
+
+        Assert.Equal(PTypeEnumeration.integer, idType.Vid);
+        Assert.Equal(PTypeEnumeration.sstring, nameType.Vid);
+    }
+
+    [Fact]
+    public void GetIndex_Throws_ArgumentNullException_For_Null()
+    {
+        Assert.Throws<ArgumentNullException>(() => PersonAccessor.GetIndex(null!));
+    }
+
+    [Fact]
+    public void TryGet_Typed_Returns_True_For_Correct_Type()
+    {
+        object record = new object[] { 7, "Ivanov", 20 };
+
+        var ok = PersonAccessor.TryGet<int>(record, "age", out var age);
+
+        Assert.True(ok);
+        Assert.Equal(20, age);
+    }
+
+    [Fact]
+    public void TryGet_Typed_Returns_False_For_Wrong_Type()
+    {
+        object record = new object[] { 7, "Ivanov", 20 };
+
+        var ok = PersonAccessor.TryGet<string>(record, "age", out var wrongTypeValue);
+
+        Assert.False(ok);
+        Assert.Null(wrongTypeValue);
+    }
+
+    [Fact]
+    public void ValidateShape_Throws_On_NonObjectArray()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => PersonAccessor.ValidateShape("not-an-array"));
+        Assert.Contains("Record value must be object[]", ex.Message);
+    }
+
+    [Fact]
+    public void CreateRecord_Params_Throws_On_Null()
+    {
+        object[]? values = null;
+        Assert.Throws<ArgumentNullException>(() => PersonAccessor.CreateRecord(values!));
+    }
+
+    [Fact]
+    public void CreateRecord_Params_Throws_On_Wrong_Field_Count()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => PersonAccessor.CreateRecord(1, "OnlyTwo"));
+        Assert.Contains("Record field count mismatch", ex.Message);
+    }
 }

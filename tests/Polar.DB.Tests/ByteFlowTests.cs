@@ -6,6 +6,54 @@ namespace Polar.DB.Tests;
 public class ByteFlowTests
 {
     [Fact]
+    public void Serialize_And_Deserialize_Boolean_RoundTrip()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+        ByteFlow.Serialize(writer, true, new PType(PTypeEnumeration.boolean));
+        writer.Flush();
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.boolean));
+
+        Assert.True(Assert.IsType<bool>(restored));
+    }
+
+    [Fact]
+    public void Serialize_And_Deserialize_Byte_RoundTrip()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+        ByteFlow.Serialize(writer, (byte)0xAB, new PType(PTypeEnumeration.@byte));
+        writer.Flush();
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.@byte));
+
+        Assert.Equal((byte)0xAB, Assert.IsType<byte>(restored));
+    }
+
+    [Fact]
+    public void Serialize_And_Deserialize_Character_RoundTrip()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+        ByteFlow.Serialize(writer, 'Z', new PType(PTypeEnumeration.character));
+        writer.Flush();
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.character));
+
+        Assert.Equal('Z', Assert.IsType<char>(restored));
+    }
+
+    [Fact]
     public void Serialize_And_Deserialize_Integer_RoundTrip()
     {
         using var stream = new MemoryStream();
@@ -19,6 +67,55 @@ public class ByteFlowTests
         object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.integer));
 
         Assert.Equal(12345, Assert.IsType<int>(restored));
+    }
+
+    [Fact]
+    public void Serialize_And_Deserialize_LongInteger_RoundTrip()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+        ByteFlow.Serialize(writer, 1234567890123L, new PType(PTypeEnumeration.longinteger));
+        writer.Flush();
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.longinteger));
+
+        Assert.Equal(1234567890123L, Assert.IsType<long>(restored));
+    }
+
+    [Fact]
+    public void Serialize_And_Deserialize_None_RoundTrip()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+        ByteFlow.Serialize(writer, new object(), new PType(PTypeEnumeration.none));
+        writer.Flush();
+        Assert.Equal(0L, stream.Length);
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.none));
+
+        Assert.Null(restored);
+    }
+
+    [Fact]
+    public void Serialize_String_Null_Becomes_Empty_String()
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+        ByteFlow.Serialize(writer, null!, new PType(PTypeEnumeration.sstring));
+        writer.Flush();
+        stream.Position = 0;
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.sstring));
+
+        Assert.Equal(string.Empty, Assert.IsType<string>(restored));
     }
 
     [Fact]
