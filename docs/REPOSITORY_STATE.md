@@ -381,7 +381,7 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 | `UniversalSequenceBase(PType tp_el, Stream media)` | Covered | `UniversalSequenceBaseRecoveryTests`, `UniversalSequenceBaseRefreshTests`, `UniversalSequenceBaseCoreTests` | Constructor recovery/normalization behavior is exercised broadly through helpers and dedicated recovery tests. |
 | `void Clear()` | Covered | `UniversalSequenceBaseCoreTests.Clear_ResetsState_And_SetsAppendOffsetTo8` | Directly asserts clearing, header reset, and append offset reset. |
 | `void Flush()` | Covered | `UniversalSequenceBaseCoreTests.Flush_WritesHeader_And_PreservesPosition`, `Flush_On_EmptySequence_WritesHeader` | Directly asserts header persistence and position preservation. |
-| `void Close()` | Covered indirectly | file-backed recovery/reopen tests | Close is used in reopen/persistence scenarios, but no dedicated direct contract test is currently tracked here. |
+| `void Close()` | Covered | `UniversalSequenceBaseRecoveryTests.FileBacked_Restart_AfterClose_RebuildsState`, `UniversalSequenceBaseCloseTests.Close_Flushes_Header_And_Allows_Reopen_With_Consistent_State` | Reopen scenarios plus a direct close-and-reopen contract test exist. |
 | `void Refresh()` | Covered | `UniversalSequenceBaseRefreshTests` | Dedicated tests cover valid refresh, normalization boundaries, and corruption/exception cases. |
 | `long Count()` | Covered | multiple `UniversalSequenceBase*Tests` | Count is directly asserted across core, refresh, recovery, overwrite, and sorting scenarios. |
 | `long ElementOffset(long ind)` | Covered | `UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly` | Direct fixed-size offset calculation test. |
@@ -426,13 +426,13 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
 | `RecordAccessor(PTypeRecord recordType)` | Covered | `RecordAccessorTests` | Constructor is exercised throughout the test suite. |
-| `PTypeRecord RecordType` | Covered indirectly | fixture usage | The property is used conceptually, but a direct property-level assertion is still desirable if needed. |
-| `int FieldCount` | Covered indirectly | `RecordAccessorTests.CreateRecord_Creates_Array_With_Expected_Field_Count` | The property is implied through create/shape assertions, but not strongly isolated as a property contract. |
+| `PTypeRecord RecordType` | Covered | `RecordAccessorPropertyTests.RecordType_Returns_Original_Schema_Instance` | Direct property-level schema identity assertion exists. |
+| `int FieldCount` | Covered | `RecordAccessorPropertyTests.FieldCount_Returns_Number_Of_Declared_Fields` | Direct property-level declared field count assertion exists. |
 | `IEnumerable<string> FieldNames` | Covered | `RecordAccessorTests.FieldNames_Preserve_Schema_Order` | Direct order-preservation test exists. |
 | `bool HasField(string fieldName)` | Covered | `RecordAccessorTests.HasField_Returns_True_For_Existing_Field_And_False_For_Missing_Field`, `HasField_Throws_ArgumentNullException_For_Null` | Direct positive/negative/null coverage exists. |
 | `int GetIndex(string fieldName)` | Covered | `RecordAccessorTests.GetIndex_Returns_Stable_Field_Position`, `GetIndex_Throws_ArgumentNullException_For_Null` | Direct lookup and null-argument coverage exists. |
 | `PType GetFieldType(string fieldName)` | Covered | `RecordAccessorTests.GetFieldType_Returns_Declared_Field_Type` | Direct declared-type lookup test exists. |
-| `object[] CreateRecord()` | Covered indirectly | empty/minimal record tests | Parameterless create is exercised through empty-record cases, but not as a standalone focused contract. |
+| `object[] CreateRecord()` | Covered | `RecordAccessorTests.CreateRecord_Creates_Array_With_Correct_Length` | Parameterless record creation is directly asserted. |
 | `object[] CreateRecord(params object[] values)` | Covered | multiple `RecordAccessorTests` | Correct creation, null, and wrong-count cases are asserted. |
 | `void ValidateShape(object record)` | Covered | `RecordAccessorTests.ValidateShape_Throws_On_Invalid_Field_Count`, `ValidateShape_Throws_On_NonObjectArray` | Direct shape-validation negative coverage exists. |
 | `object Get(object record, string fieldName)` | Covered | `RecordAccessorTests.Get_And_Set_By_Field_Name_Work` | Direct generic field get is asserted. |
@@ -454,23 +454,30 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 | `static void SerializeFormatted(TextWriter tw, object v, PType tp, int level)` | Covered | `TextFlowTests.SerializeFormatted_ForNestedRecord_AddsLineBreaks` | Nested formatting contract is directly asserted. |
 | `static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)` | Covered | `TextFlowTests.SerializeFlowToSequense_And_DeserializeSequenseToFlow_RoundTrip` | Direct sequence serialization round-trip exists. |
 | `static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level)` | Covered | `TextFlowPrimitiveTests.SerializeFlowToSequenseFormatted_Produces_Readable_Multiline_Output` | Direct formatted sequence-output test exists. |
-| `static object Deserialize(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowPrimitiveTests` | Positive parsing of record, string, union, and primitive branches is directly asserted. |
-| `static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)` | Covered | `TextFlowTests.SerializeFlowToSequense_And_DeserializeSequenseToFlow_RoundTrip` | Positive textual sequence parsing is directly asserted. |
-| parser robustness for malformed textual input | Partially covered | existing positive/escape tests only | Dedicated negative tests for malformed input are still missing and should target the public entry points above. |
+| `static object Deserialize(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowPrimitiveTests`, `TextFlowNegativeTests` | Positive parsing plus malformed-input failure cases are directly asserted. |
+| `static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)` | Covered | `TextFlowTests.SerializeFlowToSequense_And_DeserializeSequenseToFlow_RoundTrip`, `TextFlowNegativeTests` | Positive textual sequence parsing plus malformed-input failure cases are directly asserted. |
+| `void Skip()` | Covered | `TextFlowReaderPrimitiveTests.Skip_Skips_Leading_Whitespace_Before_ReadInt32` | Direct instance-method whitespace skipping is asserted via reflection against the public reader API. |
+| `bool ReadBoolean()` | Covered | `TextFlowReaderPrimitiveTests.ReadBoolean_Parses_Serialized_Boolean` | Direct instance-method boolean parsing is asserted via reflection. |
+| `byte ReadByte()` | Covered | `TextFlowReaderPrimitiveTests.ReadByte_Parses_Serialized_Byte` | Direct instance-method byte parsing is asserted via reflection. |
+| `char ReadChar()` | Covered | `TextFlowReaderPrimitiveTests.ReadChar_Parses_Serialized_Character` | Direct instance-method character parsing is asserted via reflection. |
+| `int ReadInt32()` | Covered | `TextFlowReaderPrimitiveTests.Skip_Skips_Leading_Whitespace_Before_ReadInt32`, `ReadInt32_Parses_Serialized_Integer` | Direct instance-method Int32 parsing is asserted via reflection. |
+| `long ReadInt64()` | Covered | `TextFlowReaderPrimitiveTests.ReadInt64_Parses_Serialized_LongInteger` | Direct instance-method Int64 parsing is asserted via reflection. |
+| `double ReadDouble()` | Covered | `TextFlowReaderPrimitiveTests.ReadDouble_Parses_Serialized_Real` | Direct instance-method double parsing is asserted via reflection. |
+| `string ReadString()` | Covered | `TextFlowTests.Deserialize_String_Parses_Escape_Sequences`, `TextFlowReaderPrimitiveTests.ReadString_Parses_Serialized_Escaped_String` | Escape handling plus direct instance-method string parsing are asserted. |
+| parser robustness for malformed textual input | Covered | `TextFlowNegativeTests` | Dedicated malformed-input tests exist for unfinished escape, truncated record, truncated/invalid sequence text, and truncated union text. |
 
 ### Strongly covered areas
 - `UniversalSequenceBase` core behavior: append, overwrite, refresh/recovery, traversal helpers, sorting.
 - `USequence` build/traversal/index usage, dynamic restore, and now direct lifecycle coverage (`Clear`, `Flush`, `Close`).
 - `RecordAccessor` main ergonomic API plus helper/tolerant methods.
 - `ByteFlow` primitive and composite binary serialization round-trips.
-- `TextFlow` positive serialization/deserialization flows and formatted output.
+- `TextFlow` positive serialization/deserialization flows, malformed-input rejection, formatted output, and direct reader primitive methods.
 
 ### Partially covered or missing areas
-- Dedicated direct property tests for `RecordAccessor.RecordType` and `RecordAccessor.FieldCount` are still optional but not critical.
-- `UniversalSequenceBase.Close()` is still better described as indirectly covered unless a direct focused contract test is added.
-- `TextFlow` malformed-input / negative parser coverage is still the clearest remaining testing gap.
+- Full parser-proof coverage is still not the same as branch-perfect coverage, but the main `TextFlow` public entry points and reader primitives are now directly exercised.
+- Remaining gaps are now mostly small edge branches rather than missing core public-method tests.
 
 ### Honest repository-level summary
 The repository now has strong regression coverage for the repaired behaviors that matter most: storage recovery/refresh, append-offset discipline, overwrite boundaries, key-index boundary behavior, record ergonomics, build order, lifecycle stability, and core serialization paths.
 
-What is **not** yet proven is full parser-proof robustness for malformed textual input in `TextFlow`, and a few smaller direct-public-contract/property tests remain optional polish rather than core correctness gaps.
+What is **not** yet proven is exhaustive branch coverage for every parser/storage edge case; however, the remaining gaps now look like edge-branch completeness rather than missing core public-method coverage.
