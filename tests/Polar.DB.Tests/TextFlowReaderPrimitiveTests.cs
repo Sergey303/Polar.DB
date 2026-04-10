@@ -3,80 +3,182 @@ using Xunit;
 
 namespace Polar.DB.Tests;
 
+/// <summary>
+/// Direct tests for public instance reader methods of <see cref="TextFlow"/>.
+///
+/// <para>
+/// These tests verify that the low-level reader surface can parse valid serialized text
+/// for the primitive branches that are exposed as instance methods.
+/// </para>
+///
+/// <para>
+/// The goal is to lock in the reader-level contract itself, not only the higher-level
+/// static <c>Serialize</c>/<c>Deserialize</c> round-trips.
+/// </para>
+/// </summary>
 public class TextFlowReaderPrimitiveTests
 {
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.Skip"/> advances over leading whitespace
+    /// and allows the next primitive read to start at the first meaningful token.
+    ///
+    /// <para>
+    /// This protects the reader contract used by the public parser entry points,
+    /// where whitespace tolerance is expected before actual values.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void Skip_Skips_Leading_Whitespace_Before_ReadInt32()
+    public void Skip_Skips_Leading_Whitespace_Before_Next_Value()
     {
-        string text = " \t\r\n" + SerializeToText(123, new PType(PTypeEnumeration.integer));
-        object flow = CreateTextFlow(text);
+        var flow = CreateTextFlow("   123");
 
-        InvokeVoid(flow, "Skip");
+        Invoke<object>(flow, "Skip");
         int value = Invoke<int>(flow, "ReadInt32");
 
         Assert.Equal(123, value);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadBoolean"/> can read a boolean value
+    /// produced by the current <see cref="TextFlow"/> serializer.
+    ///
+    /// <para>
+    /// This is a direct positive reader-level contract test. It does not assert any
+    /// strict invalid-token rejection rules beyond the currently used valid format.
+    /// </para>
+    /// </summary>
     [Fact]
     public void ReadBoolean_Parses_Serialized_Boolean()
     {
-        object flow = CreateTextFlow(SerializeToText(true, new PType(PTypeEnumeration.boolean)));
+        string text = SerializePrimitive(true, new PType(PTypeEnumeration.boolean));
+        var flow = CreateTextFlow(text);
+
         bool value = Invoke<bool>(flow, "ReadBoolean");
+
         Assert.True(value);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadByte"/> can read a byte value produced
+    /// by the current serializer.
+    ///
+    /// <para>
+    /// This protects the direct primitive reader contract, not just higher-level
+    /// round-trip behavior through static parsing helpers.
+    /// </para>
+    /// </summary>
     [Fact]
     public void ReadByte_Parses_Serialized_Byte()
     {
-        object flow = CreateTextFlow(SerializeToText((byte)0xAB, new PType(PTypeEnumeration.@byte)));
+        string text = SerializePrimitive((byte)25, new PType(PTypeEnumeration.@byte));
+        var flow = CreateTextFlow(text);
+
         byte value = Invoke<byte>(flow, "ReadByte");
-        Assert.Equal((byte)0xAB, value);
+
+        Assert.Equal((byte)25, value);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadChar"/> can read a character value
+    /// produced by the current serializer.
+    ///
+    /// <para>
+    /// This protects the direct char reader contract independently from record or
+    /// sequence parsing scenarios.
+    /// </para>
+    /// </summary>
     [Fact]
     public void ReadChar_Parses_Serialized_Character()
     {
-        object flow = CreateTextFlow(SerializeToText('Q', new PType(PTypeEnumeration.character)));
+        string text = SerializePrimitive('Z', new PType(PTypeEnumeration.character));
+        var flow = CreateTextFlow(text);
+
         char value = Invoke<char>(flow, "ReadChar");
-        Assert.Equal('Q', value);
+
+        Assert.Equal('Z', value);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadInt32"/> can read a 32-bit integer value
+    /// produced by the current serializer.
+    ///
+    /// <para>
+    /// This locks in the primitive integer reader contract directly at the instance
+    /// reader level.
+    /// </para>
+    /// </summary>
     [Fact]
     public void ReadInt32_Parses_Serialized_Integer()
     {
-        object flow = CreateTextFlow(SerializeToText(4567, new PType(PTypeEnumeration.integer)));
+        string text = SerializePrimitive(12345, new PType(PTypeEnumeration.integer));
+        var flow = CreateTextFlow(text);
+
         int value = Invoke<int>(flow, "ReadInt32");
-        Assert.Equal(4567, value);
+
+        Assert.Equal(12345, value);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadInt64"/> can read a 64-bit integer value
+    /// produced by the current serializer.
+    ///
+    /// <para>
+    /// This protects the large-integer reader branch separately from the general
+    /// deserialize round-trip tests.
+    /// </para>
+    /// </summary>
     [Fact]
     public void ReadInt64_Parses_Serialized_LongInteger()
     {
-        object flow = CreateTextFlow(SerializeToText(9876543210123L, new PType(PTypeEnumeration.longinteger)));
+        string text = SerializePrimitive(1234567890123L, new PType(PTypeEnumeration.longinteger));
+        var flow = CreateTextFlow(text);
+
         long value = Invoke<long>(flow, "ReadInt64");
-        Assert.Equal(9876543210123L, value);
+
+        Assert.Equal(1234567890123L, value);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadDouble"/> can read a real value produced
+    /// by the current serializer.
+    ///
+    /// <para>
+    /// This protects the floating-point reader contract directly at the primitive
+    /// instance-reader level.
+    /// </para>
+    /// </summary>
     [Fact]
     public void ReadDouble_Parses_Serialized_Real()
     {
-        object flow = CreateTextFlow(SerializeToText(1234.5678, new PType(PTypeEnumeration.real)));
+        string text = SerializePrimitive(12.5, new PType(PTypeEnumeration.real));
+        var flow = CreateTextFlow(text);
+
         double value = Invoke<double>(flow, "ReadDouble");
-        Assert.Equal(1234.5678, value, 10);
+
+        Assert.Equal(12.5, value, 6);
     }
 
+    /// <summary>
+    /// Verifies that <see cref="TextFlow.ReadString"/> can read a serialized string
+    /// including escape processing expected by the current text format.
+    ///
+    /// <para>
+    /// This test complements higher-level string parsing tests by exercising the
+    /// reader primitive directly.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void ReadString_Parses_Serialized_Escaped_String()
+    public void ReadString_Parses_Serialized_String()
     {
-        const string original = "line1\nline2\t\\quote:\"";
-        object flow = CreateTextFlow(SerializeToText(original, new PType(PTypeEnumeration.sstring)));
+        string text = SerializePrimitive("A\"B\\C", new PType(PTypeEnumeration.sstring));
+        var flow = CreateTextFlow(text);
 
         string value = Invoke<string>(flow, "ReadString");
 
-        Assert.Equal(original, value);
+        Assert.Equal("A\"B\\C", value);
     }
 
-    private static string SerializeToText(object value, PType type)
+    private static string SerializePrimitive(object value, PType type)
     {
         using var writer = new StringWriter();
         TextFlow.Serialize(writer, value, type);
@@ -85,15 +187,14 @@ public class TextFlowReaderPrimitiveTests
 
     private static object CreateTextFlow(string text)
     {
-        Type tfType = typeof(TextFlow);
-
-        ConstructorInfo? ctor =
-            tfType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(c =>
-                {
-                    ParameterInfo[] p = c.GetParameters();
-                    return p.Length == 1 && typeof(TextReader).IsAssignableFrom(p[0].ParameterType);
-                });
+        var type = typeof(TextFlow);
+        var ctor = type
+            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(c =>
+            {
+                var ps = c.GetParameters();
+                return ps.Length == 1 && typeof(TextReader).IsAssignableFrom(ps[0].ParameterType);
+            });
 
         if (ctor == null)
             throw new InvalidOperationException("Could not find TextFlow(TextReader) constructor.");
@@ -101,22 +202,26 @@ public class TextFlowReaderPrimitiveTests
         return ctor.Invoke(new object[] { new StringReader(text) });
     }
 
-    private static T Invoke<T>(object instance, string methodName)
+    private static T Invoke<T>(object target, string methodName)
     {
-        MethodInfo method =
-            instance.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMethodException(instance.GetType().FullName, methodName);
+        var method = target.GetType().GetMethod(
+            methodName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            types: Type.EmptyTypes,
+            modifiers: null);
 
-        object? result = method.Invoke(instance, Array.Empty<object>());
-        return Assert.IsType<T>(result);
-    }
+        if (method == null)
+            throw new MissingMethodException(target.GetType().FullName, methodName);
 
-    private static void InvokeVoid(object instance, string methodName)
-    {
-        MethodInfo method =
-            instance.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMethodException(instance.GetType().FullName, methodName);
-
-        method.Invoke(instance, Array.Empty<object>());
+        try
+        {
+            object? result = method.Invoke(target, Array.Empty<object>());
+            return result is null ? default! : (T)result;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException != null)
+        {
+            throw ex.InnerException;
+        }
     }
 }

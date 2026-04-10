@@ -66,11 +66,12 @@ The repository now has explicit tests for:
 - build order and persisted state;
 - reopening after build/close;
 - lifecycle operations `Clear`, `Flush`, `Close`;
+- repeated-cycle/idempotency scenarios around `Flush`, `Refresh`, `Close`, append-after-reopen, and build-after-reopen;
 - traversal over only current/original records;
 - dynamic restore behavior after reopen;
 - lookup consistency across key and secondary indexes.
 
-The practical result is that `USequence` is no longer tested only as a loose integration shell; it now has direct public-contract coverage for its main lifecycle and lookup surface.
+The practical result is that `USequence` is no longer tested only as a loose integration shell; it now has direct public-contract coverage for its main lifecycle, persistence, and lookup surface across repeated cycles.
 
 ### 3.4. Index boundary behavior is materially safer than before
 
@@ -82,9 +83,10 @@ Current tests now cover:
 - single-match;
 - duplicate-key/all-equal hash block scenarios;
 - first/last boundary positions;
-- dynamic append interaction.
+- dynamic append interaction;
+- repeated reopen/build cycles for primary-key and secondary-index consistency.
 
-This means the repository now has regression protection around the “find first valid matching position” family of fixes.
+This means the repository now has regression protection around the “find first valid matching position” family of fixes and around repeated persistence cycles.
 
 ### 3.5. `RecordAccessor` is now the preferred record ergonomics layer and is directly tested as such
 
@@ -178,6 +180,11 @@ They now represent intended public usage paths and should continue to be tested 
 `TextFlow.Deserialize(...)` and `TextFlow.DeserializeSequenseToFlow(...)` should continue to be treated as user-facing contracts.
 Malformed nested data should fail clearly rather than produce silent partially-read structures.
 
+### 4.7. Repeated persistence cycles must remain stable
+
+A single successful `Flush`, `Refresh`, `Close`, `Build`, or reopen is not enough.
+The repository now treats repeated-cycle stability as an important practical invariant for `USequence`.
+
 ---
 
 ## 5. What is already in a reasonably good state
@@ -191,7 +198,8 @@ Based on the implemented changes, the following areas look materially improved:
 - developer ergonomics for records via `RecordAccessor`;
 - SDK/target-framework baseline clarity;
 - regression protection for the main fixes of this cycle;
-- public text parser robustness for both flat and nested malformed-input scenarios.
+- public text parser robustness for both flat and nested malformed-input scenarios;
+- repeated-cycle stability for `USequence` persistence/lifecycle operations.
 
 ---
 
@@ -303,22 +311,22 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 
 | Method | Status | Evidence | Notes |
 |--------|--------|----------|-------|
-| `USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty, Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceTraversalTests`, `USequenceLifecycleTests` | Constructor exercised directly by integration tests. |
+| `USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty, Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceTraversalTests`, `USequenceLifecycleTests`, `USequenceRepeatedCycleTests` | Constructor exercised directly by integration tests, including repeated-cycle scenarios. |
 | `void RestoreDynamic()` | Covered | `USequenceTests.RestoreDynamic_Indexes_Records_Appended_After_Last_Saved_State` | Dedicated dynamic restore contract covered. |
 | `void Clear()` | Covered | `USequenceLifecycleTests.Clear_Resets_Visible_Sequence_State_And_Keeps_Object_Reusable` | Direct lifecycle reset covered. |
-| `void Flush()` | Covered | `USequenceLifecycleTests.Flush_Persists_Current_State_File_Without_Build` | Direct lifecycle flush covered. |
-| `void Close()` | Covered | `USequenceLifecycleTests.Close_Flushes_State_And_Reopen_Remains_Consistent` | Direct lifecycle close covered. |
-| `void Refresh()` | Covered | `USequenceBuildOrderTests`, reopen/traversal tests | Reopen/refresh consistency covered. |
+| `void Flush()` | Covered | `USequenceLifecycleTests.Flush_Persists_Current_State_File_Without_Build`, `USequenceRepeatedCycleTests.Flush_Twice_Does_Not_Change_Visible_State_Or_Reopen_Result` | Direct lifecycle and repeated-cycle flush coverage exists. |
+| `void Close()` | Covered | `USequenceLifecycleTests.Close_Flushes_State_And_Reopen_Remains_Consistent`, `USequenceRepeatedCycleTests.Close_Reopen_Close_Reopen_Preserves_Visible_Data` | Direct lifecycle and repeated close/reopen coverage exists. |
+| `void Refresh()` | Covered | `USequenceBuildOrderTests`, `USequenceRepeatedCycleTests.Refresh_Twice_On_Already_Normalized_State_Is_Idempotent` | Reopen/refresh consistency and idempotency are covered. |
 | `void Load(IEnumerable<object> flow)` | Covered | `USequenceTests.Load_Skips_Empty_Records_And_Writes_State_File` | Direct load behavior covered. |
-| `IEnumerable<object> ElementValues()` | Covered | `USequenceTests`, `USequenceTraversalTests`, `USequenceLifecycleTests` | Empty/superseded filtering covered. |
+| `IEnumerable<object> ElementValues()` | Covered | `USequenceTests`, `USequenceTraversalTests`, `USequenceLifecycleTests`, `USequenceRepeatedCycleTests` | Empty/superseded filtering and repeated-cycle visibility covered. |
 | `void Scan(Func<long, object, bool> handler)` | Covered | `USequenceTests`, `USequenceTraversalTests` | Direct filtered traversal covered. |
-| `long AppendElement(object element)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceLifecycleTests` | Direct append behavior covered. |
+| `long AppendElement(object element)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceLifecycleTests`, `USequenceRepeatedCycleTests` | Direct append behavior covered, including append-after-reopen scenarios. |
 | `void CorrectOnAppendElement(long off)` | Covered | `USequenceTests.CorrectOnAppendElement_Indexes_Record_Added_Directly_To_Base_Sequence` | Direct helper contract covered. |
-| `object GetByKey(IComparable keysample)` | Covered | `USequenceTests`, `USequenceBuildOrderTests` | Primary-key lookup covered. |
-| `IEnumerable<object> GetAllByValue(int nom, IComparable value, Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)` | Covered | `USequenceBuildOrderTests` | Secondary lookup behavior covered. |
+| `object GetByKey(IComparable keysample)` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceRepeatedCycleTests` | Primary-key lookup covered, including repeated reopen cycles. |
+| `IEnumerable<object> GetAllByValue(int nom, IComparable value, Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)` | Covered | `USequenceBuildOrderTests`, `USequenceRepeatedCycleTests.Build_Reopen_Build_Reopen_Preserves_Key_And_Secondary_Index_Consistency` | Secondary lookup behavior covered, including repeated build/reopen cycles. |
 | `IEnumerable<object> GetAllBySample(int nom, object osample)` | Covered | `USequenceBuildOrderTests` | Sample-based lookup covered. |
 | `IEnumerable<object> GetAllByLike(int nom, object sample)` | Covered | `USequenceLikeTests.GetAllByLike_Returns_Expected_Matches_Excludes_Superseded_And_Empty_Records` | Like-query integration test exists. |
-| `void Build()` | Covered | `USequenceTests`, `USequenceBuildOrderTests` | Build/order/reopen/index consistency covered. |
+| `void Build()` | Covered | `USequenceTests`, `USequenceBuildOrderTests`, `USequenceRepeatedCycleTests.Build_Reopen_Build_Reopen_Preserves_Key_And_Secondary_Index_Consistency` | Build/order/reopen/index consistency covered, including repeated cycles. |
 
 #### RecordAccessor
 
@@ -369,7 +377,7 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 ### Strongly covered areas
 
 - `UniversalSequenceBase` core behavior: append, overwrite, refresh/recovery, traversal helpers, sorting, and close/reopen.
-- `USequence` build/traversal/index usage, dynamic restore, and lifecycle coverage (`Clear`, `Flush`, `Close`).
+- `USequence` build/traversal/index usage, dynamic restore, lifecycle coverage, and repeated-cycle/idempotency coverage.
 - `RecordAccessor` main ergonomic API plus helper/tolerant methods and properties.
 - `ByteFlow` primitive and composite binary serialization round-trips.
 - `TextFlow` positive serialization/deserialization flows, malformed public parsing, nested malformed parsing, formatted output, and direct reader-primitive contracts.
@@ -382,6 +390,6 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 
 ### Honest repository-level summary
 
-The repository now has strong regression coverage for the repaired behaviors that matter most: storage recovery/refresh, append-offset discipline, overwrite boundaries, key-index boundary behavior, record ergonomics, build order, lifecycle stability, binary/text serialization paths, malformed public parsing, malformed nested parsing, and direct text-reader primitive behavior.
+The repository now has strong regression coverage for the repaired behaviors that matter most: storage recovery/refresh, append-offset discipline, overwrite boundaries, key-index boundary behavior, record ergonomics, build order, lifecycle stability, binary/text serialization paths, malformed public parsing, malformed nested parsing, direct text-reader primitive behavior, and repeated-cycle persistence stability.
 
 At this point, the remaining work is mostly polish and future-change tracking rather than large missing coverage holes.
