@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using Xunit;
 
 namespace Polar.DB.Tests;
@@ -155,6 +151,30 @@ public class USequenceRepeatedCycleTests
         var reopened2 = scope.ReopenSequence();
 
         Assert.Equal(new[] { 1, 2, 3, 4 }, Ids(reopened2));
+    }
+
+    [Fact]
+    public void Append_Flush_Reopen_Append_Build_Reopen_Preserves_All_Records_And_KeyLookups()
+    {
+        using var scope = new USequenceScope(PersonType);
+
+        scope.Sequence.Load(new object[]
+        {
+            Row(1, "Alice", 30),
+            Row(2, "Bob", 40)
+        });
+        scope.Sequence.Flush();
+        scope.Sequence.Close();
+
+        var reopened1 = scope.ReopenSequence();
+        reopened1.AppendElement(Row(3, "Carol", 50));
+        reopened1.AppendElement(Row(4, "Dave", 60));
+        reopened1.Build();
+        reopened1.Close();
+
+        var reopened2 = scope.ReopenSequence();
+
+        Assert.Equal(new[] { 1, 2, 3, 4 }, Ids(reopened2));
 
         var byKey3 = Assert.IsType<object[]>(reopened2.GetByKey(3));
         var byKey4 = Assert.IsType<object[]>(reopened2.GetByKey(4));
@@ -162,7 +182,6 @@ public class USequenceRepeatedCycleTests
         Assert.Equal("Carol", (string)byKey3[1]);
         Assert.Equal("Dave", (string)byKey4[1]);
     }
-
     /// <summary>
     /// Verifies that repeating the build/reopen cycle preserves both primary-key lookup
     /// and secondary-index lookup consistency.
