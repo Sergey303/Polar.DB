@@ -4,7 +4,7 @@ _Last updated: 2026-04-10_
 
 ## 1. Scope of this document
 
-This document fixes the current technical state of the PolarDB repository based on the changes implemented in the current work cycle.
+This document fixes the current technical state of the PolarDB repository based on the accepted code and test changes of the current work cycle.
 
 It is intended to answer four questions quickly:
 
@@ -13,7 +13,7 @@ It is intended to answer four questions quickly:
 3. what is still risky or incomplete;
 4. what the most logical next steps are.
 
-This is a repository-state document, not a change log. The goal is to describe the **current working model** of the codebase after the accepted changes.
+This is a repository-state document, not a changelog. The goal is to describe the **current working model** of the codebase after the accepted changes.
 
 ---
 
@@ -34,7 +34,7 @@ In practical terms, the repository is now noticeably more consistent in the plac
 
 ### 3.1. `PType <=> object` round-trip is no longer lossy for the fixed cases covered in this stage
 
-The repository now has explicit regression tests around the `PType <=> object` conversion surface for the currently used/important type branches.
+The repository now has explicit regression tests around the `PType <=> object` conversion surface for the currently used and important type branches.
 
 Covered branches include:
 - fixed string;
@@ -51,7 +51,7 @@ The most important storage-level improvements are concentrated here.
 
 Current tested behavior includes:
 - `AppendOffset` is treated as the logical end of data;
-- append operations use the logical tail rather than relying on accidental stream position;
+- append operations use the logical tail rather than accidental stream position;
 - `Clear()` resets the logical state consistently;
 - `Flush()` writes the element count header without corrupting position;
 - `Refresh()` and constructor recovery normalize state around readable logical data;
@@ -138,7 +138,8 @@ This is a pragmatic state:
 - primitive textual branches (`boolean`, `character`, `longinteger`, `real`);
 - formatted output;
 - malformed public parsing inputs through `Deserialize(...)` and `DeserializeSequenseToFlow(...)`;
-- instance reader primitives (`Skip`, `ReadBoolean`, `ReadByte`, `ReadChar`, `ReadInt32`, `ReadInt64`, `ReadDouble`, `ReadString`) through dedicated direct tests, including negative reader cases.
+- nested malformed parsing scenarios inside record / sequence / union payloads;
+- instance reader primitives (`Skip`, `ReadBoolean`, `ReadByte`, `ReadChar`, `ReadInt32`, `ReadInt64`, `ReadDouble`, `ReadString`) through dedicated direct tests.
 
 ---
 
@@ -172,6 +173,11 @@ Index/state persistence must reflect finalized data, not an intermediate state.
 `RecordAccessor` and the current `USequence` lifecycle surface are not just helpers anymore.
 They now represent intended public usage paths and should continue to be tested directly.
 
+### 4.6. Public parser entry points should be robust against malformed nested payloads
+
+`TextFlow.Deserialize(...)` and `TextFlow.DeserializeSequenseToFlow(...)` should continue to be treated as user-facing contracts.
+Malformed nested data should fail clearly rather than produce silent partially-read structures.
+
 ---
 
 ## 5. What is already in a reasonably good state
@@ -184,7 +190,8 @@ Based on the implemented changes, the following areas look materially improved:
 - correctness of duplicate-key index start lookup;
 - developer ergonomics for records via `RecordAccessor`;
 - SDK/target-framework baseline clarity;
-- regression protection for the main fixes of this cycle.
+- regression protection for the main fixes of this cycle;
+- public text parser robustness for both flat and nested malformed-input scenarios.
 
 ---
 
@@ -200,7 +207,7 @@ The test suite now covers the repaired behaviors that matter most, but it is not
 
 ### 6.3. Text parser robustness is much better covered, but still not mathematically exhaustive
 
-`TextFlow` now has both positive and negative coverage at the public entry points and reader-primitives level.
+`TextFlow` now has both positive and negative coverage at the public entry points, nested malformed-input level, and reader-primitives level.
 That said, text parsing still benefits from future additions if new syntax branches or edge cases are introduced.
 
 ---
@@ -271,7 +278,7 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 | `UniversalSequenceBase(PType tp_el, Stream media)` | Covered | `UniversalSequenceBaseRecoveryTests`, `UniversalSequenceBaseRefreshTests`, `UniversalSequenceBaseCoreTests` | Constructor recovery/normalization behavior is exercised broadly. |
 | `void Clear()` | Covered | `UniversalSequenceBaseCoreTests.Clear_ResetsState_And_SetsAppendOffsetTo8` | Direct reset contract asserted. |
 | `void Flush()` | Covered | `UniversalSequenceBaseCoreTests.Flush_WritesHeader_And_PreservesPosition`, `Flush_On_EmptySequence_WritesHeader` | Direct header persistence/asserted. |
-| `void Close()` | Covered | `UniversalSequenceBaseCloseTests.Close_Flushes_Header_And_Allows_Reopen_With_Consistent_State`, file-backed reopen tests | Direct close + reopen contract now exists. |
+| `void Close()` | Covered | `UniversalSequenceBaseCloseTests.Close_Flushes_Header_And_Allows_Reopen_With_Consistent_State`, file-backed reopen tests | Direct close + reopen contract exists. |
 | `void Refresh()` | Covered | `UniversalSequenceBaseRefreshTests` | Dedicated valid/invalid refresh behavior covered. |
 | `long Count()` | Covered | multiple `UniversalSequenceBase*Tests` | Asserted broadly. |
 | `long ElementOffset(long ind)` | Covered | `UniversalSequenceBaseCoreTests.ElementOffset_For_Fixed_Size_Type_CalculatesCorrectly` | Direct fixed-size offset contract covered. |
@@ -348,10 +355,10 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 | `static void SerializeFormatted(TextWriter tw, object v, PType tp, int level)` | Covered | `TextFlowTests.SerializeFormatted_ForNestedRecord_AddsLineBreaks` | Direct formatting contract covered. |
 | `static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)` | Covered | `TextFlowTests.SerializeFlowToSequense_And_DeserializeSequenseToFlow_RoundTrip` | Direct round-trip exists. |
 | `static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level)` | Covered | `TextFlowPrimitiveTests.SerializeFlowToSequenseFormatted_Produces_Readable_Multiline_Output` | Direct formatted output test exists. |
-| `static object Deserialize(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowNegativeTests` | Positive and malformed-input public parsing are covered. |
-| `static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowNegativeTests` | Positive and malformed-input public parsing are covered. |
-| `void Skip()` | Covered | `TextFlowReaderPrimitiveTests`, `TextFlowReaderNegativeTests` | Direct reader-level behavior now covered. |
-| `bool ReadBoolean()` | Covered | `TextFlowReaderPrimitiveTests.ReadBoolean_Parses_Serialized_Boolean` | Direct positive reader contract is covered; strict invalid-token rejection is not currently asserted. |~~~~
+| `static object Deserialize(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowNegativeTests`, `TextFlowMalformedNestedTests` | Positive, malformed-flat, and malformed-nested public parsing are covered. |
+| `static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)` | Covered | `TextFlowTests`, `TextFlowNegativeTests`, `TextFlowMalformedNestedTests` | Positive, malformed-flat, and malformed-nested public parsing are covered. |
+| `void Skip()` | Covered | `TextFlowReaderPrimitiveTests` | Direct reader-level behavior covered. |
+| `bool ReadBoolean()` | Covered | `TextFlowReaderPrimitiveTests` | Direct positive reader contract covered. Strict invalid-token rejection is not asserted. |
 | `byte ReadByte()` | Covered | `TextFlowReaderPrimitiveTests`, `TextFlowReaderNegativeTests` | Direct positive and invalid-token reader coverage exists. |
 | `char ReadChar()` | Covered | `TextFlowReaderPrimitiveTests` | Direct reader contract covered. |
 | `int ReadInt32()` | Covered | `TextFlowReaderPrimitiveTests`, `TextFlowReaderNegativeTests` | Direct positive and invalid-token reader coverage exists. |
@@ -365,7 +372,7 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 - `USequence` build/traversal/index usage, dynamic restore, and lifecycle coverage (`Clear`, `Flush`, `Close`).
 - `RecordAccessor` main ergonomic API plus helper/tolerant methods and properties.
 - `ByteFlow` primitive and composite binary serialization round-trips.
-- `TextFlow` positive serialization/deserialization flows, formatted output, malformed public parsing, and direct reader-primitive contracts.
+- `TextFlow` positive serialization/deserialization flows, malformed public parsing, nested malformed parsing, formatted output, and direct reader-primitive contracts.
 
 ### Partially covered or missing areas
 
@@ -375,6 +382,6 @@ This is a behavioral/static audit, not a line-coverage or branch-coverage report
 
 ### Honest repository-level summary
 
-The repository now has strong regression coverage for the repaired behaviors that matter most: storage recovery/refresh, append-offset discipline, overwrite boundaries, key-index boundary behavior, record ergonomics, build order, lifecycle stability, binary/text serialization paths, malformed public parsing, and direct text-reader primitive behavior.
+The repository now has strong regression coverage for the repaired behaviors that matter most: storage recovery/refresh, append-offset discipline, overwrite boundaries, key-index boundary behavior, record ergonomics, build order, lifecycle stability, binary/text serialization paths, malformed public parsing, malformed nested parsing, and direct text-reader primitive behavior.
 
 At this point, the remaining work is mostly polish and future-change tracking rather than large missing coverage holes.
