@@ -22,9 +22,8 @@ The repository also includes index/search samples around the current public APIs
 
 Both examples below use the same schema and produce the same logical result (`id=1, name=Alice, age=30`).
 
-| Object-like quick start | RecordAccessor-like quick start |
-|---|---|
-| ```csharp
+Object-like quick start
+```csharp
 using Polar.DB;
 
 var personType = new PTypeRecord(
@@ -40,7 +39,11 @@ sequence.Flush();
 
 var person = (object[])sequence.GetElement(8L);
 Console.WriteLine($"{person[0]} {person[1]} {person[2]}");
-``` | ```csharp
+``` 
+
+
+RecordAccessor-like quick start
+```csharp
 using Polar.DB;
 
 var personType = new PTypeRecord(
@@ -57,7 +60,7 @@ sequence.Flush();
 
 var person = (object[])sequence.GetElement(8L);
 Console.WriteLine($"{accessor.Get<int>(person, "id")} {accessor.Get<string>(person, "name")} {accessor.Get<int>(person, "age")}");
-``` |
+```
 
 ## Canonical Scenarios
 
@@ -76,7 +79,7 @@ Console.WriteLine($"{accessor.Get<int>(person, "id")} {accessor.Get<string>(pers
 - Recovery/refresh normalize state from readable data and logical boundaries before continuing writes.
 - Data must be stabilized (written and normalized) before indexes/state are treated as finalized.
 
-## Overwrite Safety
+ Overwrite Safety
 
 - Do not assume arbitrary variable-size in-place overwrite is safe by default.
 - Prefer documented append-oriented and canonical scenarios.
@@ -93,5 +96,5 @@ dotnet test tests/Polar.DB.Tests/Polar.DB.Tests.csproj
 ## Naming
 
 - Canonical public name: `Polar.DB`.
-- Legacy `Polar.DB` naming may appear only in preserved historical/external references.
+- Legacy `PolarDB` naming may appear only in preserved historical/external references.
 
