@@ -1,5 +1,32 @@
-﻿namespace Polar.DB
+﻿// USequence.cs
+
+namespace Polar.DB
 {
+    /// <summary>
+    /// High-level facade over <see cref="UniversalSequenceBase"/> with a primary-key index and optional secondary indexes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The class maintains two kinds of state:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>static built state stored in the sequence and index streams;</description></item>
+    /// <item><description>dynamic tail appended after the last saved state point.</description></item>
+    /// </list>
+    /// <para>
+    /// <see cref="Refresh"/> reloads static state and restores primary-key traversal consistency by replaying the
+    /// dynamic tail into the primary index only. This is enough for methods such as <see cref="ElementValues"/>
+    /// and <see cref="Scan"/> which rely on primary-key originality filtering.
+    /// </para>
+    /// <para>
+    /// <see cref="RestoreDynamic"/> is a higher-level recovery step intended for reopened instances. It reloads
+    /// static state and replays the dynamic tail into both the primary and secondary indexes.
+    /// </para>
+    /// <para>
+    /// The two public methods must not call each other; both are built on top of private helpers in order to
+    /// avoid accidental recursion and to keep responsibilities explicit.
+    /// </para>
+    /// </remarks>
     public class USequence
     {
         // У универсальной последовательности нет динамической части. Все элементы доступны через методы.
@@ -22,106 +49,277 @@
             primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
         }
 
-        // Файл для сохранения параметров состояния. Команда сохранения выполняется в конце Load()
-        // Имя файла может быть null, тогда это означает, что состояние не фиксируется и не восстанавливается
-        private string? stateFileName;
-        
-        // Следующий метод актуален только если statefile != null
-        public void RestoreDynamic()
+        /// <summary>
+        /// Файл для сохранения параметров состояния. Команда сохранения выполняется в конце Load()
+        /// Имя файла может быть null, тогда это означает, что состояние не фиксируется и не восстанавливается
+        /// Sidecar state file. When present, it stores the sequence count and append offset of the last synchronized point.
+        /// </summary>
+        private readonly string? stateFileName;
+
+        /// <summary>
+        /// Saves the current synchronized state into the sidecar state file.
+        /// </summary>
+        private void SaveState()
         {
-            FileStream statefile = new FileStream(stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
-            BinaryReader reader = new BinaryReader(statefile);
-            long statenelements = reader.ReadInt64(); //old sequence.Count();
-            long elementoffset = reader.ReadInt64(); // sequence.ElementOffset();
-            statefile.Close();
-            // А текущий размер:
-            long nelements = sequence.Count();
-            // Динамику надо воспроизводить только если размер увеличился
-            Console.WriteLine($"{nelements - statenelements} elements added");
-            if (nelements > statenelements)
-            {
-                var additional = sequence.ElementOffsetValuePairs(elementoffset, nelements - statenelements);
-                foreach (var pair in additional)
-                {
-                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
-                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
-                }
-            }
+            if (stateFileName == null) return;
+
+            string? dir = Path.GetDirectoryName(stateFileName);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            using var statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
+            using var writer = new BinaryWriter(statefile);
+
+            writer.Write(sequence.Count());
+            writer.Write(sequence.AppendOffset);
         }
 
-        public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
-        public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
-        public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
-        public void Refresh()
+        /// <summary>
+        /// Reads the last synchronized state from the sidecar file.
+        /// </summary>
+        /// <remarks>
+        /// Missing, too-short or obviously invalid state files are treated as "no synchronized state" and mapped to (0, 8).
+        /// </remarks>
+        private (long Count, long AppendOffset) ReadStateOrDefault()
+        {
+            if (stateFileName == null)
+                return (0L, 8L);
+
+            if (!File.Exists(stateFileName))
+                return (0L, 8L);
+
+            var info = new FileInfo(stateFileName);
+            if (info.Length < sizeof(long) * 2)
+                return (0L, 8L);
+
+            using var statefile = new FileStream(stateFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new BinaryReader(statefile);
+
+            long statenelements = reader.ReadInt64();
+            long elementoffset = reader.ReadInt64();
+
+            if (statenelements < 0L || elementoffset < 8L)
+                return (0L, 8L);
+
+            return (statenelements, elementoffset);
+        }
+
+        /// <summary>
+        /// Reloads static state from the underlying streams without replaying the dynamic tail.
+        /// </summary>
+        private void RefreshStaticState()
         {
             sequence.Refresh();
             primaryKeyIndex.Refresh();
-            if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
 
-            if (stateFileName != null)
+            if (uindexes != null)
             {
-                RestoreDynamic();
+                foreach (var ui in uindexes)
+                    ui.Refresh();
             }
         }
-        
+
+        /// <summary>
+        /// Replays the dynamic tail located after the last saved state point.
+        /// </summary>
+        /// <param name="applyToPrimary">
+        /// Whether to replay the tail into the primary key index.
+        /// </param>
+        /// <param name="applyToSecondary">
+        /// Whether to replay the tail into configured secondary indexes.
+        /// </param>
+        /// <param name="updateStateFile">
+        /// Whether to save the current sequence count and append offset after replay.
+        /// </param>
+        /// <remarks>
+        /// <para>
+        /// This helper never calls <see cref="Refresh"/> or <see cref="RestoreDynamic"/>. The caller is responsible for
+        /// preparing static state first.
+        /// </para>
+        /// <para>
+        /// Replaying into the primary index is idempotent enough for practical use because the primary dynamic map keeps
+        /// only the latest offset per key. Replaying into secondary indexes is intentionally reserved for
+        /// <see cref="RestoreDynamic"/> on a reopened instance; doing it repeatedly on a live instance could duplicate
+        /// dynamic secondary entries because those index implementations currently do not expose a "clear dynamic part only"
+        /// operation.
+        /// </para>
+        /// </remarks>
+        private void ReplayDynamicTailFromState(bool applyToPrimary, bool applyToSecondary, bool updateStateFile)
+        {
+            if (stateFileName == null)
+                return;
+
+            var state = ReadStateOrDefault();
+            long synchronizedCount = state.Count;
+            long synchronizedAppendOffset = state.AppendOffset;
+
+            long currentCount = sequence.Count();
+            if (currentCount <= synchronizedCount)
+            {
+                if (updateStateFile)
+                    SaveState();
+                return;
+            }
+
+            long additionalCount = currentCount - synchronizedCount;
+            var additional = sequence.ElementOffsetValuePairs(synchronizedAppendOffset, additionalCount);
+
+            foreach (var pair in additional)
+            {
+                if (applyToPrimary)
+                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+
+                if (applyToSecondary && uindexes != null)
+                {
+                    foreach (var uind in uindexes)
+                        uind.OnAppendElement(pair.Item2, pair.Item1);
+                }
+            }
+
+            if (updateStateFile)
+                SaveState();
+        }
+
+        /// <summary>
+        /// Следующий метод актуален только если statefile != null
+        /// Replays the dynamic tail after the last saved state point.
+        /// </summary>
+        /// <remarks>
+        /// This method is intended for reopened instances. It refreshes static sequence/index state first and then
+        /// replays the dynamic tail into both the primary and secondary indexes.
+        /// </remarks>
+        public void RestoreDynamic()
+        {
+            if (stateFileName == null)
+                return;
+
+            RefreshStaticState();
+            ReplayDynamicTailFromState(applyToPrimary: true, applyToSecondary: true, updateStateFile: true);
+        }
+
+        public void Clear()
+        {
+            sequence.Clear();
+            primaryKeyIndex.Clear();
+
+            if (uindexes != null)
+            {
+                foreach (var ui in uindexes)
+                    ui.Clear();
+            }
+
+            SaveState();
+        }
+
+        public void Flush()
+        {
+            sequence.Flush();
+            primaryKeyIndex.Flush();
+
+            if (uindexes != null)
+            {
+                foreach (var ui in uindexes)
+                    ui.Flush();
+            }
+        }
+
+        public void Close()
+        {
+            sequence.Close();
+            primaryKeyIndex.Close();
+
+            if (uindexes != null)
+            {
+                foreach (var ui in uindexes)
+                    ui.Close();
+            }
+        }
+
+        /// <summary>
+        /// Reloads static state and restores primary-key traversal consistency.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When a sidecar state file is configured, this method also replays the dynamic tail into the primary index.
+        /// That makes traversal methods consistent after reopen because they rely on primary-key originality filtering.
+        /// </para>
+        /// <para>
+        /// Secondary indexes are not replayed here on purpose. Their dynamic containers currently do not expose
+        /// a "reset dynamic part only" operation, so automatic replay here could duplicate dynamic entries on a live
+        /// instance whose state file still points to an earlier synchronized point.
+        /// </para>
+        /// <para>
+        /// If the caller needs full reopened-instance recovery including secondary indexes, use
+        /// <see cref="RestoreDynamic"/> instead.
+        /// </para>
+        /// </remarks>
+        public void Refresh()
+        {
+            RefreshStaticState();
+            ReplayDynamicTailFromState(applyToPrimary: true, applyToSecondary: false, updateStateFile: false);
+        }
+
         public void Load(IEnumerable<object> flow)
         {
             Clear();
+
             foreach (var element in flow)
             {
-                if (!isEmpty(element)) sequence.AppendElement(element);
+                if (!isEmpty(element))
+                    sequence.AppendElement(element);
             }
+
             Flush();
-
-            if (stateFileName != null)
-            {
-                // =========== Зафиксируем состояние в файле. Запомним текущее число элементов и офсет следующего ====
-                FileStream statefile = new FileStream(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
-                BinaryWriter writer = new BinaryWriter(statefile);
-                // В state сохраняем именно логический конец уже зафиксированных данных,
-                // а не текущую позицию курсора внутри stream.
-                writer.Write(sequence.Count());
-                writer.Write(sequence.AppendOffset);
-                statefile.Close();
-            }
+            SaveState();
         }
-        internal bool IsOriginalAndNotEmpty(object element, long off) =>
-            primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element); // сначала на оригинал, потом на пустое, может можно и иначе 
 
+        internal bool IsOriginalAndNotEmpty(object element, long off) =>
+            primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
 
         public IEnumerable<object> ElementValues()
         {
             return sequence.ElementOffsetValuePairs()
-                // Оставляем оригиналы и непустые
                 .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
                 .Select(pair => pair.Item2);
         }
+
         public void Scan(Func<long, object, bool> handler)
         {
-            sequence.Scan((off, ob) => 
+            sequence.Scan((off, ob) =>
             {
-                if (IsOriginalAndNotEmpty(ob, off)) 
-                {
-                    bool ok = handler(off, ob);
-                    return ok;
-                } 
-                return true; // Реакция на не оригинал или пустой
+                if (IsOriginalAndNotEmpty(ob, off))
+                    return handler(off, ob);
+
+                return true;
             });
         }
+
         public long AppendElement(object element)
         {
             long off = sequence.AppendElement(element);
-            // Корректировка индексов
+
             primaryKeyIndex.OnAppendElement(element, off);
-            if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
-            return off; 
+
+            if (uindexes != null)
+            {
+                foreach (var uind in uindexes)
+                    uind.OnAppendElement(element, off);
+            }
+
+            return off;
         }
+
         public void CorrectOnAppendElement(long off)
         {
             object element = sequence.GetElement(off);
-            // Корректировка индексов
+
             primaryKeyIndex.OnAppendElement(element, off);
-            if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+
+            if (uindexes != null)
+            {
+                foreach (var uind in uindexes)
+                    uind.OnAppendElement(element, off);
+            }
         }
 
         public object GetByKey(IComparable keysample)
@@ -129,74 +327,85 @@
             return primaryKeyIndex.GetByKey(keysample);
         }
 
-        internal object GetByOffset(long off)
+        internal object? GetByOffset(long off)
         {
             return sequence.GetElement(off);
         }
 
-        public IEnumerable<object> GetAllByValue(int nom, IComparable value,
-            Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)
+        public IEnumerable<object> GetAllByValue(
+            int nom,
+            IComparable value,
+            Func<object, IEnumerable<IComparable>> keysFunc,
+            bool ignorecase = false)
         {
             if (uindexes[nom] is SVectorIndex)
             {
                 var sind = (SVectorIndex)uindexes[nom];
-                IEnumerable<object> query = sind.GetAllByValue((string)value)
+                return sind.GetAllByValue((string)value)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj)
-                    //.Select(ob => ConvertNaming(ob))
-                    ;
-                return query;
+                    .Select(obof => obof.obj);
             }
+
             if (uindexes[nom] is UVectorIndex)
             {
                 var uind = (UVectorIndex)uindexes[nom];
-                IEnumerable<object> query = uind.GetAllByValue((IComparable)value)
+                return uind.GetAllByValue(value)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj)
-                    ;
-                return query;
+                    .Select(obof => obof.obj);
             }
+
             if (uindexes[nom] is UVecIndex)
             {
                 var uvind = (UVecIndex)uindexes[nom];
 
-                IEnumerable<object> query = uvind.GetAllByValue(value)
+                IComparable normalizedValue = value;
+                if (ignorecase && value is string s)
+                    normalizedValue = s.ToUpper();
+
+                IEnumerable<object> query = uvind.GetAllByValue(normalizedValue)
                     .Where(obof => keysFunc(obof.obj)
-                        .Select(w => ignorecase ? ((string)w).ToUpper() : w)
-                        .Any(W => W.CompareTo(value) == 0))
+                        .Select(w =>
+                        {
+                            if (ignorecase && w is string ws)
+                                return (IComparable)ws.ToUpper();
+
+                            return w;
+                        })
+                        .Any(w => w.CompareTo(normalizedValue) == 0))
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj)
+                    .GroupBy(obof => obof.off)
+                    .Select(g => g.First().obj)
                     .ToArray();
+
                 return query;
             }
-            else throw new Exception("93394");
+
+            throw new Exception("93394");
         }
+
         public IEnumerable<object> GetAllBySample(int nom, object osample)
         {
             if (uindexes[nom] is UIndex)
             {
                 var uind = (UIndex)uindexes[nom];
-                IEnumerable<object> query = uind.GetAllBySample(osample)
+                return uind.GetAllBySample(osample)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj)
-                    //.Select(ob => ConvertNaming(ob))
-                    ;
-                return query;
+                    .Select(obof => obof.obj);
             }
-            else throw new Exception("93394");
+
+            throw new Exception("93394");
         }
+
         public IEnumerable<object> GetAllByLike(int nom, object sample)
         {
             var uind = uindexes[nom];
             if (uind is SVectorIndex)
             {
-                var query = ((SVectorIndex)uind).GetAllByLike((string)sample)
+                return ((SVectorIndex)uind).GetAllByLike((string)sample)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj) // 
-                    //.Select(ob => ConvertNaming(ob))
-                    ;
-                return query;
+                    .Select(obof => obof.obj);
             }
+
             throw new NotImplementedException("Err: 292121");
         }
 
@@ -210,13 +419,7 @@
             primaryKeyIndex.Flush();
             foreach (var ind in uindexes) ind.Flush();
 
-            if (stateFileName != null)
-            {
-                using var statefile = new FileStream(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
-                using var writer = new BinaryWriter(statefile);
-                writer.Write(sequence.Count());
-                writer.Write(sequence.AppendOffset);
-            }
+            SaveState();
         }
     }
 }

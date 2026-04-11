@@ -146,6 +146,8 @@
                 }
             }
             long first = GetFirstNomOffsets(sample, comp);
+            if (first < 0)
+                yield break;
             for (long ii = first; ii < offsets.Count(); ii++)
             {
                 long off = (long)offsets.GetByIndex(ii);
@@ -165,6 +167,8 @@
                 }
             }
             long first = GetFirstNomOffsets(sample, comp_like);
+            if (first < 0)
+                yield break;
             for (long ii = first; ii < offsets.Count(); ii++)
             {
                 long off = (long)offsets.GetByIndex(ii);
@@ -210,6 +214,9 @@
 
         private long GetFirstNomOffsets(object sample, Comparer<object> comparer)
         {
+            long count = offsets.Count();
+            if (count == 0)
+                return -1;
             long start = 0, end = offsets.Count() - 1, right_equal = -1;
             // Сжимаем диапазон
             int cmp = 0;

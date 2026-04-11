@@ -1,20 +1,53 @@
+// UKeyIndex.cs
+
 namespace Polar.DB
 {
+    /// <summary>
+    /// Primary key index for <see cref="USequence"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The index consists of:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>a static built part persisted in <c>hkeys</c> and <c>offsets</c>;</description></item>
+    /// <item><description>a dynamic in-memory map from key to the latest appended offset.</description></item>
+    /// </list>
+    /// <para>
+    /// Traversal-time originality checks rely on the dynamic map. If a key is present there, only the element at the
+    /// stored offset is treated as the current original. This is what allows appended records to shadow earlier built
+    /// records with the same key.
+    /// </para>
+    /// <para>
+    /// After reopen, callers are expected to refresh static state and, if needed, replay the dynamic tail from the
+    /// sidecar state point back into this index.
+    /// </para>
+    /// </remarks>
     internal class UKeyIndex
     {
         private readonly USequence sequence;
-        // Ключом является объект, порождаемый ключевой функцией. Ключи можно сравнивать!
-        private Func<object, IComparable> keyFunc;
-        private Func<IComparable, int> hashOfKey;
-        // Статическая часть индекса
-        private UniversalSequenceBase hkeys;
-        private UniversalSequenceBase offsets;
-        // Динамическая часть индекса
-        private Dictionary<IComparable, long> keyoff_dic;
-        private bool keysinmemory;
+        /// Ключом является объект, порождаемый ключевой функцией. Ключи можно сравнивать!
+        private readonly Func<object, IComparable> keyFunc;
+        private readonly Func<IComparable, int> hashOfKey;
+        /// Статическая часть индекса
+        private readonly UniversalSequenceBase hkeys;
+        /// Статическая часть индекса
+        private readonly UniversalSequenceBase offsets;
 
-        public UKeyIndex(Func<Stream> streamGen, USequence sequence,
-            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)
+        /// <summary>
+        /// Динамическая часть индекса
+        /// Dynamic map: for every key seen after the last synchronized state point, store the latest offset.
+        /// </summary>
+        private readonly Dictionary<IComparable, long> keyoff_dic;
+
+        private readonly bool keysinmemory;
+
+        public UKeyIndex(
+            Func<Stream> streamGen,
+            USequence sequence,
+            Func<object, IComparable> keyFunc,
+            Func<IComparable, int> hashOfKey,
+            bool keysinmemory = true)
         {
             this.sequence = sequence;
             this.keyFunc = keyFunc;
@@ -26,30 +59,65 @@ namespace Polar.DB
 
             keyoff_dic = new Dictionary<IComparable, long>();
         }
+
         public void OnAppendElement(object element, long offset)
         {
             var key = keyFunc(element);
             if (keyoff_dic.ContainsKey(key))
-            {
                 keyoff_dic.Remove(key);
-            }
+
             keyoff_dic.Add(key, offset);
         }
 
-        // Массив оптимизации поиска по значению хеша
-        private int[] hkeys_arr = null;
+        /// <summary>
+        /// Массив оптимизации поиска по значению хеша
+        /// In-memory optimization array for static hash keys.
+        /// </summary>
+        private int[]? hkeys_arr = null;
 
-        public void Clear() { hkeys.Clear(); hkeys_arr = null; offsets.Clear(); keyoff_dic.Clear(); }
-        public void Flush() { hkeys.Flush(); offsets.Flush();  }
-        public void Close() { hkeys.Close(); offsets.Close();  }
-        public void Refresh() 
+        public void Clear()
         {
-            if (keysinmemory) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-            else hkeys.Refresh();
-            offsets.Refresh(); 
+            hkeys.Clear();
+            hkeys_arr = null;
+            offsets.Clear();
+            keyoff_dic.Clear();
         }
 
-        public void Build() 
+        public void Flush()
+        {
+            hkeys.Flush();
+            offsets.Flush();
+        }
+
+        public void Close()
+        {
+            hkeys.Close();
+            offsets.Close();
+        }
+
+        /// <summary>
+        /// Reloads the static part of the primary index.
+        /// </summary>
+        /// <remarks>
+        /// The dynamic dictionary is intentionally not cleared here. It represents appended state above the last
+        /// synchronized point and is managed by the higher-level <see cref="USequence"/> lifecycle.
+        /// </remarks>
+        public void Refresh()
+        {
+            if (keysinmemory)
+            {
+                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+            }
+            else
+            {
+                hkeys_arr = null;
+                hkeys.Refresh();
+            }
+
+            offsets.Refresh();
+        }
+
+        public void Build()
         {
             // сканируем опорную последовательность, формируем массивы
             List<int> hkeys_list = new List<int>();
@@ -60,6 +128,7 @@ namespace Polar.DB
                 hkeys_list.Add(hashOfKey(keyFunc(obj)));
                 return true;
             });
+
             hkeys_arr = hkeys_list.ToArray();
             hkeys_list = null;
             long[] offsets_arr = offsets_list.ToArray();
@@ -69,23 +138,25 @@ namespace Polar.DB
             Array.Sort(hkeys_arr, offsets_arr);
 
             hkeys.Clear();
-            foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
+            foreach (var hkey in hkeys_arr)
+                hkeys.AppendElement(hkey);
             hkeys.Flush();
+
             if (!keysinmemory)
             {
                 hkeys_arr = null;
                 GC.Collect();
             }
 
-
             offsets.Clear();
-            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
+            foreach (var off in offsets_arr)
+                offsets.AppendElement(off);
             offsets.Flush();
-            offsets_arr = null;
+
             GC.Collect();
         }
 
-        public object GetByKey(IComparable keysample)
+        public object? GetByKey(IComparable keysample)
         {
             if (keyoff_dic.TryGetValue(keysample, out long off))
             {
@@ -104,7 +175,7 @@ namespace Polar.DB
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
                     long offset = (long)offsets.GetByIndex(pos);
-                    object val = sequence.GetByOffset(offset);
+                    object? val = sequence.GetByOffset(offset);
                     if (val == null) return null; // Непонятно, нужно ли?
                     var k = keyFunc(val);
                     if (k.CompareTo(keysample) == 0) return val;
@@ -119,7 +190,7 @@ namespace Polar.DB
                 for (long nom = first; nom < hkeys.Count(); nom++)
                 {
                     long offset = (long)offsets.GetByIndex(nom);
-                    object val = sequence.GetByOffset(offset);
+                    object? val = sequence.GetByOffset(offset);
                     if (val == null) break;
                     var k = keyFunc(val);
                     if (hashOfKey(k) != hkey) break;
@@ -161,7 +232,7 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Определяет является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал
+        /// Метод определяет: является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал
         /// Если есть, то надо проверить офсет
         /// </summary>
         /// <param name="key"></param>
@@ -170,13 +241,9 @@ namespace Polar.DB
         public bool IsOriginal(IComparable key, long offset)
         {
             if (keyoff_dic.TryGetValue(key, out long off))
-            {
-                if (off == offset) return true;
-                return false;
-            }
+                return off == offset;
+
             return true; //TODO: здесь предполагается, что в основном индексе есть такое значение
         }
-
     }
-
 }

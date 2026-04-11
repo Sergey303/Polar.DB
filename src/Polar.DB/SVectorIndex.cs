@@ -172,6 +172,11 @@
 
         private IEnumerable<ObjOff> GetAllByComp(string valuesample, Comparer<string> comp_s)
         {
+            EnsureValuesArrayLoaded();
+
+            if (values_arr.Length == 0)
+                yield break;
+            
             // Определяем начальный индекс
             int ind = Array.BinarySearch(values_arr, valuesample, comp_s);
             if (ind >= 0)
@@ -233,6 +238,13 @@
                 yield return v;
             }
         }
+        
+        private void EnsureValuesArrayLoaded()
+        {
+            if (values_arr != null) return;
 
+            values_arr = values.ElementValues().Cast<string>().ToArray();
+        }
+        
     }
 }

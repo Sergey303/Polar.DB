@@ -99,6 +99,11 @@
 
         internal IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
         {
+            EnsureValuesArrayLoaded();
+
+            if (values_arr.Length == 0)
+                yield break;
+            
             if (valueoffs_dic.TryGetValue(valuesample, out long[] offs))
             {
                 foreach (var oo in offs.Select(o => new ObjOff(sequence.GetByOffset(o), o)))
@@ -122,6 +127,13 @@
                 }
             }
         }
+        
+        private void EnsureValuesArrayLoaded()
+        {
+            if (values_arr != null) return;
+            values_arr = values.ElementValues().Cast<IComparable>().ToArray();
+        }
+        
     }
 
 }
