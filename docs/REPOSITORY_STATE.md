@@ -1,282 +1,359 @@
 # REPOSITORY_STATE.md
 
-_Last updated: 2026-04-11_
+_Last updated: 2026-04-04_
 
 ## 1. Scope of this document
 
-This document captures the **current verified working model** of the PolarDB repository, with special attention to the gap between:
+This document fixes the current technical state of the PolarDB repository based on the changes implemented in the current work cycle.
 
-- what the repository now does well;
-- what is already protected by executable tests;
-- what is still under-protected even if the implementation looks improved.
+It is intended to answer four questions quickly:
 
-This is intentionally a repository-state document, not a change log and not a marketing summary.
+1. what is already implemented and should be treated as current behavior;
+2. what invariants are now important for further work;
+3. what is still risky or incomplete;
+4. what the most logical next steps are.
 
----
-
-## 2. Verified current state
-
-### 2.1. Core storage correctness is materially stronger than before
-
-The repository is in a much healthier state than the earlier baseline in the places where silent data damage would hurt most:
-
-- `UniversalSequenceBase` now treats `AppendOffset` as a logical end-of-sequence concept rather than as an accidental cursor position;
-- recovery and refresh now distinguish header intent, readable payload, garbage tail, and logical end;
-- partial headers now fail explicitly instead of being silently normalized away;
-- `USequence.Build()` now follows a safer persistence order;
-- `RecordAccessor` provides schema-aware field access instead of forcing callers to stay on raw magic indexes;
-- `UKeyIndex` lookup behavior around duplicate keys was strengthened.
-
-In practical terms, the repository moved from “works in common cases” toward “has explicit invariants in the dangerous cases”.
+This is a repository-state document, not a change log. The goal is to describe the **current working model** of the codebase after the accepted changes.
 
 ---
 
-### 2.2. The strongest currently verified test area is `UniversalSequenceBase`
+## 2. Current repository state
 
-The existing test baseline is already quite meaningful around:
+PolarDB is currently in a state where the main work of this stage was concentrated around four areas:
 
-- append behavior;
-- header flushing;
-- read/write by offset;
-- scan / enumeration behavior;
-- fixed-size vs variable-size behavior;
-- refresh / recovery;
-- garbage-tail trimming;
-- partial-header failure;
-- sort behavior.
+- correctness of `Polar` type round-tripping;
+- reliability of sequence state / recovery / refresh behavior;
+- safer and more ergonomic work with records and indexes;
+- stronger solution/tooling/test baseline.
 
-This is not superficial coverage. It already protects a large part of the storage primitive contract.
+In practical terms, the repository is now noticeably more consistent in the places where previously there was risk of silent corruption, wrong reconstruction after restart, or subtle boundary bugs.
 
 ---
 
-### 2.3. Secondary indexing now has basic executable protection, but mostly through integration-style scenarios
+## 3. Core technical state
 
-The current test suite already covers important integration paths for:
+### 3.1. `PType <=> object` round-trip is no longer lossy for the fixed cases covered in this stage
 
-- `UKeyIndex`;
-- `SVectorIndex`;
-- `UVectorIndex`;
-- `UVecIndex`;
-- `UIndex` through the `USequence` facade.
+The repository now treats `PType -> object -> PType` as something that must preserve meaningful schema information.
 
-That is useful because callers usually interact with indexing through `USequence`, not through low-level internals.
+The following cases were fixed:
+
+- `PTypeFString(size)` now preserves the fixed string length;
+- `PTypeSequence(...)` now preserves the `Growing` flag;
+- `PTypeUnion(...)` is now reconstructed correctly.
+
+This means type descriptions can now pass through object form without losing these specific semantic details.
+
+**Current expectation:** for these covered cases, round-trip conversion should preserve the original type meaning rather than degrade to a weaker or partial schema.
 
 ---
 
-## 3. Important repository invariants
+### 3.2. Repository state for sequence persistence is now based on logical data boundaries, not incidental stream cursor position
 
-These invariants should now be treated as part of the repository’s mental model.
+The `state` file no longer stores an accidental “current stream position” as if it were the true end of valid data.
 
-### 3.1. Logical end matters more than current stream cursor position
+The state model now explicitly relies on two service values:
 
-The durable notion of the sequence tail is `AppendOffset`, not whatever `Stream.Position` happens to be at some moment.
+- sequence element count;
+- logical end of valid data.
 
-### 3.2. Declared count is informative, but not blindly authoritative
+This is an important semantic correction.
 
-The header is an input to recovery, not absolute truth. Readable payload must still be validated.
+**Current expectation:** sequence restore logic should use the real logical boundary of data, not whatever position happened to be left in the stream at the time of saving state.
 
-### 3.3. Garbage tail is not data
+---
 
-Bytes after the last valid readable element are not part of the logical sequence and must not silently survive normalization.
+### 3.3. `AppendOffset` is now treated as a logical end-of-sequence concept
 
-### 3.4. Data should be stabilized before indexes and state are finalized
+One of the main clarifications of the repository is that `AppendOffset` is not just a random mutable position, but the logical point where valid sequence data ends and the next append should start.
 
-The intended persistence order is:
+This means:
 
-1. persist sequence data;
+- `AppendOffset` is part of the logical state of the sequence;
+- `Stream.Length` and logical sequence end are not blindly treated as identical in all situations;
+- recovery/refresh logic must re-establish a correct logical end before continuing writes.
+
+**Important nuance:** protection against writing beyond `AppendOffset` improves safety, but it does **not** automatically make arbitrary in-place overwrite of variable-sized items fully safe.
+
+That remains a separate constraint of the storage model.
+
+---
+
+### 3.4. `UniversalSequenceBase` is now stricter and better aligned with recovery-safe behavior
+
+`UniversalSequenceBase` was strengthened in several directions:
+
+- reading and writing by offsets became more disciplined;
+- service operations restore stream position more carefully;
+- traversal behavior was improved;
+- sorting-related behavior was improved;
+- `AppendOffset` semantics were clarified and documented.
+
+The repository therefore moved from a looser “works in normal cases” model toward a stricter “works with explicit logical invariants” model.
+
+**Current expectation:** code that works with sequences should respect the distinction between physical stream state and normalized logical sequence state.
+
+---
+
+### 3.5. Recovery and refresh now distinguish header intent, readable data, garbage tail, and logical end
+
+This is one of the most important current repository properties.
+
+The sequence recovery model now explicitly distinguishes:
+
+- declared count from the header;
+- actually readable number of elements;
+- garbage tail after the last valid element;
+- logical end of valid sequence data.
+
+#### Recovery behavior now assumes
+
+- declared count is an intent, not absolute truth;
+- if less data is actually readable, only valid readable items are restored;
+- garbage tail after the valid data is treated as garbage and removed from the logical state;
+- fixed-size sequences handle mismatches between declared count and actual readable capacity more carefully;
+- partially written headers now fail explicitly with `InvalidDataException` instead of being silently normalized away.
+
+#### Refresh behavior now assumes
+
+- fixed-size sequences check consistency between file length and declared count;
+- variable-size sequences do not trust `Stream.Length` blindly as logical end;
+- logical end is recomputed from what is actually readable;
+- after normalization, `AppendOffset` again matches the logical end of valid data.
+
+**Current expectation:** restart/recovery behavior should be substantially more robust in the presence of truncation, stale tail bytes, mismatched header/data, and similar non-ideal file states.
+
+---
+
+### 3.6. `USequence.Build()` now follows the correct persistence order
+
+The repository now assumes that sequence data must be stabilized before index construction is finalized.
+
+The current intended order is:
+
+1. persist/fix the sequence itself;
 2. build indexes;
-3. persist indexes;
-4. save the resulting state.
+3. persist/fix indexes;
+4. save the resulting correct state.
 
-### 3.5. Raw positional access is now a lower-level fallback
+This prevents building index state over a transient or half-finalized view of the underlying data.
 
-For record-like values, schema-aware named access through `RecordAccessor` is now the safer default.
-
----
-
-## 4. What is already in a reasonably good state
-
-The following areas look materially improved and already have meaningful regression protection:
-
-- `UniversalSequenceBase` core storage behavior;
-- `UKeyIndex` first-match boundary behavior;
-- baseline secondary index integration behavior;
-- `RecordAccessor` basic named access ergonomics;
-- `ByteFlow` basic round-trips for primitive, record, sequence, and union cases;
-- core `PType <=> object` regressions for the fixed cases already targeted in this stage.
+**Current expectation:** data, indexes, and state must be persisted in a mutually consistent order.
 
 ---
 
-## 5. What is still incomplete or risky
+### 3.7. Record access is no longer forced to stay at the raw `object[]` + magic-index level
 
-### 5.1. The test project is still not tightly coupled to the current source tree
+The repository now includes `RecordAccessor`, which introduces schema-aware access to record fields by name.
 
-A major trustworthiness gap remains in the test setup:
+This improves ergonomics and reduces positional errors in record handling.
 
-- `Testing/Polar.DB.Tests/Polar.DB.Tests.csproj` still references the published NuGet package `Polar.DB` version `2.1.0`;
-- it does **not** currently use `ProjectReference` to the local `Polar.DB` project.
+Instead of relying on fragile constructs like:
 
-That means the repository can show “green tests” while still failing to prove that the **current working tree** is what was actually tested.
+```csharp
+((object[])record)[2]
+```
 
-This is not a cosmetic concern. It affects the credibility of the whole test baseline.
+code can work with explicit field names and the known `PTypeRecord` schema.
+
+**Current expectation:** new code that works with records should prefer semantic access by field name where this improves clarity and safety.
 
 ---
 
-### 5.2. Solution metadata and repository-state documents are ahead of the actual project file in some places
+### 3.8. Index lookup behavior is corrected for first-match boundary cases
 
-Some documents describe a broader modernized target-framework matrix, but the currently verified `Polar.DB.csproj` still shows only:
+`UKeyIndex`/index lookup logic was fixed around repeated-key boundary conditions.
 
+The important behavioral correction is that lookup now follows a binary-search strategy that finds the **first valid matching position** in the covered scenario, rather than an arbitrary duplicate.
+
+This matters because later sequential processing of matching keys depends on starting from the correct boundary.
+
+**Current expectation:** repeated-key index lookups should now behave correctly at the start boundary of the equal-range block.
+
+---
+
+### 3.9. Solution/tooling baseline is modernized and more explicit
+
+At the solution level:
+
+- `global.json` was added to pin SDK selection to .NET 10;
+- `Polar.DB` was moved to multi-targeting.
+
+Current target frameworks:
+
+- `netstandard2.0`
 - `netstandard2.1`
+- `net7.0`
+- `net8.0`
+- `net10.0`
 
-This means the repository contains a documentation/state drift problem:
+This is a pragmatic state:
 
-- some improvements are described as accepted repository state;
-- the checked project file does not yet fully reflect that description.
+- repository development uses a pinned modern SDK baseline;
+- the library remains consumable across a wider runtime surface.
 
-This is a repository hygiene issue, not just a docs issue, because contributors may make decisions based on the state document.
-
----
-
-### 5.3. `USequence` as a public lifecycle facade is still under-tested
-
-`UniversalSequenceBase` is much better covered than `USequence`.
-
-The current test suite still leaves too much of the public lifecycle behavior under-protected, especially around:
-
-- `Load()` semantics with `isEmpty`;
-- saved state file semantics;
-- restart + `RestoreDynamic()`;
-- visibility rules for duplicate keys and tombstone-like replacements;
-- explicit reindexing through `CorrectOnAppendElement()`.
-
-This matters because external callers usually depend on `USequence` as the operational surface of the library.
+**Current expectation:** contributors should treat SDK choice as repository-controlled, while library consumers can still target broader .NET environments.
 
 ---
 
-### 5.4. `RecordAccessor` public API is only partially covered
+### 3.10. The repository now has stronger executable regression protection for the changes of this stage
 
-The current suite verifies the most obvious happy-path operations, but it still under-covers:
+A separate test project was added and key changes are covered by tests.
 
-- constructor guards;
-- schema metadata properties;
-- `HasField`;
-- `GetFieldType`;
-- `CreateRecord()` without values;
-- `TryGet<T>()` typed mismatch behavior;
-- validation failures for non-array or null values.
+Covered areas include:
 
-This is not catastrophic, but it is exactly the kind of small public-surface drift that later breaks consumers quietly.
+- `RecordAccessor`;
+- `PType <=> object` round-trip behavior;
+- `UniversalSequenceBase`;
+- `UKeyIndex`.
 
----
+Tested behaviors include:
 
-### 5.5. `ByteFlow` and `PType <=> object` still need deeper edge coverage
+- fixed string length preservation;
+- `Growing` flag preservation for sequences;
+- union reconstruction;
+- logical-end calculation;
+- garbage-tail rejection during recovery;
+- explicit failure on partial header;
+- correct first-match index lookup;
+- record access by field name.
 
-The current baseline covers the repaired core cases, but still leaves risk around:
-
-- nested record/sequence combinations;
-- sequence-of-record round-trip;
-- truncated payload behavior;
-- fixed-string shape verification as an executable regression;
-- round-trip of sequence `Growing` metadata through object form;
-- union shape verification through object round-trip.
-
-These are not “coverage for coverage’s sake”. They are the natural next pressure points after the first repaired cases.
+**Current expectation:** these changes are no longer only “knowledge in the author’s head”; they are now partially fixed in executable regression tests.
 
 ---
 
-### 5.6. Variable-size in-place overwrite is still the most dangerous semantic gap
+## 4. Repository invariants that should now be treated as important
 
-The code and documentation already acknowledge an important nuance:
+The following invariants appear to be the most important current ones for further development.
 
-- preventing writes beyond `AppendOffset` is not the same thing as making arbitrary variable-size in-place rewrite safe.
+### 4.1. Logical end matters more than incidental cursor position
 
-This remains the sharpest correctness risk in the storage model.
+Any code that persists or restores sequence state should think in terms of **logical valid data boundary**, not “where the stream cursor happened to be left”.
 
-The repository still needs a clearly fixed contract for:
+### 4.2. `AppendOffset` should describe append position after normalization
 
-- same-size in-place rewrite;
-- longer in-place rewrite that crosses logical tail;
-- failed in-place rewrite rollback behavior;
-- mutation safety after a failed write attempt.
+After recovery/refresh/normalization, `AppendOffset` should point to the logical end of valid data.
 
-Right now this is best treated as an intentionally open risk area until executable tests and implementation agree on the exact contract.
+### 4.3. Header count is informative, but not blindly authoritative
 
----
+Declared count and real readable data must be cross-checked.
 
-## 6. Smart test additions recommended now
+### 4.4. Garbage tail is not data
 
-The next test step should not be “full coverage of every line”.
-It should be **smart contract coverage of the public surface**.
+Bytes after the last valid readable element must not be silently treated as valid sequence content.
 
-The most useful additions are these five files:
+### 4.5. Data must be stabilized before indexes/state are finalized
 
-1. `RecordAccessorPublicApiTests.cs`  
-   Covers schema metadata, guard clauses, typed reads, and empty-shape creation.
+Index/state persistence must reflect finalized data, not an intermediate state.
 
-2. `USequenceLifecycleTests.cs`  
-   Covers `Load`, state persistence, `RestoreDynamic`, shadowing/tombstones, and `CorrectOnAppendElement`.
+### 4.6. Raw positional record access is now a lower-level fallback, not the best default
 
-3. `SecondaryIndexesLifecycleTests.cs`  
-   Covers clear/restart/refresh/collision/replay behavior for the configured secondary index family.
-
-4. `ByteFlowAndPTypeEdgeTests.cs`  
-   Covers nested serialization cases and the remaining high-value `PType <=> object` regressions.
-
-5. `UniversalSequenceBaseMutationSafetyTests.cs`  
-   Covers the still-dangerous mutation boundary for variable-size in-place rewrite.
-
-These files do not try to prove the whole storage model formally.
-They try to protect the public behaviors most likely to regress in realistic maintenance work.
+Where possible, schema-aware named access is preferable.
 
 ---
 
-## 7. Recommended next actions
+## 5. What is already in a reasonably good state
 
-### 7.1. Switch the test project from package reference to project reference
+Based on the implemented changes, the following areas look materially improved:
 
-This is the most important reliability fix for the test baseline.
+- type metadata round-trip correctness for the covered `PType` cases;
+- restart/recovery correctness for sequences;
+- handling of garbage tails and damaged partial-header situations;
+- semantic clarity of `AppendOffset`;
+- correctness of duplicate-key index start lookup;
+- developer ergonomics for records via `RecordAccessor`;
+- SDK/target-framework baseline clarity;
+- regression protection for the main fixes of this cycle.
 
-Until the tests are wired to the actual source project, “passing tests” remain weaker evidence than they should be.
+---
 
-### 7.2. Add the five smart-coverage test files
+## 6. What is still risky, incomplete, or worth treating as open
 
-This is the best next test investment because it expands contract coverage without exploding into low-value line coverage.
+This section reflects the most likely remaining pressure points after the current stage.
 
-### 7.3. Decide and codify the mutation contract for variable-size in-place rewrite
+### 6.1. `stateFileName` remains an architectural pressure point
 
-A clear decision is needed:
+Even with better state semantics, an external state file can still create operational problems:
 
-- either such rewrites are explicitly unsupported and must fail safely;
-- or a narrower safe subset must be defined and protected.
+- restart friction;
+- file locking/process cleanup pain;
+- mismatch risk between main data and sidecar state;
+- extra coordination burden in environments with crashes or forced termination.
 
-In either case, failed writes must not leave the sequence in a partially mutated state.
+This means the semantic fix for state content is important, but it does not automatically solve the broader architectural question of **where state should live** and **how tightly it should be coupled to the main file**.
 
-### 7.4. Reconcile state documents with actual project metadata
+### 6.2. Refresh/recovery cost may still matter for large files
 
-Repository-state documents and checked project files should describe the same reality.
+The repository is now more correct in how it reconstructs logical end and validates data, but the cost model of refresh/recovery can still matter.
 
-If multi-targeting is intended and accepted, the project file should reflect it.
-If not, the state documents should stop claiming it as current behavior.
+If refresh recalculates append position by wide scans, the repository may still need a more explicit startup/normalization strategy and stronger steady-state invariants.
+
+### 6.3. Variable-size in-place overwrite still deserves care
+
+The current work explicitly clarifies that protection around `AppendOffset` does not magically make arbitrary variable-size rewrite safe.
+
+This area should still be treated conservatively.
+
+### 6.4. Test coverage is stronger, but not equal to full storage-model proof
+
+The repository is in a better state than before, but the test project covers the key repaired behaviors of this stage, not every possible storage corruption or concurrency scenario.
+
+---
+
+## 7. Recommended next steps
+
+If the repository continues in the same direction, the most logical next steps are these.
+
+### 7.1. Decide the long-term fate of `stateFileName`
+
+A clear architectural decision is needed between alternatives such as:
+
+- keeping a separate sidecar state file but tightening lifecycle rules;
+- using dynamic/safer naming and cleanup conventions;
+- deriving more state directly from the main file;
+- embedding state into a better-coupled storage structure.
+
+This is not just a minor cleanup item; it affects operational reliability.
+
+### 7.2. Strengthen the steady-state invariant around append position
+
+A useful next direction is to make the runtime invariant more explicit, for example:
+
+- after startup normalization, append state should stay synchronized with actual valid end;
+- routine operations should preserve that invariant without requiring expensive re-derivation.
+
+### 7.3. Expand tests around damaged-file and boundary scenarios
+
+Especially valuable:
+
+- more recovery edge cases;
+- rewrite/append interaction cases;
+- state/index/data divergence scenarios;
+- larger duplicate-key index ranges;
+- repeated restart/refresh cycles.
+
+### 7.4. Continue pushing API clarity over implicit low-level behavior
+
+The addition of `RecordAccessor` is a good sign. The repository benefits when behavior is expressed in semantic APIs rather than through fragile positional conventions or incidental stream state.
 
 ---
 
 ## 8. Practical summary
 
-PolarDB is no longer in the “obviously fragile” stage for its core storage path.
+At the end of this stage, PolarDB is in a meaningfully better state in the parts that matter most for correctness:
 
-The main verified strengths now are:
+- schema round-trip is less lossy;
+- sequence state is based on logical data boundaries;
+- recovery is stricter and safer;
+- index boundary lookup is more correct;
+- record handling is more expressive;
+- build order is more consistent;
+- tests now anchor the repaired behaviors.
 
-- stronger sequence invariants;
-- better recovery behavior;
-- safer index lookup boundaries;
-- more usable record access;
-- a meaningful baseline of executable regression tests.
+The main remaining architectural pressure is no longer “basic correctness is obviously broken”, but rather:
 
-The main remaining pressure points are now more architectural and test-credibility related:
+- how to make state management operationally cleaner;
+- how to reduce refresh/recovery cost while keeping correctness;
+- how far to formalize invariants around append/rewrite behavior.
 
-- tests still target the package instead of the live source tree;
-- `USequence` is less protected than the low-level storage primitive;
-- variable-size in-place rewrite still lacks a fully codified safe contract;
-- some state/docs claims still drift from the checked project file.
-
-That is a much healthier class of problems than the repository had before, but they are still important enough to fix before calling the test baseline truly trustworthy.
+That is a much healthier next problem to have.
