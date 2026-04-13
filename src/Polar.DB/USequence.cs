@@ -19,8 +19,10 @@ namespace Polar.DB
     /// and <see cref="Scan"/> which rely on primary-key originality filtering.
     /// </para>
     /// <para>
-    /// <see cref="RestoreDynamic"/> is a higher-level recovery step intended for reopened instances. It reloads
-    /// static state and replays the dynamic tail into both the primary and secondary indexes.
+    /// <see cref="RestoreDynamic"/> is a higher-level recovery step intended for reopened instances. It restores
+    /// primary-key originality for the unsynchronized tail and then rebuilds persisted indexes before advancing the
+    /// sidecar state point. This prevents repeated restart cycles from "forgetting" dynamically appended keys that were
+    /// replayed only in memory.
     /// </para>
     /// <para>
     /// The two public methods must not call each other; both are built on top of private helpers in order to
@@ -30,14 +32,14 @@ namespace Polar.DB
     public class USequence
     {
         // У универсальной последовательности нет динамической части. Все элементы доступны через методы.
-        // Однако элемент может быть пустым. 
+        // Однако элемент может быть пустым.
         private UniversalSequenceBase sequence;
         private Func<object, bool> isEmpty;
         private Func<object, IComparable> keyFunc;
         private UKeyIndex primaryKeyIndex;
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
-        
+
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
         {
@@ -138,10 +140,11 @@ namespace Polar.DB
         /// </para>
         /// <para>
         /// Replaying into the primary index is idempotent enough for practical use because the primary dynamic map keeps
-        /// only the latest offset per key. Replaying into secondary indexes is intentionally reserved for
-        /// <see cref="RestoreDynamic"/> on a reopened instance; doing it repeatedly on a live instance could duplicate
-        /// dynamic secondary entries because those index implementations currently do not expose a "clear dynamic part only"
-        /// operation.
+        /// only the latest offset per key.
+        /// </para>
+        /// <para>
+        /// Advancing the state file after an in-memory replay is only safe if the caller also makes the corresponding
+        /// recovered index state durable. Otherwise future restarts can lose visibility of keys that were replayed only in memory.
         /// </para>
         /// </remarks>
         private void ReplayDynamicTailFromState(bool applyToPrimary, bool applyToSecondary, bool updateStateFile)
@@ -182,19 +185,52 @@ namespace Polar.DB
 
         /// <summary>
         /// Следующий метод актуален только если statefile != null
-        /// Replays the dynamic tail after the last saved state point.
+        /// Restores reopened-instance consistency from the last saved state point.
         /// </summary>
         /// <remarks>
-        /// This method is intended for reopened instances. It refreshes static sequence/index state first and then
-        /// replays the dynamic tail into both the primary and secondary indexes.
+        /// <para>
+        /// The previous implementation replayed the dynamic tail into in-memory indexes and then advanced the sidecar
+        /// state file immediately. That made the state file claim that the recovered tail was synchronized even though
+        /// the rebuilt index state had never been persisted. Across repeated restart cycles this could make earlier
+        /// appended keys disappear from lookup because future recoveries replayed only the most recent suffix.
+        /// </para>
+        /// <para>
+        /// The current implementation therefore uses a two-step strategy:
+        /// </para>
+        /// <list type="number">
+        /// <item><description>refresh static state and replay the unsynchronized tail into the primary index to restore originality semantics;</description></item>
+        /// <item><description>rebuild and persist indexes via <see cref="Build"/> before moving the sidecar state point forward.</description></item>
+        /// </list>
+        /// <para>
+        /// This prefers correctness and restart stability over startup cost.
+        /// </para>
         /// </remarks>
         public void RestoreDynamic()
         {
             if (stateFileName == null)
+            {
+                RefreshStaticState();
                 return;
+            }
 
             RefreshStaticState();
-            ReplayDynamicTailFromState(applyToPrimary: true, applyToSecondary: true, updateStateFile: true);
+
+            var state = ReadStateOrDefault();
+            bool hasUnsynchronizedTail = sequence.Count() > state.Count;
+
+            if (!hasUnsynchronizedTail)
+            {
+                SaveState();
+                return;
+            }
+
+            // Replay into the primary index first so Build() can preserve original/shadowing semantics
+            // when it scans the sequence and persists a new synchronized index state.
+            ReplayDynamicTailFromState(applyToPrimary: true, applyToSecondary: false, updateStateFile: false);
+
+            // Build() flushes the sequence, rebuilds static indexes from the now-correct logical view,
+            // and then saves the state file. This makes the new synchronized point honest across future restarts.
+            Build();
         }
 
         public void Clear()
@@ -249,7 +285,7 @@ namespace Polar.DB
         /// instance whose state file still points to an earlier synchronized point.
         /// </para>
         /// <para>
-        /// If the caller needs full reopened-instance recovery including secondary indexes, use
+        /// If the caller needs full reopened-instance recovery including persisted index synchronization, use
         /// <see cref="RestoreDynamic"/> instead.
         /// </para>
         /// </remarks>

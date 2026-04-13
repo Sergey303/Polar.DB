@@ -8,7 +8,7 @@
         <PackageId>Polar.DB</PackageId>
         <Title>Polar.DB</Title>
         <Description>Polar.DB is a structured storage library for schema-defined records, append-oriented sequence flows, and index-based lookup scenarios with object-like and RecordAccessor-like access patterns.</Description>
-        <PackageTags>Polar.DB;storage;sequence;RecordAccessor;indexes</PackageTags>
+        <PackageTags>Polar.DB;storage;sequence;indexes;database;typed-data;embedded;dotnet;csharp;polardb</PackageTags>
         <Authors>Polar.DB Contributors</Authors>
         <!-- Legacy naming preserved here because this is an external historical URL. -->
         <!-- <RepositoryUrl>https://github.com/agmarchuk/PolarDB</RepositoryUrl> -->
@@ -18,19 +18,17 @@
 		<RepositoryType>git</RepositoryType>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<PackageIcon>..\..\icon.png</PackageIcon>
-		<PackageTags>polardb;database;storage;typed-data;embedded;dotnet;csharp</PackageTags>  
 		<PackageLicenseFile>..\..\LICENSE</PackageLicenseFile>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<ItemGroup>
-			<None Include="README.md" Pack="true" PackagePath="\" />
-		</ItemGroup>
 		
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+        <None Include="..\..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="" Link="LICENSE" />
     </ItemGroup>
 
 </Project>
