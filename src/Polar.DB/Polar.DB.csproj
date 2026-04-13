@@ -11,8 +11,22 @@
         <PackageTags>Polar.DB;storage;sequence;RecordAccessor;indexes</PackageTags>
         <Authors>Polar.DB Contributors</Authors>
         <!-- Legacy naming preserved here because this is an external historical URL. -->
-        <RepositoryUrl>https://github.com/agmarchuk/PolarDB</RepositoryUrl>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <!-- <RepositoryUrl>https://github.com/agmarchuk/PolarDB</RepositoryUrl> -->
+		<RepositoryUrl>https://github.com/Sergey303/Polar.DB</RepositoryUrl>
+        <PackageReadmeFile>..\..\README.md</PackageReadmeFile>
+		<PackageProjectUrl>https://github.com/Sergey303/Polar.DB</PackageProjectUrl>
+		<RepositoryType>git</RepositoryType>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<PackageIcon>..\..\icon.png</PackageIcon>
+		<PackageTags>polardb;database;storage;typed-data;embedded;dotnet;csharp</PackageTags>  
+		<PackageLicenseFile>..\..\LICENSE</PackageLicenseFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<ItemGroup>
+			<None Include="README.md" Pack="true" PackagePath="\" />
+		</ItemGroup>
+		
     </PropertyGroup>
 
     <ItemGroup>
