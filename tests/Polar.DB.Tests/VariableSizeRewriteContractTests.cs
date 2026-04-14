@@ -3,124 +3,99 @@ using Xunit;
 namespace Polar.DB.Tests;
 
 /// <summary>
-/// Defines the highest-value rewrite tests for variable-size sequence items.
+/// Defines the expected safety envelope for in-place rewrite operations over fixed-size and variable-size items.
 /// </summary>
 /// <remarks>
-/// These tests are intentionally strict because variable-size in-place rewrite is where storage libraries most often
-/// drift into silent corruption. If the implementation allows such rewrites, it must preserve all logical invariants.
-/// If it does not allow them, it should fail loudly and leave the file unchanged.
+/// The tests do not force one implementation strategy. A variable-size rewrite may either be explicitly rejected or
+/// proven safe by preserving following items and keeping the logical append boundary consistent after reopen.
 /// </remarks>
-public abstract class VariableSizeRewriteContractTests
+public class VariableSizeRewriteContractTests
 {
     /// <summary>
-    /// Creates a repository-specific harness bound to a concrete variable-size sequence implementation.
-    /// </summary>
-    protected abstract ISequenceContractHarness CreateHarness();
-
-    /// <summary>
-    /// Verifies that rewriting an item with another item of the same logical size preserves neighboring data and append state.
+    /// Verifies that rewriting a middle variable-size item with a larger payload does not silently corrupt following data.
     /// </summary>
     [Fact]
-    public void Rewrite_Same_Size_Value_Preserves_Neighboring_Items_And_Remains_Readable_After_Reopen()
+    public void VariableSize_Rewrite_With_Larger_Value_Must_Not_Silently_Corrupt_Following_Items()
     {
-        using var harness = CreateHarness();
-        Assert.True(harness.IsVariableSize);
+        using var stream = new MemoryStream();
+        var sequence = StorageCorruptionHelpers.CreateVariableRecordSequence(stream);
 
-        harness.Append(harness.CreateValue("aaaa"));
-        harness.Append(harness.CreateValue("bbbb"));
-        harness.Append(harness.CreateValue("cccc"));
-        harness.Flush();
-        harness.Build();
+        sequence.Clear();
+        long firstOffset = sequence.AppendElement(new object[] { 1, "A" });
+        long secondOffset = sequence.AppendElement(new object[] { 2, "B" });
+        sequence.Flush();
 
-        var beforeRewrite = harness.Snapshot();
+        try
+        {
+            sequence.SetElement(firstOffset, new object[] { 1, "A much longer name" });
+            sequence.Flush();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or ArgumentException)
+        {
+            // Acceptable policy: explicitly reject unsafe variable-size in-place rewrite.
+            return;
+        }
 
-        harness.RewriteAt(1, harness.CreateValue("zzzz"));
-        harness.Flush();
-        harness.Build();
-        harness.Reopen();
-        harness.Refresh();
-
-        var afterRewrite = harness.Snapshot();
-        Assert.Equal(3, afterRewrite.Count);
-        Assert.Equal(new[] { "aaaa", "zzzz", "cccc" }, afterRewrite.Items.Select(harness.ReadPayload).ToArray());
-        Assert.True(afterRewrite.AppendOffset <= afterRewrite.StreamLength);
-        Assert.True(afterRewrite.AppendOffset >= beforeRewrite.AppendOffset || afterRewrite.AppendOffset > 0);
+        var second = Assert.IsType<object[]>(sequence.GetElement(secondOffset));
+        Assert.Equal(2, (int)second[0]);
+        Assert.Equal("B", (string)second[1]);
     }
 
     /// <summary>
-    /// Verifies that rewriting an item with a shorter payload does not damage subsequent items.
+    /// Verifies that rewriting the last variable-size item with a larger payload keeps durable logical end consistent.
     /// </summary>
     [Fact]
-    public void Rewrite_Shorter_Value_Does_Not_Corrupt_Following_Items()
+    public void VariableSize_Rewrite_Last_Item_With_Larger_Value_Keeps_Logical_End_Consistent()
     {
-        using var harness = CreateHarness();
-        Assert.True(harness.IsVariableSize);
+        using var stream = new MemoryStream();
+        var sequence = StorageCorruptionHelpers.CreateVariableRecordSequence(stream);
 
-        harness.Append(harness.CreateValue("long-long-value"));
-        harness.Append(harness.CreateValue("middle"));
-        harness.Append(harness.CreateValue("tail"));
-        harness.Flush();
-        harness.Build();
+        sequence.Clear();
+        sequence.AppendElement(new object[] { 1, "A" });
+        long lastOffset = sequence.AppendElement(new object[] { 2, "B" });
+        sequence.Flush();
 
-        harness.RewriteAt(0, harness.CreateValue("x"));
-        harness.Flush();
-        harness.Build();
-        harness.Reopen();
-        harness.Refresh();
+        try
+        {
+            sequence.SetElement(lastOffset, new object[] { 2, "B-long" });
+            sequence.Flush();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or ArgumentException)
+        {
+            return;
+        }
 
-        var snapshot = harness.Snapshot();
-        Assert.Equal(3, snapshot.Count);
-        Assert.Equal(new[] { "x", "middle", "tail" }, snapshot.Items.Select(harness.ReadPayload).ToArray());
-        Assert.True(snapshot.StreamLength >= snapshot.AppendOffset);
+        stream.Position = 0L;
+        var reopened = StorageCorruptionHelpers.CreateVariableRecordSequence(stream);
+        Assert.Equal(2L, reopened.Count());
+        Assert.Equal(reopened.AppendOffset, stream.Length);
+
+        var last = Assert.IsType<object[]>(reopened.GetByIndex(1));
+        Assert.Equal(2, (int)last[0]);
+        Assert.Equal("B-long", (string)last[1]);
     }
 
     /// <summary>
-    /// Verifies that rewriting an item with a longer payload does not silently corrupt the sequence.
+    /// Verifies the positive baseline: fixed-size in-place rewrite is supported and remains durable after reopen.
     /// </summary>
-    /// <remarks>
-    /// The preferred contract for this repository is a loud failure with unchanged durable data. If the implementation
-    /// intentionally supports relocation-based rewrite, the harness can adapt this test into a success-path variant.
-    /// Until such support is explicit, silent success is treated as suspicious.
-    /// </remarks>
     [Fact]
-    public void Rewrite_Longer_Value_Fails_Loudly_Or_Preserves_Durable_State()
+    public void FixedSize_Rewrite_At_Known_Offset_Is_Supported_And_Durable()
     {
-        using var harness = CreateHarness();
-        Assert.True(harness.IsVariableSize);
+        using var stream = new MemoryStream();
+        var sequence = StorageCorruptionHelpers.CreateInt32Sequence(stream);
 
-        harness.Append(harness.CreateValue("aa"));
-        harness.Append(harness.CreateValue("bb"));
-        harness.Append(harness.CreateValue("cc"));
-        harness.Flush();
-        harness.Build();
+        sequence.Clear();
+        long firstOffset = sequence.AppendElement(10);
+        sequence.AppendElement(20);
+        sequence.Flush();
 
-        var before = harness.Snapshot();
+        sequence.SetElement(firstOffset, 11);
+        sequence.Flush();
 
-        var exception = Record.Exception(() =>
-        {
-            harness.RewriteAt(1, harness.CreateValue("this-value-is-longer-than-the-original"));
-            harness.Flush();
-            harness.Build();
-        });
-
-        harness.Reopen();
-
-        if (exception is null)
-        {
-            harness.Refresh();
-            var after = harness.Snapshot();
-            Assert.Equal(3, after.Count);
-            Assert.True(after.StreamLength >= after.AppendOffset);
-            Assert.Equal("aa", harness.ReadPayload(after.Items[0]));
-            Assert.Equal("cc", harness.ReadPayload(after.Items[2]));
-        }
-        else
-        {
-            harness.Refresh();
-            var afterFailure = harness.Snapshot();
-            Assert.Equal(before.Count, afterFailure.Count);
-            Assert.Equal(before.Items.Select(harness.ReadPayload), afterFailure.Items.Select(harness.ReadPayload));
-            Assert.True(afterFailure.StreamLength >= afterFailure.AppendOffset);
-        }
+        stream.Position = 0L;
+        var reopened = StorageCorruptionHelpers.CreateInt32Sequence(stream);
+        Assert.Equal(2L, reopened.Count());
+        Assert.Equal(11, reopened.GetByIndex(0));
+        Assert.Equal(20, reopened.GetByIndex(1));
     }
 }

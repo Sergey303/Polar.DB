@@ -1,169 +1,212 @@
-using System.Diagnostics;
-using Xunit;
+using System.Text;
 
 namespace Polar.DB.Tests;
 
+/// <summary>
+/// Provides low-level helpers for storage corruption, recovery, and durability tests.
+/// </summary>
+/// <remarks>
+/// The helpers intentionally operate at stream and binary-header level. This keeps corruption scenarios explicit and
+/// makes test intent clear when a case simulates stale tails, truncated records, mismatched header counts, or restart
+/// through a real file-backed stream.
+/// </remarks>
 internal static class StorageCorruptionHelpers
 {
-    public static string CreateTempDirectory()
-    {
-        string path = Path.Combine(
-            Path.GetTempPath(),
-            "PolarDbTests",
-            Guid.NewGuid().ToString("N"));
+    /// <summary>
+    /// Gets the canonical 32-bit integer item type used by fixed-size sequence tests.
+    /// </summary>
+    public static PType Int32Type { get; } = new PType(PTypeEnumeration.integer);
 
-        Directory.CreateDirectory(path);
-        return path;
+    /// <summary>
+    /// Gets the canonical 64-bit integer item type used by fixed-size sequence tests and throughput smoke tests.
+    /// </summary>
+    public static PType Int64Type { get; } = new PType(PTypeEnumeration.longinteger);
+
+    /// <summary>
+    /// Creates the variable-size record type used by recovery and rewrite tests.
+    /// </summary>
+    /// <returns>
+    /// A record type with an integer <c>id</c> field and a variable-size string <c>name</c> field.
+    /// </returns>
+    public static PType CreateVariableRecordType()
+    {
+        return new PTypeRecord(
+            new NamedType("id", new PType(PTypeEnumeration.integer)),
+            new NamedType("name", new PType(PTypeEnumeration.sstring)));
     }
 
-    public static void DeleteDirectoryQuietly(string path)
+    /// <summary>
+    /// Creates a <see cref="UniversalSequenceBase"/> over 32-bit integer items.
+    /// </summary>
+    /// <param name="stream">The stream that contains or will contain the sequence data.</param>
+    /// <returns>A sequence instance bound to <paramref name="stream"/>.</returns>
+    public static UniversalSequenceBase CreateInt32Sequence(Stream stream)
     {
-        try
-        {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-        }
-        catch
-        {
-            // best-effort cleanup for tests
-        }
+        return new UniversalSequenceBase(Int32Type, stream);
     }
 
-    public static USequence CreateIntegerSequence(
-        string tempDir,
-        string? stateFileName = null,
-        bool optimise = true,
-        FileShare fileShare = FileShare.ReadWrite,
-        Func<int, int>? hashOfKey = null)
+    /// <summary>
+    /// Creates a <see cref="UniversalSequenceBase"/> over 64-bit integer items.
+    /// </summary>
+    /// <param name="stream">The stream that contains or will contain the sequence data.</param>
+    /// <returns>A sequence instance bound to <paramref name="stream"/>.</returns>
+    public static UniversalSequenceBase CreateInt64Sequence(Stream stream)
     {
-        string[] files =
-        {
-            Path.Combine(tempDir, "sequence.bin"),
-            Path.Combine(tempDir, "hkeys.bin"),
-            Path.Combine(tempDir, "offsets.bin")
-        };
-
-        int index = 0;
-        Func<Stream> streamGen = () => new FileStream(
-            files[index++],
-            FileMode.OpenOrCreate,
-            FileAccess.ReadWrite,
-            fileShare);
-
-        return new USequence(
-            new PType(PTypeEnumeration.integer),
-            stateFileName,
-            streamGen,
-            _ => false,
-            value => (int)value,
-            key => hashOfKey?.Invoke((int)key) ?? (int)key,
-            optimise);
+        return new UniversalSequenceBase(Int64Type, stream);
     }
 
-    public static UniversalSequenceBase CreateIntegerUniversalSequence(string path)
+    /// <summary>
+    /// Creates a <see cref="UniversalSequenceBase"/> over the shared variable-size test record type.
+    /// </summary>
+    /// <param name="stream">The stream that contains or will contain the sequence data.</param>
+    /// <returns>A variable-size record sequence instance bound to <paramref name="stream"/>.</returns>
+    public static UniversalSequenceBase CreateVariableRecordSequence(Stream stream)
     {
-        return new UniversalSequenceBase(
-            new PType(PTypeEnumeration.integer),
-            new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
+        return new UniversalSequenceBase(CreateVariableRecordType(), stream);
     }
 
-    public static UniversalSequenceBase CreateStringUniversalSequence(string path)
+    /// <summary>
+    /// Reads the declared element count stored in the sequence header without permanently changing stream position.
+    /// </summary>
+    /// <param name="stream">The sequence stream whose first eight bytes contain the declared count.</param>
+    /// <returns>The 64-bit count value currently stored in the sequence header.</returns>
+    public static long ReadHeaderCount(Stream stream)
     {
-        return new UniversalSequenceBase(
-            new PType(PTypeEnumeration.sstring),
-            new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
-    }
-
-    public static (long Count, long AppendOffset) ReadState(string statePath)
-    {
-        using var fs = new FileStream(statePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var br = new BinaryReader(fs);
-        return (br.ReadInt64(), br.ReadInt64());
-    }
-
-    public static void WriteState(string statePath, long count, long appendOffset)
-    {
-        string? dir = Path.GetDirectoryName(statePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        using var fs = new FileStream(statePath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-        using var bw = new BinaryWriter(fs);
-        bw.Write(count);
-        bw.Write(appendOffset);
-    }
-
-    public static void WriteTooShortState(string statePath)
-    {
-        string? dir = Path.GetDirectoryName(statePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        File.WriteAllBytes(statePath, new byte[] { 1, 2, 3, 4 });
-    }
-
-    public static void CorruptHeaderCount(string sequencePath, long count)
-    {
-        using var fs = new FileStream(sequencePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-        using var bw = new BinaryWriter(fs);
-        fs.Position = 0L;
-        bw.Write(count);
-        bw.Flush();
-    }
-
-    public static void AppendBytes(string path, byte[] bytes)
-    {
-        using var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
-        fs.Position = fs.Length;
-        fs.Write(bytes, 0, bytes.Length);
-        fs.Flush();
-    }
-
-    public static void WriteFixedSequenceBytes(Stream stream, IReadOnlyList<int> values, long declaredCount, byte[]? trailingBytes = null)
-    {
-        stream.SetLength(0L);
+        long saved = stream.Position;
         stream.Position = 0L;
+        using var reader = new BinaryReader(stream, Encoding.Default, leaveOpen: true);
+        long count = reader.ReadInt64();
+        stream.Position = Math.Min(saved, stream.Length);
+        return count;
+    }
 
-        using var bw = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
-        bw.Write(declaredCount);
-        foreach (int value in values)
-            bw.Write(value);
-
-        if (trailingBytes is { Length: > 0 })
-            bw.Write(trailingBytes);
-
-        bw.Flush();
+    /// <summary>
+    /// Writes a declared element count into the sequence header without permanently changing stream position.
+    /// </summary>
+    /// <param name="stream">The sequence stream whose header should be overwritten.</param>
+    /// <param name="count">The count value to store in the first eight bytes of the stream.</param>
+    /// <remarks>
+    /// This method is deliberately used to create mismatches between declared count and readable data during crash
+    /// simulation tests.
+    /// </remarks>
+    public static void WriteHeaderCount(Stream stream, long count)
+    {
+        long saved = stream.Position;
         stream.Position = 0L;
+        using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
+        writer.Write(count);
+        writer.Flush();
+        stream.Position = Math.Min(saved, stream.Length);
     }
 
-    public static byte[] BuildVariableStringSequenceBytes(params string[] values)
+    /// <summary>
+    /// Appends arbitrary bytes to the physical end of a stream.
+    /// </summary>
+    /// <param name="stream">The stream to corrupt or extend.</param>
+    /// <param name="bytes">The raw bytes to append.</param>
+    /// <remarks>
+    /// The appended bytes may represent stale tail data, incomplete serialized values, or intentionally invalid data.
+    /// </remarks>
+    public static void AppendRawBytes(Stream stream, params byte[] bytes)
     {
-        using var ms = new MemoryStream();
-        var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.sstring), ms);
-        foreach (string value in values)
-            sequence.AppendElement(value);
-        sequence.Flush();
-        return ms.ToArray();
+        stream.Position = stream.Length;
+        stream.Write(bytes, 0, bytes.Length);
+        stream.Flush();
     }
 
-    public static byte[] ConcatBytes(byte[] left, byte[] right)
+    /// <summary>
+    /// Appends one serialized 32-bit integer after the current logical stream contents.
+    /// </summary>
+    /// <param name="stream">The stream to extend with a stale integer tail.</param>
+    /// <param name="value">The integer value to append.</param>
+    public static void AppendInt32Tail(Stream stream, int value)
     {
-        byte[] result = new byte[left.Length + right.Length];
-        Buffer.BlockCopy(left, 0, result, 0, left.Length);
-        Buffer.BlockCopy(right, 0, result, left.Length, right.Length);
-        return result;
+        stream.Position = stream.Length;
+        using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
+        writer.Write(value);
+        writer.Flush();
     }
 
-    public static long ReadBudgetMs(string envVarName, long fallback)
+    /// <summary>
+    /// Appends a value serialized according to a Polar type after the current logical stream contents.
+    /// </summary>
+    /// <param name="stream">The stream to extend.</param>
+    /// <param name="type">The Polar type used to serialize <paramref name="value"/>.</param>
+    /// <param name="value">The value to serialize as stale or extra physical data.</param>
+    public static void AppendSerializedTail(Stream stream, PType type, object value)
     {
-        string? raw = Environment.GetEnvironmentVariable(envVarName);
-        return long.TryParse(raw, out long parsed) && parsed > 0 ? parsed : fallback;
+        stream.Position = stream.Length;
+        using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
+        ByteFlow.Serialize(writer, value, type);
+        writer.Flush();
     }
 
-    public static void AssertDurationWithin(Stopwatch sw, long budgetMs, string scenario)
+    /// <summary>
+    /// Creates a byte-for-byte snapshot of a memory-backed sequence stream.
+    /// </summary>
+    /// <param name="stream">The memory stream to snapshot.</param>
+    /// <returns>A new byte array containing the current stream contents.</returns>
+    public static byte[] SnapshotBytes(MemoryStream stream)
     {
-        Assert.True(
-            sw.ElapsedMilliseconds <= budgetMs,
-            $"{scenario} exceeded budget. Expected <= {budgetMs} ms, actual: {sw.ElapsedMilliseconds} ms.");
+        return stream.ToArray();
+    }
+
+    /// <summary>
+    /// Owns a temporary directory used by file-backed storage tests.
+    /// </summary>
+    /// <remarks>
+    /// The directory is deleted during disposal. Cleanup failures are intentionally swallowed so that filesystem cleanup
+    /// noise does not hide the original test assertion failure.
+    /// </remarks>
+    public sealed class TempDirectory : IDisposable
+    {
+        /// <summary>
+        /// Creates a new unique temporary directory for one test case.
+        /// </summary>
+        public TempDirectory()
+        {
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PolarDbTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path);
+        }
+
+        /// <summary>
+        /// Gets the full path of the temporary directory.
+        /// </summary>
+        public string Path { get; }
+
+        /// <summary>
+        /// Combines the temporary directory path with a test file name.
+        /// </summary>
+        /// <param name="fileName">The file name relative to the temporary directory.</param>
+        /// <returns>The full path for <paramref name="fileName"/> inside this temporary directory.</returns>
+        public string File(string fileName) => System.IO.Path.Combine(Path, fileName);
+
+        /// <summary>
+        /// Opens a read-write file stream inside the temporary directory.
+        /// </summary>
+        /// <param name="fileName">The file name relative to the temporary directory.</param>
+        /// <param name="mode">The file mode used to open or create the file.</param>
+        /// <param name="share">The file-sharing mode used to model locking behavior.</param>
+        /// <returns>A read-write <see cref="FileStream"/> for the requested test file.</returns>
+        public FileStream Open(string fileName, FileMode mode = FileMode.OpenOrCreate, FileShare share = FileShare.ReadWrite)
+        {
+            return new FileStream(File(fileName), mode, FileAccess.ReadWrite, share);
+        }
+
+        /// <summary>
+        /// Deletes the temporary directory and all files created inside it.
+        /// </summary>
+        public void Dispose()
+        {
+            try
+            {
+                if (Directory.Exists(Path))
+                    Directory.Delete(Path, recursive: true);
+            }
+            catch
+            {
+                // Test cleanup should not hide the original assertion failure.
+            }
+        }
     }
 }

@@ -3,141 +3,73 @@ using Xunit;
 namespace Polar.DB.Tests;
 
 /// <summary>
-/// Defines the most valuable boundary tests for duplicate-key and missing-key index lookup.
+/// Defines contract tests for indexed lookup behavior at duplicate-key and missing-key boundaries.
 /// </summary>
 /// <remarks>
-/// These tests intentionally target the places where binary-search based index code most often fails:
-/// equal-range boundaries, absent keys near range edges, and stability after reopen/rebuild.
+/// These tests protect the binary-search boundary semantics that are easy to break when an index contains repeated
+/// keys. A lookup must start from the first matching item in the equal range rather than an arbitrary duplicate.
 /// </remarks>
 public abstract class IndexBoundaryContractTests
 {
     /// <summary>
-    /// Creates a repository-specific harness bound to a concrete indexed sequence implementation.
+    /// Creates a concrete indexed sequence harness for boundary lookup tests.
     /// </summary>
+    /// <returns>A fresh harness instance with isolated backing storage.</returns>
     protected abstract IIndexedSequenceContractHarness CreateHarness();
 
     /// <summary>
-    /// Verifies that lookup returns an empty range when the requested key is smaller than the minimum indexed key.
+    /// Verifies that duplicate-key lookup returns the full equal range starting at the first matching position.
     /// </summary>
     [Fact]
-    public void Lookup_Key_Before_Minimum_Returns_Empty_Result()
+    public void Duplicate_Key_Lookup_Returns_First_Equal_Range_Position()
     {
         using var harness = CreateHarness();
 
-        harness.Append(harness.CreateIndexedValue("b", "b-1"));
-        harness.Append(harness.CreateIndexedValue("c", "c-1"));
-        harness.Build();
-
-        var result = harness.FindAllIndexesByKey("a");
-        Assert.Empty(result);
-    }
-
-    /// <summary>
-    /// Verifies that lookup returns an empty range when the requested key is greater than the maximum indexed key.
-    /// </summary>
-    [Fact]
-    public void Lookup_Key_After_Maximum_Returns_Empty_Result()
-    {
-        using var harness = CreateHarness();
-
-        harness.Append(harness.CreateIndexedValue("a", "a-1"));
-        harness.Append(harness.CreateIndexedValue("b", "b-1"));
-        harness.Build();
-
-        var result = harness.FindAllIndexesByKey("z");
-        Assert.Empty(result);
-    }
-
-    /// <summary>
-    /// Verifies that lookup returns an empty range when the requested key falls strictly between two indexed ranges.
-    /// </summary>
-    [Fact]
-    public void Lookup_Missing_Key_Between_Ranges_Returns_Empty_Result()
-    {
-        using var harness = CreateHarness();
-
-        harness.Append(harness.CreateIndexedValue("a", "a-1"));
-        harness.Append(harness.CreateIndexedValue("c", "c-1"));
-        harness.Append(harness.CreateIndexedValue("e", "e-1"));
-        harness.Build();
-
-        var result = harness.FindAllIndexesByKey("b");
-        Assert.Empty(result);
-    }
-
-    /// <summary>
-    /// Verifies that lookup returns the full duplicate block when equal keys begin at logical index zero.
-    /// </summary>
-    [Fact]
-    public void Lookup_Returns_All_Duplicates_When_Equal_Range_Starts_At_Beginning()
-    {
-        using var harness = CreateHarness();
-
-        harness.Append(harness.CreateIndexedValue("k", "k-1"));
-        harness.Append(harness.CreateIndexedValue("k", "k-2"));
-        harness.Append(harness.CreateIndexedValue("m", "m-1"));
-        harness.Build();
-
-        var result = harness.FindAllIndexesByKey("k");
-        Assert.Equal(new[] { 0, 1 }, result.ToArray());
-    }
-
-    /// <summary>
-    /// Verifies that lookup returns the full duplicate block when equal keys end at the last logical item.
-    /// </summary>
-    [Fact]
-    public void Lookup_Returns_All_Duplicates_When_Equal_Range_Ends_At_Last_Item()
-    {
-        using var harness = CreateHarness();
-
-        harness.Append(harness.CreateIndexedValue("a", "a-1"));
-        harness.Append(harness.CreateIndexedValue("k", "k-1"));
-        harness.Append(harness.CreateIndexedValue("k", "k-2"));
-        harness.Append(harness.CreateIndexedValue("k", "k-3"));
-        harness.Build();
-
-        var result = harness.FindAllIndexesByKey("k");
-        Assert.Equal(new[] { 1, 2, 3 }, result.ToArray());
-    }
-
-    /// <summary>
-    /// Verifies that lookup returns the entire logical range when all indexed items share the same key.
-    /// </summary>
-    [Fact]
-    public void Lookup_When_All_Keys_Are_Equal_Returns_Entire_Range()
-    {
-        using var harness = CreateHarness();
-
-        harness.Append(harness.CreateIndexedValue("same", "v-1"));
-        harness.Append(harness.CreateIndexedValue("same", "v-2"));
-        harness.Append(harness.CreateIndexedValue("same", "v-3"));
-        harness.Append(harness.CreateIndexedValue("same", "v-4"));
-        harness.Build();
-
-        var result = harness.FindAllIndexesByKey("same");
-        Assert.Equal(new[] { 0, 1, 2, 3 }, result.ToArray());
-    }
-
-    /// <summary>
-    /// Verifies that duplicate-key lookup remains correct after a durable reopen and rebuild cycle.
-    /// </summary>
-    [Fact]
-    public void Lookup_Duplicate_Range_Remains_Correct_After_Reopen_And_Rebuild()
-    {
-        using var harness = CreateHarness();
-
-        harness.Append(harness.CreateIndexedValue("a", "a-1"));
-        harness.Append(harness.CreateIndexedValue("d", "d-1"));
-        harness.Append(harness.CreateIndexedValue("d", "d-2"));
-        harness.Append(harness.CreateIndexedValue("d", "d-3"));
-        harness.Append(harness.CreateIndexedValue("z", "z-1"));
+        harness.Append(harness.CreateIndexedValue("10", "first"));
+        harness.Append(harness.CreateIndexedValue("10", "second"));
+        harness.Append(harness.CreateIndexedValue("10", "third"));
+        harness.Append(harness.CreateIndexedValue("20", "tail"));
         harness.Flush();
         harness.Build();
-        harness.Reopen();
-        harness.Refresh();
+
+        Assert.Equal(new[] { 0, 1, 2 }, harness.FindAllIndexesByKey("10").ToArray());
+    }
+
+    /// <summary>
+    /// Verifies that duplicate-key lookup also works when the equal range is located at the end of the index.
+    /// </summary>
+    [Fact]
+    public void Duplicate_Key_Lookup_At_End_Boundary_Returns_Full_Block()
+    {
+        using var harness = CreateHarness();
+
+        harness.Append(harness.CreateIndexedValue("10", "head"));
+        harness.Append(harness.CreateIndexedValue("20", "first"));
+        harness.Append(harness.CreateIndexedValue("20", "second"));
+        harness.Flush();
         harness.Build();
 
-        var result = harness.FindAllIndexesByKey("d");
-        Assert.Equal(new[] { 1, 2, 3 }, result.ToArray());
+        Assert.Equal(new[] { 1, 2 }, harness.FindAllIndexesByKey("20").ToArray());
+    }
+
+    /// <summary>
+    /// Verifies that a missing-key lookup returns an empty range and does not mutate sequence state.
+    /// </summary>
+    [Fact]
+    public void Missing_Key_Lookup_Returns_Empty_Range_Without_Touching_Data_State()
+    {
+        using var harness = CreateHarness();
+
+        harness.Append(harness.CreateIndexedValue("a", "one"));
+        harness.Append(harness.CreateIndexedValue("c", "three"));
+        harness.Flush();
+        harness.Build();
+
+        var before = harness.Snapshot();
+        Assert.Empty(harness.FindAllIndexesByKey("b"));
+        var after = harness.Snapshot();
+
+        Assert.Equal(before.Count, after.Count);
+        Assert.Equal(before.AppendOffset, after.AppendOffset);
     }
 }

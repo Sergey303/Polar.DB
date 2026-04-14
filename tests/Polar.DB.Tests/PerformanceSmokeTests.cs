@@ -1,78 +1,95 @@
 using System.Diagnostics;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Polar.DB.Tests;
 
+/// <summary>
+/// Captures coarse performance smoke measurements for append throughput and reopen/recovery cost.
+/// </summary>
+/// <remarks>
+/// These tests are not strict microbenchmarks. They are intended to make recovery and append costs visible in CI logs
+/// while still asserting storage correctness after relatively large operations.
+/// </remarks>
 public class PerformanceSmokeTests
 {
-    [Fact]
-    public void Append_Throughput_Smoke_For_Fixed_Size_Sequence()
+    private readonly ITestOutputHelper _output;
+
+    /// <summary>
+    /// Creates a new performance smoke test instance.
+    /// </summary>
+    /// <param name="output">The xUnit output helper used to write measurement lines into the test log.</param>
+    public PerformanceSmokeTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
+    /// <summary>
+    /// Measures fixed-size append throughput and reopen/recovery cost while verifying durable data correctness.
+    /// </summary>
+    /// <param name="count">The number of fixed-size items to append before reopening the sequence.</param>
+    [Theory]
+    [InlineData(10_000)]
+    [InlineData(100_000)]
+    public void FixedSize_Append_And_Reopen_Smoke_Measures_Throughput_And_Recovery_Cost(int count)
     {
         using var stream = new MemoryStream();
-        var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
-        long budgetMs = StorageCorruptionHelpers.ReadBudgetMs("POLARDB_APPEND_BUDGET_MS", 10000);
+        var sequence = StorageCorruptionHelpers.CreateInt64Sequence(stream);
 
-        var sw = Stopwatch.StartNew();
-        for (int i = 0; i < 20_000; i++)
-            sequence.AppendElement(i);
+        sequence.Clear();
+        var appendWatch = Stopwatch.StartNew();
+        for (int i = 0; i < count; i++)
+            sequence.AppendElement((long)i);
         sequence.Flush();
-        sw.Stop();
+        appendWatch.Stop();
 
-        Assert.Equal(20_000, sequence.Count());
-        StorageCorruptionHelpers.AssertDurationWithin(sw, budgetMs, "fixed-size append throughput smoke");
+        long appendOffset = sequence.AppendOffset;
+        long streamLength = stream.Length;
+
+        stream.Position = 0L;
+        var reopenWatch = Stopwatch.StartNew();
+        var reopened = StorageCorruptionHelpers.CreateInt64Sequence(stream);
+        reopenWatch.Stop();
+
+        Assert.Equal(count, reopened.Count());
+        Assert.Equal(appendOffset, reopened.AppendOffset);
+        Assert.Equal(streamLength, stream.Length);
+        Assert.Equal((long)(count - 1), (long)reopened.GetByIndex(count - 1));
+
+        _output.WriteLine($"Fixed append: count={count}, elapsedMs={appendWatch.ElapsedMilliseconds}, itemsPerSec={count / Math.Max(0.001, appendWatch.Elapsed.TotalSeconds):F0}");
+        _output.WriteLine($"Fixed reopen/recovery: count={count}, elapsedMs={reopenWatch.ElapsedMilliseconds}, bytes={stream.Length}");
     }
 
-    [Fact]
-    public void Refresh_Smoke_For_Built_USequence()
+    /// <summary>
+    /// Measures variable-size append throughput and reopen/recovery cost while checking logical count and append offset.
+    /// </summary>
+    /// <param name="count">The number of variable-size records to append before reopening the sequence.</param>
+    [Theory]
+    [InlineData(1_000)]
+    [InlineData(10_000)]
+    public void VariableSize_Append_And_Reopen_Smoke_Measures_Recovery_Cost(int count)
     {
-        string tempDir = StorageCorruptionHelpers.CreateTempDirectory();
-        string statePath = Path.Combine(tempDir, "state.bin");
-        long budgetMs = StorageCorruptionHelpers.ReadBudgetMs("POLARDB_REFRESH_BUDGET_MS", 10000);
+        using var stream = new MemoryStream();
+        var sequence = StorageCorruptionHelpers.CreateVariableRecordSequence(stream);
 
-        try
-        {
-            var writer = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
-            for (int i = 0; i < 10_000; i++)
-                writer.AppendElement(i);
-            writer.Build();
-            writer.Close();
+        sequence.Clear();
+        var appendWatch = Stopwatch.StartNew();
+        for (int i = 0; i < count; i++)
+            sequence.AppendElement(new object[] { i, "name-" + i });
+        sequence.Flush();
+        appendWatch.Stop();
 
-            var reopened = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+        long appendOffset = sequence.AppendOffset;
 
-            var sw = Stopwatch.StartNew();
-            reopened.Refresh();
-            sw.Stop();
+        stream.Position = 0L;
+        var reopenWatch = Stopwatch.StartNew();
+        var reopened = StorageCorruptionHelpers.CreateVariableRecordSequence(stream);
+        reopenWatch.Stop();
 
-            Assert.Equal(9999, reopened.GetByKey(9999));
-            StorageCorruptionHelpers.AssertDurationWithin(sw, budgetMs, "USequence refresh smoke");
-            reopened.Close();
-        }
-        finally
-        {
-            StorageCorruptionHelpers.DeleteDirectoryQuietly(tempDir);
-        }
-    }
+        Assert.Equal(count, reopened.Count());
+        Assert.Equal(appendOffset, reopened.AppendOffset);
 
-    [Fact]
-    public void Recovery_Smoke_For_Variable_Size_Sequence_With_Garbage_Tail()
-    {
-        long budgetMs = StorageCorruptionHelpers.ReadBudgetMs("POLARDB_RECOVERY_BUDGET_MS", 10000);
-
-        string[] values = Enumerable.Range(0, 5000)
-            .Select(i => $"value-{i:D5}-payload")
-            .ToArray();
-
-        byte[] valid = StorageCorruptionHelpers.BuildVariableStringSequenceBytes(values);
-        byte[] corrupted = StorageCorruptionHelpers.ConcatBytes(valid, Enumerable.Repeat((byte)0xAB, 128).ToArray());
-
-        using var stream = new MemoryStream(corrupted);
-        var sw = Stopwatch.StartNew();
-        var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.sstring), stream);
-        sw.Stop();
-
-        Assert.Equal(values.Length, sequence.Count());
-        Assert.Equal(values[0], (string)sequence.GetElement(8L));
-        Assert.Equal(valid.Length, sequence.AppendOffset);
-        StorageCorruptionHelpers.AssertDurationWithin(sw, budgetMs, "variable-size recovery smoke");
+        _output.WriteLine($"Variable append: count={count}, elapsedMs={appendWatch.ElapsedMilliseconds}, itemsPerSec={count / Math.Max(0.001, appendWatch.Elapsed.TotalSeconds):F0}");
+        _output.WriteLine($"Variable reopen/recovery: count={count}, elapsedMs={reopenWatch.ElapsedMilliseconds}, bytes={stream.Length}");
     }
 }

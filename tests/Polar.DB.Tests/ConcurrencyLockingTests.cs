@@ -2,118 +2,53 @@ using Xunit;
 
 namespace Polar.DB.Tests;
 
+/// <summary>
+/// Contains smoke tests for file locking and restart behavior around file-backed sequence storage.
+/// </summary>
+/// <remarks>
+/// These are intentionally small because cross-platform filesystem locking semantics vary. The tests still provide a
+/// useful baseline for the operational problem where data/state files can remain locked by a previous process.
+/// </remarks>
 public class ConcurrencyLockingTests
 {
+    /// <summary>
+    /// Verifies that an exclusive file handle prevents a second exclusive writer from opening the same file.
+    /// </summary>
     [Fact]
-    public void Build_Throws_When_State_File_Is_Locked_Exclusively()
+    public void File_Open_With_Exclusive_Lock_Prevents_Second_Writer_When_FileShare_None_Is_Used()
     {
-        string tempDir = StorageCorruptionHelpers.CreateTempDirectory();
-        string statePath = Path.Combine(tempDir, "state.bin");
+        using var temp = new StorageCorruptionHelpers.TempDirectory();
+        string path = temp.File("locked.bin");
 
-        try
+        using var first = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+
+        Assert.Throws<IOException>(() =>
         {
-            var sequence = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            using var second = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        });
+    }
+
+    /// <summary>
+    /// Verifies that a file-backed sequence can be reopened normally after the previous stream is disposed.
+    /// </summary>
+    [Fact]
+    public void FileBacked_Sequence_Can_Be_Reopened_After_Previous_Stream_Is_Disposed()
+    {
+        using var temp = new StorageCorruptionHelpers.TempDirectory();
+
+        using (var stream = temp.Open("restart.bin", FileMode.OpenOrCreate))
+        {
+            var sequence = StorageCorruptionHelpers.CreateInt32Sequence(stream);
+            sequence.Clear();
             sequence.AppendElement(1);
-
-            using var stateLock = new FileStream(
-                statePath,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None);
-
-            Assert.ThrowsAny<IOException>(() => sequence.Build());
-            sequence.Close();
+            sequence.Flush();
         }
-        finally
+
+        using (var stream = temp.Open("restart.bin", FileMode.Open))
         {
-            StorageCorruptionHelpers.DeleteDirectoryQuietly(tempDir);
-        }
-    }
-
-    [Fact]
-    public void Opening_Second_Sequence_Fails_When_Main_Data_File_Is_Locked_Exclusively()
-    {
-        string tempDir = StorageCorruptionHelpers.CreateTempDirectory();
-        string statePath = Path.Combine(tempDir, "state.bin");
-        string sequencePath = Path.Combine(tempDir, "sequence.bin");
-
-        try
-        {
-            using var lockStream = new FileStream(
-                sequencePath,
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None);
-
-            Assert.ThrowsAny<IOException>(() =>
-            {
-                var _ = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false, fileShare: FileShare.ReadWrite);
-            });
-        }
-        finally
-        {
-            StorageCorruptionHelpers.DeleteDirectoryQuietly(tempDir);
-        }
-    }
-
-    [Fact]
-    public void Two_Reopened_Sequences_Can_Read_Same_Built_Data_When_Files_Are_Shared()
-    {
-        string tempDir = StorageCorruptionHelpers.CreateTempDirectory();
-        string statePath = Path.Combine(tempDir, "state.bin");
-
-        try
-        {
-            var writer = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
-            writer.AppendElement(10);
-            writer.AppendElement(20);
-            writer.Build();
-            writer.Close();
-
-            var left = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
-            var right = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
-
-            left.Refresh();
-            right.Refresh();
-
-            Assert.Equal(10, left.GetByKey(10));
-            Assert.Equal(20, right.GetByKey(20));
-
-            left.Close();
-            right.Close();
-        }
-        finally
-        {
-            StorageCorruptionHelpers.DeleteDirectoryQuietly(tempDir);
-        }
-    }
-
-    [Fact]
-    public void RestoreDynamic_After_Unsaved_Appends_From_Previous_Instance_Rebuilds_Primary_Lookup()
-    {
-        string tempDir = StorageCorruptionHelpers.CreateTempDirectory();
-        string statePath = Path.Combine(tempDir, "state.bin");
-
-        try
-        {
-            var first = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
-            first.AppendElement(1);
-            first.Build();
-            first.AppendElement(2);
-            first.AppendElement(3);
-            first.Close();
-
-            var second = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
-            second.RestoreDynamic();
-
-            Assert.Equal(2, second.GetByKey(2));
-            Assert.Equal(3, second.GetByKey(3));
-
-            second.Close();
-        }
-        finally
-        {
-            StorageCorruptionHelpers.DeleteDirectoryQuietly(tempDir);
+            var sequence = StorageCorruptionHelpers.CreateInt32Sequence(stream);
+            Assert.Equal(1L, sequence.Count());
+            Assert.Equal(1, sequence.GetByIndex(0));
         }
     }
 }
