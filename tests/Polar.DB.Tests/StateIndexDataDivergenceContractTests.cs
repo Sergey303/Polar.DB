@@ -2,82 +2,7 @@ using Xunit;
 
 namespace Polar.DB.Tests;
 
-/// <summary>
-/// Describes the minimal adapter required to run index/data/state consistency contract tests against a concrete sequence.
-/// </summary>
-/// <remarks>
-/// Implement this interface in the repository test project when the concrete indexed sequence type is known. The
-/// contract tests can then verify real <c>Build()</c>, reopen, refresh, corruption, and lookup semantics without being
-/// coupled to one particular constructor shape.
-/// </remarks>
-public interface IIndexedSequenceContractHarness : IDisposable
-{
-    /// <summary>
-    /// Appends a repository-specific indexed value to the underlying sequence.
-    /// </summary>
-    /// <param name="value">The value created by <see cref="CreateIndexedValue"/>.</param>
-    void Append(object value);
 
-    /// <summary>
-    /// Creates a value whose key can be found through the index and whose payload can be validated after reads.
-    /// </summary>
-    /// <param name="key">The logical key used by index lookup.</param>
-    /// <param name="payload">The payload used to verify data order and durability.</param>
-    /// <returns>A repository-specific value suitable for appending to the indexed sequence.</returns>
-    object CreateIndexedValue(string key, string payload);
-
-    /// <summary>
-    /// Extracts the payload portion from a repository-specific indexed value.
-    /// </summary>
-    /// <param name="value">The value returned by a sequence read or snapshot.</param>
-    /// <returns>The string payload stored in <paramref name="value"/>.</returns>
-    string ReadPayload(object value);
-
-    /// <summary>
-    /// Flushes sequence data to its backing storage.
-    /// </summary>
-    void Flush();
-
-    /// <summary>
-    /// Builds or rebuilds the repository-specific index and finalizes durable sequence state.
-    /// </summary>
-    void Build();
-
-    /// <summary>
-    /// Reopens the underlying sequence, state, and index resources to simulate a process restart.
-    /// </summary>
-    void Reopen();
-
-    /// <summary>
-    /// Refreshes the reopened sequence state from persistent storage.
-    /// </summary>
-    void Refresh();
-
-    /// <summary>
-    /// Corrupts the persisted state count to simulate stale or overdeclared state.
-    /// </summary>
-    /// <param name="count">The count value to force into the persistent state representation.</param>
-    void CorruptStateCount(long count);
-
-    /// <summary>
-    /// Appends arbitrary bytes to the data file behind the indexed sequence.
-    /// </summary>
-    /// <param name="bytes">The bytes to append as garbage or stale physical tail.</param>
-    void AppendGarbageToDataFile(byte[] bytes);
-
-    /// <summary>
-    /// Finds all logical item indexes matching a key through the repository-specific index implementation.
-    /// </summary>
-    /// <param name="key">The key to search for.</param>
-    /// <returns>The logical zero-based item indexes returned by the index.</returns>
-    IReadOnlyList<int> FindAllIndexesByKey(string key);
-
-    /// <summary>
-    /// Captures current logical sequence state, physical stream length, and readable items.
-    /// </summary>
-    /// <returns>A snapshot of the current sequence state.</returns>
-    IndexedSequenceSnapshot Snapshot();
-}
 
 /// <summary>
 /// Represents an immutable snapshot of sequence state used by index/data/state contract tests.
@@ -139,8 +64,8 @@ public abstract class StateIndexDataDivergenceContractTests
         harness.Flush();
         harness.Build();
 
-        harness.CorruptStateCount(3L);
-        harness.AppendGarbageToDataFile(new byte[] { 0xAA, 0xBB, 0xCC });
+        harness.CorruptDeclaredCount(3);
+        harness.AppendGarbageTail(new byte[] { 0xAA, 0xBB, 0xCC });
         harness.Reopen();
         harness.Refresh();
 

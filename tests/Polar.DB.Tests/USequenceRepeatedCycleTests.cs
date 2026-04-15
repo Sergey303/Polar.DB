@@ -68,11 +68,16 @@ public class USequenceRepeatedCycleTests
         Assert.Equal(lastAppendOffset, reopened.AppendOffset);
         Assert.Equal(lastAppendOffset, finalStream.Length);
 
-        for (int i = 0; i < 50; i++)
+        int expected = 0;
+
+        foreach (object raw in reopened.ElementValues())
         {
-            var item = Assert.IsType<object[]>(reopened.GetByIndex(i));
-            Assert.Equal(i, (int)item[0]);
-            Assert.Equal("name-" + i, (string)item[1]);
+            var item = Assert.IsType<object[]>(raw);
+            Assert.Equal(expected, (int)item[0]);
+            Assert.Equal("name-" + expected, (string)item[1]);
+            expected++;
         }
+
+        Assert.Equal(50, expected);
     }
 }

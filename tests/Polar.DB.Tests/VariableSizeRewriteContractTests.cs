@@ -27,7 +27,7 @@ public class VariableSizeRewriteContractTests
 
         try
         {
-            sequence.SetElement(firstOffset, new object[] { 1, "A much longer name" });
+            sequence.SetElement(new object[] { 1, "A much longer name" }, firstOffset);
             sequence.Flush();
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or ArgumentException)
@@ -57,7 +57,7 @@ public class VariableSizeRewriteContractTests
 
         try
         {
-            sequence.SetElement(lastOffset, new object[] { 2, "B-long" });
+            sequence.SetElement(new object[] { 2, "B-long" }, lastOffset);
             sequence.Flush();
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or ArgumentException)
@@ -89,7 +89,7 @@ public class VariableSizeRewriteContractTests
         sequence.AppendElement(20);
         sequence.Flush();
 
-        sequence.SetElement(firstOffset, 11);
+        sequence.SetElement(11, firstOffset);
         sequence.Flush();
 
         stream.Position = 0L;
