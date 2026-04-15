@@ -1,0 +1,27 @@
+# Default owner for the whole repository
+* @Sergey303
+
+# Core library
+/src/Polar.DB/ @Sergey303
+
+# Tests
+/tests/ @Sergey303
+
+# Samples
+/samples/ @Sergey303
+
+# Documentation and community files
+/docs/ @Sergey303
+/.github/ @Sergey303
+/README.md @Sergey303
+/README.ru.md @Sergey303
+/LICENSE @Sergey303
+/CONTRIBUTING.md @Sergey303
+/CONTRIBUTING.ru.md @Sergey303
+/CODE_OF_CONDUCT.md @Sergey303
+/CODE_OF_CONDUCT.ru.md @Sergey303
+/SECURITY.md @Sergey303
+/SECURITY.ru.md @Sergey303
+/SUPPORT.md @Sergey303
+/SUPPORT.ru.md @Sergey303
+/CITATION.cff @Sergey303

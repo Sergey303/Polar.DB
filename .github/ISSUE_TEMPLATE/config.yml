@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support and usage questions
+    url: https://github.com/Sergey303/Polar.DB/blob/main/SUPPORT.md
+    about: Read support guidance before opening an issue.
+  - name: Security policy
+    url: https://github.com/Sergey303/Polar.DB/blob/main/SECURITY.md
+    about: Report vulnerabilities privately, not in public issues.
+  - name: Contributing guide
+    url: https://github.com/Sergey303/Polar.DB/blob/main/CONTRIBUTING.md
+    about: Read repository contribution rules and expectations.

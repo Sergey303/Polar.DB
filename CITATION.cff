@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: "Polar.DB"
+message: "If you use Polar.DB in research, academic work, or technical publications, please cite the software."
+type: software
+
+authors:
+  - family-names: "Marchuk"
+    given-names: "Alexander G."
+    affiliation: "Institute of Informatics Systems SB RAS"
+  - family-names: "Leshtaev"
+    given-names: "Sergey V."
+  - family-names: "Platonov"
+    given-names: "Yuriy G."
+
+abstract: >
+  Polar.DB is a .NET library for schema-defined structured data,
+  binary serialization, append-oriented persistent sequences,
+  and index-based lookup over typed records.
+
+repository-code: "https://github.com/Sergey303/Polar.DB"
+url: "https://github.com/Sergey303/Polar.DB"
+license: "MIT"
+
+keywords:
+  - ".NET"
+  - "database"
+  - "typed storage"
+  - "binary serialization"
+  - "append-oriented sequences"
+  - "indexes"
+  - "RDF"
+  - "structured data"
