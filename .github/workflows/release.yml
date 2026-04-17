@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-pack-release:
+    name: Build, pack, and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+          cache: true
+
+      - name: Locate solution
+        id: locate_solution
+        shell: pwsh
+        run: |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+            Sort-Object FullName |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $solution) {
+            throw 'No .sln file was found in the repository.'
+          }
+
+          "solution=$solution" >> $env:GITHUB_OUTPUT
+          Write-Host "Using solution: $solution"
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Using version: $VERSION"
+
+      - name: Restore
+        run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
+
+      - name: Build
+        run: >-
+          dotnet build "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-restore
+          /p:ContinuousIntegrationBuild=true
+          /p:Version=${{ steps.version.outputs.version }}
+          /warnaserror
+
+      - name: Test
+        run: >-
+          dotnet test "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-build
+          --verbosity normal
+
+      - name: Pack
+        run: >-
+          dotnet pack "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-build
+          --output "${{ github.workspace }}/artifacts/nuget"
+          /p:ContinuousIntegrationBuild=true
+          /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            ${{ github.workspace }}/artifacts/nuget/*.nupkg
+            ${{ github.workspace }}/artifacts/nuget/*.snupkg
+
+      - name: Publish to NuGet.org
+        if: github.ref_type == 'tag' && secrets.NUGET_API_KEY != ''
+        shell: bash
+        run: |
+          shopt -s nullglob
+          packages=("${GITHUB_WORKSPACE}"/artifacts/nuget/*.nupkg)
+
+          for package in "${packages[@]}"; do
+            if [[ "$package" == *.snupkg ]]; then
+              continue
+            fi
+
+            dotnet nuget push "$package" \
+              --api-key "${{ secrets.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done

@@ -1,0 +1,91 @@
+- name: bug
+  color: "d73a4a"
+  description: Something is not working as expected
+
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or improvement request
+
+- name: question
+  color: "d876e3"
+  description: Usage or API clarification request
+
+- name: documentation
+  color: "0075ca"
+  description: Documentation-only change or issue
+
+- name: test
+  color: "5319e7"
+  description: Test coverage or regression-related work
+
+- name: build
+  color: "fbca04"
+  description: Build, packaging, or CI-related work
+
+- name: github
+  color: "1d76db"
+  description: Repository automation or GitHub configuration
+
+- name: triage
+  color: "ededed"
+  description: Needs initial maintainer triage
+
+- name: needs-review
+  color: "c2e0c6"
+  description: Pull request is ready for review
+
+- name: needs-info
+  color: "fef2c0"
+  description: More information is needed to proceed
+
+- name: breaking-change
+  color: "b60205"
+  description: Introduces a breaking behavioral or API change
+
+- name: security
+  color: "b60205"
+  description: Security-sensitive issue or work item
+
+- name: pinned
+  color: "0052cc"
+  description: Important item that should stay visible
+
+- name: good first issue
+  color: "7057ff"
+  description: Suitable for a first contribution
+
+- name: help wanted
+  color: "008672"
+  description: Extra contributor help is welcome
+
+- name: discussion
+  color: "cfd3d7"
+  description: Needs broader discussion before action
+
+- name: planned
+  color: "0e8a16"
+  description: Accepted for future work
+
+- name: "area:core"
+  color: "0e8a16"
+  description: Core library code in src/Polar.DB
+
+- name: "area:tests"
+  color: "5319e7"
+  description: Test project or regression coverage
+
+- name: "area:samples"
+  color: "1d76db"
+  description: Samples, demos, or example code
+
+- name: "area:docs"
+  color: "0075ca"
+  description: Documentation and community files
+
+- name: "area:github"
+  color: "1d76db"
+  description: GitHub workflows, templates, or repository settings
+
+- name: "area:packaging"
+  color: "fbca04"
+  description: Packaging, SDK, or project configuration

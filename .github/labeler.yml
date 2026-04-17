@@ -1,0 +1,38 @@
+"area:core":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/Polar.DB/**"
+
+"area:tests":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**"
+
+"area:samples":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "samples/**"
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "README*"
+          - "CONTRIBUTING*"
+          - "SECURITY*"
+          - "SUPPORT*"
+          - "CODE_OF_CONDUCT*"
+          - "CITATION.cff"
+
+"area:github":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+
+"area:packaging":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.csproj"
+          - "Directory.Build.*"
+          - "NuGet.config"
+          - "global.json"

@@ -1,0 +1,59 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+template: |
+  ## What changed
+
+  $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS
+change-template: "- #$NUMBER $TITLE @$AUTHOR"
+change-title-escapes: "\<*_&"
+
+categories:
+  - title: "Breaking changes"
+    labels:
+      - "breaking-change"
+  - title: "Features"
+    labels:
+      - "enhancement"
+  - title: "Fixes"
+    labels:
+      - "bug"
+  - title: "Documentation"
+    labels:
+      - "documentation"
+  - title: "Tests"
+    labels:
+      - "test"
+  - title: "Build and packaging"
+    labels:
+      - "build"
+  - title: "Repository automation"
+    labels:
+      - "github"
+
+exclude-labels:
+  - "skip-changelog"
+
+version-resolver:
+  major:
+    labels:
+      - "breaking-change"
+  minor:
+    labels:
+      - "enhancement"
+  patch:
+    labels:
+      - "bug"
+      - "documentation"
+      - "test"
+      - "build"
+      - "github"
+  default: patch
+
+autolabeler: []
+no-changes-template: "- No user-facing changes were categorized for this cycle."
+sort-by: merged_at
+sort-direction: descending
