@@ -1,5 +1,6 @@
 name-template: "v$RESOLVED_VERSION"
 tag-template: "v$RESOLVED_VERSION"
+
 template: |
   ## What changed
 
@@ -8,6 +9,7 @@ template: |
   ## Contributors
 
   $CONTRIBUTORS
+
 change-template: "- #$NUMBER $TITLE @$AUTHOR"
 change-title-escapes: "\<*_&"
 
@@ -53,7 +55,35 @@ version-resolver:
       - "github"
   default: patch
 
-autolabeler: []
+autolabeler:
+  - label: "documentation"
+    files:
+      - "*.md"
+      - "**/*.md"
+      - "docs/**"
+      - "CITATION.cff"
+      - "README*"
+      - "CONTRIBUTING*"
+      - "SECURITY*"
+      - "SUPPORT*"
+      - "CODE_OF_CONDUCT*"
+
+  - label: "test"
+    files:
+      - "tests/**"
+
+  - label: "build"
+    files:
+      - "**/*.csproj"
+      - "Directory.Build.*"
+      - "NuGet.config"
+      - "global.json"
+      - ".github/dependabot.yml"
+
+  - label: "github"
+    files:
+      - ".github/**"
+
 no-changes-template: "- No user-facing changes were categorized for this cycle."
 sort-by: merged_at
 sort-direction: descending
