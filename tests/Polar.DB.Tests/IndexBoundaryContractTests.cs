@@ -32,7 +32,7 @@ public abstract class IndexBoundaryContractTests
         harness.Flush();
         harness.Build();
 
-        Assert.Equal(new[] { 0, 1, 2 }, harness.FindAllIndexesByKey("10").ToArray());
+        Assert.Equal(new[] { 0L, 1, 2 }, harness.FindAllIndexesByKey("10").ToArray());
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ public abstract class IndexBoundaryContractTests
         harness.Flush();
         harness.Build();
 
-        Assert.Equal(new[] { 1, 2 }, harness.FindAllIndexesByKey("20").ToArray());
+        Assert.Equal(new[] { 1L, 2 }, harness.FindAllIndexesByKey("20").ToArray());
     }
 
     /// <summary>

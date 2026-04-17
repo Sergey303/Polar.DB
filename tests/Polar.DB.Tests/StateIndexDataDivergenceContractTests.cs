@@ -48,7 +48,7 @@ public abstract class StateIndexDataDivergenceContractTests
         Assert.Equal(3L, snapshot.Count);
         Assert.True(snapshot.StreamLength >= snapshot.AppendOffset);
         Assert.Equal(new[] { "one", "two", "three" }, snapshot.Items.Select(harness.ReadPayload).ToArray());
-        Assert.Equal(new[] { 1, 2 }, harness.FindAllIndexesByKey("b").ToArray());
+        Assert.Equal(new[] { 1L, 2 }, harness.FindAllIndexesByKey("b").ToArray());
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public abstract class StateIndexDataDivergenceContractTests
         var snapshot = harness.Snapshot();
         Assert.Equal(2L, snapshot.Count);
         Assert.Equal(new[] { "one", "two" }, snapshot.Items.Select(harness.ReadPayload).ToArray());
-        Assert.Equal(new[] { 1 }, harness.FindAllIndexesByKey("b").ToArray());
+        Assert.Equal(new[] { 1L }, harness.FindAllIndexesByKey("b").ToArray());
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public abstract class StateIndexDataDivergenceContractTests
 
         var snapshot = harness.Snapshot();
         Assert.Equal(new[] { "v1", "v2", "v3", "v4" }, snapshot.Items.Select(harness.ReadPayload).ToArray());
-        Assert.Equal(new[] { 0, 1, 2 }, harness.FindAllIndexesByKey("base").ToArray());
-        Assert.Equal(new[] { 3 }, harness.FindAllIndexesByKey("tail").ToArray());
+        Assert.Equal(new[] { 0L, 1, 2 }, harness.FindAllIndexesByKey("base").ToArray());
+        Assert.Equal(new[] { 3L }, harness.FindAllIndexesByKey("tail").ToArray());
     }
 }
