@@ -14,14 +14,14 @@ namespace Polar.DB.Tests
         {
             object[] orec = new object[] { 777, "Pupkin", 9.9999 };
             string val = tp_rec.Interpret(orec);
-            Assert.Equal(val, "{777,\"Pupkin\",9.9999}");
+            Assert.Equal("{777,\"Pupkin\",9.9999}", val);
         }
         [Fact]
         public void TestPTypeToPObject()
         {
             object otype = tp_rec.ToPObject(3);
             string val = PType.TType.Interpret(otype);
-            Assert.Equal(val, "record^[{\"id\",integer^},{\"name\",sstring^},{\"age\",real^}]");
+            Assert.Equal("record^[{\"id\",integer^},{\"name\",sstring^},{\"age\",real^}]", val);
         }
         [Fact]
         public void TestPTypeFromPObject()
@@ -29,7 +29,7 @@ namespace Polar.DB.Tests
             object otype = tp_rec.ToPObject(3);
             PType tp = PType.FromPObject(otype);
             string val = tp.Interpret(new object[] { 777, "Pupkin", 9.9999 });
-            Assert.Equal(val, "{777,\"Pupkin\",9.9999}");
+            Assert.Equal("{777,\"Pupkin\",9.9999}", val);
         }
         [Fact]
         public void TestScale()
@@ -50,13 +50,13 @@ namespace Polar.DB.Tests
 
             byte[] bytes = stream.ToArray();
             string res = new string(bytes.Select(b => System.Convert.ToChar(b)).ToArray());
-            Assert.Equal(res, "{777,\"Pupkin\",9.9999}");
+            Assert.Equal("{777,\"Pupkin\",9.9999}", res);;
 
             TextReader tr = new StreamReader(stream);
             stream.Position = 0L;
             object oval = TextFlow.Deserialize(tr, tp_rec);
             string val = tp_rec.Interpret(oval);
-            Assert.Equal(val, "{777,\"Pupkin\",9.9999}");
+            Assert.Equal("{777,\"Pupkin\",9.9999}", val);;
         }
         [Fact]
         public void TestBinarySerialize()
@@ -70,7 +70,7 @@ namespace Polar.DB.Tests
             mem.Position = 0L;
             object oval = ByteFlow.Deserialize(br, tp_rec);
             string val = tp_rec.Interpret(oval);
-            Assert.Equal(val, "{777,\"Pupkin\",9.9999}");
+            Assert.Equal("{777,\"Pupkin\",9.9999}", val);
         }
     }
 }
