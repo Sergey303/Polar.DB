@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - 'release/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+
+      - name: Locate solution
+        id: locate_solution
+        shell: pwsh
+        run: |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+            Sort-Object FullName |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $solution) {
+            throw 'No .sln file was found in the repository.'
+          }
+
+          "solution=$solution" >> $env:GITHUB_OUTPUT
+          Write-Host "Using solution: $solution"
+
+      - name: Restore
+        run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
+
+      - name: Build
+        run: >-
+          dotnet build "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-restore
+          /p:ContinuousIntegrationBuild=true
+          /warnaserror
+
+      - name: Test
+        run: >-
+          dotnet test "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-build
+          --verbosity normal
+
+  pack:
+    name: Pack NuGet artifacts
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+
+      - name: Locate solution
+        id: locate_solution
+        shell: pwsh
+        run: |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+            Sort-Object FullName |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $solution) {
+            throw 'No .sln file was found in the repository.'
+          }
+
+          "solution=$solution" >> $env:GITHUB_OUTPUT
+          Write-Host "Using solution: $solution"
+
+      - name: Restore
+        run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
+
+      - name: Pack
+        run: >-
+          dotnet pack "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-restore
+          --output "${{ github.workspace }}/artifacts/nuget"
+          /p:ContinuousIntegrationBuild=true
+
+      - name: Upload NuGet artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            ${{ github.workspace }}/artifacts/nuget/*.nupkg
+            ${{ github.workspace }}/artifacts/nuget/*.snupkg
+          if-no-files-found: error

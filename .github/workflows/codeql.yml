@@ -1,0 +1,66 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze C#
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+
+      - name: Locate solution
+        id: locate_solution
+        shell: pwsh
+        run: |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+            Sort-Object FullName |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $solution) {
+            throw 'No .sln file was found in the repository.'
+          }
+
+          "solution=$solution" >> $env:GITHUB_OUTPUT
+          Write-Host "Using solution: $solution"
+
+      - name: Restore
+        run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
+
+      - name: Build
+        run: >-
+          dotnet build "${{ steps.locate_solution.outputs.solution }}"
+          --configuration Release
+          --no-restore
+          /p:ContinuousIntegrationBuild=true
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3

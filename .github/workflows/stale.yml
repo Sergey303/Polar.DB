@@ -1,0 +1,52 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark and close stale issues and pull requests
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+          stale-issue-message: >
+            This issue has been marked as stale because it has had no activity for 60 days.
+            If this is still relevant, please add an update or a small reproduction note.
+            Thanks for helping keep the tracker focused and accurate.
+          close-issue-message: >
+            This issue was closed automatically after a further 14 days without activity.
+            If the problem is still relevant, please reopen it with updated details.
+
+          stale-pr-message: >
+            This pull request has been marked as stale because it has had no activity for 30 days.
+            If work is still ongoing, please leave a short update so maintainers know it is still active.
+          close-pr-message: >
+            This pull request was closed automatically after a further 14 days without activity.
+            It can be reopened when work resumes.
+
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          days-before-pr-stale: 30
+          days-before-pr-close: 14
+
+          stale-issue-label: stale
+          stale-pr-label: stale
+
+          exempt-issue-labels: >
+            security,pinned,good first issue,help wanted,discussion,planned,question
+          exempt-pr-labels: >
+            security,pinned,good first issue,help wanted,discussion,planned,question
+
+          remove-issue-stale-when-updated: true
+          remove-pr-stale-when-updated: true
+          delete-branch: false
+          operations-per-run: 200
