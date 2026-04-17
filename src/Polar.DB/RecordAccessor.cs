@@ -1,19 +1,21 @@
 namespace Polar.DB
 {
     /// <summary>
-    /// Helper for working with record values represented as object[] according to a PTypeRecord schema.
-    /// Centralizes field name to index mapping and shape validation.
+    /// Provides named-field access for record values represented as <c>object[]</c> under a <see cref="PTypeRecord"/> schema.
     /// </summary>
+    /// <remarks>
+    /// The accessor does not allocate wrappers per read/write operation and can be reused for many records of the same schema.
+    /// </remarks>
     public sealed class RecordAccessor
     {
         private readonly PTypeRecord _recordType;
         private readonly Dictionary<string, int> _fieldIndexes;
 
         /// <summary>
-        /// Создает новый аксессор для указанной схемы записи.
+        /// Creates an accessor for a specific record schema.
         /// </summary>
-        /// <param name="recordType">Схема записи, определяющая имена полей, порядок и типы.</param>
-        /// <exception cref="ArgumentNullException">Выбрасывается, если <paramref name="recordType"/> равен <see langword="null"/>.</exception>
+        /// <param name="recordType">Record schema defining field names, order and types.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="recordType"/> is <see langword="null"/>.</exception>
         public RecordAccessor(PTypeRecord recordType)
         {
             _recordType = recordType ?? throw new ArgumentNullException(nameof(recordType));
@@ -23,24 +25,26 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Возвращает схему записи, используемую аксессором.
+        /// Gets the record schema associated with this accessor.
         /// </summary>
         public PTypeRecord RecordType => _recordType;
+
         /// <summary>
-        /// Возвращает количество полей, определённых в схеме.
+        /// Gets the number of fields defined by the schema.
         /// </summary>
         public int FieldCount => _recordType.Fields.Length;
+
         /// <summary>
-        /// Перечисляет все имена полей в порядке схемы.
+        /// Enumerates schema field names in schema order.
         /// </summary>
         public IEnumerable<string> FieldNames => _recordType.Fields.Select(f => f.Name);
 
         /// <summary>
-        /// Определяет, содержит ли схема поле с заданным именем.
+        /// Checks whether the schema contains a field with the specified name.
         /// </summary>
-        /// <param name="fieldName">Имя поля для проверки.</param>
-        /// <returns><see langword="true"/>, если поле существует; иначе <see langword="false"/>.</returns>
-        /// <exception cref="ArgumentNullException">Выбрасывается при <see langword="null"/> в <paramref name="fieldName"/>.</exception>
+        /// <param name="fieldName">Field name to check.</param>
+        /// <returns><see langword="true"/> if the field exists; otherwise <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="fieldName"/> is <see langword="null"/>.</exception>
         public bool HasField(string fieldName)
         {
             if (fieldName == null) throw new ArgumentNullException(nameof(fieldName));
@@ -48,12 +52,12 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Возвращает нулевой индекс поля в массиве записи.
+        /// Gets a zero-based field index for the specified field name.
         /// </summary>
-        /// <param name="fieldName">Имя поля.</param>
-        /// <returns>Нулевой индекс поля.</returns>
-        /// <exception cref="ArgumentNullException">Выбрасывается при <see langword="null"/> в <paramref name="fieldName"/>.</exception>
-        /// <exception cref="ArgumentException">Выбрасывается, если имя поля отсутствует в схеме.</exception>
+        /// <param name="fieldName">Field name.</param>
+        /// <returns>Zero-based index of the field in the record array.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="fieldName"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">The field name is not present in the schema.</exception>
         public int GetIndex(string fieldName)
         {
             if (fieldName == null) throw new ArgumentNullException(nameof(fieldName));
@@ -64,31 +68,30 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Возвращает тип поля по имени согласно схеме.
+        /// Gets the schema type of a field by name.
         /// </summary>
-        /// <param name="fieldName">Имя поля.</param>
-        /// <returns>Тип поля, объявленный в схеме.</returns>
+        /// <param name="fieldName">Field name.</param>
+        /// <returns>Type descriptor declared for the field.</returns>
         public PType GetFieldType(string fieldName)
         {
             return _recordType.Fields[GetIndex(fieldName)].Type;
         }
 
         /// <summary>
-        /// Создает пустой массив записи с нужным числом полей.
+        /// Creates an empty record array sized for the current schema.
         /// </summary>
-        /// <returns>Новый экземпляр записи как массив <see cref="object"/>.</returns>
         public object[] CreateRecord()
         {
             return new object[FieldCount];
         }
 
         /// <summary>
-        /// Создает запись из переданных значений после проверки количества полей.
+        /// Validates and returns the provided record values array.
         /// </summary>
-        /// <param name="values">Значения полей в порядке схемы.</param>
-        /// <returns>Тот же массив <paramref name="values"/>, если проверка прошла.</returns>
-        /// <exception cref="ArgumentNullException">Выбрасывается при <see langword="null"/> в <paramref name="values"/>.</exception>
-        /// <exception cref="ArgumentException">Выбрасывается, если число значений не соответствует схеме.</exception>
+        /// <param name="values">Field values in schema order.</param>
+        /// <returns>The same <paramref name="values"/> array.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="values"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">Value count does not match schema field count.</exception>
         public object[] CreateRecord(params object[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -101,14 +104,11 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Проверяет, является ли объект массивом записи с формой, соответствующей схеме.
+        /// Validates that an object is a record array compatible with the schema.
         /// </summary>
-        /// <param name="record">Объект, ожидаемый как массив <see cref="object"/> нужной длины.</param>
-        /// <exception cref="ArgumentNullException">Выбрасывается, если <paramref name="record"/> равен <see langword="null"/>.</exception>
-        /// <exception cref="ArgumentException">
-        /// Выбрасывается, если <paramref name="record"/> не является массивом <see cref="object"/>
-        /// или его длина не совпадает с количеством полей схемы.
-        /// </exception>
+        /// <param name="record">Object expected to be an <c>object[]</c> of schema length.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="record"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">Object is not a compatible record array.</exception>
         public void ValidateShape(object record)
         {
             if (record == null) throw new ArgumentNullException(nameof(record));
@@ -121,11 +121,11 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Получает значение поля по имени из записи.
+        /// Gets a field value by name.
         /// </summary>
-        /// <param name="record">Экземпляр записи как массив <see cref="object"/>.</param>
-        /// <param name="fieldName">Имя поля для чтения.</param>
-        /// <returns>Значение поля, хранящееся в записи.</returns>
+        /// <param name="record">Record array.</param>
+        /// <param name="fieldName">Field name.</param>
+        /// <returns>Stored field value.</returns>
         public object Get(object record, string fieldName)
         {
             ValidateShape(record);
@@ -133,23 +133,23 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Получает значение поля по имени и приводит его к требуемому типу.
+        /// Gets a field value by name and casts it to <typeparamref name="T"/>.
         /// </summary>
-        /// <typeparam name="T">Ожидаемый тип значения поля.</typeparam>
-        /// <param name="record">Экземпляр записи как массив <see cref="object"/>.</param>
-        /// <param name="fieldName">Имя поля для чтения.</param>
-        /// <returns>Значение поля, приведенное к <typeparamref name="T"/>.</returns>
+        /// <typeparam name="T">Expected value type.</typeparam>
+        /// <param name="record">Record array.</param>
+        /// <param name="fieldName">Field name.</param>
+        /// <returns>Typed field value.</returns>
         public T Get<T>(object record, string fieldName)
         {
             return (T)Get(record, fieldName);
         }
 
         /// <summary>
-        /// Записывает значение поля по имени в записи.
+        /// Sets a field value by name.
         /// </summary>
-        /// <param name="record">Экземпляр записи как массив <see cref="object"/>.</param>
-        /// <param name="fieldName">Имя поля для записи.</param>
-        /// <param name="value">Новое значение поля.</param>
+        /// <param name="record">Record array.</param>
+        /// <param name="fieldName">Field name.</param>
+        /// <param name="value">New field value.</param>
         public void Set(object record, string fieldName, object value)
         {
             ValidateShape(record);
@@ -157,15 +157,13 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Пытается получить значение поля без исключений при некорректной форме записи или неизвестном поле.
+        /// Tries to read a field value without throwing for unknown fields or invalid record shape.
         /// </summary>
-        /// <param name="record">Экземпляр записи как массив <see cref="object"/>.</param>
-        /// <param name="fieldName">Имя поля для чтения.</param>
-        /// <param name="value">
-        /// После возврата содержит значение поля при успехе; иначе <see langword="null"/>.
-        /// </param>
-        /// <returns><see langword="true"/>, если значение считано успешно; иначе <see langword="false"/>.</returns>
-        public bool TryGet(object record, string fieldName, out object value)
+        /// <param name="record">Record array candidate.</param>
+        /// <param name="fieldName">Field name.</param>
+        /// <param name="value">Field value on success; otherwise <see langword="null"/>.</param>
+        /// <returns><see langword="true"/> when value was read; otherwise <see langword="false"/>.</returns>
+        public bool TryGet(object record, string fieldName, out object? value)
         {
             value = null;
             if (record is not object[] arr) return false;
@@ -177,23 +175,17 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Пытается получить значение поля и привести его к указанному типу.
+        /// Tries to read and cast a field value to <typeparamref name="T"/>.
         /// </summary>
-        /// <typeparam name="T">Ожидаемый тип значения поля.</typeparam>
-        /// <param name="record">Экземпляр записи как массив <see cref="object"/>.</param>
-        /// <param name="fieldName">Имя поля для чтения.</param>
-        /// <param name="value">
-        /// После возврата содержит приведенное значение при успехе;
-        /// иначе значение по умолчанию для <typeparamref name="T"/>.
-        /// </param>
-        /// <returns>
-        /// <see langword="true"/> при успешном чтении и совместимости с <typeparamref name="T"/>;
-        /// иначе <see langword="false"/>.
-        /// </returns>
+        /// <typeparam name="T">Target value type.</typeparam>
+        /// <param name="record">Record array candidate.</param>
+        /// <param name="fieldName">Field name.</param>
+        /// <param name="value">Typed value on success; default value of <typeparamref name="T"/> otherwise.</param>
+        /// <returns><see langword="true"/> when value exists and can be cast; otherwise <see langword="false"/>.</returns>
         public bool TryGet<T>(object record, string fieldName, out T value)
         {
-            value = default(T);
-            if (!TryGet(record, fieldName, out object raw)) return false;
+            value = default!;
+            if (!TryGet(record, fieldName, out object? raw)) return false;
             if (raw is T typed)
             {
                 value = typed;

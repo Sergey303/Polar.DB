@@ -1,123 +1,169 @@
-﻿namespace Polar.DB
+namespace Polar.DB
 {
     /// <summary>
+    /// Secondary hash-based index for multi-valued comparable keys.
     /// </summary>
+    /// <remarks>
+    /// This index stores only hash buckets, so consumers should apply exact key filtering on returned records.
+    /// Static state is persisted in sorted hash/offset sequences; appended state is tracked in memory.
+    /// </remarks>
     public class UVecIndex : IUIndex
     {
         private readonly USequence sequence;
-        // Ключом является объект, порождаемый ключевой функцией. Ключи можно сравнивать!
-        private Func<object, IEnumerable<IComparable>> keysFunc;
-        private Func<IComparable, int> hashOfKey;
-        // Статическая часть индекса
-        private UniversalSequenceBase hkeys;
-        private UniversalSequenceBase offsets;
-        // Динамическая часть индекса
-        //private Dictionary<int, HashSet<long>> hkeyoffs_dic;
+        private readonly Func<object, IEnumerable<IComparable>> keysFunc;
+        private readonly Func<IComparable, int> hashOfKey;
+        private readonly UniversalSequenceBase hkeys;
+        private readonly UniversalSequenceBase offsets;
+        private readonly bool keysinmemory;
+        private readonly bool ignorecase;
 
-        // ============== Динамическая часть индекса =============
-        class DynPairsSet
+        private sealed class DynPairsSet
         {
             private int[] hvalues;
             private long[] offsets;
-            private USequence sequ;
-            Func<IComparable, int> hashOfKey;
+            private readonly USequence sequ;
+            private readonly Func<IComparable, int> hashOfKey;
+
             internal DynPairsSet(USequence sequ, Func<IComparable, int> hashOfKey)
             {
                 this.sequ = sequ;
-                hvalues = new int[0]; offsets = new long[0];
                 this.hashOfKey = hashOfKey;
+                hvalues = Array.Empty<int>();
+                offsets = Array.Empty<long>();
             }
-            internal void Clear() { hvalues = new int[0]; offsets = new long[0]; }
+
+            internal void Clear()
+            {
+                hvalues = Array.Empty<int>();
+                offsets = Array.Empty<long>();
+            }
+
             internal void OnAppendValues(IComparable[] adds, long offset)
             {
                 int len = hvalues.Length;
                 int nplus = adds.Length;
                 if (nplus == 0) return;
-                // расширим массивы
+
                 int[] vals = new int[len + nplus];
                 long[] offs = new long[len + nplus];
-                for (int i = 0; i < len; i++) { vals[i] = hvalues[i]; offs[i] = offsets[i]; }
-                for (int i = 0; i < nplus; i++) { vals[len + i] = hashOfKey(adds[i]); offs[len + i] = offset; }
+                for (int i = 0; i < len; i++)
+                {
+                    vals[i] = hvalues[i];
+                    offs[i] = offsets[i];
+                }
+                for (int i = 0; i < nplus; i++)
+                {
+                    vals[len + i] = hashOfKey(adds[i]);
+                    offs[len + i] = offset;
+                }
+
                 Array.Sort(vals, offs);
-                hvalues = vals; offsets = offs;
+                hvalues = vals;
+                offsets = offs;
             }
 
             internal IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
             {
-                var hashofvaluesample = hashOfKey(valuesample);
-                // Определяем начальный индекс
+                int hashofvaluesample = hashOfKey(valuesample);
                 int ind = Array.BinarySearch(hvalues, hashofvaluesample);
-                if (ind >= 0)
-                {
+                if (ind < 0) yield break;
 
-                    // Выдаем это решение
-                    object rec = sequ.GetByOffset(offsets[ind]);
-                    yield return new ObjOff(rec, offsets[ind]);
-                    // Идем влево
-                    int i = ind - 1;
-                    while (i >= 0)
-                    {
-                        if (hvalues[i] != hashofvaluesample) break;
-                        rec = sequ.GetByOffset(offsets[i]);
-                        yield return new ObjOff(rec, offsets[i]);
-                        i--;
-                    }
-                    // Идем вправо
-                    i = ind + 1;
-                    while (i < hvalues.Length)
-                    {
-                        if (hvalues[i] != hashofvaluesample) break;
-                        rec = sequ.GetByOffset(offsets[i]);
-                        yield return new ObjOff(rec, offsets[i]);
-                        i++;
-                    }
+                yield return new ObjOff(sequ.GetByOffset(offsets[ind]), offsets[ind]);
+
+                int i = ind - 1;
+                while (i >= 0)
+                {
+                    if (hvalues[i] != hashofvaluesample) break;
+                    yield return new ObjOff(sequ.GetByOffset(offsets[i]), offsets[i]);
+                    i--;
+                }
+
+                i = ind + 1;
+                while (i < hvalues.Length)
+                {
+                    if (hvalues[i] != hashofvaluesample) break;
+                    yield return new ObjOff(sequ.GetByOffset(offsets[i]), offsets[i]);
+                    i++;
                 }
             }
         }
-        DynPairsSet dynindex;
-        // ============ конец динамической части индекса ============
 
+        private readonly DynPairsSet dynindex;
+        private int[]? hkeys_arr;
 
-
-        private bool keysinmemory;
-        private bool ignorecase;
-
-        public UVecIndex(Func<Stream> streamGen, USequence sequence,
-            Func<object, IEnumerable<IComparable>> keysFunc, Func<IComparable, int> hashOfKey, 
+        /// <summary>
+        /// Creates a multi-valued hash index.
+        /// </summary>
+        /// <param name="streamGen">Factory for streams used by persisted index parts.</param>
+        /// <param name="sequence">Owner sequence whose elements are indexed.</param>
+        /// <param name="keysFunc">Extractor returning one or many comparable keys for each sequence element.</param>
+        /// <param name="hashOfKey">Hash function used to bucket comparable keys.</param>
+        /// <param name="ignorecase">When <see langword="true"/>, string keys are normalized to uppercase before hashing.</param>
+        public UVecIndex(
+            Func<Stream> streamGen,
+            USequence sequence,
+            Func<object, IEnumerable<IComparable>> keysFunc,
+            Func<IComparable, int> hashOfKey,
             bool ignorecase = false)
         {
             this.sequence = sequence;
             this.keysFunc = keysFunc;
             this.hashOfKey = hashOfKey;
-            this.keysinmemory = false; //true;
+            keysinmemory = false;
             this.ignorecase = ignorecase;
 
             hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
             offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
-
             dynindex = new DynPairsSet(sequence, hashOfKey);
-
         }
 
-        // Массив оптимизации поиска по значению хеша
-        private int[]? hkeys_arr = null;
+        /// <summary>
+        /// Clears static and dynamic index state.
+        /// </summary>
+        public void Clear()
+        {
+            hkeys.Clear();
+            hkeys_arr = null;
+            offsets.Clear();
+            dynindex.Clear();
+        }
 
-        public void Clear() { hkeys.Clear(); hkeys_arr = null; offsets.Clear(); dynindex.Clear(); }
-        public void Flush() { hkeys.Flush(); offsets.Flush(); }
-        public void Close() { hkeys.Close(); offsets.Close(); }
+        /// <summary>
+        /// Flushes persisted static index sequences.
+        /// </summary>
+        public void Flush()
+        {
+            hkeys.Flush();
+            offsets.Flush();
+        }
+
+        /// <summary>
+        /// Flushes and closes persisted static index sequences.
+        /// </summary>
+        public void Close()
+        {
+            hkeys.Close();
+            offsets.Close();
+        }
+
+        /// <summary>
+        /// Reloads persisted static state.
+        /// </summary>
         public void Refresh()
         {
-            if (keysinmemory) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-            else hkeys.Refresh();
+            if (keysinmemory)
+                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+            else
+                hkeys.Refresh();
+
             offsets.Refresh();
         }
 
-
-
-
+        /// <summary>
+        /// Rebuilds static index state from the owner sequence logical view.
+        /// </summary>
         public void Build()
         {
-            // сканируем опорную последовательность, формируем массивы
             List<int>? hkeys_list = new List<int>();
             List<long>? offsets_list = new List<long>();
             sequence.Scan((off, obj) =>
@@ -126,64 +172,44 @@
                 foreach (IComparable key in keys)
                 {
                     IComparable k = key;
-                    if (ignorecase) { k = ((string)k).ToUpper(); }
-                    offsets_list.Add(off);
-                    hkeys_list.Add(hashOfKey(k));
+                    if (ignorecase) k = ((string)k).ToUpper();
+                    offsets_list!.Add(off);
+                    hkeys_list!.Add(hashOfKey(k));
                 }
+
                 return true;
             });
+
             hkeys_arr = hkeys_list.ToArray();
-            hkeys_list = null;
-            long[]? offsets_arr = offsets_list.ToArray();
-            offsets_list = null;
-            GC.Collect();
+            long[] offsets_arr = offsets_list.ToArray();
 
             Array.Sort(hkeys_arr, offsets_arr);
 
-            // ~~~~~~~~~~~ Отладочная выдача 
-            bool todebug = true;
-            if (todebug)
-            {
-                Console.WriteLine("НАчало обладочной выдачи");
-                int len = hkeys_arr.Length;
-                for (int i = 0; i < len; i++)
-                {
-                    if (i == 3) { }
-                    var hv = hkeys_arr[i]; var offs = offsets_arr[i];
-                    object[] rec = (object[])sequence.GetByOffset(offs);
-                    var query = keysFunc(rec)
-                        .FirstOrDefault(k => hashOfKey(((string)k).ToUpper()) == hv);
-                    string word = query != null ? (string)query : "no word";
-                    Console.Write($"{query} ");
-                    //object[] props = (object[])rec[2];
-                    //foreach (var prop in props)
-                    //{                }
-                    Console.WriteLine();
-                }
-                Console.WriteLine("Конец отладочной выдачи");
-            }
-            // ~~~~~~~~~~~ Конец отладочной выдачи 
-
             hkeys.Clear();
-            foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
+            foreach (var hkey in hkeys_arr)
+            {
+                hkeys.AppendElement(hkey);
+            }
             hkeys.Flush();
+
             if (!keysinmemory)
             {
                 hkeys_arr = null;
-                GC.Collect();
             }
 
-
             offsets.Clear();
-            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
+            foreach (var off in offsets_arr)
+            {
+                offsets.AppendElement(off);
+            }
             offsets.Flush();
-            offsets_arr = null;
-            GC.Collect();
-
         }
 
-
-
+        /// <summary>
+        /// Appends extracted keys of one newly appended element to dynamic in-memory state.
+        /// </summary>
+        /// <param name="element">Appended sequence element.</param>
+        /// <param name="offset">Physical stream offset of the appended element.</param>
         public void OnAppendElement(object element, long offset)
         {
             var keys = keysFunc(element)
@@ -193,19 +219,13 @@
             dynindex.OnAppendValues(keys, offset);
         }
 
-        private static IEnumerable<long> LRange(long start, long numb)
-        {
-            for (long ii = start; ii < start + numb; ii++) yield return ii;
-        }
-
         private long FindFirstStaticIndexByHash(int hkey)
         {
             long count = hkeys.Count();
             if (count == 0) return -1;
 
             long left = 0;
-            long right = count; // [left, right)
-
+            long right = count;
             while (left < right)
             {
                 long mid = left + (right - left) / 2;
@@ -217,9 +237,7 @@
                     right = mid;
             }
 
-            if (left >= count)
-                return -1;
-
+            if (left >= count) return -1;
             return (int)hkeys.GetByIndex(left) == hkey ? left : -1;
         }
 
@@ -228,8 +246,7 @@
             if (hkeys_arr != null)
             {
                 int ind = Array.BinarySearch(hkeys_arr, hashofvaluesample);
-                if (ind < 0)
-                    yield break;
+                if (ind < 0) yield break;
 
                 while (ind > 0 && hkeys_arr[ind - 1] == hashofvaluesample)
                     ind--;
@@ -237,8 +254,7 @@
                 while (ind < hkeys_arr.Length && hkeys_arr[ind] == hashofvaluesample)
                 {
                     long off = (long)offsets.GetByIndex(ind);
-                    object rec = sequence.GetByOffset(off);
-                    yield return new ObjOff(rec, off);
+                    yield return new ObjOff(sequence.GetByOffset(off), off);
                     ind++;
                 }
 
@@ -246,22 +262,24 @@
             }
 
             long first = FindFirstStaticIndexByHash(hashofvaluesample);
-            if (first < 0)
-                yield break;
+            if (first < 0) yield break;
 
             long count = hkeys.Count();
             for (long i = first; i < count; i++)
             {
                 int current = (int)hkeys.GetByIndex(i);
-                if (current != hashofvaluesample)
-                    yield break;
+                if (current != hashofvaluesample) yield break;
 
                 long off = (long)offsets.GetByIndex(i);
-                object rec = sequence.GetByOffset(off);
-                yield return new ObjOff(rec, off);
+                yield return new ObjOff(sequence.GetByOffset(off), off);
             }
         }
 
+        /// <summary>
+        /// Returns all candidate records whose hashed extracted values match <paramref name="valuesample"/>.
+        /// </summary>
+        /// <param name="valuesample">Lookup value sample.</param>
+        /// <returns>Dynamic and static candidates; consumers should apply exact filtering after retrieval.</returns>
         public IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
         {
             if (ignorecase)
@@ -275,55 +293,5 @@
             foreach (var v in GetStaticByHash(hashofvaluesample))
                 yield return v;
         }
-        /// <summary>
-        /// Определение номера первого индекса последовательности hkeys, с которого значения РАВНЫ hkey (хешу от ключа)
-        /// Если нет таких, то -1L
-        /// </summary>
-        /// <param name="hkey"></param>
-        /// <returns></returns>
-        private long GetFirstNom(int hkey)
-        {
-            long start = 0, end = hkeys.Count() - 1, right_equal = -1;
-            // Сжимаем диапазон
-            while (end - start > 1)
-            {
-                // Находим середину
-                long middle = (start + end) / 2;
-                int middle_value = (int)hkeys.GetByIndex(middle);
-                if (middle_value < hkey)
-                {  // Займемся правым интервалом
-                    start = middle;
-                }
-                else if (middle_value > hkey)
-                {  // Займемся левым интервалом
-                    end = middle;
-                }
-                else
-                {  // Середина дает РАВНО
-                    end = middle;
-                    right_equal = middle;
-                }
-            }
-            return right_equal;
-        }
-
-        ///// <summary>
-        ///// Определяет является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал
-        ///// Если есть, то надо проверить офсет
-        ///// </summary>
-        ///// <param name="key"></param>
-        ///// <param name="offset"></param>
-        ///// <returns></returns>
-        //public bool IsOriginal(IComparable key, long offset)
-        //{
-        //    if (keyoff_dic.TryGetValue(key, out long off))
-        //    {
-        //        if (off == offset) return true;
-        //        return false;
-        //    }
-        //    return true; //TODO: здесь предполагается, что в основном индексе есть такое значение
-        //}
-
     }
-
 }

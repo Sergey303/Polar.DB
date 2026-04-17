@@ -3,8 +3,21 @@
 
 namespace Polar.DB
 {
+    /// <summary>
+    /// Text serializer/deserializer for values described by <see cref="PType"/> schemas.
+    /// </summary>
+    /// <remarks>
+    /// The format is Polar-specific and uses <c>object[]</c> for records/sequences and <c>tag^payload</c> for unions.
+    /// It is intended for diagnostics and interchange with the matching parser in this class.
+    /// </remarks>
     public class TextFlow
     {
+        /// <summary>
+        /// Serializes a single value using compact Polar text syntax.
+        /// </summary>
+        /// <param name="tw">Target writer.</param>
+        /// <param name="v">Value to serialize.</param>
+        /// <param name="tp">Schema that defines the value shape.</param>
         public static void Serialize(TextWriter tw, object v, PType tp)
         {
             switch (tp.Vid)
@@ -87,6 +100,13 @@ namespace Polar.DB
             return false;
 
         }
+        /// <summary>
+        /// Serializes a single value with indentation and line breaks.
+        /// </summary>
+        /// <param name="tw">Target writer.</param>
+        /// <param name="v">Value to serialize.</param>
+        /// <param name="tp">Schema that defines the value shape.</param>
+        /// <param name="level">Current indentation level used as a left margin.</param>
         public static void SerializeFormatted(TextWriter tw, object v, PType tp, int level)
         {
             Intend(tw, level * intend);
@@ -158,6 +178,12 @@ namespace Polar.DB
                     }
             }
         }
+        /// <summary>
+        /// Serializes a flow of elements as a Polar sequence literal.
+        /// </summary>
+        /// <param name="tw">Target writer.</param>
+        /// <param name="flow">Element flow to serialize.</param>
+        /// <param name="tp">Element schema.</param>
         public static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)
         {
             tw.Write('[');
@@ -171,6 +197,13 @@ namespace Polar.DB
             tw.Write(']');
             
         }
+        /// <summary>
+        /// Serializes a flow of elements as a formatted Polar sequence literal.
+        /// </summary>
+        /// <param name="tw">Target writer.</param>
+        /// <param name="flow">Element flow to serialize.</param>
+        /// <param name="tp">Element schema.</param>
+        /// <param name="level">Current indentation level used as a left margin.</param>
         public static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level)
         {
             tw.Write('\n'); for (int i = 0; i < level * intend; i++) tw.Write(' ');
@@ -188,9 +221,21 @@ namespace Polar.DB
 
         }
 
-
+        /// <summary>
+        /// Deserializes a single value from Polar text syntax.
+        /// </summary>
+        /// <param name="tr">Source reader.</param>
+        /// <param name="tp">Expected schema.</param>
+        /// <returns>Deserialized value in Polar object representation.</returns>
         public static object Deserialize(TextReader tr, PType tp)
         { TextFlow tf = new TextFlow(tr); tf.Skip(); return tf.Des(tp); }
+
+        /// <summary>
+        /// Deserializes a sequence literal into an element flow.
+        /// </summary>
+        /// <param name="tr">Source reader.</param>
+        /// <param name="tp">Element schema.</param>
+        /// <returns>Lazy stream of deserialized elements.</returns>
         public static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)
         {
             TextFlow tf = new TextFlow(tr);
@@ -217,10 +262,16 @@ namespace Polar.DB
         // Более удобный объект для парсинга TextFlow
         private TextReader tr;
         internal TextFlow(TextReader tr) { this.tr = tr; }
+        /// <summary>
+        /// Advances the reader over whitespace characters.
+        /// </summary>
         public void Skip()
         {
             while (char.IsWhiteSpace((char)tr.Peek())) tr.Read();
         }
+        /// <summary>
+        /// Reads a boolean token encoded as <c>t</c> or <c>f</c>.
+        /// </summary>
         public bool ReadBoolean()
         {
             int c = tr.Read();
@@ -237,12 +288,22 @@ namespace Polar.DB
             }
             return sb.ToString();
         }
+        /// <summary>
+        /// Reads a byte token in decimal or hexadecimal-like digit form.
+        /// </summary>
         public byte ReadByte()
         {
             string s = ReadWhile(c => { if (char.IsDigit(c)) return true; char cc = char.ToLower(c); return cc >= 'a' && cc <= 'f'; });
             return byte.Parse(s);
         }
+        /// <summary>
+        /// Reads a single character from the stream.
+        /// </summary>
         public char ReadChar() { return (char)tr.Read(); }
+
+        /// <summary>
+        /// Reads a signed 32-bit integer token.
+        /// </summary>
         public int ReadInt32()
         {
             int sign = 1;
@@ -251,6 +312,9 @@ namespace Polar.DB
             int v = Int32.Parse(s);
             return sign * v;
         }
+        /// <summary>
+        /// Reads a signed 64-bit integer token.
+        /// </summary>
         public long ReadInt64()
         {
             int sign = 1;
@@ -259,6 +323,9 @@ namespace Polar.DB
             long v = Int64.Parse(s);
             return sign * v;
         }
+        /// <summary>
+        /// Reads a floating-point token using invariant culture conventions.
+        /// </summary>
         public double ReadDouble()
         {
             // Наверное, это неправильно, но пока сойдет
@@ -266,6 +333,9 @@ namespace Polar.DB
             double v = double.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
             return v;
         }
+        /// <summary>
+        /// Reads a quoted Polar string token with escape-sequence support.
+        /// </summary>
         public string ReadString()
         {
             StringBuilder sb = new StringBuilder();
@@ -301,7 +371,7 @@ namespace Polar.DB
         {
             switch (tp.Vid)
             {
-                case PTypeEnumeration.none: { return null; }
+                case PTypeEnumeration.none: { return null!; }
                 case PTypeEnumeration.boolean: { return ReadBoolean(); }
                 case PTypeEnumeration.@byte: { return ReadByte(); }
                 case PTypeEnumeration.character: { return ReadChar(); }

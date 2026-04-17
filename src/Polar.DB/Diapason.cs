@@ -1,9 +1,28 @@
-﻿namespace Polar.DB
+namespace Polar.DB
 {
+    /// <summary>
+    /// Half-open range descriptor used by scale helpers to narrow candidate key positions.
+    /// </summary>
     public struct Diapason
     {
-        public long start, numb; // Инициализируются нулевые значения полей
-        public static Diapason Empty { get { return new Diapason() { numb = 0, start = Int64.MinValue }; } }
-        public bool IsEmpty() { return numb <= 0; }
+        /// <summary>
+        /// Zero-based start index of the candidate range.
+        /// </summary>
+        public long start;
+
+        /// <summary>
+        /// Number of elements in the candidate range.
+        /// </summary>
+        public long numb;
+
+        /// <summary>
+        /// Represents an empty range.
+        /// </summary>
+        public static Diapason Empty => new Diapason { numb = 0, start = long.MinValue };
+
+        /// <summary>
+        /// Returns <see langword="true"/> when the range has no elements.
+        /// </summary>
+        public bool IsEmpty() => numb <= 0;
     }
 }
