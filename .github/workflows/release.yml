@@ -29,7 +29,6 @@ jobs:
         with:
           dotnet-version: |
             10.0.x
-          cache: true
 
       - name: Locate solution
         id: locate_solution
@@ -86,6 +85,16 @@ jobs:
           --output "${{ github.workspace }}/artifacts/nuget"
           /p:ContinuousIntegrationBuild=true
           /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Upload build artifacts for manual or non-tag runs
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ steps.version.outputs.version }}
+          path: |
+            ${{ github.workspace }}/artifacts/nuget/*.nupkg
+            ${{ github.workspace }}/artifacts/nuget/*.snupkg
+          if-no-files-found: error
 
       - name: Create GitHub Release
         if: github.ref_type == 'tag'

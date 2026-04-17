@@ -36,7 +36,6 @@ jobs:
         with:
           dotnet-version: |
             10.0.x
-          cache: true
 
       - name: Locate solution
         id: locate_solution

@@ -38,6 +38,10 @@
   color: "fef2c0"
   description: More information is needed to proceed
 
+- name: stale
+  color: "f9d0c4"
+  description: Marked stale due to inactivity
+
 - name: breaking-change
   color: "b60205"
   description: Introduces a breaking behavioral or API change
