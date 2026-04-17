@@ -105,9 +105,20 @@ jobs:
             ${{ github.workspace }}/artifacts/nuget/*.nupkg
             ${{ github.workspace }}/artifacts/nuget/*.snupkg
 
+      - name: Mask NuGet API key
+        if: github.ref_type == 'tag' && secrets.NUGET_API_KEY != ''
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          echo "::add-mask::$NUGET_API_KEY"
+
       - name: Publish to NuGet.org
         if: github.ref_type == 'tag' && secrets.NUGET_API_KEY != ''
         shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_SOURCE: https://api.nuget.org/v3/index.json
         run: |
           shopt -s nullglob
           packages=("${GITHUB_WORKSPACE}"/artifacts/nuget/*.nupkg)
@@ -118,7 +129,7 @@ jobs:
             fi
 
             dotnet nuget push "$package" \
-              --api-key "${{ secrets.NUGET_API_KEY }}" \
-              --source https://api.nuget.org/v3/index.json \
+              --api-key "$NUGET_API_KEY" \
+              --source "$NUGET_SOURCE" \
               --skip-duplicate
           done
