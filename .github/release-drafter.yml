@@ -11,7 +11,7 @@ template: |
   $CONTRIBUTORS
 
 change-template: "- #$NUMBER $TITLE @$AUTHOR"
-change-title-escapes: "\<*_&"
+change-title-escapes: '\<*_&'
 
 categories:
   - title: "Breaking changes"
