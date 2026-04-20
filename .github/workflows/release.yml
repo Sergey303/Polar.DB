@@ -18,7 +18,7 @@ jobs:
     name: Build, pack, and publish
     runs-on: ubuntu-latest
     env:
-      NUGET_API_KEYS : ${{ secrets.NUGET_API_KEYS  }}
+      NUGET_API_KEYS: ${{ secrets.NUGET_API_KEYS }}
       NUGET_SOURCE: https://api.nuget.org/v3/index.json
 
     steps:
@@ -47,6 +47,19 @@ jobs:
 
           "solution=$solution" >> $env:GITHUB_OUTPUT
           Write-Host "Using solution: $solution"
+
+      - name: Locate Polar.DB project
+        id: locate_pack_project
+        shell: pwsh
+        run: |
+          $project = Join-Path $env:GITHUB_WORKSPACE 'src/Polar.DB/Polar.DB.csproj'
+
+          if (-not (Test-Path $project)) {
+            throw "Pack project was not found: $project"
+          }
+
+          "project=$project" >> $env:GITHUB_OUTPUT
+          Write-Host "Using pack project: $project"
 
       - name: Determine version
         id: version
@@ -80,9 +93,9 @@ jobs:
           --no-build
           --verbosity normal
 
-      - name: Pack
+      - name: Pack Polar.DB only
         run: >-
-          dotnet pack "${{ steps.locate_solution.outputs.solution }}"
+          dotnet pack "${{ steps.locate_pack_project.outputs.project }}"
           --configuration Release
           --no-build
           --output "${{ github.workspace }}/artifacts/nuget"
@@ -95,47 +108,62 @@ jobs:
         with:
           name: nuget-packages-${{ steps.version.outputs.version }}
           path: |
-            ${{ github.workspace }}/artifacts/nuget/*.nupkg
-            ${{ github.workspace }}/artifacts/nuget/*.snupkg
+            ${{ github.workspace }}/artifacts/nuget/Polar.DB*.nupkg
+            ${{ github.workspace }}/artifacts/nuget/Polar.DB*.snupkg
           if-no-files-found: error
 
-      - name: Validate NuGet API key
+      - name: Normalize NuGet API key
         if: github.ref_type == 'tag'
         shell: bash
         run: |
-          if [[ -z "$NUGET_API_KEYS" ]]; then
+          raw="${NUGET_API_KEYS-}"
+
+          if [[ -z "$raw" ]]; then
             echo "NUGET_API_KEYS is not configured."
             exit 1
           fi
 
-      - name: Mask NuGet API key
-        if: github.ref_type == 'tag'
-        shell: bash
-        run: |
-          echo "::add-mask::$NUGET_API_KEYS"
+          echo "::add-mask::$raw"
 
-      - name: Publish to NuGet.org
+          sanitized="$(printf '%s' "$raw" | tr -d '\r\n')"
+          sanitized="$(printf '%s' "$sanitized" | sed -E 's/^[[:space:]]*key[[:space:]]*[:=][[:space:]]*//I')"
+          sanitized="$(printf '%s' "$sanitized" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+
+          if [[ -z "$sanitized" ]]; then
+            echo "Normalized NuGet API key is empty."
+            exit 1
+          fi
+
+          echo "::add-mask::$sanitized"
+
+          {
+            echo "NUGET_API_KEY_NORMALIZED<<EOF"
+            printf '%s\n' "$sanitized"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish Polar.DB to NuGet.org
         if: github.ref_type == 'tag'
         shell: bash
         run: |
           shopt -s nullglob
-          packages=("${GITHUB_WORKSPACE}"/artifacts/nuget/*.nupkg)
+          packages=("${GITHUB_WORKSPACE}"/artifacts/nuget/Polar.DB.*.nupkg)
 
           if [[ ${#packages[@]} -eq 0 ]]; then
-            echo "No .nupkg files found to publish."
+            echo "No Polar.DB .nupkg file found to publish."
             exit 1
           fi
 
-          for package in "${packages[@]}"; do
-            if [[ "$package" == *.snupkg ]]; then
-              continue
-            fi
+          if [[ ${#packages[@]} -ne 1 ]]; then
+            echo "Expected exactly one Polar.DB .nupkg file, found ${#packages[@]}:"
+            printf ' - %s\n' "${packages[@]}"
+            exit 1
+          fi
 
-            dotnet nuget push "$package" \
-              --api-key "$NUGET_API_KEYS" \
-              --source "$NUGET_SOURCE" \
-              --skip-duplicate
-          done
+          dotnet nuget push "${packages[0]}" \
+            --api-key "$NUGET_API_KEY_NORMALIZED" \
+            --source "$NUGET_SOURCE" \
+            --skip-duplicate
 
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
@@ -143,5 +171,5 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            ${{ github.workspace }}/artifacts/nuget/*.nupkg
-            ${{ github.workspace }}/artifacts/nuget/*.snupkg
+            ${{ github.workspace }}/artifacts/nuget/Polar.DB*.nupkg
+            ${{ github.workspace }}/artifacts/nuget/Polar.DB*.snupkg
