@@ -18,7 +18,7 @@ jobs:
     name: Build, pack, and publish
     runs-on: ubuntu-latest
     env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      NUGET_API_KEYS : ${{ secrets.NUGET_API_KEYS  }}
       NUGET_SOURCE: https://api.nuget.org/v3/index.json
 
     steps:
@@ -103,8 +103,8 @@ jobs:
         if: github.ref_type == 'tag'
         shell: bash
         run: |
-          if [[ -z "$NUGET_API_KEY" ]]; then
-            echo "NUGET_API_KEY is not configured."
+          if [[ -z "$NUGET_API_KEYS" ]]; then
+            echo "NUGET_API_KEYS is not configured."
             exit 1
           fi
 
@@ -112,7 +112,7 @@ jobs:
         if: github.ref_type == 'tag'
         shell: bash
         run: |
-          echo "::add-mask::$NUGET_API_KEY"
+          echo "::add-mask::$NUGET_API_KEYS"
 
       - name: Publish to NuGet.org
         if: github.ref_type == 'tag'
@@ -132,7 +132,7 @@ jobs:
             fi
 
             dotnet nuget push "$package" \
-              --api-key "$NUGET_API_KEY" \
+              --api-key "$NUGET_API_KEYS" \
               --source "$NUGET_SOURCE" \
               --skip-duplicate
           done
