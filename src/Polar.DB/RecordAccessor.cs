@@ -169,7 +169,9 @@ namespace Polar.DB
             _ = record ?? throw new ArgumentNullException(nameof(record));
             _ = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
             value = null;
+
             if (record is not object[] arr) return false;
+            if (fieldName is null) return false;
             if (!_fieldIndexes.TryGetValue(fieldName, out int index)) return false;
             if (arr.Length != FieldCount) return false;
 
