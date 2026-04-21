@@ -189,8 +189,10 @@ namespace Polar.DB
         /// </summary>
         /// <param name="level">Recursion depth limit; negative value returns <see langword="null"/>.</param>
         /// <returns>Compact schema representation compatible with <see cref="FromPObject(object)"/>.</returns>
-        public object ToPObject(uint level)
+        public object ToPObject(int level)
         {
+            if (level < 0) return null;
+
             switch (vid)
             {
                 case PTypeEnumeration.fstring:
@@ -208,15 +210,7 @@ namespace Polar.DB
                 case PTypeEnumeration.sequence:
                 {
                     PTypeSequence pts = (PTypeSequence)this;
-                    return new object[]
-                    {
-                        ToInt(vid),
-                        new object[]
-                        {
-                            pts.Growing,
-                            pts.ElementType.ToPObject(level - 1)!
-                        }
-                    };
+                    return new object[] { ToInt(vid), new object[] { pts.Growing, pts.ElementType.ToPObject(level - 1)! } };
                 }
 
                 case PTypeEnumeration.union:
@@ -229,20 +223,22 @@ namespace Polar.DB
                 }
 
                 default:
-                    return new object?[] { ToInt(vid), null };
+                    return new object[] { ToInt(vid), null! };
             }
         }
 
         /// <summary>
         /// Recreates schema descriptor from compact Polar object representation.
         /// </summary>
-        /// <param name="po">Schema object produced by <see cref="ToPObject(int)"/>.</param>
+        /// <param name="po">Schema object produced by <see cref="ToPObject"/>.</param>
         /// <returns>Parsed schema descriptor.</returns>
         public static PType FromPObject(object po)
         {
             _ = po ?? throw new ArgumentNullException(nameof(po));
+
             object[] uni = (object[])po;
             int tg = (int)uni[0];
+
             switch (tg)
             {
                 case 0: return new PType(PTypeEnumeration.none);
@@ -253,6 +249,7 @@ namespace Polar.DB
                 case 5: return new PType(PTypeEnumeration.real);
                 case 6: return new PTypeFString((int)uni[1]);
                 case 7: return new PType(PTypeEnumeration.sstring);
+
                 case 8:
                 {
                     object[] fieldsDef = (object[])uni[1];
@@ -263,6 +260,7 @@ namespace Polar.DB
                     });
                     return new PTypeRecord(query.ToArray());
                 }
+
                 case 9:
                 {
                     object[] payload = (object[])uni[1];
@@ -270,6 +268,7 @@ namespace Polar.DB
                     PType elementType = FromPObject(payload[1]);
                     return new PTypeSequence(elementType, growing);
                 }
+
                 case 10:
                 {
                     object[] variantsDef = (object[])uni[1];
@@ -280,8 +279,10 @@ namespace Polar.DB
                     });
                     return new PTypeUnion(query.ToArray());
                 }
+
                 case 11:
                     return new PType(PTypeEnumeration.@byte);
+
                 default:
                     throw new Exception("unknown tag for pobject");
             }
@@ -297,36 +298,35 @@ namespace Polar.DB
         static PType()
         {
             ttype = new PTypeUnion();
-            ttype.variants =
-                new[]
-                {
-                    new NamedType("none", new PType(PTypeEnumeration.none)),
-                    new NamedType("boolean", new PType(PTypeEnumeration.none)),
-                    new NamedType("character", new PType(PTypeEnumeration.none)),
-                    new NamedType("integer", new PType(PTypeEnumeration.none)),
-                    new NamedType("longinteger", new PType(PTypeEnumeration.none)),
-                    new NamedType("real", new PType(PTypeEnumeration.none)),
-                    new NamedType("fstring", new PType(PTypeEnumeration.integer)),
-                    new NamedType("sstring", new PType(PTypeEnumeration.none)),
-                    new NamedType(
-                        "record",
-                        new PTypeSequence(
-                            new PTypeRecord(
-                                new NamedType("Name", new PType(PTypeEnumeration.sstring)),
-                                new NamedType("Type", ttype)))),
-                    new NamedType(
-                        "sequence",
+            ttype.variants = new[]
+            {
+                new NamedType("none", new PType(PTypeEnumeration.none)),
+                new NamedType("boolean", new PType(PTypeEnumeration.none)),
+                new NamedType("character", new PType(PTypeEnumeration.none)),
+                new NamedType("integer", new PType(PTypeEnumeration.none)),
+                new NamedType("longinteger", new PType(PTypeEnumeration.none)),
+                new NamedType("real", new PType(PTypeEnumeration.none)),
+                new NamedType("fstring", new PType(PTypeEnumeration.integer)),
+                new NamedType("sstring", new PType(PTypeEnumeration.none)),
+                new NamedType(
+                    "record",
+                    new PTypeSequence(
                         new PTypeRecord(
-                            new NamedType("growing", new PType(PTypeEnumeration.boolean)),
-                            new NamedType("Type", ttype))),
-                    new NamedType(
-                        "union",
-                        new PTypeSequence(
-                            new PTypeRecord(
-                                new NamedType("Name", new PType(PTypeEnumeration.sstring)),
-                                new NamedType("Type", ttype)))),
-                    new NamedType("byte", new PType(PTypeEnumeration.@byte))
-                };
+                            new NamedType("Name", new PType(PTypeEnumeration.sstring)),
+                            new NamedType("Type", ttype)))),
+                new NamedType(
+                    "sequence",
+                    new PTypeRecord(
+                        new NamedType("growing", new PType(PTypeEnumeration.boolean)),
+                        new NamedType("Type", ttype))),
+                new NamedType(
+                    "union",
+                    new PTypeSequence(
+                        new PTypeRecord(
+                            new NamedType("Name", new PType(PTypeEnumeration.sstring)),
+                            new NamedType("Type", ttype)))),
+                new NamedType("byte", new PType(PTypeEnumeration.@byte))
+            };
         }
 
         /// <summary>
@@ -339,20 +339,36 @@ namespace Polar.DB
         {
             if (v == null)
             {
-               if(vid == PTypeEnumeration.none)
-                   return string.Empty;
-               throw new ArgumentNullException(nameof(v));
+                if (vid == PTypeEnumeration.none) return string.Empty;
+                throw new ArgumentNullException(nameof(v));
             }
+
             switch (vid)
             {
-                case PTypeEnumeration.none: return string.Empty;
-                case PTypeEnumeration.boolean: return ((bool)v).ToString();
-                case PTypeEnumeration.character: return "'" + ((char)v).ToString() + "'";
-                case PTypeEnumeration.integer: return ((int)v).ToString();
-                case PTypeEnumeration.longinteger: return ((long)v).ToString();
-                case PTypeEnumeration.real: return ((double)v).ToString("G", CultureInfo.InvariantCulture);
-                case PTypeEnumeration.fstring: return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
-                case PTypeEnumeration.sstring: return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
+                case PTypeEnumeration.none:
+                    return string.Empty;
+
+                case PTypeEnumeration.boolean:
+                    return ((bool)v).ToString();
+
+                case PTypeEnumeration.character:
+                    return "'" + ((char)v) + "'";
+
+                case PTypeEnumeration.integer:
+                    return ((int)v).ToString();
+
+                case PTypeEnumeration.longinteger:
+                    return ((long)v).ToString();
+
+                case PTypeEnumeration.real:
+                    return ((double)v).ToString("G", CultureInfo.InvariantCulture);
+
+                case PTypeEnumeration.fstring:
+                    return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
+
+                case PTypeEnumeration.sstring:
+                    return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
+
                 case PTypeEnumeration.record:
                 {
                     PTypeRecord ptr = (PTypeRecord)this;
@@ -367,13 +383,12 @@ namespace Polar.DB
                             sb.Append(ptr.Fields[i].Name);
                             sb.Append(':');
                         }
-
                         sb.Append(ptr.Fields[i].Type.Interpret(arr[i]));
                     }
-
                     sb.Append('}');
                     return sb.ToString();
                 }
+
                 case PTypeEnumeration.sequence:
                 {
                     PTypeSequence pts = (PTypeSequence)this;
@@ -386,10 +401,10 @@ namespace Polar.DB
                         if (i > 0) sb.Append(',');
                         sb.Append(tel.Interpret(arr[i]));
                     }
-
                     sb.Append(']');
                     return sb.ToString();
                 }
+
                 case PTypeEnumeration.union:
                 {
                     PTypeUnion ptu = (PTypeUnion)this;
@@ -400,8 +415,10 @@ namespace Polar.DB
                     NamedType nt = ptu.Variants[tag];
                     return nt.Name + "^" + nt.Type.Interpret(arr[1]);
                 }
+
                 case PTypeEnumeration.@byte:
                     return ((byte)v).ToString();
+
                 default:
                     throw new Exception("Can't interpret value by type");
             }
@@ -413,14 +430,10 @@ namespace Polar.DB
     /// </summary>
     public struct NamedType
     {
-        /// <summary>
-        /// Field or variant name.
-        /// </summary>
+        /// <summary>Field or variant name.</summary>
         public string Name;
 
-        /// <summary>
-        /// Schema type associated with <see cref="Name"/>.
-        /// </summary>
+        /// <summary>Schema type associated with <see cref="Name"/>.</summary>
         public PType Type;
 
         /// <summary>
@@ -444,22 +457,17 @@ namespace Polar.DB
         /// Creates a fixed-string descriptor.
         /// </summary>
         /// <param name="length">String length in UTF-16 characters.</param>
-        public PTypeFString(int length)
-            : base(PTypeEnumeration.fstring)
+        public PTypeFString(int length) : base(PTypeEnumeration.fstring)
         {
             this.length = length;
         }
 
         private readonly int length;
 
-        /// <summary>
-        /// Gets fixed payload size in bytes.
-        /// </summary>
+        /// <summary>Gets fixed payload size in bytes.</summary>
         public int Size => length * 2;
 
-        /// <summary>
-        /// Gets fixed payload length in characters.
-        /// </summary>
+        /// <summary>Gets fixed payload length in characters.</summary>
         public int Length => length;
     }
 
@@ -472,8 +480,7 @@ namespace Polar.DB
         /// Creates a record descriptor from ordered field definitions.
         /// </summary>
         /// <param name="fields">Record fields in physical serialization order.</param>
-        public PTypeRecord(params NamedType[] fields)
-            : base(PTypeEnumeration.record)
+        public PTypeRecord(params NamedType[] fields) : base(PTypeEnumeration.record)
         {
             this.fields = fields ?? throw new ArgumentNullException(nameof(fields));
         }
@@ -481,9 +488,7 @@ namespace Polar.DB
         private int size = -1;
         private readonly NamedType[] fields;
 
-        /// <summary>
-        /// Gets field definitions in serialization order.
-        /// </summary>
+        /// <summary>Gets field definitions in serialization order.</summary>
         public NamedType[] Fields => fields;
 
         /// <summary>
@@ -498,9 +503,7 @@ namespace Polar.DB
             }
         }
 
-        /// <summary>
-        /// Calculates cumulative fixed header size from field schemas.
-        /// </summary>
+        /// <summary>Calculates cumulative fixed header size from field schemas.</summary>
         public override void Translate()
         {
             if (fields == null) throw new Exception("VType Err: no fields in record def");
@@ -522,8 +525,7 @@ namespace Polar.DB
         /// </summary>
         /// <param name="elementtype">Element schema type.</param>
         /// <param name="growing">Legacy flag preserved in the schema payload.</param>
-        public PTypeSequence(PType elementtype, bool growing = false)
-            : base(PTypeEnumeration.sequence)
+        public PTypeSequence(PType elementtype, bool growing = false) : base(PTypeEnumeration.sequence)
         {
             this.elementtype = elementtype ?? throw new ArgumentNullException(nameof(elementtype));
             this.growing = growing;
@@ -531,21 +533,15 @@ namespace Polar.DB
 
         private readonly PType elementtype;
 
-        /// <summary>
-        /// Gets element schema type.
-        /// </summary>
+        /// <summary>Gets element schema type.</summary>
         public PType ElementType => elementtype;
 
         private readonly bool growing;
 
-        /// <summary>
-        /// Gets legacy "growing" schema flag.
-        /// </summary>
+        /// <summary>Gets legacy "growing" schema flag.</summary>
         public bool Growing => growing;
 
-        /// <summary>
-        /// Translates nested element schema.
-        /// </summary>
+        /// <summary>Translates nested element schema.</summary>
         public override void Translate()
         {
             elementtype.Translate();
@@ -561,26 +557,21 @@ namespace Polar.DB
         /// Creates a union descriptor from ordered variant definitions.
         /// </summary>
         /// <param name="variants">Variant list where index is the serialized tag value.</param>
-        public PTypeUnion(params NamedType[] variants)
-            : base(PTypeEnumeration.union)
+        public PTypeUnion(params NamedType[] variants) : base(PTypeEnumeration.union)
         {
             this.variants = variants ?? throw new ArgumentNullException(nameof(variants));
         }
 
         internal NamedType[] variants = Array.Empty<NamedType>();
 
-        /// <summary>
-        /// Gets or sets union variants where array index is the variant tag.
-        /// </summary>
+        /// <summary>Gets or sets union variants where array index is the variant tag.</summary>
         public NamedType[] Variants
         {
             get => variants;
             set => variants = value;
         }
 
-        /// <summary>
-        /// Translates all variant payload schemas.
-        /// </summary>
+        /// <summary>Translates all variant payload schemas.</summary>
         public override void Translate()
         {
             if (variants == null) throw new Exception("VType Err: no variants in union def");
