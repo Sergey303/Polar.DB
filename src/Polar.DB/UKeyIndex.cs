@@ -27,9 +27,10 @@ namespace Polar.DB
             Func<IComparable, int> hashOfKey,
             bool keysinmemory = true)
         {
-            this.sequence = sequence;
-            this.keyFunc = keyFunc;
-            this.hashOfKey = hashOfKey;
+            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            this.keyFunc = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
+            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
             this.keysinmemory = keysinmemory;
 
             hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
@@ -39,6 +40,7 @@ namespace Polar.DB
 
         public void OnAppendElement(object element, long offset)
         {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
             var key = keyFunc(element);
             keyoff_dic[key] = offset;
         }
@@ -117,6 +119,7 @@ namespace Polar.DB
 
         public object? GetByKey(IComparable keysample)
         {
+            _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
             if (keyoff_dic.TryGetValue(keysample, out long off))
                 return sequence.GetByOffset(off);
 
@@ -187,6 +190,7 @@ namespace Polar.DB
 
         public bool IsOriginal(IComparable key, long offset)
         {
+            _ = key ?? throw new ArgumentNullException(nameof(key));
             if (keyoff_dic.TryGetValue(key, out long off))
                 return off == offset;
 

@@ -36,7 +36,11 @@ public class USequenceRepeatedCycleTests
 
         Assert.Equal(100L, reopened.Count());
         for (int i = 0; i < 100; i++)
-            Assert.Equal((long)i, (long)reopened.GetByIndex(i));
+        {
+            object? reopenedItem = reopened.GetByIndex(i);
+            Assert.NotNull(reopenedItem);
+            Assert.Equal(i, (long)reopenedItem);
+        }
     }
 
     /// <summary>
@@ -70,7 +74,7 @@ public class USequenceRepeatedCycleTests
 
         int expected = 0;
 
-        foreach (object raw in reopened.ElementValues())
+        foreach (object? raw in reopened.ElementValues())
         {
             var item = Assert.IsType<object[]>(raw);
             Assert.Equal(expected, (int)item[0]);

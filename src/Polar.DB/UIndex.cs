@@ -43,10 +43,11 @@ namespace Polar.DB
             Func<object, int>? hashFunc,
             Comparer<object> comp)
         {
-            this.sequence = sequence;
-            this.applicable = applicable;
+            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            this.applicable = applicable ?? throw new ArgumentNullException(nameof(applicable));
             this.hashFunc = hashFunc;
-            this.comp = comp;
+            this.comp = comp ?? throw new ArgumentNullException(nameof(comp));
 
             if (hashFunc != null)
                 hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
@@ -184,6 +185,7 @@ namespace Polar.DB
 
         internal IEnumerable<ObjOff> GetAllBySample(object sample)
         {
+            _ = sample ?? throw new ArgumentNullException(nameof(sample));
             if (dynset.Length > 0)
             {
                 HKeyObjOff complex_sample = new HKeyObjOff { obj = sample };
@@ -213,6 +215,8 @@ namespace Polar.DB
 
         internal IEnumerable<ObjOff> GetAllByLike(object sample, Comparer<object> comp_like)
         {
+            _ = sample ?? throw new ArgumentNullException(nameof(sample));
+            _ = comp_like ?? throw new ArgumentNullException(nameof(comp_like));
             if (dynset.Length > 0)
             {
                 foreach (var oo in dynset.Select(hoo => new ObjOff(hoo.obj, hoo.off)))
@@ -260,6 +264,7 @@ namespace Polar.DB
         /// <param name="offset">Physical stream offset of the appended element.</param>
         public void OnAppendElement(object element, long offset)
         {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
             if (!applicable(element)) return;
 
             var item = new HKeyObjOff
@@ -279,6 +284,8 @@ namespace Polar.DB
 
         private long GetFirstNomOffsets(object sample, Comparer<object> comparer)
         {
+            _ = sample ?? throw new ArgumentNullException(nameof(sample));
+            _ = comparer ?? throw new ArgumentNullException(nameof(comparer));
             long count = offsets.Count();
             if (count == 0) return -1;
 

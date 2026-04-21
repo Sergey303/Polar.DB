@@ -127,7 +127,9 @@ public class UniversalSequenceBaseCoreTests
         sequence.Flush();
 
         stream.Position = 3L;
-        long value = (long)sequence.GetElement(16L);
+        object? element = sequence.GetElement(16L);
+        Assert.NotNull(element);
+        long value = (long)element;
 
         Assert.Equal(22L, value);
         Assert.Equal(3L, stream.Position);
@@ -144,7 +146,9 @@ public class UniversalSequenceBaseCoreTests
         sequence.Flush();
 
         stream.Position = 2L;
-        long value = (long)sequence.GetTypedElement(new PType(PTypeEnumeration.longinteger), 8L);
+        object? typedElement = sequence.GetTypedElement(new PType(PTypeEnumeration.longinteger), 8L);
+        Assert.NotNull(typedElement);
+        long value = (long)typedElement;
 
         Assert.Equal(123L, value);
         Assert.Equal(2L, stream.Position);
@@ -186,7 +190,9 @@ public class UniversalSequenceBaseCoreTests
         Assert.Equal(1L, stream.Position);
         Assert.Equal(2L, sequence.Count());
         Assert.Equal(24L, sequence.AppendOffset);
-        Assert.Equal(99L, (long)sequence.GetByIndex(1));
+        object? byIndex = sequence.GetByIndex(1);
+        Assert.NotNull(byIndex);
+        Assert.Equal(99L, (long)byIndex);
     }
 
     [Fact]
@@ -206,8 +212,12 @@ public class UniversalSequenceBaseCoreTests
         Assert.Equal(6L, stream.Position);
         Assert.Equal(2L, sequence.Count());
         Assert.Equal(24L, sequence.AppendOffset);
-        Assert.Equal(77L, (long)sequence.GetByIndex(0));
-        Assert.Equal(20L, (long)sequence.GetByIndex(1));
+        object? byIndex0 = sequence.GetByIndex(0);
+        Assert.NotNull(byIndex0);
+        Assert.Equal(77L, (long)byIndex0);
+        object? byIndex1 = sequence.GetByIndex(1);
+        Assert.NotNull(byIndex1);
+        Assert.Equal(20L, (long)byIndex1);
     }
 
     [Fact]
@@ -270,7 +280,7 @@ public class UniversalSequenceBaseCoreTests
         sequence.Flush();
 
         stream.Position = 2L;
-        long[] values = sequence.ElementValues().Select(v => (long)v).ToArray();
+        long[] values = sequence.ElementValues().Select(AssertAndUnboxLong).ToArray();
 
         Assert.Equal(new[] { 11L, 22L, 33L }, values);
         Assert.Equal(2L, stream.Position);
@@ -309,7 +319,7 @@ public class UniversalSequenceBaseCoreTests
         sequence.Flush();
 
         stream.Position = 4L;
-        long[] values = sequence.ElementValues(16L, 2L).Select(v => (long)v).ToArray();
+        long[] values = sequence.ElementValues(16L, 2L).Select(AssertAndUnboxLong).ToArray();
 
         Assert.Equal(new[] { 22L, 33L }, values);
         Assert.Equal(4L, stream.Position);
@@ -332,11 +342,17 @@ public class UniversalSequenceBaseCoreTests
 
         Assert.Equal(3, pairs.Length);
         Assert.Equal(8L, pairs[0].Item1);
-        Assert.Equal(11L, (long)pairs[0].Item2);
+        object? item2 = pairs[0].Item2;
+        Assert.NotNull(item2);
+        Assert.Equal(11L, (long)item2);
         Assert.Equal(16L, pairs[1].Item1);
-        Assert.Equal(22L, (long)pairs[1].Item2);
+        object? item2Second = pairs[1].Item2;
+        Assert.NotNull(item2Second);
+        Assert.Equal(22L, (long)item2Second);
         Assert.Equal(24L, pairs[2].Item1);
-        Assert.Equal(33L, (long)pairs[2].Item2);
+        object? item2Third = pairs[2].Item2;
+        Assert.NotNull(item2Third);
+        Assert.Equal(33L, (long)item2Third);
         Assert.Equal(6L, stream.Position);
     }
 
@@ -359,7 +375,7 @@ public class UniversalSequenceBaseCoreTests
         sequence.Scan((off, element) =>
         {
             readOffsets.Add(off);
-            readValues.Add((long)element);
+            readValues.Add(AssertAndUnboxLong(element));
             return readValues.Count < 2;
         });
 
@@ -388,6 +404,14 @@ public class UniversalSequenceBaseCoreTests
         Assert.Equal(32L, sequence.AppendOffset);
         Assert.Equal(3L, sequence.Count());
         Assert.Equal(5L, stream.Position);
-        Assert.Equal(30L, (long)sequence.GetByIndex(2));
+        object? thirdItem = sequence.GetByIndex(2);
+        Assert.NotNull(thirdItem);
+        Assert.Equal(30L, (long)thirdItem);
+    }
+
+    private static long AssertAndUnboxLong(object? value)
+    {
+        Assert.NotNull(value);
+        return (long)value;
     }
 }

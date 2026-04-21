@@ -2,7 +2,7 @@ namespace GetStarted.IndexesAndSearch;
 
 internal static class SamplePaths
 {
-    private static string _root;
+    private static string? _root;
 
     public static string Root
     {

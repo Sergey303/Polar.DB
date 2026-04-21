@@ -99,6 +99,7 @@ internal static class UniversalSequenceBaseTestHelpers
             }
             catch
             {
+                // ignored
             }
         }
     }

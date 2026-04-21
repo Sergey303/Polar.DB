@@ -9,7 +9,7 @@ namespace Polar.DB
     /// </remarks>
     public class SVectorIndex : IUIndex
     {
-        private readonly bool ignorecase = true;
+        private readonly bool ignorecase;
         private readonly USequence sequence;
         private readonly Func<object, IEnumerable<string>> valuesFunc;
         private readonly UniversalSequenceBase values;
@@ -38,7 +38,7 @@ namespace Polar.DB
 
             internal DynPairsSet(USequence sequ)
             {
-                this.sequ = sequ;
+                this.sequ = sequ ?? throw new ArgumentNullException(nameof(sequ));
                 svalues = Array.Empty<string>();
                 offsets = Array.Empty<long>();
             }
@@ -51,6 +51,7 @@ namespace Polar.DB
 
             internal void OnAppendValues(string[] adds, long offset)
             {
+                _ = adds ?? throw new ArgumentNullException(nameof(adds));
                 int len = svalues.Length;
                 int nplus = adds.Length;
                 if (nplus == 0) return;
@@ -75,6 +76,8 @@ namespace Polar.DB
 
             private IEnumerable<ObjOff> GetAllByComp(string valuesample, Comparer<string> comp_s)
             {
+                _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
+                _ = comp_s ?? throw new ArgumentNullException(nameof(comp_s));
                 int ind = Array.BinarySearch(svalues, valuesample, comp_s);
                 if (ind < 0) yield break;
 
@@ -97,8 +100,16 @@ namespace Polar.DB
                 }
             }
 
-            internal IEnumerable<ObjOff> GetAllByValue(string valuesample) => GetAllByComp(valuesample, comp_string);
-            internal IEnumerable<ObjOff> GetAllByLike(string valuesample) => GetAllByComp(valuesample, comp_string_like);
+            internal IEnumerable<ObjOff> GetAllByValue(string valuesample)
+            {
+                _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
+                return GetAllByComp(valuesample, comp_string);
+            }
+            internal IEnumerable<ObjOff> GetAllByLike(string valuesample)
+            {
+                _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
+                return GetAllByComp(valuesample, comp_string_like);
+            }
         }
 
         private readonly DynPairsSet dynindex;
@@ -116,9 +127,10 @@ namespace Polar.DB
             Func<object, IEnumerable<string>> valuesFunc,
             bool ignorecase = true)
         {
+            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
             this.ignorecase = ignorecase;
-            this.sequence = sequence;
-            this.valuesFunc = valuesFunc;
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            this.valuesFunc = valuesFunc ?? throw new ArgumentNullException(nameof(valuesFunc));
 
             values = new UniversalSequenceBase(new PType(PTypeEnumeration.sstring), streamGen());
             element_offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
@@ -215,12 +227,15 @@ namespace Polar.DB
         /// <param name="offset">Physical stream offset of the appended element.</param>
         public void OnAppendElement(object element, long offset)
         {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
             var vals = valuesFunc(element).Select(v => ignorecase ? v.ToUpper() : v).ToArray();
             dynindex.OnAppendValues(vals, offset);
         }
 
         private IEnumerable<ObjOff> GetAllByComp(string valuesample, Comparer<string> comp_s)
         {
+            _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
+            _ = comp_s ?? throw new ArgumentNullException(nameof(comp_s));
             EnsureValuesArrayLoaded();
             if (values_arr is null || values_arr.Length == 0)
                 yield break;
@@ -228,14 +243,14 @@ namespace Polar.DB
             int ind = Array.BinarySearch(values_arr, valuesample, comp_s);
             if (ind < 0) yield break;
 
-            long off = (long)element_offsets.GetByIndex(ind);
+            long off = (long?)element_offsets.GetByIndex(ind) ?? throw new NullReferenceException(nameof(off));
             yield return new ObjOff(sequence.GetByOffset(off), off);
 
             int i = ind - 1;
             while (i >= 0)
             {
                 if (comp_s.Compare(values_arr[i], valuesample) != 0) break;
-                off = (long)element_offsets.GetByIndex(i);
+                off = (long?)element_offsets.GetByIndex(i) ?? throw new NullReferenceException(nameof(off));
                 yield return new ObjOff(sequence.GetByOffset(off), off);
                 i--;
             }
@@ -244,7 +259,7 @@ namespace Polar.DB
             while (i < values_arr.Length)
             {
                 if (comp_s.Compare(values_arr[i], valuesample) != 0) break;
-                off = (long)element_offsets.GetByIndex(i);
+                off = (long?)element_offsets.GetByIndex(i)?? throw new NullReferenceException(nameof(off));
                 yield return new ObjOff(sequence.GetByOffset(off), off);
                 i++;
             }
@@ -252,6 +267,7 @@ namespace Polar.DB
 
         internal IEnumerable<ObjOff> GetAllByValue(string valueSample)
         {
+            _ = valueSample ?? throw new ArgumentNullException(nameof(valueSample));
             string sValueNormalized = ignorecase ? valueSample.ToUpper() : valueSample;
 
             foreach (var v in dynindex.GetAllByValue(sValueNormalized))
@@ -263,6 +279,7 @@ namespace Polar.DB
 
         internal IEnumerable<ObjOff> GetAllByLike(string svalue)
         {
+            _ = svalue ?? throw new ArgumentNullException(nameof(svalue));
             if (ignorecase) svalue = svalue.ToUpper();
 
             foreach (var v in dynindex.GetAllByLike(svalue))

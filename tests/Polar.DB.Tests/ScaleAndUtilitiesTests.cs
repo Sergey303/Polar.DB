@@ -54,7 +54,7 @@ public class ScaleAndUtilitiesTests
     [Fact]
     public void GetDiaFunc32_ForEmptyArray_ReturnsNull()
     {
-        Assert.Null(Scale.GetDiaFunc32(Array.Empty<int>()));
+        Assert.Equal(Scale.EmptyDiapasonResolverByInt, Scale.GetDiaFunc32(Array.Empty<int>()));
     }
 
     [Fact]

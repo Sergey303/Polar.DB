@@ -49,6 +49,11 @@ namespace Polar.DB
             Func<IComparable, int> hashOfKey,
             bool optimise = true)
         {
+            _ = tp_el ?? throw new ArgumentNullException(nameof(tp_el));
+            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
+            _ = isEmpty ?? throw new ArgumentNullException(nameof(isEmpty));
+            _ = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
+            _ = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
             sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
             this.keyFunc = keyFunc;
@@ -212,6 +217,7 @@ namespace Polar.DB
         /// <param name="flow">Elements to append in order.</param>
         public void Load(IEnumerable<object> flow)
         {
+            _ = flow ?? throw new ArgumentNullException(nameof(flow));
             Clear();
 
             foreach (var element in flow)
@@ -224,8 +230,11 @@ namespace Polar.DB
             SaveState();
         }
 
-        internal bool IsOriginalAndNotEmpty(object element, long off) =>
-            primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+        internal bool IsOriginalAndNotEmpty(object element, long off)
+        {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
+            return primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+        }
 
         /// <summary>
         /// Enumerates current logical elements where each key contributes only its latest non-empty record.
@@ -244,6 +253,7 @@ namespace Polar.DB
         /// <param name="handler">Callback returning <see langword="true"/> to continue or <see langword="false"/> to stop.</param>
         public void Scan(Func<long, object, bool> handler)
         {
+            _ = handler ?? throw new ArgumentNullException(nameof(handler));
             sequence.Scan((off, ob) => IsOriginalAndNotEmpty(ob, off) ? handler(off, ob) : true);
         }
 
@@ -254,6 +264,7 @@ namespace Polar.DB
         /// <returns>Physical stream offset where the element was written.</returns>
         public long AppendElement(object element)
         {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -278,6 +289,7 @@ namespace Polar.DB
         /// <returns>Matching logical record, or <see langword="null"/> when no match exists.</returns>
         public object GetByKey(IComparable keysample)
         {
+            _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
             return primaryKeyIndex.GetByKey(keysample)!;
         }
 
@@ -300,6 +312,8 @@ namespace Polar.DB
             Func<object, IEnumerable<IComparable>> keysFunc,
             bool ignorecase = false)
         {
+            _ = value ?? throw new ArgumentNullException(nameof(value));
+            _ = keysFunc ?? throw new ArgumentNullException(nameof(keysFunc));
             if (uindexes[nom] is SVectorIndex sind)
             {
                 return sind.GetAllByValue((string)value)
@@ -343,6 +357,7 @@ namespace Polar.DB
         /// <returns>Logical records that match the sample.</returns>
         public IEnumerable<object> GetAllBySample(int nom, object osample)
         {
+            _ = osample ?? throw new ArgumentNullException(nameof(osample));
             if (uindexes[nom] is UIndex uind)
             {
                 return uind.GetAllBySample(osample)
@@ -361,6 +376,7 @@ namespace Polar.DB
         /// <returns>Logical records that match the prefix.</returns>
         public IEnumerable<object> GetAllByLike(int nom, object sample)
         {
+            _ = sample ?? throw new ArgumentNullException(nameof(sample));
             var uind = uindexes[nom];
             if (uind is SVectorIndex sindex)
             {

@@ -85,8 +85,8 @@ internal static class SamplePeople
     public static string[] Tags(object record) => ((object[])Accessor.Get(record, "tags")).Cast<string>().ToArray();
     public static string[] Skills(object record) => ((object[])Accessor.Get(record, "skills")).Cast<string>().ToArray();
 
-    public static IEnumerable<IComparable> TagsAsComparables(object record) => Tags(record).Cast<IComparable>();
-    public static IEnumerable<IComparable> SkillsAsComparables(object record) => Skills(record).Cast<IComparable>();
+    public static IEnumerable<IComparable> TagsAsComparables(object record) => Tags(record);
+    public static IEnumerable<IComparable> SkillsAsComparables(object record) => Skills(record);
 
     public static IEnumerable<string> SearchTokens(object record)
     {

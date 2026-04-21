@@ -194,13 +194,21 @@ public class UKeyIndexLargeBlockTests
 
         public void Dispose()
         {
-            try { Sequence.Close(); } catch { }
+            try { Sequence.Close(); }
+            catch
+            {
+                // ignored
+            }
+
             try
             {
                 if (Directory.Exists(_tempDir))
                     Directory.Delete(_tempDir, recursive: true);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
         }
     }
 
@@ -242,7 +250,7 @@ public class UKeyIndexLargeBlockTests
         public object? GetByKey(IComparable key) => _getByKey.Invoke(_instance, new object?[] { key });
 
         public void OnAppendElement(object element, long offset) =>
-            _onAppendElement.Invoke(_instance, new object?[] { element, offset });
+            _onAppendElement.Invoke(_instance, new [] { element, offset });
 
         private static MethodInfo GetMethod(string name) =>
             UKeyIndexType.GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)

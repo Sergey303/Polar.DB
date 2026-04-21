@@ -15,6 +15,7 @@ namespace Polar.DB
         /// </remarks>
         public static int HashRot13(string str)
         {
+            _ = str ?? throw new ArgumentNullException(nameof(str));
             uint hash = 0;
             foreach (char c in str)
             {
@@ -36,7 +37,8 @@ namespace Polar.DB
         /// </remarks>
         public static int First4charsRu(string s)
         {
-            const string schars = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHJKLMNOPQRSTUWXYZ[\\]^_`{|}~¿¡¬√ƒ≈∆«»… ÀÃÕŒœ–—“”‘ ÷◊ÿŸ⁄€‹›ﬁﬂ®";
+            _ = s ?? throw new ArgumentNullException(nameof(s));
+            const string schars = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHJKLMNOPQRSTUWXYZ[\\]^_`{|}~–ê–ë–í–ì–î–ï–ñ–ó–ò–ô–ö–õ–ú–ù–û–ü–†–°–¢–£–§–ö–¶–ß–®–©–™–´–¨–≠–Æ–Ø–Å";
             int len = s.Length;
             var chs = s.ToCharArray()
                 .Concat(Enumerable.Repeat(' ', len < 4 ? 4 - len : 0))

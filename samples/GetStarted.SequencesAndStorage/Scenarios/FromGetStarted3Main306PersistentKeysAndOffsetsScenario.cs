@@ -17,7 +17,7 @@ internal sealed class FromGetStarted3Main306PersistentKeysAndOffsetsScenario : I
             new NamedType("id", new PType(PTypeEnumeration.integer)),
             new NamedType("name", new PType(PTypeEnumeration.sstring)),
             new NamedType("age", new PType(PTypeEnumeration.integer)));
-        PType tp_seq = new PTypeSequence(tp_rec);
+        // unused PType tp_seq = new PTypeSequence(tp_rec);
 
         // ======== Универсальная последовательность ==========
         Stream stream = File.Open(SamplePaths.File("data306.bin"), FileMode.OpenOrCreate);
@@ -73,8 +73,8 @@ internal sealed class FromGetStarted3Main306PersistentKeysAndOffsetsScenario : I
         // Сначала сделаем единичный тест
         int k = nelements * 2 / 3;
         long ind = BinarySequenceSearchFirst(0, nelements, k, sequence2);
-        long offf = (long)sequence3.GetByIndex(ind);
-        object rec = sequence.GetElement(offf);
+        long offf = (long?)sequence3.GetByIndex(ind) ?? throw new NullReferenceException(nameof(offsets));
+        object rec = sequence.GetElement(offf)?? throw new NullReferenceException(nameof(rec));
 
         Console.WriteLine($"k={k}, v={tp_rec.Interpret(rec)}");
 
@@ -85,8 +85,8 @@ internal sealed class FromGetStarted3Main306PersistentKeysAndOffsetsScenario : I
         {
             int key = rnd.Next(nelements);
             long nom1 = BinarySequenceSearchFirst(0, nelements, key, sequence2);
-            long off = (long)sequence3.GetByIndex(nom1);
-            object[] fields = (object[])sequence.GetElement(off);
+            long off = (long?)sequence3.GetByIndex(nom1) ?? throw new NullReferenceException(nameof(offsets));
+            object[] fields = (object[]?)sequence.GetElement(off) ?? throw new NullReferenceException(nameof(fields));
             if (key != (int)fields[0]) throw new Exception("1233eddf");
         }
         sw2.Stop();
@@ -99,11 +99,11 @@ internal sealed class FromGetStarted3Main306PersistentKeysAndOffsetsScenario : I
     private static long BinarySequenceSearchFirst(long start, long number, int key, UniversalSequenceBase seq)
     {
         long half = number / 2;
-        int middle_keyvalue = (int)seq.GetByIndex(start + half);
+        int middle_keyvalue = (int?)seq.GetByIndex(start + half) ?? throw new NullReferenceException(nameof(middle_keyvalue));
         if (half == 0) // number = 0, 1
         {
-            if ((int)seq.GetByIndex(start) == key) return start;
-            else if ((int)seq.GetByIndex(start + 1) == key) return start + 1;
+            if ((int?)seq.GetByIndex(start) == key) return start;
+            else if ((int?)seq.GetByIndex(start + 1) == key) return start + 1;
             else return -1;
         }
         if (middle_keyvalue == key) return start + half;

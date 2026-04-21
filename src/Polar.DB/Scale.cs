@@ -29,6 +29,7 @@ namespace Polar.DB
         /// <param name="stream">Stream containing scale metadata.</param>
         public Scale(Stream stream)
         {
+            _ = stream ?? throw new ArgumentNullException(nameof(stream));
             keylengthminmaxstarts = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
             int nvalues = (int)keylengthminmaxstarts.Count();
             if (nvalues > 0)
@@ -62,6 +63,7 @@ namespace Polar.DB
         /// <param name="keys">Sorted key values used to build bucket boundaries.</param>
         public void Load(int[] keys)
         {
+            _ = keys ?? throw new ArgumentNullException(nameof(keys));
             keysLength = keys.Length;
             if (keysLength == 0) return;
 
@@ -145,6 +147,7 @@ namespace Polar.DB
         /// <returns>Function that maps key samples to approximate candidate ranges.</returns>
         public static Func<int, Diapason> GetDiaFunc32(IEnumerable<int> keys, int min, int max, int n_scale)
         {
+            _ = keys ?? throw new ArgumentNullException(nameof(keys));
             int[] starts;
             Func<int, int> toPosition;
 
@@ -191,14 +194,17 @@ namespace Polar.DB
             };
         }
 
+        public static readonly Func<int, Diapason> EmptyDiapasonResolverByInt = _ => Diapason.Empty;
+        public static readonly Func<long, Diapason> EmptyDiapasonResolverByInt64 = _ => Diapason.Empty;
         /// <summary>
         /// Builds a 32-bit key-to-diapason estimator from an in-memory key array.
         /// </summary>
         /// <param name="keys">Sorted key array.</param>
-        /// <returns>Estimator function, or <see langword="null"/> when the source is empty.</returns>
+        /// <returns>Estimator function, or EmptyDiapasonResolver when the source is empty.</returns>
         public static Func<int, Diapason> GetDiaFunc32(int[] keys)
         {
-            if (keys == null || keys.Length == 0) return null!;
+            _ = keys ?? throw new ArgumentNullException(nameof(keys));
+            if (keys.Length == 0) return EmptyDiapasonResolverByInt;
 
             int n = keys.Length;
             int min = keys[0];
@@ -256,7 +262,8 @@ namespace Polar.DB
         /// <returns>Estimator function, or <see langword="null"/> when the source is empty.</returns>
         public static Func<long, Diapason> GetDiaFunc64(long[] keys)
         {
-            if (keys == null || keys.Length == 0) return null!;
+            keys = keys ?? throw new ArgumentNullException(nameof(keys));
+            if (keys.Length == 0) return Scale.EmptyDiapasonResolverByInt64;
 
             int n = keys.Length;
             long min = keys[0];

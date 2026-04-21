@@ -17,7 +17,7 @@ internal sealed class FromGetStarted3Main305FirstBinarySearchScenario : ISampleS
             new NamedType("id", new PType(PTypeEnumeration.integer)),
             new NamedType("name", new PType(PTypeEnumeration.sstring)),
             new NamedType("age", new PType(PTypeEnumeration.integer)));
-        PType tp_seq = new PTypeSequence(tp_rec);
+        //unused PType tp_seq = new PTypeSequence(tp_rec);
 
         // ======== Универсальная последовательность ==========
         Stream stream = File.Open(SamplePaths.File("data305.bin"), FileMode.OpenOrCreate);
@@ -53,7 +53,7 @@ internal sealed class FromGetStarted3Main305FirstBinarySearchScenario : ISampleS
             sequence.Scan((off, obj) =>
             {
                 offsets[ind] = off;
-                keys[ind] = (int)((object[])obj)[0];
+                keys[ind] = (int)(((object[]?)obj)?[0] ?? throw new NullReferenceException(nameof(obj)));
                 ind++;
                 return true;
             });
@@ -69,9 +69,9 @@ internal sealed class FromGetStarted3Main305FirstBinarySearchScenario : ISampleS
             int key = rnd.Next(nelements);
             int nom = Array.BinarySearch(keys, key);
             long nom1 = BinarySearchFirst(0, nelements, key, keys);
-            if (nom1 != (long)nom) throw new Exception();
+            if (nom1 != nom) throw new Exception($"{nom1} == {nameof(nom1)} != {nameof(nom)} == {nom}");
             long off = offsets[nom1];
-            object[] fields = (object[])sequence.GetElement(off);
+            object[] fields = (object[]?)sequence.GetElement(off) ?? throw new NullReferenceException(nameof(fields));
             if (key != (int)fields[0]) throw new Exception("1233eddf");
             //Console.WriteLine($"key={key} {fields[0]} {fields[1]} {fields[2]}");
         }

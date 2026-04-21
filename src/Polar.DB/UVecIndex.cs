@@ -26,8 +26,8 @@ namespace Polar.DB
 
             internal DynPairsSet(USequence sequ, Func<IComparable, int> hashOfKey)
             {
-                this.sequ = sequ;
-                this.hashOfKey = hashOfKey;
+                this.sequ = sequ ?? throw new ArgumentNullException(nameof(sequ));
+                this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
                 hvalues = Array.Empty<int>();
                 offsets = Array.Empty<long>();
             }
@@ -40,6 +40,7 @@ namespace Polar.DB
 
             internal void OnAppendValues(IComparable[] adds, long offset)
             {
+                _ = adds ?? throw new ArgumentNullException(nameof(adds));
                 int len = hvalues.Length;
                 int nplus = adds.Length;
                 if (nplus == 0) return;
@@ -64,6 +65,7 @@ namespace Polar.DB
 
             internal IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
             {
+                _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
                 int hashofvaluesample = hashOfKey(valuesample);
                 int ind = Array.BinarySearch(hvalues, hashofvaluesample);
                 if (ind < 0) yield break;
@@ -106,9 +108,10 @@ namespace Polar.DB
             Func<IComparable, int> hashOfKey,
             bool ignorecase = false)
         {
-            this.sequence = sequence;
-            this.keysFunc = keysFunc;
-            this.hashOfKey = hashOfKey;
+            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            this.keysFunc = keysFunc ?? throw new ArgumentNullException(nameof(keysFunc));
+            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
             keysinmemory = false;
             this.ignorecase = ignorecase;
 
@@ -212,6 +215,7 @@ namespace Polar.DB
         /// <param name="offset">Physical stream offset of the appended element.</param>
         public void OnAppendElement(object element, long offset)
         {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
             var keys = keysFunc(element)
                 .Select(k => ignorecase ? ((string)k).ToUpper() : k)
                 .ToArray();
@@ -282,6 +286,7 @@ namespace Polar.DB
         /// <returns>Dynamic and static candidates; consumers should apply exact filtering after retrieval.</returns>
         public IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
         {
+            _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
             if (ignorecase)
                 valuesample = ((string)valuesample).ToUpper();
 

@@ -28,8 +28,10 @@ namespace Polar.DB
             PType tp_value,
             Func<object, IEnumerable<IComparable>> valuesFunc)
         {
-            this.sequence = sequence;
-            this.valuesFunc = valuesFunc;
+            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            _ = tp_value ?? throw new ArgumentNullException(nameof(tp_value));
+            this.valuesFunc = valuesFunc ?? throw new ArgumentNullException(nameof(valuesFunc));
 
             values = new UniversalSequenceBase(tp_value, streamGen());
             element_offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
@@ -43,6 +45,7 @@ namespace Polar.DB
         /// <param name="offset">Physical stream offset of the appended element.</param>
         public void OnAppendElement(object element, long offset)
         {
+            _ = element ?? throw new ArgumentNullException(nameof(element));
             var vals = valuesFunc(element);
             foreach (var value in vals)
             {
@@ -139,6 +142,7 @@ namespace Polar.DB
 
         internal IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
         {
+            _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
             EnsureValuesArrayLoaded();
 
             if (values_arr is null || values_arr.Length == 0)

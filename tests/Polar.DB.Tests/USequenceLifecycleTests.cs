@@ -139,7 +139,7 @@ public class USequenceLifecycleTests
         Assert.Equal((2, "BOB v2"), values[0]);
 
         var scanned = new List<(int id, string name)>();
-        scope.Sequence.Scan((off, obj) =>
+        scope.Sequence.Scan((_, obj) =>
         {
             var r = (object[])obj;
             scanned.Add(((int)r[0], (string)r[1]));
@@ -187,7 +187,7 @@ public class USequenceLifecycleTests
         var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
 
-        return Assert.IsType<UniversalSequenceBase>(field!.GetValue(sequence));
+        return Assert.IsType<UniversalSequenceBase>(field.GetValue(sequence));
     }
 
     /// <summary>
@@ -269,7 +269,11 @@ public class USequenceLifecycleTests
 
         public void Dispose()
         {
-            try { Sequence.Close(); } catch { }
+            try { Sequence.Close(); }
+            catch
+            {
+                // ignored
+            }
 
             if (_deleteOnDispose)
                 TryDeleteDirectory(TempDir);

@@ -102,21 +102,7 @@ public class ByteFlowTests
         Assert.Null(restored);
     }
 
-    [Fact]
-    public void Serialize_String_Null_Becomes_Empty_String()
-    {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
 
-        ByteFlow.Serialize(writer, null!, new PType(PTypeEnumeration.sstring));
-        writer.Flush();
-        stream.Position = 0;
-
-        using var reader = new BinaryReader(stream, Encoding.UTF8, true);
-        object restored = ByteFlow.Deserialize(reader, new PType(PTypeEnumeration.sstring));
-
-        Assert.Equal(string.Empty, Assert.IsType<string>(restored));
-    }
 
     [Fact]
     public void Serialize_And_Deserialize_Record_RoundTrip()

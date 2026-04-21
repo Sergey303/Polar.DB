@@ -41,7 +41,6 @@ internal sealed class FromGetStartedProgramIntroStructuresAndTextSerializationSc
         Console.WriteLine();
 
         // Теперь десериализуем
-        ivanov = null!;
         mstream.Position = 0L;
         ivanov = TextFlow.Deserialize(tr, tp_person);
         // проинтерпретируем объект и посмотрим

@@ -94,7 +94,11 @@ internal static class USequenceIntegrationTestHelpers
         {
             foreach (var sequence in _created)
             {
-                try { sequence.Close(); } catch { }
+                try { sequence.Close(); }
+                catch
+                {
+                    // ignored
+                }
             }
 
             try
@@ -104,6 +108,7 @@ internal static class USequenceIntegrationTestHelpers
             }
             catch
             {
+                    // ignored
             }
         }
     }

@@ -20,6 +20,9 @@ namespace Polar.DB
         /// <param name="tp">Schema that defines the value shape.</param>
         public static void Serialize(TextWriter tw, object v, PType tp)
         {
+            _ = tw ?? throw new ArgumentNullException(nameof(tw));
+            _ = v ?? throw new ArgumentNullException(nameof(v));
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             switch (tp.Vid)
             {
                 case PTypeEnumeration.none: { return; }
@@ -81,10 +84,12 @@ namespace Polar.DB
         private static int intend = 4;
         private static void Intend(TextWriter tw, int nspaces)
         {
+            _ = tw ?? throw new ArgumentNullException(nameof(tw));
             tw.Write('\n'); for (int i = 0; i < nspaces; i++) tw.Write(' ');
         }
         private static bool IsSimple(PType tp)
         {
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             if (tp.IsAtom || tp.Vid == PTypeEnumeration.sstring) return true;
             if (tp.Vid == PTypeEnumeration.record)
             {
@@ -109,6 +114,9 @@ namespace Polar.DB
         /// <param name="level">Current indentation level used as a left margin.</param>
         public static void SerializeFormatted(TextWriter tw, object v, PType tp, int level)
         {
+            _ = tw ?? throw new ArgumentNullException(nameof(tw));
+            _ = v ?? throw new ArgumentNullException(nameof(v));
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             Intend(tw, level * intend);
             switch (tp.Vid)
             {
@@ -186,6 +194,9 @@ namespace Polar.DB
         /// <param name="tp">Element schema.</param>
         public static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)
         {
+            _ = tw ?? throw new ArgumentNullException(nameof(tw));
+            _ = flow ?? throw new ArgumentNullException(nameof(flow));
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             tw.Write('[');
             bool ft = true;
             foreach (object ob in flow)
@@ -206,6 +217,9 @@ namespace Polar.DB
         /// <param name="level">Current indentation level used as a left margin.</param>
         public static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level)
         {
+            _ = tw ?? throw new ArgumentNullException(nameof(tw));
+            _ = flow ?? throw new ArgumentNullException(nameof(flow));
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             tw.Write('\n'); for (int i = 0; i < level * intend; i++) tw.Write(' ');
             tw.Write('[');
             bool ft = true;
@@ -228,7 +242,11 @@ namespace Polar.DB
         /// <param name="tp">Expected schema.</param>
         /// <returns>Deserialized value in Polar object representation.</returns>
         public static object Deserialize(TextReader tr, PType tp)
-        { TextFlow tf = new TextFlow(tr); tf.Skip(); return tf.Des(tp); }
+        {
+            _ = tr ?? throw new ArgumentNullException(nameof(tr));
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
+            TextFlow tf = new TextFlow(tr); tf.Skip(); return tf.Des(tp);
+        }
 
         /// <summary>
         /// Deserializes a sequence literal into an element flow.
@@ -238,6 +256,8 @@ namespace Polar.DB
         /// <returns>Lazy stream of deserialized elements.</returns>
         public static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)
         {
+            _ = tr ?? throw new ArgumentNullException(nameof(tr));
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             TextFlow tf = new TextFlow(tr);
             tf.Skip();
             char c = tf.ReadChar();
@@ -261,7 +281,10 @@ namespace Polar.DB
 
         // Более удобный объект для парсинга TextFlow
         private TextReader tr;
-        internal TextFlow(TextReader tr) { this.tr = tr; }
+        internal TextFlow(TextReader tr)
+        {
+            this.tr = tr ?? throw new ArgumentNullException(nameof(tr));
+        }
         /// <summary>
         /// Advances the reader over whitespace characters.
         /// </summary>
@@ -279,6 +302,7 @@ namespace Polar.DB
         }
         private string ReadWhile(Func<char, bool> yesFunc)
         {
+            _ = yesFunc ?? throw new ArgumentNullException(nameof(yesFunc));
             StringBuilder sb = new StringBuilder();
             char c;
             while (yesFunc(c = (char)tr.Peek()))
@@ -367,11 +391,12 @@ namespace Polar.DB
             return sb.ToString();
         }
 
-        private object Des(PType tp)
+        private object? Des(PType tp)
         {
+            _ = tp ?? throw new ArgumentNullException(nameof(tp));
             switch (tp.Vid)
             {
-                case PTypeEnumeration.none: { return null!; }
+                case PTypeEnumeration.none: { return null; }
                 case PTypeEnumeration.boolean: { return ReadBoolean(); }
                 case PTypeEnumeration.@byte: { return ReadByte(); }
                 case PTypeEnumeration.character: { return ReadChar(); }
