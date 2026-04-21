@@ -220,11 +220,7 @@ namespace Polar.DB
             _ = flow ?? throw new ArgumentNullException(nameof(flow));
             Clear();
 
-            foreach (var element in flow)
-            {
-                if (!isEmpty(element))
-                    sequence.AppendElement(element);
-            }
+            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
 
             Flush();
             SaveState();

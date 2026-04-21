@@ -710,6 +710,65 @@ public class UniversalSequenceBase
     }
 
     /// <summary>
+    ///     Добавляет поток элементов в логический конец последовательности
+    ///     с одним позиционированием в хвост и без лишнего восстановления позиции
+    ///     после каждого элемента.
+    /// </summary>
+    /// <param name="flow">
+    ///     Последовательность элементов, которые нужно добавить.
+    /// </param>
+    /// <remarks>
+    ///     Метод предназначен для массовой загрузки.
+    ///     В отличие от многократных вызовов <see cref="AppendElement(object)" />,
+    ///     он один раз переходит в <see cref="AppendOffset" /> и затем пишет элементы подряд.
+    ///     Заголовок с количеством элементов по-прежнему не переписывается на каждый элемент;
+    ///     он будет синхронизирован обычным <see cref="Flush()" />.
+    ///     При ошибке длина файла, логический конец и количество элементов
+    ///     откатываются к исходному состоянию до начала bulk-записи.
+    /// </remarks>
+    public void AppendElements(IEnumerable<object> flow)
+    {
+        _ = flow ?? throw new ArgumentNullException(nameof(flow));
+
+        EnsureAppendOffsetInvariant();
+
+        long savedPosition = fs.Position;
+        long originalLength = fs.Length;
+        long originalAppendOffset = AppendOffset;
+        long originalCount = nelements;
+
+        try
+        {
+            fs.Position = AppendOffset;
+
+            foreach (var element in flow)
+            {
+                _ = element ?? throw new ArgumentNullException(nameof(flow), "Sequence flow contains a null element.");
+                ByteFlow.Serialize(bw, element, tp_elem);
+                nelements += 1;
+            }
+
+            AppendOffset = fs.Length;
+            EnsureAppendOffsetInvariant();
+        }
+        catch
+        {
+            if (fs.Length != originalLength)
+            {
+                fs.SetLength(originalLength);
+            }
+
+            AppendOffset = originalAppendOffset;
+            nelements = originalCount;
+            throw;
+        }
+        finally
+        {
+            fs.Position = savedPosition;
+        }
+    }
+
+    /// <summary>
     ///     Десериализует элемент из текущей позиции потока.
     /// </summary>
     /// <returns>
@@ -1138,7 +1197,7 @@ public class UniversalSequenceBase
             throw new InvalidOperationException(
                 "AppendOffset invariant is broken: logical append offset must match the physical stream length.");
     }
-    
+
     private byte[] SnapshotBytes(long off, long originalLength)
     {
         if (off < 0L || off > originalLength)
