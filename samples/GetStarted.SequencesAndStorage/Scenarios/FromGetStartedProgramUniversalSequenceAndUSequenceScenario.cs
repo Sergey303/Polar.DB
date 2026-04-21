@@ -48,7 +48,7 @@ internal sealed class FromGetStartedProgramUniversalSequenceAndUSequenceScenario
 
         // Теперь можно сканировать последовательность
         int totalages = 0;
-        usequence.Scan((_, ob) => { totalages += (int?)((object?[]?)ob)?[2] ?? throw new NullReferenceException(nameof(totalages)); return true; });
+        usequence.Scan((_, ob) => { totalages += (int)((object[])ob)[2]; return true; });
         Console.WriteLine($"total ages = {totalages}");
 
         // Можно прочитать i-ый элемент
@@ -67,7 +67,7 @@ internal sealed class FromGetStartedProgramUniversalSequenceAndUSequenceScenario
 
         // Теперь мы можем читать из последовательности элемент по номеру
         long offset = offsets[nom];
-        object? res = usequence.GetElement(offset);
+        object res = usequence.GetElement(offset);
         Console.WriteLine($"element={tp_person.Interpret(res)}");
 
         // Правильнее хранить индексный массив также в последовательности
@@ -82,7 +82,7 @@ internal sealed class FromGetStartedProgramUniversalSequenceAndUSequenceScenario
         offset_seq.Flush();
 
         // Теперь получение офсета еще проще
-        offset = (long?)offset_seq.GetByIndex(nom) ?? throw new NullReferenceException(nameof(offset));
+        offset = (long)offset_seq.GetByIndex(nom);
         // далее, как уже было
         res = usequence.GetElement(offset);
         Console.WriteLine($"element={tp_person.Interpret(res)}");
