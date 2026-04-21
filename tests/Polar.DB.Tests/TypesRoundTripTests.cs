@@ -92,11 +92,20 @@ public class TypesRoundTripTests
         Assert.Equal(PTypeEnumeration.real, pairType.Fields[1].Type.Vid);
     }
 
+    [Fact]
+    public void ToPObject_With_Negative_Level_Returns_Null()
+    {
+        var original = new PTypeRecord(
+            new NamedType("id", new PType(PTypeEnumeration.integer)));
+
+        var po = original.ToPObject(-1);
+        Assert.Equal(PType.NoneValue, po);
+    }
 
     [Fact]
     public void FromPObject_For_ObjPair_Tag_Throws_As_Unimplemented()
     {
-        var objPairTag = new object?[] { 12, null };
+        var objPairTag = new object[] { 12, PType.NoneValue };
 
         var ex = Assert.Throws<Exception>(() => PType.FromPObject(objPairTag));
         Assert.Equal("unknown tag for pobject", ex.Message);

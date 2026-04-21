@@ -53,8 +53,7 @@ internal sealed class FromGetStarted3Main303OffsetsArrayBinarySearchScenario : I
             sequence.Scan((off, obj) =>
             {
                 offsets[ind] = off;
-                object? field = ((object?[]?)obj)?[0];
-                keys[ind] = (int?)field ?? throw new Exception("1233eddf");
+                keys[ind] = (int)((object[])obj)[0];
                 ind++;
                 return true;
             });
@@ -70,9 +69,8 @@ internal sealed class FromGetStarted3Main303OffsetsArrayBinarySearchScenario : I
             int key = rnd.Next(nelements);
             int nom = Array.BinarySearch(keys, key);
             long off = offsets[nom];
-            object?[]? fields = (object?[]?)sequence.GetElement(off);
-            object? field = fields?[0];
-            if (field == null || key != (int)field) throw new Exception("1233eddf");
+            object[] fields = (object[])sequence.GetElement(off);
+            if (key != (int)fields[0]) throw new Exception("1233eddf");
             //Console.WriteLine($"key={key} {fields[0]} {fields[1]} {fields[2]}");
         }
         probeWatch.Stop();

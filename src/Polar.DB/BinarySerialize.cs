@@ -15,8 +15,9 @@ namespace Polar.DB
         /// <param name="bw">Target binary writer.</param>
         /// <param name="v">Value to serialize.</param>
         /// <param name="tp">Schema describing value shape.</param>
-        public static void Serialize(BinaryWriter bw, object? v, PType tp)
+        public static void Serialize(BinaryWriter bw, object v, PType tp)
         {
+            _ = v ?? throw new ArgumentNullException(nameof(v));
             _ = bw ?? throw new ArgumentNullException(nameof(bw));
             _ = tp ?? throw new ArgumentNullException(nameof(tp));
 
@@ -25,16 +26,6 @@ namespace Polar.DB
                 case PTypeEnumeration.none:
                     return;
 
-                case PTypeEnumeration.sstring:
-                    if (v == null) v = string.Empty;
-                    bw.Write((string)v);
-                    return;
-            }
-
-            _ = v ?? throw new ArgumentNullException(nameof(v));
-
-            switch (tp.Vid)
-            {
                 case PTypeEnumeration.boolean:
                     bw.Write((bool)v);
                     return;
@@ -58,7 +49,9 @@ namespace Polar.DB
                 case PTypeEnumeration.real:
                     bw.Write((double)v);
                     return;
-
+                case PTypeEnumeration.sstring:
+                    bw.Write((string)v);
+                    return;
                 case PTypeEnumeration.record:
                 {
                     object[] rec = (object[])v;
@@ -70,6 +63,7 @@ namespace Polar.DB
                     {
                         Serialize(bw, rec[i], tpRec.Fields[i].Type);
                     }
+
                     return;
                 }
 
@@ -82,6 +76,7 @@ namespace Polar.DB
                     {
                         Serialize(bw, el, tpElement);
                     }
+
                     return;
                 }
 
@@ -109,7 +104,7 @@ namespace Polar.DB
         /// <param name="br">Source binary reader.</param>
         /// <param name="tp">Schema describing expected value shape.</param>
         /// <returns>Deserialized value in Polar object representation.</returns>
-        public static object? Deserialize(BinaryReader br, PType tp)
+        public static object Deserialize(BinaryReader br, PType tp)
         {
             _ = br ?? throw new ArgumentNullException(nameof(br));
             _ = tp ?? throw new ArgumentNullException(nameof(tp));
@@ -117,8 +112,7 @@ namespace Polar.DB
             switch (tp.Vid)
             {
                 case PTypeEnumeration.none:
-                    return null;
-
+                    return PType.NoneValue;
                 case PTypeEnumeration.boolean:
                     return br.ReadBoolean();
 
@@ -143,12 +137,13 @@ namespace Polar.DB
                 case PTypeEnumeration.record:
                 {
                     PTypeRecord tpRec = (PTypeRecord)tp;
-                    object?[] rec = new object?[tpRec.Fields.Length];
+                    object[] rec = new object[tpRec.Fields.Length];
                     for (int i = 0; i < rec.Length; i++)
                     {
-                        object? value = Deserialize(br, tpRec.Fields[i].Type);
-                        rec[i] = value;
+                        object v = Deserialize(br, tpRec.Fields[i].Type);
+                        rec[i] = v;
                     }
+
                     return rec;
                 }
 
@@ -159,12 +154,12 @@ namespace Polar.DB
                     if (nelements < 0 || nelements > int.MaxValue)
                         throw new Exception($"Err in Deserialize: sequense has too many ({nelements}) elements");
 
-                    object?[] elements = new object?[nelements];
+                    object[] elements = new object[nelements];
                     for (int i = 0; i < nelements; i++)
                     {
-                        object? deserialized = Deserialize(br, tpElement);
-                        elements[i] = deserialized;
+                        elements[i] = Deserialize(br, tpElement);
                     }
+
                     return elements;
                 }
 
@@ -172,8 +167,8 @@ namespace Polar.DB
                 {
                     PTypeUnion tpUni = (PTypeUnion)tp;
                     int tag = br.ReadByte();
-                    object? subval = Deserialize(br, tpUni.Variants[tag].Type);
-                    return new object?[] { tag, subval };
+                    object subval = Deserialize(br, tpUni.Variants[tag].Type);
+                    return new object[] { tag, subval };
                 }
 
                 default:

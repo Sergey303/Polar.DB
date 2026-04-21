@@ -22,7 +22,7 @@ internal sealed class PTypeUnionAndByteFlowScenario : ISampleScenario
         }
 
         stream.Position = 0;
-        object? restored;
+        object restored;
         using (var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, true))
         {
             restored = ByteFlow.Deserialize(reader, type);
@@ -35,13 +35,6 @@ internal sealed class PTypeUnionAndByteFlowScenario : ISampleScenario
         Console.WriteLine(type.Interpret(value, withfieldnames: true));
         Console.WriteLine();
         Console.WriteLine("Restored value after ByteFlow round-trip:");
-        if (restored == null)
-        {
-            Console.WriteLine($"{nameof(restored)} is null");
-        }
-        else
-        {
-            Console.WriteLine(type.Interpret(restored, withfieldnames: true));
-        }
+        Console.WriteLine(type.Interpret(restored, withfieldnames: true));
     }
 }

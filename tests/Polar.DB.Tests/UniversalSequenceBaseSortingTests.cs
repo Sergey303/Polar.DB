@@ -16,23 +16,13 @@ public class UniversalSequenceBaseSortingTests
         sequence.AppendElement(20L);
         sequence.Flush();
 
-        sequence.Sort32(v =>
-        {
-            Assert.NotNull(v);
-            return checked((int)(long)v);
-        });
+        sequence.Sort32(v => checked((int)(long)v));
 
         Assert.Equal(3L, sequence.Count());
         Assert.Equal(8L + 3L * sizeof(long), sequence.AppendOffset);
-            object? byIndex0 = sequence.GetByIndex(0);
-            Assert.NotNull(byIndex0);
-            Assert.Equal(10L, (long)byIndex0);
-            object? byIndex1 = sequence.GetByIndex(1);
-            Assert.NotNull(byIndex1);
-            Assert.Equal(20L, (long)byIndex1);
-            object? byIndex2 = sequence.GetByIndex(2);
-            Assert.NotNull(byIndex2);
-            Assert.Equal(30L, (long)byIndex2);
+        Assert.Equal(10L, (long)sequence.GetByIndex(0));
+        Assert.Equal(20L, (long)sequence.GetByIndex(1));
+        Assert.Equal(30L, (long)sequence.GetByIndex(2));
     }
 
     [Fact]
@@ -47,23 +37,13 @@ public class UniversalSequenceBaseSortingTests
         sequence.AppendElement(200L);
         sequence.Flush();
 
-        sequence.Sort64(v =>
-        {
-            Assert.NotNull(v);
-            return checked((int)(long)v);
-        });
+        sequence.Sort64(v => (long)v);
 
         Assert.Equal(3L, sequence.Count());
         Assert.Equal(8L + 3L * sizeof(long), sequence.AppendOffset);
-        object? byIndex0 = sequence.GetByIndex(0);
-        Assert.NotNull(byIndex0);
-        Assert.Equal(100L, (long)byIndex0);
-        object? byIndex1 = sequence.GetByIndex(1);
-        Assert.NotNull(byIndex1);
-        Assert.Equal(200L, (long)byIndex1);
-        object? byIndex2 = sequence.GetByIndex(2);
-        Assert.NotNull(byIndex2);
-        Assert.Equal(300L, (long)byIndex2);
+        Assert.Equal(100L, (long)sequence.GetByIndex(0));
+        Assert.Equal(200L, (long)sequence.GetByIndex(1));
+        Assert.Equal(300L, (long)sequence.GetByIndex(2));
     }
 
     [Fact]
@@ -132,18 +112,11 @@ public class UniversalSequenceBaseSortingTests
 
         long appendOffsetBefore = sequence.AppendOffset;
 
-        sequence.Sort32(v =>
-        {
-            Assert.NotNull(v);
-            return checked((int)(long)v);
-        });
+        sequence.Sort32(v => checked((int)(long)v));
 
         Assert.Equal(1L, sequence.Count());
         Assert.Equal(appendOffsetBefore, sequence.AppendOffset);
-        object? byIndex0 = sequence.GetByIndex(0);
-        
-        Assert.NotNull(byIndex0);
-        Assert.Equal(42L, (long)byIndex0);
+        Assert.Equal(42L, (long)sequence.GetByIndex(0));
     }
 
     [Fact]
@@ -158,17 +131,10 @@ public class UniversalSequenceBaseSortingTests
 
         long appendOffsetBefore = sequence.AppendOffset;
 
-        sequence.Sort64(v =>
-        {
-            Assert.NotNull(v);
-            return checked((int)(long)v);
-        });
+        sequence.Sort64(v => (long)v);
 
         Assert.Equal(1L, sequence.Count());
         Assert.Equal(appendOffsetBefore, sequence.AppendOffset);
-        object? byIndex0 = sequence.GetByIndex(0);
-        
-        Assert.NotNull(byIndex0);
-        Assert.Equal(42L, (long)byIndex0);
+        Assert.Equal(42L, (long)sequence.GetByIndex(0));
     }
 }

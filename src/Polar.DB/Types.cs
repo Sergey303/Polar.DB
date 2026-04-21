@@ -53,6 +53,7 @@ namespace Polar.DB
     /// </summary>
     public class PType
     {
+        public static readonly object NoneValue = new object();
         /// <summary>
         /// Creates a schema descriptor for the specified kind.
         /// </summary>
@@ -191,7 +192,7 @@ namespace Polar.DB
         /// <returns>Compact schema representation compatible with <see cref="FromPObject(object)"/>.</returns>
         public object ToPObject(int level)
         {
-            if (level < 0) return null;
+            if (level < 0) return PType.NoneValue;
 
             switch (vid)
             {
@@ -210,7 +211,15 @@ namespace Polar.DB
                 case PTypeEnumeration.sequence:
                 {
                     PTypeSequence pts = (PTypeSequence)this;
-                    return new object[] { ToInt(vid), new object[] { pts.Growing, pts.ElementType.ToPObject(level - 1)! } };
+                    return new object[]
+                    {
+                        ToInt(vid),
+                        new object[]
+                        {
+                            pts.Growing,
+                            pts.ElementType.ToPObject(level - 1)
+                        }
+                    };
                 }
 
                 case PTypeEnumeration.union:
@@ -335,40 +344,19 @@ namespace Polar.DB
         /// <param name="v">Value to render.</param>
         /// <param name="withfieldnames">Whether to include record field names in output.</param>
         /// <returns>Textual representation for diagnostics and debugging.</returns>
-        public string Interpret(object? v, bool withfieldnames = false)
+        public string Interpret(object v, bool withfieldnames = false)
         {
-            if (v == null)
-            {
-                if (vid == PTypeEnumeration.none) return string.Empty;
-                throw new ArgumentNullException(nameof(v));
-            }
-
+            _ = v ?? throw new ArgumentNullException(nameof(v));
             switch (vid)
             {
-                case PTypeEnumeration.none:
-                    return string.Empty;
-
-                case PTypeEnumeration.boolean:
-                    return ((bool)v).ToString();
-
-                case PTypeEnumeration.character:
-                    return "'" + ((char)v) + "'";
-
-                case PTypeEnumeration.integer:
-                    return ((int)v).ToString();
-
-                case PTypeEnumeration.longinteger:
-                    return ((long)v).ToString();
-
-                case PTypeEnumeration.real:
-                    return ((double)v).ToString("G", CultureInfo.InvariantCulture);
-
-                case PTypeEnumeration.fstring:
-                    return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
-
-                case PTypeEnumeration.sstring:
-                    return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
-
+                case PTypeEnumeration.none: return string.Empty;
+                case PTypeEnumeration.boolean: return ((bool)v).ToString();
+                case PTypeEnumeration.character: return "'" + ((char)v).ToString() + "'";
+                case PTypeEnumeration.integer: return ((int)v).ToString();
+                case PTypeEnumeration.longinteger: return ((long)v).ToString();
+                case PTypeEnumeration.real: return ((double)v).ToString("G", CultureInfo.InvariantCulture);
+                case PTypeEnumeration.fstring: return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
+                case PTypeEnumeration.sstring: return "\"" + ((string)v).Replace("\"", "\\\"") + "\"";
                 case PTypeEnumeration.record:
                 {
                     PTypeRecord ptr = (PTypeRecord)this;
