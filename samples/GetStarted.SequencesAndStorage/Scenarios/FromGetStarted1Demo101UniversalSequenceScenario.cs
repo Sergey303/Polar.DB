@@ -46,7 +46,9 @@ internal sealed class FromGetStarted1Demo101UniversalSequenceScenario : ISampleS
 
         // Теперь можно сканировать последовательность
         int totalages = 0;
-        usequence.Scan((off, ob) => { totalages += (int)((object[])ob)[2]; return true; });
+        usequence.Scan((_, ob) => {
+            object o = (((object[]?)ob)?[2]) ?? throw new NullReferenceException(nameof(o));
+            totalages += (int)o; return true; });
         Console.WriteLine($"total ages = {totalages}");
 
         // Следующим шагом в исходном файле уже шли варианты индексного доступа.

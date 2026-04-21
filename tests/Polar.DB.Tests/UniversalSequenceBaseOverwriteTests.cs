@@ -25,9 +25,15 @@ public class UniversalSequenceBaseOverwriteTests
         Assert.Equal(appendOffsetBefore, sequence.AppendOffset);
         Assert.Equal(lengthBefore, stream.Length);
 
-        Assert.Equal(10, (int)sequence.GetByIndex(0));
-        Assert.Equal(200, (int)sequence.GetByIndex(1));
-        Assert.Equal(30, (int)sequence.GetByIndex(2));
+        object? byIndex0 = sequence.GetByIndex(0);
+        Assert.NotNull(byIndex0);
+        Assert.Equal(10, (int)byIndex0);
+        object? byIndex1 = sequence.GetByIndex(1);
+        Assert.NotNull(byIndex1);
+        Assert.Equal(200, (int)byIndex1);
+        object? byIndex2 = sequence.GetByIndex(2);
+        Assert.NotNull(byIndex2);
+        Assert.Equal(30, (int)byIndex2);
     }
 
     [Fact]
@@ -51,9 +57,15 @@ public class UniversalSequenceBaseOverwriteTests
         Assert.Equal(appendOffsetBefore, sequence.AppendOffset);
         Assert.Equal(lengthBefore, stream.Length);
 
-        Assert.Equal(10, (int)sequence.GetByIndex(0));
-        Assert.Equal(200, (int)sequence.GetByIndex(1));
-        Assert.Equal(30, (int)sequence.GetByIndex(2));
+        object? byIndex0 = sequence.GetByIndex(0);
+        Assert.NotNull(byIndex0);
+        Assert.Equal(10, (int)byIndex0);
+        object? byIndex1 = sequence.GetByIndex(1);
+        Assert.NotNull(byIndex1);
+        Assert.Equal(200, (int)byIndex1);
+        object? byIndex2 = sequence.GetByIndex(2);
+        Assert.NotNull(byIndex2);
+        Assert.Equal(30, (int)byIndex2);
     }
 
     [Fact]
@@ -104,9 +116,16 @@ public class UniversalSequenceBaseOverwriteTests
         Assert.Equal(secondOffset, sequence.ElementOffset(1));
         Assert.Equal(thirdOffset, sequence.ElementOffset(2));
 
-        Assert.Equal(10, (int)sequence.GetElement(firstOffset));
-        Assert.Equal(200, (int)sequence.GetElement(secondOffset));
-        Assert.Equal(30, (int)sequence.GetElement(thirdOffset));
+
+        object? byIndex0 = sequence.GetElement(firstOffset);
+        Assert.NotNull(byIndex0);
+        Assert.Equal(10, (int)byIndex0);
+        object? byIndex1 = sequence.GetElement(secondOffset);
+        Assert.NotNull(byIndex1);
+        Assert.Equal(200, (int)byIndex1);
+        object? byIndex2 = sequence.GetElement(thirdOffset);
+        Assert.NotNull(byIndex2);
+        Assert.Equal(30, (int)byIndex2);
     }
 
     [Fact]
@@ -158,9 +177,15 @@ public class UniversalSequenceBaseOverwriteTests
         Assert.Equal(lengthBefore + sizeof(int), stream.Length);
         Assert.Equal(appendOffsetBefore + sizeof(int), sequence.AppendOffset);
 
-        Assert.Equal(10, (int)sequence.GetByIndex(0));
-        Assert.Equal(20, (int)sequence.GetByIndex(1));
-        Assert.Equal(30, (int)sequence.GetElement(appendOffsetBefore));
+        object? byIndex0 = sequence.GetByIndex(0);
+        Assert.NotNull(byIndex0);
+        Assert.Equal(10, (int)byIndex0);
+        object? byIndex1 = sequence.GetByIndex(1);
+        Assert.NotNull(byIndex1);
+        Assert.Equal(20, (int)byIndex1);
+        object? byIndex2 = sequence.GetElement(appendOffsetBefore);
+        Assert.NotNull(byIndex2);
+        Assert.Equal(30, (int)byIndex2);
     }
 
     [Fact]

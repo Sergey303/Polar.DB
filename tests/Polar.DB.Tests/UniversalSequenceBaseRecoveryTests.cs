@@ -173,8 +173,12 @@ public class UniversalSequenceBaseRecoveryTests
 
             Assert.Equal(2L, reopenedSequence.Count());
             Assert.Equal(appendOffsetAfterFlush, reopenedSequence.AppendOffset);
-            Assert.Equal(10L, (long)reopenedSequence.GetByIndex(0));
-            Assert.Equal(20L, (long)reopenedSequence.GetByIndex(1));
+            object? byIndex0 = reopenedSequence.GetByIndex(0);
+            Assert.NotNull(byIndex0);
+            Assert.Equal(10L, (long)byIndex0);
+            object? byIndex1 = reopenedSequence.GetByIndex(1);
+            Assert.NotNull(byIndex1);
+            Assert.Equal(20L, (long)byIndex1);
         }
     }
 

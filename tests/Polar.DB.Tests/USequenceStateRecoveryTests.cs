@@ -23,7 +23,7 @@ public class USequenceStateRecoveryTests
             reopened.Refresh();
 
             Assert.Equal(3, reopened.GetByKey(3));
-            Assert.Equal(new object[] { 1, 2, 3 }, reopened.ElementValues().Cast<object>().ToArray());
+            Assert.Equal(new object[] { 1, 2, 3 }, reopened.ElementValues().ToArray());
 
             reopened.Close();
         }

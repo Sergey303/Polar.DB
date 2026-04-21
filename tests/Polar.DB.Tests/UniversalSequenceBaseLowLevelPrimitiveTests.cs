@@ -16,7 +16,9 @@ public class UniversalSequenceBaseLowLevelPrimitiveTests
         sequence.Flush();
 
         stream.Position = 16L;
-        var value = (long)sequence.GetElement();
+        object? element = sequence.GetElement();
+        Assert.NotNull(element);
+        var value = (long)element;
 
         Assert.Equal(22L, value);
         Assert.Equal(24L, stream.Position);
@@ -40,6 +42,8 @@ public class UniversalSequenceBaseLowLevelPrimitiveTests
         Assert.Equal(24L, stream.Position);
         Assert.Equal(2L, sequence.Count());
         Assert.Equal(24L, sequence.AppendOffset);
-        Assert.Equal(99L, (long)sequence.GetByIndex(1));
+        object? byIndex1 = sequence.GetByIndex(1);
+        Assert.NotNull(byIndex1);
+        Assert.Equal(99L, (long)byIndex1);
     }
 }

@@ -671,7 +671,6 @@ public class UniversalSequenceBase
     public long AppendElement(object v)
     {
         _ = v ?? throw new ArgumentNullException(nameof(v));
-
         long off = AppendOffset;
         long originalAppendOffset = AppendOffset;
         long originalLength = fs.Length;
@@ -778,7 +777,7 @@ public class UniversalSequenceBase
     ///     Метод не выполняет проверку смещения и не восстанавливает позицию потока;
     ///     эти задачи решаются во внешних wrapper-методах.
     /// </remarks>
-    public object GetElement()
+    public object? GetElement()
     {
         return ByteFlow.Deserialize(br, tp_elem);
     }
@@ -797,7 +796,7 @@ public class UniversalSequenceBase
     ///     временно устанавливает поток в нужную позицию,
     ///     считывает элемент и затем восстанавливает исходную позицию.
     /// </remarks>
-    public object GetElement(long off)
+    public object? GetElement(long off)
     {
         if (off < 8L || off >= AppendOffset) throw new ArgumentOutOfRangeException(nameof(off));
 
@@ -832,7 +831,7 @@ public class UniversalSequenceBase
     ///     в альтернативном типе, отличном от основного типа последовательности.
     ///     После завершения исходная позиция потока восстанавливается.
     /// </remarks>
-    public object GetTypedElement(PType tp, long off)
+    public object? GetTypedElement(PType tp, long off)
     {
         if (tp == null) throw new ArgumentNullException(nameof(tp));
 
@@ -867,7 +866,7 @@ public class UniversalSequenceBase
     ///     Смещение вычисляется через <see cref="ElementOffset(long)" />,
     ///     а само чтение выполняется через <see cref="GetElement(long)" />.
     /// </remarks>
-    public object GetByIndex(long index)
+    public object? GetByIndex(long index)
     {
         if (elem_size <= 0)
             throw new InvalidOperationException("Method cannot be used for sequences with variable-size elements.");
@@ -890,7 +889,7 @@ public class UniversalSequenceBase
     ///     и возвращает элементы по одному.
     ///     Исходная позиция потока после завершения перечисления восстанавливается.
     /// </remarks>
-    public IEnumerable<object> ElementValues()
+    public IEnumerable<object?> ElementValues()
     {
         long savedPosition = fs.Position;
         long count = nelements;
@@ -926,7 +925,7 @@ public class UniversalSequenceBase
     ///     временно устанавливает поток в стартовую позицию
     ///     и после завершения перечисления восстанавливает исходную позицию.
     /// </remarks>
-    public IEnumerable<object> ElementValues(long offset, long number)
+    public IEnumerable<object?> ElementValues(long offset, long number)
     {
         if (offset < 8L || offset > AppendOffset) throw new ArgumentOutOfRangeException(nameof(offset));
 
@@ -962,7 +961,7 @@ public class UniversalSequenceBase
     ///     и поддерживает досрочное завершение.
     ///     Исходная позиция потока после обхода восстанавливается.
     /// </remarks>
-    public void Scan(Func<long, object, bool> handler)
+    public void Scan(Func<long, object?, bool> handler)
     {
         if (handler == null) throw new ArgumentNullException(nameof(handler));
 
@@ -977,7 +976,7 @@ public class UniversalSequenceBase
             for (long i = 0; i < count; i++)
             {
                 long off = fs.Position;
-                object element = GetElement();
+                object? element = GetElement();
 
                 bool shouldContinue = handler(off, element);
                 if (!shouldContinue) break;
@@ -1003,7 +1002,7 @@ public class UniversalSequenceBase
     ///     но и их физическое положение в потоке.
     ///     Исходная позиция потока после завершения перечисления восстанавливается.
     /// </remarks>
-    public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
+    public IEnumerable<Tuple<long, object?>> ElementOffsetValuePairs()
     {
         long savedPosition = fs.Position;
         long count = nelements;
@@ -1015,7 +1014,7 @@ public class UniversalSequenceBase
             for (long i = 0; i < count; i++)
             {
                 long off = fs.Position;
-                object element = GetElement();
+                object? element = GetElement();
 
                 yield return Tuple.Create(off, element);
             }
@@ -1046,7 +1045,7 @@ public class UniversalSequenceBase
     ///     и его значение.
     ///     Исходная позиция потока после завершения перечисления восстанавливается.
     /// </remarks>
-    public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
+    public IEnumerable<Tuple<long, object?>> ElementOffsetValuePairs(long offset, long number)
     {
         if (offset < 8L || offset > AppendOffset) throw new ArgumentOutOfRangeException(nameof(offset));
 
@@ -1061,7 +1060,7 @@ public class UniversalSequenceBase
             for (long i = 0; i < number; i++)
             {
                 long off = fs.Position;
-                object element = GetElement();
+                object? element = GetElement();
 
                 yield return Tuple.Create(off, element);
             }
@@ -1086,7 +1085,7 @@ public class UniversalSequenceBase
     ///     затем сортирует их стандартным механизмом массива,
     ///     после чего очищает поток и записывает элементы в новом порядке.
     /// </remarks>
-    public void Sort32(Func<object, int> keyFun)
+    public void Sort32(Func<object?, int> keyFun)
     {
         if (keyFun == null) throw new ArgumentNullException(nameof(keyFun));
 
@@ -1100,7 +1099,7 @@ public class UniversalSequenceBase
             throw new InvalidOperationException("Sort32 cannot handle sequences larger than Int32.MaxValue elements.");
 
         int[] keys = new int[count];
-        object[] records = new object[count];
+        object?[] records = new object[count];
 
         long index = 0;
         Scan((_, element) =>
@@ -1115,7 +1114,12 @@ public class UniversalSequenceBase
 
         Clear();
 
-        for (long i = 0; i < records.LongLength; i++) AppendElement(records[i]);
+        for (long i = 0; i < records.LongLength; i++)
+        {
+            object? record = records[i];
+            if(record == null) continue;
+            AppendElement(record);
+        }
 
         Flush();
     }
@@ -1133,7 +1137,7 @@ public class UniversalSequenceBase
     ///     но использует 64-битный ключ сортировки.
     ///     После сортировки последовательность полностью переписывается в отсортированном порядке.
     /// </remarks>
-    public void Sort64(Func<object, long> keyFun)
+    public void Sort64(Func<object?, long> keyFun)
     {
         if (keyFun == null) throw new ArgumentNullException(nameof(keyFun));
 
@@ -1147,7 +1151,7 @@ public class UniversalSequenceBase
             throw new InvalidOperationException("Sort64 cannot handle sequences larger than Int32.MaxValue elements.");
 
         long[] keys = new long[count];
-        object[] records = new object[count];
+        object?[] records = new object[count];
 
         long index = 0;
         Scan((_, element) =>
@@ -1162,7 +1166,12 @@ public class UniversalSequenceBase
 
         Clear();
 
-        for (long i = 0; i < records.LongLength; i++) AppendElement(records[i]);
+        for (long i = 0; i < records.LongLength; i++)
+        {
+            object? record = records[i];
+            if(record!=null) 
+                AppendElement(record);
+        }
 
         Flush();
     }

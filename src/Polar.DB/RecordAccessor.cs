@@ -152,6 +152,7 @@ namespace Polar.DB
         /// <param name="value">New field value.</param>
         public void Set(object record, string fieldName, object value)
         {
+            _ = value ?? throw new ArgumentNullException(nameof(value));
             ValidateShape(record);
             ((object[])record)[GetIndex(fieldName)] = value;
         }
@@ -165,6 +166,8 @@ namespace Polar.DB
         /// <returns><see langword="true"/> when value was read; otherwise <see langword="false"/>.</returns>
         public bool TryGet(object record, string fieldName, out object? value)
         {
+            _ = record ?? throw new ArgumentNullException(nameof(record));
+            _ = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
             value = null;
             if (record is not object[] arr) return false;
             if (!_fieldIndexes.TryGetValue(fieldName, out int index)) return false;

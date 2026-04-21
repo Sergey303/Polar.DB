@@ -189,10 +189,8 @@ namespace Polar.DB
         /// </summary>
         /// <param name="level">Recursion depth limit; negative value returns <see langword="null"/>.</param>
         /// <returns>Compact schema representation compatible with <see cref="FromPObject(object)"/>.</returns>
-        public object ToPObject(int level)
+        public object ToPObject(uint level)
         {
-            if (level < 0) return null!;
-
             switch (vid)
             {
                 case PTypeEnumeration.fstring:
@@ -231,7 +229,7 @@ namespace Polar.DB
                 }
 
                 default:
-                    return new object[] { ToInt(vid), null! };
+                    return new object?[] { ToInt(vid), null };
             }
         }
 
@@ -242,6 +240,7 @@ namespace Polar.DB
         /// <returns>Parsed schema descriptor.</returns>
         public static PType FromPObject(object po)
         {
+            _ = po ?? throw new ArgumentNullException(nameof(po));
             object[] uni = (object[])po;
             int tg = (int)uni[0];
             switch (tg)
@@ -336,8 +335,14 @@ namespace Polar.DB
         /// <param name="v">Value to render.</param>
         /// <param name="withfieldnames">Whether to include record field names in output.</param>
         /// <returns>Textual representation for diagnostics and debugging.</returns>
-        public string Interpret(object v, bool withfieldnames = false)
+        public string Interpret(object? v, bool withfieldnames = false)
         {
+            if (v == null)
+            {
+               if(vid == PTypeEnumeration.none)
+                   return string.Empty;
+               throw new ArgumentNullException(nameof(v));
+            }
             switch (vid)
             {
                 case PTypeEnumeration.none: return string.Empty;
@@ -425,8 +430,8 @@ namespace Polar.DB
         /// <param name="tp">Associated schema type.</param>
         public NamedType(string name, PType tp)
         {
-            Name = name;
-            Type = tp;
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Type = tp ?? throw new ArgumentNullException(nameof(tp));
         }
     }
 
@@ -470,7 +475,7 @@ namespace Polar.DB
         public PTypeRecord(params NamedType[] fields)
             : base(PTypeEnumeration.record)
         {
-            this.fields = fields;
+            this.fields = fields ?? throw new ArgumentNullException(nameof(fields));
         }
 
         private int size = -1;
@@ -520,7 +525,7 @@ namespace Polar.DB
         public PTypeSequence(PType elementtype, bool growing = false)
             : base(PTypeEnumeration.sequence)
         {
-            this.elementtype = elementtype;
+            this.elementtype = elementtype ?? throw new ArgumentNullException(nameof(elementtype));
             this.growing = growing;
         }
 
@@ -559,7 +564,7 @@ namespace Polar.DB
         public PTypeUnion(params NamedType[] variants)
             : base(PTypeEnumeration.union)
         {
-            this.variants = variants;
+            this.variants = variants ?? throw new ArgumentNullException(nameof(variants));
         }
 
         internal NamedType[] variants = Array.Empty<NamedType>();

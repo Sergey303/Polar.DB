@@ -13,7 +13,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         index.Build();
@@ -31,7 +31,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -55,7 +55,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -78,7 +78,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -103,7 +103,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -128,7 +128,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -152,7 +152,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -178,7 +178,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
@@ -207,7 +207,7 @@ public class UKeyIndexBoundaryTests
         var index = UKeyIndexTestHelpers.CreateIndex(
             scope,
             record => (string)((object[])record)[1],
-            key => 1,
+            _ => 1,
             keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(

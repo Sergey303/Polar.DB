@@ -41,13 +41,21 @@ internal static class UKeyIndexTestHelpers
 
         public void Dispose()
         {
-            try { Sequence.Close(); } catch { }
+            try { Sequence.Close(); }
+            catch
+            {
+                // ignored
+            }
+
             try
             {
                 if (Directory.Exists(_tempDir))
                     Directory.Delete(_tempDir, recursive: true);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
         }
     }
 
@@ -118,7 +126,7 @@ internal static class UKeyIndexTestHelpers
         public object? GetByKey(IComparable key) => _getByKey.Invoke(_instance, new object?[] { key });
 
         public void OnAppendElement(object element, long offset) =>
-            _onAppendElement.Invoke(_instance, new object?[] { element, offset });
+            _onAppendElement.Invoke(_instance, new [] { element, offset });
 
         public bool IsOriginal(IComparable key, long offset) =>
             (bool)_isOriginal.Invoke(_instance, new object?[] { key, offset })!;
