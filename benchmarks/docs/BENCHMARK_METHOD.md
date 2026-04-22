@@ -16,6 +16,7 @@ Current repository state distinguishes:
 
 - synthetic pipeline validation runs;
 - stage2 real Polar.DB runs;
+- stage3 common Polar.DB vs SQLite comparison runs;
 - future engine-deep research runs.
 
 ## Statistical expectations
@@ -30,6 +31,13 @@ Stage 1 schemas already support:
 - standard deviation.
 
 Current stage2 raw results are single-run timings (`elapsedMsSingleRun`). Median/p95 become valid after measured multi-run execution is introduced.
+
+## Stage3 first cross-engine workflow
+
+1. Run Polar.DB raw experiment.
+2. Run SQLite raw experiment with semantic-equivalent workload and the same fairness profile.
+3. Build comparison artifact in analysis layer from raw runs.
+4. Render markdown/csv comparison summary in charts layer.
 
 ## Reproducibility minimum
 

@@ -1,11 +1,29 @@
-# SQLite Engine Adapter — Stage 1
+# SQLite Engine Adapter - Stage 3
 
-This project is intentionally a skeleton.
+Implemented in stage3:
 
-## TODOs
+- real provider: `Microsoft.Data.Sqlite`;
+- first real common experiment: `persons-load-build-reopen-random-lookup`;
+- workload key used by that experiment: `bulk-load-point-lookup`;
+- semantic flow: load -> build index -> reopen -> random point lookup;
+- artifact topology collection (`primary.db`, `primary.db-wal`, `primary.db-shm`, `primary.db-journal`, temp files when present in workspace);
+- raw result metrics and SQLite diagnostics;
+- explicit fairness mapping for `durability-balanced`.
 
-1. Choose the SQLite provider package.
-2. Map the same common workloads used by Polar.DB to SQLite operations.
-3. Capture artifact roles for database, wal, shm, journal, checkpoint, and any temp files.
-4. Define fairness-profile mappings for SQLite settings.
-5. Add SQLite-specific deep experiments after the first common experiment works.
+Stage3 durability-balanced mapping:
+
+- `PRAGMA journal_mode=WAL`
+- `PRAGMA synchronous=FULL`
+- `PRAGMA temp_store=FILE`
+
+Run example:
+
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/stage3/sqlite --raw-out benchmarks/results/raw
+```
+
+Deferred to stage4:
+
+- additional workload families;
+- deeper SQLite internals studies (checkpoint/page-growth);
+- multi-run statistical profile for cross-engine comparisons.

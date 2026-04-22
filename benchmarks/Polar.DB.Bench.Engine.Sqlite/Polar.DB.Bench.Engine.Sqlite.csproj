@@ -7,6 +7,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj" />
-    <!-- TODO: add Microsoft.Data.Sqlite or another agreed SQLite provider. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
   </ItemGroup>
 </Project>
