@@ -214,11 +214,7 @@ namespace Polar.DB
         {
             Clear();
 
-            foreach (var element in flow)
-            {
-                if (!isEmpty(element))
-                    sequence.AppendElement(element);
-            }
+            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
 
             Flush();
             SaveState();
