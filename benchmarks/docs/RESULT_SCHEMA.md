@@ -1,47 +1,74 @@
 # Result Schema
 
-## Raw result
+## 1) Raw run (`*.run.json`)
 
-A raw result is immutable and contains only factual execution data.
+Raw run is immutable factual execution data from one executor launch.
 
-Top-level areas:
+Main groups:
 
-- run identity;
-- experiment identity;
-- engine identity;
-- fairness profile;
-- environment manifest;
-- technical execution status;
-- semantic experiment outcome;
+- run identity (`runId`, timestamp, engine, experiment, dataset, fairness);
+- stage4 series identity:
+  - `comparisonSetId` (optional),
+  - `runSeriesSequenceNumber` (optional),
+  - `runRole` (`warmup` or `measured`, optional for old runs);
+- technical result (`technicalSuccess`, optional failure reason);
+- semantic result (`semanticSuccess`, optional failure reason);
 - measured metrics;
 - artifact inventory;
-- engine diagnostics;
-- free-form notes.
+- engine diagnostics and notes.
 
-## Analyzed result
+Backward compatibility:
 
-An analyzed result references one raw result and enriches it with:
+- old raw runs without stage4 fields remain valid and readable.
+
+## 2) Analyzed result (`*.eval.json`)
+
+Analyzed result references one raw run and adds policy/baseline evaluation.
 
 - policy id;
 - baseline id;
-- derived metrics;
-- check-level status entries;
-- overall status;
-- comparison notes.
+- check list and overall status;
+- derived notes/metrics.
 
-## Cross-engine comparison result (analysis layer)
+No raw facts are rewritten.
 
-For stage3 common comparison, analysis can also produce a dedicated comparison artifact built from raw run facts:
+## 3) Legacy comparison (`*.comparison.json`)
 
-- selected run per engine (currently `polar-db` and `sqlite`);
-- common comparable metrics only (elapsed/load/build/reopen/lookup timings, artifact bytes, semantic/technical success);
-- links to source raw result paths;
-- no policy decisions and no chart rendering data mixed into raw measurements.
+Legacy single-run comparison artifact from stage3.
 
-## Status split
+- one selected run per engine;
+- common comparable metrics;
+- no policy decisions.
 
-Execution status and policy status are separate concerns.
+Still supported as fallback for old raw data without comparison sets.
 
-- execution failure belongs to executor results;
-- semantic degradation belongs to executor raw facts (metrics/diagnostics), not infrastructure failure;
-- policy result belongs to analyzed results.
+## 4) Stage4 aggregated comparison (`*.comparison-series.json`)
+
+Comparison-series artifact is an analysis-layer derivative built from one `comparisonSetId`.
+
+Contains:
+
+- experiment key;
+- dataset profile;
+- fairness profile;
+- `comparisonSetId`;
+- environment class;
+- engine list;
+- per-engine aggregated stats (measured runs only):
+  - run counts (measured/warmup),
+  - `count/min/max/average/median` for:
+    - elapsed,
+    - load,
+    - build,
+    - reopen,
+    - lookup,
+    - total artifact bytes,
+    - primary bytes,
+    - side bytes,
+  - technical success count,
+  - semantic success count.
+
+Missing metric handling:
+
+- stats include `missingCount`;
+- aggregation skips missing values instead of silently substituting fake numbers.

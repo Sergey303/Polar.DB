@@ -1,0 +1,33 @@
+{
+  "experimentKey": "persons-append-cycles-reopen-lookup",
+  "researchQuestionId": "RQ-COMMON-002",
+  "hypothesisId": "H-POLAR-STAGE4-002",
+  "description": "Stage4 common experiment: initial load/build, append batches, reopen after each batch, random point lookup sample, artifact growth tracking.",
+  "dataset": {
+    "profileKey": "persons-400k-plus-append-3x200k",
+    "recordCount": 400000,
+    "seed": 12345,
+    "notes": "Initial persons(id,name,age) dataset. Append cycles grow dataset to one million rows."
+  },
+  "workload": {
+    "workloadKey": "append-cycles-reopen-lookup",
+    "batchCount": 3,
+    "batchSize": 200000,
+    "lookupCount": 5000,
+    "notes": "For each cycle: append batch, close/reopen, run random point lookup sample."
+  },
+  "faultProfile": {
+    "faultProfileKey": "none",
+    "notes": "No fault injection in stage4 common append cycles experiment."
+  },
+  "fairnessProfile": {
+    "fairnessProfileKey": "durability-balanced",
+    "notes": "Common stage4 fairness baseline."
+  },
+  "requiredCapabilities": [
+    "BulkLoad",
+    "PointLookup",
+    "ReopenRecovery",
+    "PhysicalArtifactInspection"
+  ]
+}
