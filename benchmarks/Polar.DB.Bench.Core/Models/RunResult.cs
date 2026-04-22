@@ -9,8 +9,10 @@ public sealed record RunResult
     public required string DatasetProfileKey { get; init; }
     public required string FairnessProfileKey { get; init; }
     public required EnvironmentManifest Environment { get; init; }
-    public required bool Success { get; init; }
-    public string? FailureReason { get; init; }
+    public required bool TechnicalSuccess { get; init; }
+    public string? TechnicalFailureReason { get; init; }
+    public bool? SemanticSuccess { get; init; }
+    public string? SemanticFailureReason { get; init; }
     public required IReadOnlyList<RunMetric> Metrics { get; init; }
     public required IReadOnlyList<ArtifactDescriptor> Artifacts { get; init; }
     public Dictionary<string, string>? EngineDiagnostics { get; init; }

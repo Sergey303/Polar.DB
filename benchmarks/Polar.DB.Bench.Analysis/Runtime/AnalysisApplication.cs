@@ -41,7 +41,7 @@ public static class AnalysisApplication
             DerivedMetrics = new Dictionary<string, double>(),
             Notes = new List<string>
             {
-                "Stage-1 analyzer output.",
+                "Benchmark analyzer output.",
                 "Policy and baseline can be updated without rerunning the executor."
             }
         };

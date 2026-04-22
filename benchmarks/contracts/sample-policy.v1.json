@@ -9,7 +9,7 @@
   },
   "guards": [
     {
-      "metricKey": "elapsedMsMedian",
+      "metricKey": "elapsedMsSingleRun",
       "mode": "relative_to_baseline",
       "maxRegressionPercent": 15.0,
       "fixedSlack": 25.0,

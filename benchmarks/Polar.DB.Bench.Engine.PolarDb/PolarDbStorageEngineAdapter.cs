@@ -67,8 +67,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
             var totalStopwatch = Stopwatch.StartNew();
             var artifactLayout = CreateArtifactLayout(_workspace, runId);
-            var success = false;
-            string? failureReason = null;
+            var technicalSuccess = true;
+            string? technicalFailureReason = null;
+            bool? semanticSuccess = null;
+            string? semanticFailureReason = null;
             var sequenceCountAfterRefresh = 0L;
             var appendOffsetAfterRefresh = 0L;
 
@@ -135,16 +137,16 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 reopened.Close();
                 reopened = null;
 
-                success = lookupHits == lookupCount;
-                if (!success)
+                semanticSuccess = lookupHits == lookupCount;
+                if (!semanticSuccess.Value)
                 {
-                    failureReason = $"Point lookups succeeded partially: {lookupHits}/{lookupCount}.";
+                    semanticFailureReason = $"Point lookups succeeded partially: {lookupHits}/{lookupCount}.";
                 }
             }
             catch (Exception ex)
             {
-                success = false;
-                failureReason = ex.ToString();
+                technicalSuccess = false;
+                technicalFailureReason = ex.ToString();
             }
             finally
             {
@@ -161,13 +163,14 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             artifacts.AddRange(collected.Descriptors);
 
             metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsMedian", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
             metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
             metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
             metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupCount });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupCount - lookupHits) });
             metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
             metrics.Add(new RunMetric { MetricKey = "primaryDataBytes", Value = collected.PrimaryDataBytes });
             metrics.Add(new RunMetric { MetricKey = "indexBytes", Value = collected.IndexBytes });
@@ -187,6 +190,17 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
             diagnostics["sequenceCountAfterRefresh"] = sequenceCountAfterRefresh.ToString(CultureInfo.InvariantCulture);
             diagnostics["sequenceAppendOffsetAfterRefresh"] = appendOffsetAfterRefresh.ToString(CultureInfo.InvariantCulture);
+            diagnostics["semanticSuccess"] = semanticSuccess?.ToString() ?? "not-evaluated";
+
+            if (!string.IsNullOrWhiteSpace(semanticFailureReason))
+            {
+                diagnostics["semanticFailureReason"] = semanticFailureReason;
+            }
+
+            if (!technicalSuccess && !string.IsNullOrWhiteSpace(technicalFailureReason))
+            {
+                diagnostics["technicalFailureReason"] = technicalFailureReason;
+            }
 
             var state = TryReadState(artifactLayout.StateFilePath);
             if (state.HasValue)
@@ -207,8 +221,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 DatasetProfileKey = _spec.Dataset.ProfileKey,
                 FairnessProfileKey = _spec.FairnessProfile?.FairnessProfileKey ?? "unspecified",
                 Environment = manifest,
-                Success = success,
-                FailureReason = failureReason,
+                TechnicalSuccess = technicalSuccess,
+                TechnicalFailureReason = technicalFailureReason,
+                SemanticSuccess = semanticSuccess,
+                SemanticFailureReason = semanticFailureReason,
                 Metrics = metrics,
                 Artifacts = artifacts,
                 EngineDiagnostics = diagnostics,
@@ -222,6 +238,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
         }
 
         private const string EngineKeyValue = "polar-db";
+        private const string SupportedExperimentKey = "persons-load-build-reopen-random-lookup";
+        private const string SupportedWorkloadKey = "bulk-load-point-lookup";
 
         private static void ValidateSpec(ExperimentSpec spec)
         {
@@ -230,8 +248,13 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 throw new NotSupportedException("Polar.DB stage2 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
             }
 
-            if (!spec.Workload.WorkloadKey.Equals("bulk-load-point-lookup", StringComparison.OrdinalIgnoreCase) &&
-                !spec.Workload.WorkloadKey.Equals("persons-load-build-reopen-random-lookup", StringComparison.OrdinalIgnoreCase))
+            if (!spec.ExperimentKey.Equals(SupportedExperimentKey, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NotSupportedException(
+                    $"Experiment '{spec.ExperimentKey}' is not implemented in stage2 Polar.DB adapter.");
+            }
+
+            if (!spec.Workload.WorkloadKey.Equals(SupportedWorkloadKey, StringComparison.OrdinalIgnoreCase))
             {
                 throw new NotSupportedException(
                     $"Workload '{spec.Workload.WorkloadKey}' is not implemented in stage2 Polar.DB adapter.");

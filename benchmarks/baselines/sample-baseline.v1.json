@@ -6,7 +6,7 @@
   "fairnessProfileKey": "durability-balanced",
   "environmentClass": "local",
   "metrics": {
-    "elapsedMsMedian": 1200.0,
+    "elapsedMsSingleRun": 1200.0,
     "totalArtifactBytes": 1800000.0,
     "peakManagedBytes": 64000000.0
   }

@@ -12,10 +12,10 @@ Stage 1 is about platform shape and reproducibility, not final scientific conclu
 
 ## Run categories
 
-Stage 1 distinguishes:
+Current repository state distinguishes:
 
 - synthetic pipeline validation runs;
-- future real engine runs;
+- stage2 real Polar.DB runs;
 - future engine-deep research runs.
 
 ## Statistical expectations
@@ -29,7 +29,7 @@ Stage 1 schemas already support:
 - min/max;
 - standard deviation.
 
-Real experiments should prefer median over single-run timing.
+Current stage2 raw results are single-run timings (`elapsedMsSingleRun`). Median/p95 become valid after measured multi-run execution is introduced.
 
 ## Reproducibility minimum
 
