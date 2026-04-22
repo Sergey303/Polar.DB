@@ -258,6 +258,13 @@ public sealed record CrossEngineSeriesEngineEntry
     public required MetricSeriesStats LookupMs { get; init; }
 
     /// <summary>
+    /// Aggregate stats for random point lookup operation count.
+    /// Optional for backward compatibility with older comparison-series artifacts.
+    /// For normalized reference workload this should typically stay near 10_000 when present.
+    /// </summary>
+    public MetricSeriesStats? LookupBatchCount { get; init; }
+
+    /// <summary>
     /// Aggregate stats for total artifact bytes.
     /// </summary>
     public required MetricSeriesStats TotalArtifactBytes { get; init; }

@@ -5,6 +5,9 @@ Implemented common experiments:
 - `persons-load-build-reopen-random-lookup` (`bulk-load-point-lookup`);
 - `persons-append-cycles-reopen-lookup` (`append-cycles-reopen-lookup`).
 
+For `persons-load-build-reopen-random-lookup` the semantic flow is reference-imported and normalized:
+reverse bulk load -> build index -> reopen -> one direct key lookup -> random lookup batch (`10_000`).
+
 ## Fairness mapping (`durability-balanced`)
 
 - `PRAGMA journal_mode=WAL`

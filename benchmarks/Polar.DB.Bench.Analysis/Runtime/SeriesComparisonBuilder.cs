@@ -11,6 +11,7 @@ internal sealed class SeriesComparisonBuilder
 {
     private const string WarmupRunRole = "warmup";
     private const string MeasuredRunRole = "measured";
+    private const string ImportedReferenceExperimentKey = "persons-load-build-reopen-random-lookup";
 
     private readonly string _polarEngineKey;
     private readonly string _sqliteEngineKey;
@@ -57,6 +58,18 @@ internal sealed class SeriesComparisonBuilder
         var datasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(setRuns.Select(item => item.Result.DatasetProfileKey));
         var fairnessProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(setRuns.Select(item => item.Result.FairnessProfileKey));
         var environmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(setRuns.Select(item => item.Result.Environment.EnvironmentClass));
+        var notes = new List<string>
+        {
+            "Comparison set groups related runs and avoids comparing unrelated latest single runs.",
+            "Only measured runs are aggregated into min/max/average/median statistics.",
+            "No policy evaluation is included in this artifact."
+        };
+
+        if (experimentKey.Equals(ImportedReferenceExperimentKey, StringComparison.OrdinalIgnoreCase))
+        {
+            notes.Add("Imported reference workload semantics: reverse bulk load, point-lookup-ready reopen state, one direct lookup, then random lookup batch.");
+            notes.Add("Reference-normalized random lookup batch target: 10000 operations.");
+        }
 
         return new CrossEngineComparisonSeriesResult
         {
@@ -73,12 +86,7 @@ internal sealed class SeriesComparisonBuilder
                 BuildEngineSeriesEntry(_polarEngineKey, polarRuns),
                 BuildEngineSeriesEntry(_sqliteEngineKey, sqliteRuns)
             },
-            Notes = new List<string>
-            {
-                "Comparison set groups related runs and avoids comparing unrelated latest single runs.",
-                "Only measured runs are aggregated into min/max/average/median statistics.",
-                "No policy evaluation is included in this artifact."
-            }
+            Notes = notes
         };
     }
 
@@ -96,6 +104,7 @@ internal sealed class SeriesComparisonBuilder
         var build = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "buildMs")).ToArray();
         var reopen = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "reopenRefreshMs", "reopenMs")).ToArray();
         var lookup = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupMs")).ToArray();
+        var lookupCount = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupCount")).ToArray();
         var totalBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadTotalArtifactBytes(x.Result)).ToArray();
         var primaryBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadPrimaryArtifactBytes(x.Result)).ToArray();
         var sideBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadSideArtifactBytes(x.Result)).ToArray();
@@ -114,6 +123,7 @@ internal sealed class SeriesComparisonBuilder
             BuildMs = MetricSeriesStatsBuilder.Build(build),
             ReopenMs = MetricSeriesStatsBuilder.Build(reopen),
             LookupMs = MetricSeriesStatsBuilder.Build(lookup),
+            LookupBatchCount = MetricSeriesStatsBuilder.Build(lookupCount),
             TotalArtifactBytes = MetricSeriesStatsBuilder.Build(totalBytes),
             PrimaryArtifactBytes = MetricSeriesStatsBuilder.Build(primaryBytes),
             SideArtifactBytes = MetricSeriesStatsBuilder.Build(sideBytes)

@@ -17,6 +17,11 @@ Main groups:
 - artifact inventory;
 - engine diagnostics and notes.
 
+For imported `persons-load-build-reopen-random-lookup` workload, raw metrics also include:
+
+- `directPointLookupMs`, `directPointLookupKey`, `directPointLookupHit`;
+- `randomPointLookupCount` (normalized reference batch size, typically `10_000`).
+
 Backward compatibility:
 
 - old raw runs without stage4 fields remain valid and readable.
@@ -62,6 +67,7 @@ Contains:
     - build,
     - reopen,
     - lookup,
+    - lookup batch count,
     - total artifact bytes,
     - primary bytes,
     - side bytes,

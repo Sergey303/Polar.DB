@@ -1,26 +1,26 @@
 {
   "experimentKey": "persons-load-build-reopen-random-lookup",
   "researchQuestionId": "RQ-COMMON-001",
-  "hypothesisId": "H-SQLITE-STAGE3-001",
-  "description": "Stage3 real SQLite experiment on the same semantic workflow: load, build index, reopen, random point lookups.",
+  "hypothesisId": "H-COMMON-REFERENCE-IMPORT-001",
+  "description": "Imported reference workload for fair cross-engine comparison: reverse bulk load, build index, reopen, one direct lookup, 10k random point lookups.",
   "dataset": {
     "profileKey": "persons-1m-reverse",
     "recordCount": 1000000,
     "seed": 12345,
-    "notes": "Persons(id,name,age) generated in reverse id order."
+    "notes": "Reference-normalized dataset: persons(id,name,age) generated in reverse id order."
   },
   "workload": {
     "workloadKey": "bulk-load-point-lookup",
     "lookupCount": 10000,
-    "notes": "After index build and reopen execute random point lookups by id."
+    "notes": "After build and reopen: execute one direct lookup by key, then random point lookups by id."
   },
   "faultProfile": {
     "faultProfileKey": "none",
-    "notes": "No fault injection in stage3 first cross-engine comparison."
+    "notes": "No fault injection for imported reference workload."
   },
   "fairnessProfile": {
     "fairnessProfileKey": "durability-balanced",
-    "notes": "SQLite mapping for stage3 baseline: journal_mode=WAL, synchronous=FULL, temp_store=FILE."
+    "notes": "Shared fairness intent for Polar.DB vs SQLite imported reference comparison."
   },
   "requiredCapabilities": [
     "BulkLoad",

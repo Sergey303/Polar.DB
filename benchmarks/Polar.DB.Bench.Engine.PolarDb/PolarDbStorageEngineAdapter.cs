@@ -64,7 +64,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var loadMs = 0.0;
             var buildMs = 0.0;
             var reopenRefreshMs = 0.0;
+            var directLookupMs = 0.0;
             var lookupMs = 0.0;
+            var directLookupKey = ResolveDirectLookupKey(_spec.Dataset.RecordCount);
+            var directLookupHit = false;
             var lookupHits = 0L;
             var lookupCount = ResolveLookupCount(_spec.Workload);
             var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
@@ -115,7 +118,15 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var random = new Random((_spec.Dataset.Seed ?? 1) ^ 0x1f2e3d4c);
+                var directLookupWatch = Stopwatch.StartNew();
+                var directRow = reopened.GetByKey(directLookupKey);
+                directLookupWatch.Stop();
+                directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
+                directLookupHit = TryReadPersonKey(directRow, out var directRowKey) && directRowKey == directLookupKey;
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var random = new Random((_spec.Dataset.Seed ?? 1) ^ CommonLookupSeedSalt);
                 var maxKeyExclusive = checked((int)_spec.Dataset.RecordCount) + 1;
                 var lookupWatch = Stopwatch.StartNew();
 
@@ -127,8 +138,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                     }
 
                     var key = random.Next(1, maxKeyExclusive);
-                    var row = reopened.GetByKey(key) as object[];
-                    if (row is not null && row.Length > 0 && row[0] is int rowKey && rowKey == key)
+                    var row = reopened.GetByKey(key);
+                    if (TryReadPersonKey(row, out var rowKey) && rowKey == key)
                     {
                         lookupHits++;
                     }
@@ -140,10 +151,14 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 reopened.Close();
                 reopened = null;
 
-                semanticSuccess = lookupHits == lookupCount;
+                semanticSuccess = directLookupHit && lookupHits == lookupCount;
                 if (!semanticSuccess.Value)
                 {
-                    semanticFailureReason = $"Point lookups succeeded partially: {lookupHits}/{lookupCount}.";
+                    semanticFailureReason = BuildLoadBuildSemanticFailureReason(
+                        directLookupKey,
+                        directLookupHit,
+                        lookupCount,
+                        lookupHits);
                 }
             }
             catch (Exception ex)
@@ -170,6 +185,9 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
             metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
             metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupKey", Value = directLookupKey });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupCount });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
@@ -189,6 +207,9 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             diagnostics["indexFileBytes"] = ToInvariant(collected.IndexBytes);
             diagnostics["primaryDataFileBytes"] = ToInvariant(collected.PrimaryDataBytes);
             diagnostics["totalArtifactBytes"] = ToInvariant(collected.TotalBytes);
+            diagnostics["directLookupKey"] = directLookupKey.ToString(CultureInfo.InvariantCulture);
+            diagnostics["directLookupHit"] = directLookupHit.ToString();
+            diagnostics["directLookupMs"] = ToInvariant(directLookupMs);
             diagnostics["lookupCount"] = lookupCount.ToString(CultureInfo.InvariantCulture);
             diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
             diagnostics["sequenceCountAfterRefresh"] = sequenceCountAfterRefresh.ToString(CultureInfo.InvariantCulture);
@@ -213,7 +234,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
 
             notes.Add("Stage4 real adapter run for Polar.DB.");
-            notes.Add("Experiment flow: load -> build -> reopen/refresh -> random point lookup.");
+            notes.Add("Imported reference workload: load in reverse id order -> build -> reopen/refresh -> direct key lookup -> random point lookup batch.");
+            notes.Add($"Reference-normalized lookup batch size: {lookupCount}.");
 
             return Task.FromResult(new RunResult
             {
@@ -493,6 +515,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
         private const string LoadBuildWorkloadKey = "bulk-load-point-lookup";
         private const string AppendCyclesExperimentKey = "persons-append-cycles-reopen-lookup";
         private const string AppendCyclesWorkloadKey = "append-cycles-reopen-lookup";
+        private const int CommonLookupSeedSalt = unchecked((int)0x1f2e3d4c);
 
         private static void ValidateSpec(ExperimentSpec spec)
         {
@@ -528,6 +551,11 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
 
             return 10_000;
+        }
+
+        private static int ResolveDirectLookupKey(long recordCount)
+        {
+            return checked((int)((recordCount + 1) / 2));
         }
 
         private static (int BatchCount, int BatchSize) ResolveAppendCycleShape(WorkloadSpec workload)
@@ -568,6 +596,42 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 $"={id}=",
                 random.Next(18, 90)
             };
+        }
+
+        private static bool TryReadPersonKey(object? rowValue, out int rowKey)
+        {
+            if (rowValue is object[] row &&
+                row.Length > 0 &&
+                row[0] is int parsed)
+            {
+                rowKey = parsed;
+                return true;
+            }
+
+            rowKey = 0;
+            return false;
+        }
+
+        private static string BuildLoadBuildSemanticFailureReason(
+            int directLookupKey,
+            bool directLookupHit,
+            long lookupCount,
+            long lookupHits)
+        {
+            var reasons = new List<string>();
+            if (!directLookupHit)
+            {
+                reasons.Add($"directLookupMiss key={directLookupKey}");
+            }
+
+            if (lookupHits != lookupCount)
+            {
+                reasons.Add($"lookupHits={lookupHits}, lookupCount={lookupCount}");
+            }
+
+            return reasons.Count == 0
+                ? "Unknown semantic failure."
+                : string.Join("; ", reasons);
         }
 
         private static string BuildAppendSemanticFailureReason(
