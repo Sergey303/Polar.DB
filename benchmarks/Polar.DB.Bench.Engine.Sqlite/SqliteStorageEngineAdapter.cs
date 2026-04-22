@@ -995,6 +995,7 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             }
             catch
             {
+                // ignored
             }
         }
 

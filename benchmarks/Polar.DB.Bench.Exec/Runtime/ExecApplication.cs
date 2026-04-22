@@ -39,7 +39,7 @@ public static class ExecApplication
             EnvironmentClass = options.EnvironmentClass,
             ArtifactsDirectory = Path.Combine(options.WorkingDirectory!, "artifacts")
         };
-        Directory.CreateDirectory(workspace.ArtifactsDirectory!);
+        Directory.CreateDirectory(workspace.ArtifactsDirectory);
 
         var adapter = CreateAdapter(options.EngineKey!);
         var executionPlan = BuildExecutionPlan(options);
