@@ -1,0 +1,31 @@
+{
+  "experimentKey": "persons-load-build-reopen-random-lookup",
+  "researchQuestionId": "RQ-COMMON-001",
+  "hypothesisId": "H-POLAR-STAGE2-001",
+  "description": "Stage2 real Polar.DB experiment based on the legacy manual scenario: load, build, reopen/refresh, random point lookups.",
+  "dataset": {
+    "profileKey": "persons-1m-reverse",
+    "recordCount": 1000000,
+    "seed": 12345,
+    "notes": "Persons(id,name,age) generated in reverse id order."
+  },
+  "workload": {
+    "workloadKey": "bulk-load-point-lookup",
+    "lookupCount": 10000,
+    "notes": "After reopen/refresh execute random point lookups by id."
+  },
+  "faultProfile": {
+    "faultProfileKey": "none",
+    "notes": "No fault injection in stage2 first real experiment."
+  },
+  "fairnessProfile": {
+    "fairnessProfileKey": "durability-balanced",
+    "notes": "Default fairness profile for first real run."
+  },
+  "requiredCapabilities": [
+    "BulkLoad",
+    "PointLookup",
+    "ReopenRecovery",
+    "PhysicalArtifactInspection"
+  ]
+}

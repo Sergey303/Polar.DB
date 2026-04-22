@@ -1,0 +1,25 @@
+{
+  "policyId": "sample-policy-v1",
+  "appliesTo": {
+    "experimentKey": "bulk-load-point-lookup",
+    "datasetProfileKey": "persons-100k-reverse",
+    "engineKey": "synthetic",
+    "fairnessProfileKey": "durability-balanced",
+    "environmentClass": "local"
+  },
+  "guards": [
+    {
+      "metricKey": "elapsedMsMedian",
+      "mode": "relative_to_baseline",
+      "maxRegressionPercent": 15.0,
+      "fixedSlack": 25.0,
+      "severity": "Regressed"
+    },
+    {
+      "metricKey": "totalArtifactBytes",
+      "mode": "absolute_max",
+      "absoluteMax": 10000000.0,
+      "severity": "Broken"
+    }
+  ]
+}

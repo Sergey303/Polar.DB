@@ -1,0 +1,8 @@
+results/raw/*
+!results/raw/.gitkeep
+results/analyzed/*
+!results/analyzed/.gitkeep
+reports/*
+!reports/.gitkeep
+**/bin/
+**/obj/

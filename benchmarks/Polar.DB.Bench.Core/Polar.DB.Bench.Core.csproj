@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Polar.DB.Bench.Core</RootNamespace>
+    <AssemblyName>Polar.DB.Bench.Core</AssemblyName>
+  </PropertyGroup>
+</Project>

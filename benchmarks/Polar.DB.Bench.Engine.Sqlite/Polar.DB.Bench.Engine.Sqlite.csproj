@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Polar.DB.Bench.Engine.Sqlite</RootNamespace>
+    <AssemblyName>Polar.DB.Bench.Engine.Sqlite</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj" />
+    <!-- TODO: add Microsoft.Data.Sqlite or another agreed SQLite provider. -->
+  </ItemGroup>
+</Project>
