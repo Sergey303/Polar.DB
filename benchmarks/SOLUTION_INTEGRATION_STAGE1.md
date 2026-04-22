@@ -1,4 +1,4 @@
-# Solution Integration — Stage 1
+# Solution Integration - Stage 1
 
 This package assumes it will live under `./benchmarks` at repository root.
 
@@ -47,17 +47,17 @@ dotnet sln add benchmarks/Polar.DB.Bench.Engine.Sqlite/Polar.DB.Bench.Engine.Sql
 
 ## Stage 1 notes
 
-- `Polar.DB.Bench.Engine.PolarDb` is intentionally a skeleton.
-- `Polar.DB.Bench.Engine.Sqlite` is intentionally a skeleton.
-- `Polar.DB.Bench.Exec` already contains a small synthetic adapter so the raw → analyzed → charts flow can be tested before the real engines are wired.
-- The stage-1 CLI is intentionally simple and file-driven.
+- `Polar.DB.Bench.Engine.PolarDb` now contains a stage2 real adapter for the first end-to-end experiment.
+- `Polar.DB.Bench.Engine.Sqlite` is still intentionally a skeleton at this stage.
+- `Polar.DB.Bench.Exec` keeps the synthetic adapter for pipeline smoke checks alongside real adapters.
+- The CLI remains intentionally simple and file-driven.
 
 ## First realistic milestone
 
-Implement one experiment end to end for both engines:
+Current stage2 milestone is implemented for Polar.DB:
 
-- `bulk-load-point-lookup`
-- dataset profile `persons-100k-reverse`
+- experiment `persons-load-build-reopen-random-lookup`
+- workload `bulk-load-point-lookup`
 - fairness profile `durability-balanced`
 
-Only after that should you widen the experiment matrix.
+SQLite parity remains deferred and should be handled separately from this milestone.

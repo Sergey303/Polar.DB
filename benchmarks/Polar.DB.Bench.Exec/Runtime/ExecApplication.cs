@@ -55,7 +55,7 @@ public static class ExecApplication
         await JsonSerializer.SerializeAsync(stream, rawResult, JsonDefaults.Default);
 
         Console.WriteLine($"Raw result written: {rawPath}");
-        return rawResult.Success ? 0 : 1;
+        return rawResult.TechnicalSuccess ? 0 : 1;
     }
 
     private static async Task<ExperimentSpec> LoadSpecAsync(string specPath)

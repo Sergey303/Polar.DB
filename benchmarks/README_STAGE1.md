@@ -1,8 +1,10 @@
-# Polar.DB Benchmarks — Stage 1 Package
+# Polar.DB Benchmarks - Stage 1 Package
+
+This document is a historical stage-1 package snapshot. Current repository state already includes a stage2 real Polar.DB adapter and the first real Polar.DB experiment spec.
 
 This package is meant to be unpacked into `./benchmarks` at the repository root.
 
-Stage 1 intentionally focuses on the platform skeleton:
+Stage 1 intentionally focused on the platform skeleton:
 
 - shared contracts and DTOs;
 - raw/analyzed result formats;
@@ -11,19 +13,19 @@ Stage 1 intentionally focuses on the platform skeleton:
 - documentation for workloads, faults, fairness, and result schemas;
 - adapter skeletons for Polar.DB and SQLite.
 
-What Stage 1 **does not** pretend to complete:
+What Stage 1 did not pretend to complete:
 
 - a production-grade Polar.DB engine adapter;
 - a production-grade SQLite adapter;
 - full CLI ergonomics;
 - all experiment families from the long-term platform spec;
-- chart rendering beyond stage-1 summaries and CSV export.
+- chart rendering beyond markdown and CSV summary export.
 
 The raw design goal is to reduce coupling early:
 
 1. **BenchExec** only executes and writes raw results.
 2. **BenchAnalysis** reads raw results and writes enriched analyzed results.
-3. **BenchCharts** reads results and emits summaries / chart-ready datasets.
+3. **BenchCharts** reads results and emits summaries or chart-ready datasets.
 
 ## Suggested first integration steps
 

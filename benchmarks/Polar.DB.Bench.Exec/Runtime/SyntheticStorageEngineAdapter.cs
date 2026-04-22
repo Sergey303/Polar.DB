@@ -62,10 +62,11 @@ internal sealed class SyntheticStorageEngineAdapter : IStorageEngineAdapter
                 DatasetProfileKey = _spec.Dataset.ProfileKey,
                 FairnessProfileKey = _spec.FairnessProfile?.FairnessProfileKey ?? "unspecified",
                 Environment = manifest,
-                Success = true,
+                TechnicalSuccess = true,
+                SemanticSuccess = true,
                 Metrics = new[]
                 {
-                    new RunMetric { MetricKey = "elapsedMsMedian", Value = elapsed },
+                    new RunMetric { MetricKey = "elapsedMsSingleRun", Value = elapsed },
                     new RunMetric { MetricKey = "totalArtifactBytes", Value = totalBytes },
                     new RunMetric { MetricKey = "peakManagedBytes", Value = peakManaged }
                 },

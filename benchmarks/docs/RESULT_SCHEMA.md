@@ -11,7 +11,8 @@ Top-level areas:
 - engine identity;
 - fairness profile;
 - environment manifest;
-- success/failure;
+- technical execution status;
+- semantic experiment outcome;
 - measured metrics;
 - artifact inventory;
 - engine diagnostics;
@@ -33,4 +34,5 @@ An analyzed result references one raw result and enriches it with:
 Execution status and policy status are separate concerns.
 
 - execution failure belongs to executor results;
+- semantic degradation belongs to executor raw facts (metrics/diagnostics), not infrastructure failure;
 - policy result belongs to analyzed results.

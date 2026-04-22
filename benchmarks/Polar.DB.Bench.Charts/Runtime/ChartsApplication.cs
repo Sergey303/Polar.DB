@@ -43,7 +43,7 @@ public static class ChartsApplication
     private static string BuildMarkdown(IReadOnlyList<AnalyzedResult> results)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# Stage-1 Benchmark Summary");
+        sb.AppendLine("# Benchmark Summary");
         sb.AppendLine();
         sb.AppendLine($"Generated at: {DateTimeOffset.UtcNow:O}");
         sb.AppendLine();
@@ -55,7 +55,7 @@ public static class ChartsApplication
         }
 
         sb.AppendLine();
-        sb.AppendLine("Stage 1 emits markdown and CSV only. Real charts remain a later milestone.");
+        sb.AppendLine("Current charts output is markdown and CSV summary only.");
         return sb.ToString();
     }
 
