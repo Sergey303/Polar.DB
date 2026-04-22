@@ -3,16 +3,15 @@ using System.Globalization;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.Services;
-using PolarDbLib = global::Polar.DB;
 
 namespace Polar.DB.Bench.Engine.PolarDb;
 
 public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 {
-    private static readonly PolarDbLib.PTypeRecord PersonRecordType = new(
-        new PolarDbLib.NamedType("id", new PolarDbLib.PType(PolarDbLib.PTypeEnumeration.integer)),
-        new PolarDbLib.NamedType("name", new PolarDbLib.PType(PolarDbLib.PTypeEnumeration.sstring)),
-        new PolarDbLib.NamedType("age", new PolarDbLib.PType(PolarDbLib.PTypeEnumeration.integer)));
+    private static readonly PTypeRecord PersonRecordType = new(
+        new NamedType("id", new PType(PTypeEnumeration.integer)),
+        new NamedType("name", new PType(PTypeEnumeration.sstring)),
+        new NamedType("age", new PType(PTypeEnumeration.integer)));
 
     public string EngineKey => "polar-db";
 
@@ -78,8 +77,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var sequenceCountAfterRefresh = 0L;
             var appendOffsetAfterRefresh = 0L;
 
-            PolarDbLib.USequence? sequence = null;
-            PolarDbLib.USequence? reopened = null;
+            USequence? sequence = null;
+            USequence? reopened = null;
 
             try
             {
@@ -276,8 +275,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var initialArtifactBytes = 0L;
             var expectedCount = _spec.Dataset.RecordCount;
 
-            PolarDbLib.USequence? session = null;
-            PolarDbLib.USequence? reopened = null;
+            USequence? session = null;
+            USequence? reopened = null;
 
             try
             {
@@ -596,7 +595,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             return string.Join("; ", reasons);
         }
 
-        private static PolarDbLib.USequence CreateSequence(ArtifactLayout layout)
+        private static USequence CreateSequence(ArtifactLayout layout)
         {
             var streamCounter = 0;
 
@@ -606,7 +605,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
             }
 
-            return new PolarDbLib.USequence(
+            return new USequence(
                 PersonRecordType,
                 layout.StateFilePath,
                 StreamGenerator,
@@ -651,7 +650,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 totalBytes += bytes;
 
                 ArtifactRole role;
-                string? notes = null;
+                string? notes;
                 var name = Path.GetFileName(file);
 
                 if (string.Equals(file, layout.StateFilePath, StringComparison.OrdinalIgnoreCase))
@@ -730,7 +729,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             return value.ToString(CultureInfo.InvariantCulture);
         }
 
-        private static void TryClose(PolarDbLib.USequence? sequence)
+        private static void TryClose(USequence? sequence)
         {
             if (sequence is null)
             {
@@ -743,6 +742,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
             catch
             {
+                // ignored
             }
         }
 
