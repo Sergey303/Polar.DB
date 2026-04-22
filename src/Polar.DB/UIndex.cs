@@ -3,7 +3,7 @@ namespace Polar.DB
     internal struct HKeyObjOff
     {
         public int hkey;
-        public object? obj;
+        public object obj;
         public long off;
     }
 
@@ -62,7 +62,7 @@ namespace Polar.DB
                     if (cmp != 0) return cmp;
                 }
 
-                return comp.Compare(h1.obj!, h2.obj!);
+                return comp.Compare(h1.obj, h2.obj);
             });
 
             dynset = Array.Empty<HKeyObjOff>();
@@ -73,8 +73,8 @@ namespace Polar.DB
         /// </summary>
         public void Clear()
         {
-            if (hashFunc != null)
-                hkeys!.Clear();
+            if (hkeys !=null && hashFunc != null)
+                hkeys.Clear();
 
             hkeys_arr = null;
             offsets.Clear();
@@ -86,8 +86,8 @@ namespace Polar.DB
         /// </summary>
         public void Flush()
         {
-            if (hashFunc != null)
-                hkeys!.Flush();
+            if (hkeys !=null && hashFunc != null)
+                hkeys.Flush();
 
             offsets.Flush();
         }
@@ -97,8 +97,8 @@ namespace Polar.DB
         /// </summary>
         public void Close()
         {
-            if (hashFunc != null)
-                hkeys!.Close();
+            if (hkeys !=null && hashFunc != null)
+                hkeys.Close();
 
             offsets.Close();
         }
@@ -108,8 +108,8 @@ namespace Polar.DB
         /// </summary>
         public void Refresh()
         {
-            if (hashFunc != null)
-                hkeys_arr = hkeys!.ElementValues().Cast<int>().ToArray();
+            if (hkeys !=null && hashFunc != null)
+                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
 
             offsets.Refresh();
         }
@@ -129,9 +129,9 @@ namespace Polar.DB
         {
             var compSpecLong = Comparer<long>.Create((off1, off2) =>
             {
-                object? v1 = sequence.GetByOffset(off1);
-                object? v2 = sequence.GetByOffset(off2);
-                return comp.Compare(v1!, v2!);
+                object v1 = sequence.GetByOffset(off1);
+                object v2 = sequence.GetByOffset(off2);
+                return comp.Compare(v1, v2);
             });
 
             List<long> offsets_list = new List<long>();
@@ -159,7 +159,8 @@ namespace Polar.DB
             sequence.Scan((off, obj) =>
             {
                 offsets_list.Add(off);
-                hkeys_list.Add(hashFunc!(obj));
+                if(hashFunc!=null)
+                    hkeys_list.Add(hashFunc(obj));
                 return true;
             });
 
@@ -168,12 +169,17 @@ namespace Polar.DB
 
             Array.Sort(hkeys_arr, offsets_arr);
 
-            hkeys!.Clear();
-            foreach (var hkey in hkeys_arr)
+            if (hkeys != null)
             {
-                hkeys.AppendElement(hkey);
+                hkeys.Clear();
+
+                foreach (var hkey in hkeys_arr)
+                {
+                    hkeys.AppendElement(hkey);
+                }
+
+                hkeys.Flush();
             }
-            hkeys.Flush();
 
             offsets.Clear();
             foreach (var off in offsets_arr)
@@ -206,7 +212,7 @@ namespace Polar.DB
             {
                 long off = (long)offsets.GetByIndex(ii);
                 object? value = sequence.GetByOffset(off);
-                if (comp.Compare(value!, sample) == 0)
+                if (comp.Compare(value, sample) == 0)
                     yield return new ObjOff(value, off);
                 else
                     break;
@@ -221,7 +227,7 @@ namespace Polar.DB
             {
                 foreach (var oo in dynset.Select(hoo => new ObjOff(hoo.obj, hoo.off)))
                 {
-                    if (comp_like.Compare(oo.obj!, sample) == 0)
+                    if (comp_like.Compare(oo.obj, sample) == 0)
                         yield return oo;
                 }
             }
@@ -234,7 +240,7 @@ namespace Polar.DB
             {
                 long off = (long)offsets.GetByIndex(ii);
                 object? value = sequence.GetByOffset(off);
-                if (comp_like.Compare(value!, sample) == 0)
+                if (comp_like.Compare(value, sample) == 0)
                     yield return new ObjOff(value, off);
                 else
                     break;
@@ -293,7 +299,7 @@ namespace Polar.DB
             long end = offsets.Count() - 1;
             long right_equal = -1;
             int cmp = 0;
-            object? middle_value = null;
+            object? middle_value;
 
             while (end - start > 1)
             {

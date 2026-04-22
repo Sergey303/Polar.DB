@@ -152,7 +152,7 @@ public class USequenceStateRecoveryTests
                 Assert.Equal(value, final.GetByKey(value));
             }
 
-            Assert.Equal(new object[] { 1, 2, 3, 4, 5, 6 }, final.ElementValues().Cast<object>().ToArray());
+            Assert.Equal(new object[] { 1, 2, 3, 4, 5, 6 }, final.ElementValues().ToArray());
             final.Close();
         }
         finally

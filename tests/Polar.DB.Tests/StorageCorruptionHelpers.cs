@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 
 namespace Polar.DB.Tests;
@@ -217,7 +214,7 @@ internal static class StorageCorruptionHelpers
         if (parts == null) throw new ArgumentNullException(nameof(parts));
 
         int totalLength = 0;
-        foreach (byte[]? part in parts)
+        foreach (byte[] part in parts)
         {
             if (part != null)
             {
@@ -228,7 +225,7 @@ internal static class StorageCorruptionHelpers
         byte[] result = new byte[totalLength];
         int offset = 0;
 
-        foreach (byte[]? part in parts)
+        foreach (byte[] part in parts)
         {
             if (part == null || part.Length == 0)
             {
@@ -358,7 +355,7 @@ internal static class StorageCorruptionHelpers
             new PType(PTypeEnumeration.integer),
             statePath,
             StreamGen,
-            value => false,
+            _ => false,
             value => (int)value,
             key => (int)key,
             optimise: optimise);

@@ -23,7 +23,7 @@ public interface ISequenceContractHarness : IDisposable
     /// <summary>
     /// Gets the path to the sidecar state file when the implementation uses one.
     /// </summary>
-    string? StateFilePath { get; }
+    string StateFilePath { get; }
 
     /// <summary>
     /// Gets a value indicating whether the tested sequence stores variable-size items.

@@ -54,7 +54,7 @@ public class PerformanceSmokeTests
         Assert.Equal(count, reopened.Count());
         Assert.Equal(appendOffset, reopened.AppendOffset);
         Assert.Equal(streamLength, stream.Length);
-        Assert.Equal((long)(count - 1), (long)reopened.GetByIndex(count - 1));
+        Assert.Equal((count - 1), (long)reopened.GetByIndex(count - 1));
 
         _output.WriteLine($"Fixed append: count={count}, elapsedMs={appendWatch.ElapsedMilliseconds}, itemsPerSec={count / Math.Max(0.001, appendWatch.Elapsed.TotalSeconds):F0}");
         _output.WriteLine($"Fixed reopen/recovery: count={count}, elapsedMs={reopenWatch.ElapsedMilliseconds}, bytes={stream.Length}");

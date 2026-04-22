@@ -167,8 +167,8 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            List<int>? hkeys_list = new List<int>();
-            List<long>? offsets_list = new List<long>();
+            List<int> hkeys_list = new List<int>();
+            List<long> offsets_list = new List<long>();
             sequence.Scan((off, obj) =>
             {
                 var keys = keysFunc(obj);
@@ -176,8 +176,8 @@ namespace Polar.DB
                 {
                     IComparable k = key;
                     if (ignorecase) k = ((string)k).ToUpper();
-                    offsets_list!.Add(off);
-                    hkeys_list!.Add(hashOfKey(k));
+                    offsets_list.Add(off);
+                    hkeys_list.Add(hashOfKey(k));
                 }
 
                 return true;

@@ -10,11 +10,9 @@ public class UKeyIndexDynamicTests
     public void OnAppendElement_DuplicateDynamicKey_ReplacesOriginalOffset_ForIsOriginal(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         index.Build();
 
@@ -36,11 +34,9 @@ public class UKeyIndexDynamicTests
     public void OnAppendElement_NewDynamicKey_IsFindable_WithoutRebuild(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,

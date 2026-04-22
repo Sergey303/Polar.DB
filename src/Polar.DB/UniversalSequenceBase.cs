@@ -153,7 +153,7 @@ public class UniversalSequenceBase
             throw new InvalidDataException("Sequence stream is corrupted: negative element count.");
 
         long recoveredCount = declaredCount;
-        long recoveredAppendOffset = 8L;
+        long recoveredAppendOffset;
 
         if (elem_size > 0)
         {
@@ -1104,7 +1104,7 @@ public class UniversalSequenceBase
         object[] records = new object[count];
 
         long index = 0;
-        Scan((off, element) =>
+        Scan((_, element) =>
         {
             keys[index] = keyFun(element);
             records[index] = element;
@@ -1151,7 +1151,7 @@ public class UniversalSequenceBase
         object[] records = new object[count];
 
         long index = 0;
-        Scan((off, element) =>
+        Scan((_, element) =>
         {
             keys[index] = keyFun(element);
             records[index] = element;

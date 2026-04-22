@@ -203,7 +203,7 @@ namespace Polar.DB
                 {
                     PTypeRecord ptr = (PTypeRecord)this;
                     var query = ptr.Fields
-                        .Select(pair => new object[] { pair.Name, pair.Type.ToPObject(level - 1)! })
+                        .Select(pair => new object[] { pair.Name, pair.Type.ToPObject(level - 1) })
                         .ToArray();
                     return new object[] { ToInt(vid), query };
                 }
@@ -226,13 +226,13 @@ namespace Polar.DB
                 {
                     PTypeUnion ptu = (PTypeUnion)this;
                     var query = ptu.Variants
-                        .Select(pair => new object[] { pair.Name, pair.Type.ToPObject(level - 1)! })
+                        .Select(pair => new object[] { pair.Name, pair.Type.ToPObject(level - 1) })
                         .ToArray();
                     return new object[] { ToInt(vid), query };
                 }
 
                 default:
-                    return new object[] { ToInt(vid), null! };
+                    return new object[] { ToInt(vid), PType.NoneValue };
             }
         }
 

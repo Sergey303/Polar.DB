@@ -1,4 +1,3 @@
-using System.Reflection;
 using Xunit;
 
 namespace Polar.DB.Tests;
@@ -145,7 +144,7 @@ public class UKeyIndexLargeBlockTests
 
     private static object[] Row(int id, string name) => new object[] { id, name };
 
-    private static void AssertRecord(object? value, int expectedId, string expectedName)
+    private static void AssertRecord(object value, int expectedId, string expectedName)
     {
         var record = Assert.IsType<object[]>(value);
         Assert.Equal(expectedId, (int)record[0]);
@@ -178,12 +177,12 @@ public class UKeyIndexLargeBlockTests
 
         public USequence Sequence { get; }
 
-        public UKeyIndexAdapter CreateIndex(
+        public UKeyIndex CreateIndex(
             Func<object, IComparable> keyFunc,
             Func<IComparable, int> hashFunc,
             bool keysInMemory)
         {
-            return new UKeyIndexAdapter(StreamGen, Sequence, keyFunc, hashFunc, keysInMemory);
+            return new UKeyIndex(StreamGen, Sequence, keyFunc, hashFunc, keysInMemory);
         }
 
         private Stream StreamGen()
@@ -212,48 +211,4 @@ public class UKeyIndexLargeBlockTests
         }
     }
 
-    private sealed class UKeyIndexAdapter
-    {
-        private static readonly Type UKeyIndexType =
-            typeof(USequence).Assembly.GetType("Polar.DB.UKeyIndex", throwOnError: true)!;
-
-        private readonly object _instance;
-        private readonly MethodInfo _build;
-        private readonly MethodInfo _refresh;
-        private readonly MethodInfo _getByKey;
-        private readonly MethodInfo _onAppendElement;
-
-        public UKeyIndexAdapter(
-            Func<Stream> streamGen,
-            USequence sequence,
-            Func<object, IComparable> keyFunc,
-            Func<IComparable, int> hashFunc,
-            bool keysInMemory)
-        {
-            _instance = Activator.CreateInstance(
-                UKeyIndexType,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                binder: null,
-                args: new object[] { streamGen, sequence, keyFunc, hashFunc, keysInMemory },
-                culture: null)!;
-
-            _build = GetMethod("Build");
-            _refresh = GetMethod("Refresh");
-            _getByKey = GetMethod("GetByKey");
-            _onAppendElement = GetMethod("OnAppendElement");
-        }
-
-        public void Build() => _build.Invoke(_instance, Array.Empty<object?>());
-
-        public void Refresh() => _refresh.Invoke(_instance, Array.Empty<object?>());
-
-        public object? GetByKey(IComparable key) => _getByKey.Invoke(_instance, new object?[] { key });
-
-        public void OnAppendElement(object element, long offset) =>
-            _onAppendElement.Invoke(_instance, new [] { element, offset });
-
-        private static MethodInfo GetMethod(string name) =>
-            UKeyIndexType.GetMethod(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?? throw new MissingMethodException(UKeyIndexType.FullName, name);
-    }
 }

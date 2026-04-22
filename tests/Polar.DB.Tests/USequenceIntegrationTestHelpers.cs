@@ -20,22 +20,15 @@ internal static class USequenceIntegrationTestHelpers
 
     internal static string NameOf(object record) => (string)((object[])record)[1];
 
-    internal static long InnerCount(USequence sequence) => GetInnerSequence(sequence).Count();
+    internal static long InnerCount(USequence sequence) => sequence.Sequence.Count();
 
-    internal static long InnerAppendOffset(USequence sequence) => GetInnerSequence(sequence).AppendOffset;
+    internal static long InnerAppendOffset(USequence sequence) => sequence.Sequence.AppendOffset;
 
     internal static (long Count, long AppendOffset) ReadStateFile(string stateFilePath)
     {
         using var fs = new FileStream(stateFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var br = new BinaryReader(fs);
         return (br.ReadInt64(), br.ReadInt64());
-    }
-
-    private static UniversalSequenceBase GetInnerSequence(USequence sequence)
-    {
-        var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?? throw new MissingFieldException(typeof(USequence).FullName, "sequence");
-        return (UniversalSequenceBase)field.GetValue(sequence)!;
     }
 
     internal sealed class DeterministicIndexedSequenceEnvironment : IDisposable

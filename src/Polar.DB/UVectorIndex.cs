@@ -52,7 +52,7 @@ namespace Polar.DB
                 IComparable key = value;
                 if (valueoffs_dic.TryGetValue(key, out var offsets))
                 {
-                    valueoffs_dic[key] = offsets!.Append(offset).ToArray();
+                    valueoffs_dic[key] = offsets.Append(offset).ToArray();
                 }
                 else
                 {
@@ -150,7 +150,7 @@ namespace Polar.DB
 
             if (valueoffs_dic.TryGetValue(valuesample, out var offs))
             {
-                foreach (var oo in offs!.Select(o => new ObjOff(sequence.GetByOffset(o), o)))
+                foreach (var oo in offs.Select(o => new ObjOff(sequence.GetByOffset(o), o)))
                 {
                     yield return oo;
                 }

@@ -1,4 +1,3 @@
-using System.Reflection;
 using Xunit;
 
 namespace Polar.DB.Tests;
@@ -82,7 +81,7 @@ public class USequenceTests
     {
         using var scope = new USequenceScope(PersonType);
 
-        var baseSequence = scope.GetBaseSequence();
+        var baseSequence = scope.Sequence.Sequence;
         baseSequence.Clear();
         long offset = baseSequence.AppendElement(new object[] { 77, "Manual" });
         baseSequence.Flush();
@@ -104,7 +103,7 @@ public class USequenceTests
         });
         scope.Sequence.Build();
 
-        var baseSequence = scope.GetBaseSequence();
+        var baseSequence = scope.Sequence.Sequence;
         baseSequence.AppendElement(new object[] { 2, "Bob" });
         baseSequence.Flush();
 
@@ -137,12 +136,6 @@ public class USequenceTests
 
         public USequence Sequence { get; }
         public string StateFilePath { get; }
-
-        public UniversalSequenceBase GetBaseSequence()
-        {
-            var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            return (UniversalSequenceBase)field.GetValue(Sequence)!;
-        }
 
         private Stream StreamGen()
         {
