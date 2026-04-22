@@ -5,6 +5,11 @@
 ### `bulk-load-point-lookup`
 Load records, stabilize for point lookup, reopen, then execute random point lookups.
 
+Implemented common experiment specs:
+
+- `experiments/persons-load-build-reopen-random-lookup.polar-db.json`
+- `experiments/persons-load-build-reopen-random-lookup.sqlite.json`
+
 ### `append-cycles-reopen`
 Append in batches, reopen after every cycle, then validate point lookup and artifact growth.
 
