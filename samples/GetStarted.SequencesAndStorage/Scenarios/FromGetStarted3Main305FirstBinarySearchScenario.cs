@@ -69,7 +69,7 @@ internal sealed class FromGetStarted3Main305FirstBinarySearchScenario : ISampleS
             int key = rnd.Next(nelements);
             int nom = Array.BinarySearch(keys, key);
             long nom1 = BinarySearchFirst(0, nelements, key, keys);
-            if (nom1 != (long)nom) throw new Exception();
+            if (nom1 != nom) throw new Exception();
             long off = offsets[nom1];
             object[] fields = (object[])sequence.GetElement(off);
             if (key != (int)fields[0]) throw new Exception("1233eddf");

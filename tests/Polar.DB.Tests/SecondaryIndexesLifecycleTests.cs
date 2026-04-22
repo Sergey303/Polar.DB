@@ -265,7 +265,11 @@ public class SecondaryIndexesLifecycleTests
 
         public void Dispose()
         {
-            try { Sequence.Close(); } catch { }
+            try { Sequence.Close(); }
+            catch
+            {
+                // ignored
+            }
 
             if (_deleteOnDispose)
                 TryDeleteDirectory(TempDir);

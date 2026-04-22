@@ -27,7 +27,7 @@ namespace Polar.DB
             switch (tp.Vid)
             {
                 case PTypeEnumeration.none: { return; }
-                case PTypeEnumeration.boolean: { tw.Write((bool)v?'t':'f'); return; }
+                case PTypeEnumeration.boolean: { tw.Write((bool)v ? 't' : 'f'); return; }
                 case PTypeEnumeration.@byte: { tw.Write(((byte)v).ToString()); return; }
                 case PTypeEnumeration.character: { tw.Write((char)v); return; }
                 case PTypeEnumeration.integer: { tw.Write((int)v); return; }
@@ -266,7 +266,7 @@ namespace Polar.DB
 
             TextFlow tf = new TextFlow(tr);
             tf.Skip();
-            return tf.Des(tp)!;
+            return tf.Des(tp);
         }
 
         /// <summary>
@@ -307,7 +307,7 @@ namespace Polar.DB
         // Более удобный объект для парсинга TextFlow
         private TextReader tr;
 
-        internal TextFlow(TextReader tr)
+        public TextFlow(TextReader tr)
         {
             this.tr = tr ?? throw new ArgumentNullException(nameof(tr));
         }

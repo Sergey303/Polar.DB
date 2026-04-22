@@ -168,7 +168,7 @@ namespace Polar.DB
                     PTypeUnion tpUni = (PTypeUnion)tp;
                     int tag = br.ReadByte();
                     object subval = Deserialize(br, tpUni.Variants[tag].Type);
-                    return new object[] { tag, subval };
+                    return new [] { tag, subval };
                 }
 
                 default:

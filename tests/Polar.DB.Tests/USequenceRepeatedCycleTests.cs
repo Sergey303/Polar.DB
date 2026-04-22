@@ -36,7 +36,7 @@ public class USequenceRepeatedCycleTests
 
         Assert.Equal(100L, reopened.Count());
         for (int i = 0; i < 100; i++)
-            Assert.Equal((long)i, (long)reopened.GetByIndex(i));
+            Assert.Equal(i, (long)reopened.GetByIndex(i));
     }
 
     /// <summary>

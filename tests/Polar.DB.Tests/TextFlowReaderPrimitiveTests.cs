@@ -1,4 +1,3 @@
-using System.Reflection;
 using Xunit;
 
 namespace Polar.DB.Tests;
@@ -30,10 +29,10 @@ public class TextFlowReaderPrimitiveTests
     [Fact]
     public void Skip_Skips_Leading_Whitespace_Before_Next_Value()
     {
-        var flow = CreateTextFlow("   123");
+        var flow = new TextFlow(new StringReader("   123"));
 
-        Invoke<object>(flow, "Skip");
-        int value = Invoke<int>(flow, "ReadInt32");
+        flow.Skip();
+        int value = flow.ReadInt32();
 
         Assert.Equal(123, value);
     }
@@ -51,9 +50,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadBoolean_Parses_Serialized_Boolean()
     {
         string text = SerializePrimitive(true, new PType(PTypeEnumeration.boolean));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        bool value = Invoke<bool>(flow, "ReadBoolean");
+        bool value = flow.ReadBoolean();
 
         Assert.True(value);
     }
@@ -71,9 +70,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadByte_Parses_Serialized_Byte()
     {
         string text = SerializePrimitive((byte)25, new PType(PTypeEnumeration.@byte));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        byte value = Invoke<byte>(flow, "ReadByte");
+        byte value = flow.ReadByte();
 
         Assert.Equal((byte)25, value);
     }
@@ -91,9 +90,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadChar_Parses_Serialized_Character()
     {
         string text = SerializePrimitive('Z', new PType(PTypeEnumeration.character));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        char value = Invoke<char>(flow, "ReadChar");
+        char value = flow.ReadChar();
 
         Assert.Equal('Z', value);
     }
@@ -111,9 +110,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadInt32_Parses_Serialized_Integer()
     {
         string text = SerializePrimitive(12345, new PType(PTypeEnumeration.integer));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        int value = Invoke<int>(flow, "ReadInt32");
+        int value = flow.ReadInt32();
 
         Assert.Equal(12345, value);
     }
@@ -131,9 +130,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadInt64_Parses_Serialized_LongInteger()
     {
         string text = SerializePrimitive(1234567890123L, new PType(PTypeEnumeration.longinteger));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        long value = Invoke<long>(flow, "ReadInt64");
+        long value = flow.ReadInt64();
 
         Assert.Equal(1234567890123L, value);
     }
@@ -151,9 +150,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadDouble_Parses_Serialized_Real()
     {
         string text = SerializePrimitive(12.5, new PType(PTypeEnumeration.real));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        double value = Invoke<double>(flow, "ReadDouble");
+        double value = flow.ReadDouble();
 
         Assert.Equal(12.5, value, 6);
     }
@@ -171,9 +170,9 @@ public class TextFlowReaderPrimitiveTests
     public void ReadString_Parses_Serialized_String()
     {
         string text = SerializePrimitive("A\"B\\C", new PType(PTypeEnumeration.sstring));
-        var flow = CreateTextFlow(text);
+        var flow = new TextFlow(new StringReader(text));
 
-        string value = Invoke<string>(flow, "ReadString");
+        string value =flow.ReadString();
 
         Assert.Equal("A\"B\\C", value);
     }
@@ -183,45 +182,5 @@ public class TextFlowReaderPrimitiveTests
         using var writer = new StringWriter();
         TextFlow.Serialize(writer, value, type);
         return writer.ToString();
-    }
-
-    private static object CreateTextFlow(string text)
-    {
-        var type = typeof(TextFlow);
-        var ctor = type
-            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .FirstOrDefault(c =>
-            {
-                var ps = c.GetParameters();
-                return ps.Length == 1 && typeof(TextReader).IsAssignableFrom(ps[0].ParameterType);
-            });
-
-        if (ctor == null)
-            throw new InvalidOperationException("Could not find TextFlow(TextReader) constructor.");
-
-        return ctor.Invoke(new object[] { new StringReader(text) });
-    }
-
-    private static T Invoke<T>(object target, string methodName)
-    {
-        var method = target.GetType().GetMethod(
-            methodName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            types: Type.EmptyTypes,
-            modifiers: null);
-
-        if (method == null)
-            throw new MissingMethodException(target.GetType().FullName, methodName);
-
-        try
-        {
-            object? result = method.Invoke(target, Array.Empty<object>());
-            return result is null ? default! : (T)result;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException != null)
-        {
-            throw ex.InnerException;
-        }
     }
 }

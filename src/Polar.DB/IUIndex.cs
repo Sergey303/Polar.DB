@@ -12,7 +12,7 @@ namespace Polar.DB
         /// <summary>
         /// Element value read from the sequence for <see cref="off"/>.
         /// </summary>
-        public object? obj;
+        public object obj;
 
         /// <summary>
         /// Physical offset of the element in the sequence stream.
@@ -24,7 +24,7 @@ namespace Polar.DB
         /// </summary>
         /// <param name="obj">Element value for the offset.</param>
         /// <param name="off">Physical stream offset of the element.</param>
-        public ObjOff(object? obj, long off)
+        public ObjOff(object obj, long off)
         {
             this.obj = obj;
             this.off = off;

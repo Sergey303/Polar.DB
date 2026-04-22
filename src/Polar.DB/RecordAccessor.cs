@@ -162,16 +162,15 @@ namespace Polar.DB
         /// </summary>
         /// <param name="record">Record array candidate.</param>
         /// <param name="fieldName">Field name.</param>
-        /// <param name="value">Field value on success; otherwise <see langword="null"/>.</param>
+        /// <param name="value">Field value on success; otherwise PType.NoneValue.</param>
         /// <returns><see langword="true"/> when value was read; otherwise <see langword="false"/>.</returns>
-        public bool TryGet(object record, string fieldName, out object? value)
+        public bool TryGet(object record, string fieldName, out object value)
         {
             _ = record ?? throw new ArgumentNullException(nameof(record));
             _ = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
-            value = null;
+            value = PType.NoneValue;
 
             if (record is not object[] arr) return false;
-            if (fieldName is null) return false;
             if (!_fieldIndexes.TryGetValue(fieldName, out int index)) return false;
             if (arr.Length != FieldCount) return false;
 
@@ -189,8 +188,8 @@ namespace Polar.DB
         /// <returns><see langword="true"/> when value exists and can be cast; otherwise <see langword="false"/>.</returns>
         public bool TryGet<T>(object record, string fieldName, out T value)
         {
-            value = default!;
-            if (!TryGet(record, fieldName, out object? raw)) return false;
+            value = (T)PType.NoneValue ;
+            if (!TryGet(record, fieldName, out object raw)) return false;
             if (raw is T typed)
             {
                 value = typed;

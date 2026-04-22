@@ -109,7 +109,7 @@ public class UKeyIndexTests
         sequence.AppendElement(30);
         sequence.Build();
 
-        object? result = sequence.GetByKey(5);
+        object result = sequence.GetByKey(5);
 
         Assert.Null(result);
     }
@@ -125,7 +125,7 @@ public class UKeyIndexTests
         sequence.AppendElement(30);
         sequence.Build();
 
-        object? result = sequence.GetByKey(100);
+        object result = sequence.GetByKey(100);
 
         Assert.Null(result);
     }
@@ -166,7 +166,7 @@ public class UKeyIndexTests
         sequence.AppendElement(6);
         sequence.Build();
 
-        object? result = sequence.GetByKey(8);
+        object result = sequence.GetByKey(8);
 
         Assert.Null(result);
     }

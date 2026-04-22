@@ -130,13 +130,21 @@ public class SecondaryIndexesTests
 
         public void Dispose()
         {
-            try { Sequence.Close(); } catch { }
+            try { Sequence.Close(); }
+            catch
+            {
+                // ignored
+            }
+
             try
             {
                 if (Directory.Exists(_tempDir))
                     Directory.Delete(_tempDir, recursive: true);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
         }
     }
 }

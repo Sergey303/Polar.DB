@@ -69,7 +69,7 @@ namespace Polar.DB
             _ = isEmpty ?? throw new ArgumentNullException(nameof(isEmpty));
             _ = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
             _ = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
-            sequence = new UniversalSequenceBase(tp_el, streamGen());
+            Sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
             this.keyFunc = keyFunc;
             this.optimise = optimise;
@@ -93,8 +93,8 @@ namespace Polar.DB
 
             using var statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
             using var writer = new BinaryWriter(statefile);
-            writer.Write(sequence.Count());
-            writer.Write(sequence.AppendOffset);
+            writer.Write(Sequence.Count());
+            writer.Write(Sequence.AppendOffset);
         }
 
         private (long Count, long AppendOffset) ReadStateOrDefault()
@@ -117,7 +117,7 @@ namespace Polar.DB
 
         private void RefreshStaticState()
         {
-            sequence.Refresh();
+            Sequence.Refresh();
             primaryKeyIndex.Refresh();
             foreach (var ui in Uindexes) ui.Refresh();
         }
@@ -130,7 +130,7 @@ namespace Polar.DB
             long synchronizedCount = Count;
             long synchronizedAppendOffset = AppendOffset;
 
-            long currentCount = sequence.Count();
+            long currentCount = Sequence.Count();
             if (currentCount <= synchronizedCount)
             {
                 if (updateStateFile) SaveState();
@@ -138,7 +138,7 @@ namespace Polar.DB
             }
 
             long additionalCount = currentCount - synchronizedCount;
-            var additional = sequence.ElementOffsetValuePairs(synchronizedAppendOffset, additionalCount);
+            var additional = Sequence.ElementOffsetValuePairs(synchronizedAppendOffset, additionalCount);
             foreach (var pair in additional)
             {
                 if (applyToPrimary)
@@ -170,8 +170,9 @@ namespace Polar.DB
             }
 
             RefreshStaticState();
-            var (Count, _) = ReadStateOrDefault();
-            bool hasUnsynchronizedTail = sequence.Count() > Count;
+
+            var state = ReadStateOrDefault();
+            bool hasUnsynchronizedTail = sequence.Count() > state.Count;
             if (!hasUnsynchronizedTail)
             {
                 SaveState();
@@ -187,7 +188,7 @@ namespace Polar.DB
         /// </summary>
         public void Clear()
         {
-            sequence.Clear();
+            Sequence.Clear();
             primaryKeyIndex.Clear();
             foreach (var ui in Uindexes) ui.Clear();
             SaveState();
@@ -198,7 +199,7 @@ namespace Polar.DB
         /// </summary>
         public void Flush()
         {
-            sequence.Flush();
+            Sequence.Flush();
             primaryKeyIndex.Flush();
             foreach (var ui in Uindexes) ui.Flush();
         }
@@ -208,7 +209,7 @@ namespace Polar.DB
         /// </summary>
         public void Close()
         {
-            sequence.Close();
+            Sequence.Close();
             primaryKeyIndex.Close();
             foreach (var ui in Uindexes) ui.Close();
         }
@@ -235,7 +236,7 @@ namespace Polar.DB
             _ = flow ?? throw new ArgumentNullException(nameof(flow));
             Clear();
 
-            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
+            Sequence.AppendElements(flow.Where(element => !isEmpty(element)));
 
             Flush();
             SaveState();
@@ -253,7 +254,7 @@ namespace Polar.DB
         /// <returns>Logical view of sequence elements after primary-key originality filtering.</returns>
         public IEnumerable<object> ElementValues()
         {
-            return sequence.ElementOffsetValuePairs()
+            return Sequence.ElementOffsetValuePairs()
                 .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
                 .Select(pair => pair.Item2);
         }
@@ -290,7 +291,7 @@ namespace Polar.DB
         public long AppendElement(object element)
         {
             _ = element ?? throw new ArgumentNullException(nameof(element));
-            long off = sequence.AppendElement(element);
+            long off = Sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             foreach (var uind in Uindexes) uind.OnAppendElement(element, off);
             return off;
@@ -302,7 +303,7 @@ namespace Polar.DB
         /// <param name="off">Physical stream offset of the element to replay.</param>
         public void CorrectOnAppendElement(long off)
         {
-            object element = sequence.GetElement(off);
+            object element = Sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             foreach (var uind in Uindexes) uind.OnAppendElement(element, off);
         }
@@ -318,9 +319,9 @@ namespace Polar.DB
             return vv == null || isEmpty(vv) ? null : vv;
         }
 
-        internal object? GetByOffset(long off)
+        internal object GetByOffset(long off)
         {
-            object? vv = sequence.GetElement(off);
+            object? vv = Sequence.GetElement(off);
             return vv == null || isEmpty(vv) ? null : vv;
         }
 
@@ -343,15 +344,15 @@ namespace Polar.DB
             if (uindexes[nom] is SVectorIndex sind)
             {
                 return sind.GetAllByValue((string)value)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
-                    .Select(obof => obof.obj!);
+                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                    .Select(obof => obof.obj);
             }
 
             if (Uindexes[nom] is UVectorIndex uind)
             {
                 return uind.GetAllByValue(value)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
-                    .Select(obof => obof.obj!);
+                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                    .Select(obof => obof.obj);
             }
 
             if (Uindexes[nom] is UVecIndex uvind)
@@ -361,12 +362,12 @@ namespace Polar.DB
                     normalizedValue = s.ToUpper();
 
                 IEnumerable<object> query = uvind.GetAllByValue(normalizedValue)
-                    .Where(obof => keysFunc(obof.obj!)
-                        .Select(w => ignorecase && w is string ws ? (IComparable)ws.ToUpper() : w)
+                    .Where(obof => keysFunc(obof.obj)
+                        .Select(w => ignorecase && w is string ws ? ws.ToUpper() : w)
                         .Any(w => w.CompareTo(normalizedValue) == 0))
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
+                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
                     .GroupBy(obof => obof.off)
-                    .Select(g => g.First().obj!)
+                    .Select(g => g.First().obj)
                     .ToArray();
 
                 return query;
@@ -387,8 +388,8 @@ namespace Polar.DB
             if (uindexes[nom] is UIndex uind)
             {
                 return uind.GetAllBySample(osample)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
-                    .Select(obof => obof.obj!);
+                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                    .Select(obof => obof.obj);
             }
 
             throw new Exception("93394");
@@ -407,8 +408,8 @@ namespace Polar.DB
             if (uind is SVectorIndex sindex)
             {
                 return sindex.GetAllByLike((string)sample)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
-                    .Select(obof => obof.obj!);
+                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                    .Select(obof => obof.obj);
             }
 
             throw new NotImplementedException("Err: 292121");
@@ -419,7 +420,7 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            sequence.Flush();
+            Sequence.Flush();
 
             LogicalBuildEntry[] snapshot = CreateLogicalBuildSnapshot();
 

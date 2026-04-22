@@ -245,8 +245,7 @@ public class RecordAccessorTests
     [Fact]
     public void CreateRecord_Params_Throws_On_Null()
     {
-        object[]? values = null;
-        Assert.Throws<ArgumentNullException>(() => PersonAccessor.CreateRecord(values!));
+        Assert.Throws<ArgumentNullException>(() => PersonAccessor.CreateRecord(null!));
     }
 
     [Fact]

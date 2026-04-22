@@ -49,14 +49,14 @@ namespace Polar.DB.Tests
             tw.Flush();
 
             byte[] bytes = stream.ToArray();
-            string res = new string(bytes.Select(b => System.Convert.ToChar(b)).ToArray());
-            Assert.Equal("{777,\"Pupkin\",9.9999}", res);;
+            string res = new string(bytes.Select(b => Convert.ToChar(b)).ToArray());
+            Assert.Equal("{777,\"Pupkin\",9.9999}", res);
 
             TextReader tr = new StreamReader(stream);
             stream.Position = 0L;
             object oval = TextFlow.Deserialize(tr, tp_rec);
             string val = tp_rec.Interpret(oval);
-            Assert.Equal("{777,\"Pupkin\",9.9999}", val);;
+            Assert.Equal("{777,\"Pupkin\",9.9999}", val);
         }
         [Fact]
         public void TestBinarySerialize()

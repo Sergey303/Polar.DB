@@ -83,7 +83,7 @@ public class ScaleAndUtilitiesTests
     [Fact]
     public void GetDiaFunc64_BuildsDeterministicWindows_ForSortedLongKeys()
     {
-        long[] keys = Enumerable.Range(0, 160).Select(i => (long)i * 10L).ToArray();
+        long[] keys = Enumerable.Range(0, 160).Select(i => 10L * i).ToArray();
         var getDia = Scale.GetDiaFunc64(keys);
 
         Assert.NotNull(getDia);

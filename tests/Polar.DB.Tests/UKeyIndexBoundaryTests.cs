@@ -10,11 +10,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_EmptyIndex_ReturnsNull(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         index.Build();
         var result = index.GetByKey("ALICE");
@@ -28,11 +26,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_NoMatch_ReturnsNull(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -52,11 +48,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_SingleMatch_ReturnsExpectedRecord(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -75,11 +69,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_AllEqualHashBlock_FindsFirstElement(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -100,11 +92,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_AllEqualHashBlock_FindsLastElement(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -125,11 +115,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_AllEqualHashBlock_NoMatch_ReturnsNull(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -149,11 +137,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_DuplicateKeys_DoesNotMissRequestedKey(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -175,11 +161,9 @@ public class UKeyIndexBoundaryTests
     public void GetByKey_FindsFirstAndLastElements_InRepeatedHashRange(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,
@@ -204,11 +188,9 @@ public class UKeyIndexBoundaryTests
     public void Refresh_AfterBuild_PreservesLookupAcrossPersistedIndex(bool keysInMemory)
     {
         using var scope = new UKeyIndexTestHelpers.SequenceScope();
-        var index = UKeyIndexTestHelpers.CreateIndex(
-            scope,
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
+        Func<object, IComparable> keyFunc = record => (string)((object[])record)[1];
+        Func<IComparable, int> hashFunc = _ => 1;
+        var index = new UKeyIndex(scope.StreamGen, scope.Sequence, keyFunc, hashFunc, keysInMemory);
 
         UKeyIndexTestHelpers.LoadAndBuild(
             scope,

@@ -9,7 +9,7 @@ namespace Polar.DB
     /// The index combines a persisted static hash/offset part with a dynamic in-memory map from key to latest offset.
     /// Originality checks use only dynamic state: if a key exists in the map, only that offset is considered current.
     /// </remarks>
-    internal class UKeyIndex
+    public class UKeyIndex
     {
         private readonly USequence sequence;
         private readonly Func<object, IComparable> keyFunc;
