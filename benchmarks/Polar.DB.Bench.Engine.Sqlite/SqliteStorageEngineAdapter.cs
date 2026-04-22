@@ -32,6 +32,7 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
         private const string AppendCyclesExperimentKey = "persons-append-cycles-reopen-lookup";
         private const string AppendCyclesWorkloadKey = "append-cycles-reopen-lookup";
         private const string DurabilityBalancedProfileKey = "durability-balanced";
+        private const int CommonLookupSeedSalt = unchecked((int)0x1f2e3d4c);
         private const string TableName = "person";
         private const string IdIndexName = "idx_person_id";
         private readonly ExperimentSpec _spec;
@@ -69,7 +70,10 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             var loadMs = 0.0;
             var buildMs = 0.0;
             var reopenMs = 0.0;
+            var directLookupMs = 0.0;
             var lookupMs = 0.0;
+            var directLookupKey = ResolveDirectLookupKey(_spec.Dataset.RecordCount);
+            var directLookupHit = false;
             var lookupHits = 0L;
             var lookupCount = ResolveLookupCount(_spec.Workload);
             var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
@@ -125,7 +129,14 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var random = new Random((_spec.Dataset.Seed ?? 1) ^ 0x3a4b5c6d);
+                var directLookupWatch = Stopwatch.StartNew();
+                directLookupHit = HasPersonById(reopened, directLookupKey);
+                directLookupWatch.Stop();
+                directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var random = new Random((_spec.Dataset.Seed ?? 1) ^ CommonLookupSeedSalt);
                 var maxKeyExclusive = checked((int)_spec.Dataset.RecordCount) + 1;
                 var lookupWatch = Stopwatch.StartNew();
                 using var lookup = reopened.CreateCommand();
@@ -156,13 +167,16 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 reopened.Dispose();
                 reopened = null;
 
-                semanticSuccess = lookupHits == lookupCount &&
+                semanticSuccess = directLookupHit &&
+                                  lookupHits == lookupCount &&
                                   rowCountAfterReopen == _spec.Dataset.RecordCount &&
                                   indexPresentAfterReopen;
 
                 if (!semanticSuccess.Value)
                 {
                     semanticFailureReason = BuildSemanticFailureReason(
+                        directLookupKey,
+                        directLookupHit,
                         _spec.Dataset.RecordCount,
                         rowCountAfterReopen,
                         lookupCount,
@@ -196,6 +210,9 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
             metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
             metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenMs });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupKey", Value = directLookupKey });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupCount });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
@@ -225,6 +242,9 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             diagnostics["journalBytes"] = ToInvariant(collected.JournalBytes);
             diagnostics["temporaryBytes"] = ToInvariant(collected.TemporaryBytes);
             diagnostics["totalArtifactBytes"] = ToInvariant(collected.TotalBytes);
+            diagnostics["directLookupKey"] = directLookupKey.ToString(CultureInfo.InvariantCulture);
+            diagnostics["directLookupHit"] = directLookupHit.ToString();
+            diagnostics["directLookupMs"] = directLookupMs.ToString(CultureInfo.InvariantCulture);
             diagnostics["lookupCount"] = lookupCount.ToString(CultureInfo.InvariantCulture);
             diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
             diagnostics["rowCountAfterReopen"] = rowCountAfterReopen.ToString(CultureInfo.InvariantCulture);
@@ -242,7 +262,8 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             }
 
             notes.Add("Stage4 real SQLite adapter run.");
-            notes.Add("Experiment flow: load -> build index -> reopen -> random point lookup.");
+            notes.Add("Imported reference workload: load in reverse id order -> build index -> reopen -> direct key lookup -> random point lookup batch.");
+            notes.Add($"Reference-normalized lookup batch size: {lookupCount}.");
             notes.Add($"Fairness profile mapping: {fairness.FairnessProfileKey} -> journal_mode={fairness.JournalMode}, synchronous={fairness.Synchronous}, temp_store={fairness.TempStore}.");
 
             return Task.FromResult(new RunResult
@@ -606,6 +627,11 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             return 10_000;
         }
 
+        private static int ResolveDirectLookupKey(long recordCount)
+        {
+            return checked((int)((recordCount + 1) / 2));
+        }
+
         private static (int BatchCount, int BatchSize) ResolveAppendCycleShape(WorkloadSpec workload)
         {
             if (!workload.BatchCount.HasValue || workload.BatchCount.Value <= 0)
@@ -770,6 +796,19 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             return TryReadInt64(value, out var count) && count > 0;
         }
 
+        private static bool HasPersonById(SqliteConnection connection, int id)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT id FROM {TableName} WHERE id = $id LIMIT 1;";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "$id";
+            parameter.Value = id;
+            command.Parameters.Add(parameter);
+
+            var value = command.ExecuteScalar();
+            return TryReadInt(value, out var foundId) && foundId == id;
+        }
+
         private static void ExecuteNonQuery(SqliteConnection connection, string sql)
         {
             using var command = connection.CreateCommand();
@@ -914,6 +953,8 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
         }
 
         private static string BuildSemanticFailureReason(
+            int directLookupKey,
+            bool directLookupHit,
             long expectedRowCount,
             long actualRowCount,
             long lookupCount,
@@ -921,6 +962,11 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             bool indexPresent)
         {
             var reasons = new List<string>();
+            if (!directLookupHit)
+            {
+                reasons.Add($"directLookupMiss key={directLookupKey}");
+            }
+
             if (actualRowCount != expectedRowCount)
             {
                 reasons.Add($"rowCountAfterReopen={actualRowCount}, expected={expectedRowCount}");

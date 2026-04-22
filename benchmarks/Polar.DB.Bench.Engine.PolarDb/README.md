@@ -7,6 +7,9 @@ Implemented common experiments:
 
 Both use real Polar.DB flow and real artifact collection.
 
+For `persons-load-build-reopen-random-lookup` the semantic flow is reference-imported and normalized:
+reverse bulk load -> build -> reopen/refresh -> one direct key lookup -> random lookup batch (`10_000`).
+
 ## Stage4 append cycles flow
 
 1. initial load/build;

@@ -8,6 +8,16 @@ namespace Polar.DB.Bench.Charts.Runtime;
 /// </summary>
 internal static class ReportFormatting
 {
+    public static string ExperimentDisplayName(string experimentKey)
+    {
+        return experimentKey switch
+        {
+            "persons-load-build-reopen-random-lookup" => "Imported persons load/build/reopen lookup",
+            "persons-append-cycles-reopen-lookup" => "Persons append cycles with reopen lookup",
+            _ => experimentKey
+        };
+    }
+
     /// <summary>
     /// Formats one series metric as <c>min/avg/median/max</c> string for markdown tables.
     /// </summary>
