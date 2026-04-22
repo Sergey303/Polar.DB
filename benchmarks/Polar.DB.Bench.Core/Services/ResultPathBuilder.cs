@@ -36,4 +36,16 @@ public static class ResultPathBuilder
         var fileName = $"{timestampToken}.{experimentKey}.{datasetProfileKey}.{fairnessProfileKey}.comparison.json";
         return Path.Combine(comparisonResultsDirectory, fileName);
     }
+
+    public static string BuildComparisonSeriesResultPath(
+        string comparisonResultsDirectory,
+        string timestampToken,
+        string experimentKey,
+        string datasetProfileKey,
+        string fairnessProfileKey,
+        string comparisonSetId)
+    {
+        var fileName = $"{timestampToken}.{experimentKey}.{datasetProfileKey}.{fairnessProfileKey}.{comparisonSetId}.comparison-series.json";
+        return Path.Combine(comparisonResultsDirectory, fileName);
+    }
 }

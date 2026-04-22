@@ -8,6 +8,11 @@ public sealed record RunResult
     public required string ExperimentKey { get; init; }
     public required string DatasetProfileKey { get; init; }
     public required string FairnessProfileKey { get; init; }
+    // ComparisonSetId links related runs that must be compared together.
+    public string? ComparisonSetId { get; init; }
+    // Warmup/measured sequence within one comparison set.
+    public int? RunSeriesSequenceNumber { get; init; }
+    public string? RunRole { get; init; }
     public required EnvironmentManifest Environment { get; init; }
     public required bool TechnicalSuccess { get; init; }
     public string? TechnicalFailureReason { get; init; }

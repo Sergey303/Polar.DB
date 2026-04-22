@@ -27,8 +27,10 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
     private sealed class SqliteEngineRun : IEngineRun
     {
         private const string EngineKeyValue = "sqlite";
-        private const string SupportedExperimentKey = "persons-load-build-reopen-random-lookup";
-        private const string SupportedWorkloadKey = "bulk-load-point-lookup";
+        private const string LoadBuildExperimentKey = "persons-load-build-reopen-random-lookup";
+        private const string LoadBuildWorkloadKey = "bulk-load-point-lookup";
+        private const string AppendCyclesExperimentKey = "persons-append-cycles-reopen-lookup";
+        private const string AppendCyclesWorkloadKey = "append-cycles-reopen-lookup";
         private const string DurabilityBalancedProfileKey = "durability-balanced";
         private const string TableName = "person";
         private const string IdIndexName = "idx_person_id";
@@ -46,6 +48,10 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
         public Task<RunResult> ExecuteAsync(CancellationToken cancellationToken = default)
         {
             ValidateSpec(_spec);
+            if (_spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return ExecuteAppendCyclesAsync(cancellationToken);
+            }
 
             var manifest = EnvironmentCollector.Collect(
                 environmentClass: _workspace.EnvironmentClass,
@@ -235,8 +241,290 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 diagnostics["technicalFailureReason"] = technicalFailureReason;
             }
 
-            notes.Add("Stage3 real SQLite adapter run.");
+            notes.Add("Stage4 real SQLite adapter run.");
             notes.Add("Experiment flow: load -> build index -> reopen -> random point lookup.");
+            notes.Add($"Fairness profile mapping: {fairness.FairnessProfileKey} -> journal_mode={fairness.JournalMode}, synchronous={fairness.Synchronous}, temp_store={fairness.TempStore}.");
+
+            return Task.FromResult(new RunResult
+            {
+                RunId = runId,
+                TimestampUtc = timestampUtc,
+                EngineKey = EngineKeyValue,
+                ExperimentKey = _spec.ExperimentKey,
+                DatasetProfileKey = _spec.Dataset.ProfileKey,
+                FairnessProfileKey = fairness.FairnessProfileKey,
+                Environment = manifest,
+                TechnicalSuccess = technicalSuccess,
+                TechnicalFailureReason = technicalFailureReason,
+                SemanticSuccess = semanticSuccess,
+                SemanticFailureReason = semanticFailureReason,
+                Metrics = metrics,
+                Artifacts = artifacts,
+                EngineDiagnostics = diagnostics,
+                Tags = new Dictionary<string, string>
+                {
+                    ["researchQuestionId"] = _spec.ResearchQuestionId ?? string.Empty,
+                    ["hypothesisId"] = _spec.HypothesisId ?? string.Empty
+                },
+                Notes = notes
+            });
+        }
+
+        private Task<RunResult> ExecuteAppendCyclesAsync(CancellationToken cancellationToken)
+        {
+            var manifest = EnvironmentCollector.Collect(
+                environmentClass: _workspace.EnvironmentClass,
+                repositoryRoot: _workspace.RootDirectory);
+
+            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue, manifest.EnvironmentClass);
+            var timestampUtc = DateTimeOffset.UtcNow;
+            var fairness = ResolveFairness(_spec.FairnessProfile?.FairnessProfileKey);
+
+            var metrics = new List<RunMetric>();
+            var notes = new List<string>();
+            var artifacts = new List<ArtifactDescriptor>();
+            var diagnostics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var loadMs = 0.0;
+            var appendMs = 0.0;
+            var buildMs = 0.0;
+            var reopenMs = 0.0;
+            var lookupMs = 0.0;
+            var lookupHits = 0L;
+            var lookupAttempts = 0L;
+            var lookupCountPerCycle = ResolveLookupCount(_spec.Workload);
+            var appendCycleShape = ResolveAppendCycleShape(_spec.Workload);
+            var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
+            var totalStopwatch = Stopwatch.StartNew();
+            var artifactLayout = CreateArtifactLayout(_workspace, runId);
+            var technicalSuccess = true;
+            string? technicalFailureReason = null;
+            bool? semanticSuccess = null;
+            string? semanticFailureReason = null;
+            var rowCountMismatches = new List<string>();
+            var missingIndexCycles = new List<int>();
+            var cycleArtifactBytes = new List<long>();
+            var initialArtifactBytes = 0L;
+            var expectedRowCount = _spec.Dataset.RecordCount;
+            var journalMode = string.Empty;
+            var synchronous = string.Empty;
+            var tempStore = string.Empty;
+
+            SqliteConnection? connection = null;
+            SqliteConnection? reopened = null;
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Directory.CreateDirectory(artifactLayout.ArtifactsRootDirectory);
+
+                var initialLoadWatch = Stopwatch.StartNew();
+                connection = CreateConnection(artifactLayout.PrimaryDatabasePath);
+                connection.Open();
+                ApplyFairness(connection, fairness, out journalMode, out synchronous, out tempStore);
+                CreateSchema(connection);
+                BulkInsertPersons(connection, _spec.Dataset.RecordCount, _spec.Dataset.Seed ?? 1, cancellationToken);
+                initialLoadWatch.Stop();
+                loadMs += initialLoadWatch.Elapsed.TotalMilliseconds;
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var initialBuildWatch = Stopwatch.StartNew();
+                BuildLookupIndex(connection);
+                initialBuildWatch.Stop();
+                buildMs = initialBuildWatch.Elapsed.TotalMilliseconds;
+
+                connection.Dispose();
+                connection = null;
+
+                var initialCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                initialArtifactBytes = initialCollected.TotalBytes;
+                cycleArtifactBytes.Add(initialCollected.TotalBytes);
+
+                for (var cycle = 0; cycle < appendCycleShape.BatchCount; cycle++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    connection = CreateConnection(artifactLayout.PrimaryDatabasePath);
+                    connection.Open();
+                    ApplyFairness(connection, fairness, out _, out _, out _);
+
+                    var appendWatch = Stopwatch.StartNew();
+                    var firstId = checked((int)(expectedRowCount + 1));
+                    InsertBatchPersons(
+                        connection,
+                        firstId,
+                        appendCycleShape.BatchSize,
+                        (_spec.Dataset.Seed ?? 1) ^ (0x33cc0000 + cycle),
+                        cancellationToken);
+                    appendWatch.Stop();
+                    appendMs += appendWatch.Elapsed.TotalMilliseconds;
+                    loadMs += appendWatch.Elapsed.TotalMilliseconds;
+                    expectedRowCount += appendCycleShape.BatchSize;
+
+                    connection.Dispose();
+                    connection = null;
+
+                    var reopenWatch = Stopwatch.StartNew();
+                    reopened = CreateConnection(artifactLayout.PrimaryDatabasePath);
+                    reopened.Open();
+                    reopenWatch.Stop();
+                    reopenMs += reopenWatch.Elapsed.TotalMilliseconds;
+
+                    var actualCount = ReadRowCount(reopened);
+                    if (actualCount != expectedRowCount)
+                    {
+                        rowCountMismatches.Add($"cycle{cycle + 1}:count={actualCount},expected={expectedRowCount}");
+                    }
+
+                    if (!HasIndex(reopened, IdIndexName))
+                    {
+                        missingIndexCycles.Add(cycle + 1);
+                    }
+
+                    var random = new Random((_spec.Dataset.Seed ?? 1) ^ (0x7d8e0000 + cycle));
+                    var maxKeyExclusive = checked((int)expectedRowCount) + 1;
+                    var lookupWatch = Stopwatch.StartNew();
+                    using var lookup = reopened.CreateCommand();
+                    lookup.CommandText = $"SELECT id FROM {TableName} WHERE id = $id LIMIT 1;";
+                    var parameter = lookup.CreateParameter();
+                    parameter.ParameterName = "$id";
+                    lookup.Parameters.Add(parameter);
+
+                    for (var i = 0; i < lookupCountPerCycle; i++)
+                    {
+                        if ((i & 0x3FF) == 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+
+                        var key = random.Next(1, maxKeyExclusive);
+                        parameter.Value = key;
+                        var value = lookup.ExecuteScalar();
+                        lookupAttempts++;
+                        if (TryReadInt(value, out var rowKey) && rowKey == key)
+                        {
+                            lookupHits++;
+                        }
+                    }
+
+                    lookupWatch.Stop();
+                    lookupMs += lookupWatch.Elapsed.TotalMilliseconds;
+
+                    reopened.Dispose();
+                    reopened = null;
+
+                    var cycleCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                    cycleArtifactBytes.Add(cycleCollected.TotalBytes);
+                }
+
+                semanticSuccess = lookupHits == lookupAttempts &&
+                                  rowCountMismatches.Count == 0 &&
+                                  missingIndexCycles.Count == 0;
+                if (!semanticSuccess.Value)
+                {
+                    semanticFailureReason = BuildAppendSemanticFailureReason(
+                        expectedRowCount,
+                        rowCountMismatches,
+                        lookupAttempts,
+                        lookupHits,
+                        missingIndexCycles);
+                }
+            }
+            catch (Exception ex)
+            {
+                technicalSuccess = false;
+                technicalFailureReason = ex.ToString();
+            }
+            finally
+            {
+                TryDispose(connection);
+                TryDispose(reopened);
+                totalStopwatch.Stop();
+            }
+
+            var managedAfter = GC.GetTotalMemory(forceFullCollection: false);
+            var gcInfo = GC.GetGCMemoryInfo();
+            var processPeakWorkingSet = Process.GetCurrentProcess().PeakWorkingSet64;
+
+            var collected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+            artifacts.AddRange(collected.Descriptors);
+            var artifactGrowthBytes = Math.Max(0L, collected.TotalBytes - initialArtifactBytes);
+            var sideArtifactBytes = Math.Max(0L, collected.TotalBytes - collected.DatabaseBytes);
+
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
+            metrics.Add(new RunMetric { MetricKey = "appendMs", Value = appendMs });
+            metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
+            metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenMs });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupAttempts });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
+            metrics.Add(new RunMetric { MetricKey = "appendBatchCount", Value = appendCycleShape.BatchCount });
+            metrics.Add(new RunMetric { MetricKey = "appendBatchSize", Value = appendCycleShape.BatchSize });
+            metrics.Add(new RunMetric { MetricKey = "lookupCountPerCycle", Value = lookupCountPerCycle });
+            metrics.Add(new RunMetric { MetricKey = "initialArtifactBytes", Value = initialArtifactBytes });
+            metrics.Add(new RunMetric { MetricKey = "artifactGrowthBytes", Value = artifactGrowthBytes });
+            metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
+            metrics.Add(new RunMetric { MetricKey = "primaryDataBytes", Value = collected.DatabaseBytes });
+            metrics.Add(new RunMetric { MetricKey = "primaryDatabaseBytes", Value = collected.DatabaseBytes });
+            metrics.Add(new RunMetric { MetricKey = "sideArtifactBytes", Value = sideArtifactBytes });
+            metrics.Add(new RunMetric { MetricKey = "walBytes", Value = collected.WalBytes });
+            metrics.Add(new RunMetric { MetricKey = "shmBytes", Value = collected.ShmBytes });
+            metrics.Add(new RunMetric { MetricKey = "journalBytes", Value = collected.JournalBytes });
+            metrics.Add(new RunMetric { MetricKey = "temporaryBytes", Value = collected.TemporaryBytes });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesBefore", Value = managedBefore });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesAfter", Value = managedAfter });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesDelta", Value = managedAfter - managedBefore });
+            metrics.Add(new RunMetric { MetricKey = "heapSizeBytes", Value = gcInfo.HeapSizeBytes });
+            metrics.Add(new RunMetric { MetricKey = "fragmentedBytes", Value = gcInfo.FragmentedBytes });
+            metrics.Add(new RunMetric { MetricKey = "processPeakWorkingSetBytes", Value = processPeakWorkingSet });
+
+            diagnostics["fairnessProfileApplied"] = fairness.FairnessProfileKey;
+            diagnostics["sqliteJournalMode"] = journalMode;
+            diagnostics["sqliteSynchronous"] = synchronous;
+            diagnostics["sqliteTempStore"] = tempStore;
+            diagnostics["appendBatchCount"] = appendCycleShape.BatchCount.ToString(CultureInfo.InvariantCulture);
+            diagnostics["appendBatchSize"] = appendCycleShape.BatchSize.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupCountPerCycle"] = lookupCountPerCycle.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupCount"] = lookupAttempts.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
+            diagnostics["expectedCountAfterCycles"] = expectedRowCount.ToString(CultureInfo.InvariantCulture);
+            diagnostics["initialArtifactBytes"] = initialArtifactBytes.ToString(CultureInfo.InvariantCulture);
+            diagnostics["artifactGrowthBytes"] = artifactGrowthBytes.ToString(CultureInfo.InvariantCulture);
+            diagnostics["cycleArtifactBytes"] = string.Join(",", cycleArtifactBytes);
+            diagnostics["dbBytes"] = ToInvariant(collected.DatabaseBytes);
+            diagnostics["walBytes"] = ToInvariant(collected.WalBytes);
+            diagnostics["shmBytes"] = ToInvariant(collected.ShmBytes);
+            diagnostics["journalBytes"] = ToInvariant(collected.JournalBytes);
+            diagnostics["temporaryBytes"] = ToInvariant(collected.TemporaryBytes);
+            diagnostics["totalArtifactBytes"] = ToInvariant(collected.TotalBytes);
+            diagnostics["semanticSuccess"] = semanticSuccess?.ToString() ?? "not-evaluated";
+
+            if (rowCountMismatches.Count > 0)
+            {
+                diagnostics["rowCountMismatches"] = string.Join(" | ", rowCountMismatches);
+            }
+
+            if (missingIndexCycles.Count > 0)
+            {
+                diagnostics["missingIndexCycles"] = string.Join(",", missingIndexCycles);
+            }
+
+            if (!string.IsNullOrWhiteSpace(semanticFailureReason))
+            {
+                diagnostics["semanticFailureReason"] = semanticFailureReason;
+            }
+
+            if (!technicalSuccess && !string.IsNullOrWhiteSpace(technicalFailureReason))
+            {
+                diagnostics["technicalFailureReason"] = technicalFailureReason;
+            }
+
+            notes.Add("Stage4 real SQLite adapter run.");
+            notes.Add("Experiment flow: initial load/build, append INSERT batches, reopen after each batch, random point lookup sample.");
             notes.Add($"Fairness profile mapping: {fairness.FairnessProfileKey} -> journal_mode={fairness.JournalMode}, synchronous={fairness.Synchronous}, temp_store={fairness.TempStore}.");
 
             return Task.FromResult(new RunResult
@@ -268,17 +556,18 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
         {
             if (spec.Dataset.RecordCount <= 0 || spec.Dataset.RecordCount > int.MaxValue - 1)
             {
-                throw new NotSupportedException("SQLite stage3 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
+                throw new NotSupportedException("SQLite stage4 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
             }
 
-            if (!spec.ExperimentKey.Equals(SupportedExperimentKey, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new NotSupportedException($"Experiment '{spec.ExperimentKey}' is not implemented in stage3 SQLite adapter.");
-            }
+            var isLoadBuildExperiment = spec.ExperimentKey.Equals(LoadBuildExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                                        spec.Workload.WorkloadKey.Equals(LoadBuildWorkloadKey, StringComparison.OrdinalIgnoreCase);
 
-            if (!spec.Workload.WorkloadKey.Equals(SupportedWorkloadKey, StringComparison.OrdinalIgnoreCase))
+            var isAppendCyclesExperiment = spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                                           spec.Workload.WorkloadKey.Equals(AppendCyclesWorkloadKey, StringComparison.OrdinalIgnoreCase);
+
+            if (!isLoadBuildExperiment && !isAppendCyclesExperiment)
             {
-                throw new NotSupportedException($"Workload '{spec.Workload.WorkloadKey}' is not implemented in stage3 SQLite adapter.");
+                throw new NotSupportedException($"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in SQLite stage4 adapter.");
             }
         }
 
@@ -288,7 +577,7 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             if (!key.Equals(DurabilityBalancedProfileKey, StringComparison.OrdinalIgnoreCase))
             {
                 throw new NotSupportedException(
-                    $"Fairness profile '{key}' is not implemented for stage3 SQLite adapter. Supported: {DurabilityBalancedProfileKey}.");
+                    $"Fairness profile '{key}' is not implemented for SQLite stage4 adapter. Supported: {DurabilityBalancedProfileKey}.");
             }
 
             return new FairnessMapping(
@@ -315,6 +604,21 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             }
 
             return 10_000;
+        }
+
+        private static (int BatchCount, int BatchSize) ResolveAppendCycleShape(WorkloadSpec workload)
+        {
+            if (!workload.BatchCount.HasValue || workload.BatchCount.Value <= 0)
+            {
+                throw new NotSupportedException("append-cycles-reopen-lookup requires workload.batchCount >= 1.");
+            }
+
+            if (!workload.BatchSize.HasValue || workload.BatchSize.Value <= 0)
+            {
+                throw new NotSupportedException("append-cycles-reopen-lookup requires workload.batchSize >= 1.");
+            }
+
+            return (workload.BatchCount.Value, workload.BatchSize.Value);
         }
 
         private static ArtifactLayout CreateArtifactLayout(RunWorkspace workspace, string runId)
@@ -392,6 +696,48 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 }
 
                 var id = checked((int)(recordCount - i));
+                idParameter.Value = id;
+                nameParameter.Value = $"={id}=";
+                ageParameter.Value = random.Next(18, 90);
+                insert.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+
+        private static void InsertBatchPersons(
+            SqliteConnection connection,
+            int firstId,
+            int batchSize,
+            int seed,
+            CancellationToken cancellationToken)
+        {
+            using var transaction = connection.BeginTransaction();
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText = $"INSERT INTO {TableName}(id, name, age) VALUES ($id, $name, $age);";
+
+            var idParameter = insert.CreateParameter();
+            idParameter.ParameterName = "$id";
+            insert.Parameters.Add(idParameter);
+
+            var nameParameter = insert.CreateParameter();
+            nameParameter.ParameterName = "$name";
+            insert.Parameters.Add(nameParameter);
+
+            var ageParameter = insert.CreateParameter();
+            ageParameter.ParameterName = "$age";
+            insert.Parameters.Add(ageParameter);
+
+            var random = new Random(seed);
+            for (var i = 0; i < batchSize; i++)
+            {
+                if ((i & 0x3FF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                var id = checked(firstId + i);
                 idParameter.Value = id;
                 nameParameter.Value = $"={id}=";
                 ageParameter.Value = random.Next(18, 90);
@@ -593,6 +939,37 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             return reasons.Count == 0
                 ? "Unknown semantic failure."
                 : string.Join("; ", reasons);
+        }
+
+        private static string BuildAppendSemanticFailureReason(
+            long expectedCountAfterCycles,
+            IReadOnlyList<string> rowCountMismatches,
+            long lookupCount,
+            long lookupHits,
+            IReadOnlyList<int> missingIndexCycles)
+        {
+            var reasons = new List<string>();
+            if (rowCountMismatches.Count > 0)
+            {
+                reasons.Add($"rowCountMismatches={string.Join(";", rowCountMismatches)}");
+            }
+
+            if (lookupHits != lookupCount)
+            {
+                reasons.Add($"lookupHits={lookupHits}, lookupCount={lookupCount}");
+            }
+
+            if (missingIndexCycles.Count > 0)
+            {
+                reasons.Add($"missingIndexCycles={string.Join(",", missingIndexCycles)}");
+            }
+
+            if (reasons.Count == 0)
+            {
+                reasons.Add($"expectedCountAfterCycles={expectedCountAfterCycles}");
+            }
+
+            return string.Join("; ", reasons);
         }
 
         private static string ToRelativePath(string baseDirectory, string fullPath)

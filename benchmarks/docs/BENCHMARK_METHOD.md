@@ -1,53 +1,69 @@
 # Benchmark Method
 
-## Stage 1 method goals
+## Purpose
 
-Stage 1 is about platform shape and reproducibility, not final scientific conclusions.
+The platform keeps three layers separate:
 
-## Measurement split
+- executor writes immutable raw runs;
+- analysis builds derived artifacts (policy checks and comparisons);
+- charts produce human-readable summaries.
 
-- **Executor** measures and writes raw results.
-- **Analyzer** evaluates raw results using policies and baselines.
-- **Charts** aggregate raw/analyzed results into human-readable summaries.
+This separation lets us rerun analysis/reporting without re-running expensive engine workloads.
 
-## Run categories
+## Stage4 comparison method
 
-Current repository state distinguishes:
+Stage4 comparison is series-based.
 
-- synthetic pipeline validation runs;
-- stage2 real Polar.DB runs;
-- stage3 common Polar.DB vs SQLite comparison runs;
-- future engine-deep research runs.
+1. Run warmup + measured runs for one engine with `--comparison-set <id>`.
+2. Run warmup + measured runs for the second engine with the same set id.
+3. Build `comparison-series` artifact from that set.
+4. Build markdown/csv report from `comparison-series`.
 
-## Statistical expectations
+Why this is better than "latest run per engine":
 
-Stage 1 schemas already support:
+- both engines are compared inside one explicit run series;
+- measured statistics (`min/max/avg/median`) are calculated from multiple runs;
+- warmup runs are stored but excluded from aggregation.
 
-- warmup count;
-- measured count;
-- median;
-- p95;
-- min/max;
-- standard deviation.
+## Warmup vs measured
 
-Current stage2 raw results are single-run timings (`elapsedMsSingleRun`). Median/p95 become valid after measured multi-run execution is introduced.
+- Warmup run: stabilizes runtime state and storage caches, not used in final stats.
+- Measured run: used for aggregation and final comparison.
 
-## Stage3 first cross-engine workflow
+Default behavior:
 
-1. Run Polar.DB raw experiment.
-2. Run SQLite raw experiment with semantic-equivalent workload and the same fairness profile.
-3. Build comparison artifact in analysis layer from raw runs.
-4. Render markdown/csv comparison summary in charts layer.
+- with `--comparison-set`: `warmup=1`, `measured=3`;
+- without `--comparison-set`: legacy single run (`warmup=0`, `measured=1`).
 
-## Reproducibility minimum
+## Typical commands
 
-Every run should preserve:
+Single raw run (Polar.DB):
 
-- experiment id;
-- dataset profile;
-- fairness profile;
-- engine key;
-- environment class;
-- git commit if available;
-- deterministic seed if used;
-- produced artifact inventory.
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.polar-db.json --work benchmarks/work/polar-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
+```
+
+Single raw run (SQLite):
+
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/sqlite-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
+```
+
+Series run with one comparison set:
+
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.polar-db.json --work benchmarks/work/polar-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.sqlite.json --work benchmarks/work/sqlite-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+```
+
+Build aggregated comparison:
+
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Analysis -- --raw-dir benchmarks/results/raw --compare-experiment persons-append-cycles-reopen-lookup --compare-set stage4-append-001 --comparison-out benchmarks/results/comparisons
+```
+
+Build markdown/csv report:
+
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Charts -- --comparisons benchmarks/results/comparisons --reports-out benchmarks/reports
+```

@@ -1,29 +1,34 @@
-# SQLite Engine Adapter - Stage 3
+# SQLite Engine Adapter - Stage 4
 
-Implemented in stage3:
+Implemented common experiments:
 
-- real provider: `Microsoft.Data.Sqlite`;
-- first real common experiment: `persons-load-build-reopen-random-lookup`;
-- workload key used by that experiment: `bulk-load-point-lookup`;
-- semantic flow: load -> build index -> reopen -> random point lookup;
-- artifact topology collection (`primary.db`, `primary.db-wal`, `primary.db-shm`, `primary.db-journal`, temp files when present in workspace);
-- raw result metrics and SQLite diagnostics;
-- explicit fairness mapping for `durability-balanced`.
+- `persons-load-build-reopen-random-lookup` (`bulk-load-point-lookup`);
+- `persons-append-cycles-reopen-lookup` (`append-cycles-reopen-lookup`).
 
-Stage3 durability-balanced mapping:
+## Fairness mapping (`durability-balanced`)
 
 - `PRAGMA journal_mode=WAL`
 - `PRAGMA synchronous=FULL`
 - `PRAGMA temp_store=FILE`
 
-Run example:
+## Stage4 append cycles flow
+
+1. initial load + index build;
+2. append batches via `INSERT` transactions;
+3. close/reopen connection after each batch;
+4. random `SELECT ... WHERE id = ?` sample after reopen;
+5. artifact growth metrics (`db`, `wal`, `shm`, `journal`, temporary files).
+
+## Run examples
+
+Single run:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/stage3/sqlite --raw-out benchmarks/results/raw
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/sqlite-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
 ```
 
-Deferred to stage4:
+Series run in one comparison set (defaults to 1 warmup + 3 measured):
 
-- additional workload families;
-- deeper SQLite internals studies (checkpoint/page-growth);
-- multi-run statistical profile for cross-engine comparisons.
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.sqlite.json --work benchmarks/work/sqlite-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+```

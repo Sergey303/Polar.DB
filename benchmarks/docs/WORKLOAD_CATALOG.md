@@ -1,42 +1,51 @@
 # Workload Catalog
 
-## Common cross-engine workloads
+## Implemented common cross-engine workloads
 
 ### `bulk-load-point-lookup`
-Load records, stabilize for point lookup, reopen, then execute random point lookups.
 
-Implemented common experiment specs:
+Semantic flow:
+
+1. bulk load dataset;
+2. build lookup structure;
+3. close/reopen;
+4. run random point lookup sample.
+
+Experiment specs:
 
 - `experiments/persons-load-build-reopen-random-lookup.polar-db.json`
 - `experiments/persons-load-build-reopen-random-lookup.sqlite.json`
 
-### `append-cycles-reopen`
-Append in batches, reopen after every cycle, then validate point lookup and artifact growth.
+### `append-cycles-reopen-lookup` (stage4)
 
-### `duplicate-key-first-match`
-Load duplicate-rich records, measure first-match lookup and range traversal.
+Semantic flow:
 
-### `mixed-read-write`
-A future mixed flow with reads, appends, and periodic reopen.
+1. load initial dataset and build lookup structure;
+2. run multiple append batches;
+3. after each batch close/reopen;
+4. after reopen run random point lookup sample;
+5. track artifact growth.
 
-## Engine-deep workloads for Polar.DB
+Experiment specs:
 
-### `polar-state-strategy`
-Compare state management approaches.
+- `experiments/persons-append-cycles-reopen-lookup.polar-db.json`
+- `experiments/persons-append-cycles-reopen-lookup.sqlite.json`
 
-### `polar-refresh-complexity`
-Study refresh cost vs file size and corruption shape.
+## Planned common workloads
 
-### `polar-appendoffset-invariant`
-Study the cost of maintaining logical-end invariants.
+- `duplicate-key-first-match`
+- `mixed-read-write`
 
-### `polar-variable-size-rewrite`
-Study safety and cost tradeoffs for variable-size rewrites.
+## Planned engine-deep workloads
 
-## Engine-deep workloads for SQLite
+Polar.DB:
 
-### `sqlite-wal-checkpoint`
-Study WAL growth and checkpoint cost.
+- `polar-state-strategy`
+- `polar-refresh-complexity`
+- `polar-appendoffset-invariant`
+- `polar-variable-size-rewrite`
 
-### `sqlite-page-growth`
-Study footprint and fragmentation behavior.
+SQLite:
+
+- `sqlite-wal-checkpoint`
+- `sqlite-page-growth`

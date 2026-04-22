@@ -2,47 +2,42 @@
 
 ## Purpose
 
-A fairness profile makes cross-engine comparisons explicit.
+Fairness profile makes cross-engine setup explicit.
 
-The same experiment should not silently compare one engine in a “fast but unsafe” mode against another in a “safe but conservative” mode.
+Without it, one engine can accidentally run in a "faster but weaker durability" mode while the other runs in a stricter mode.
 
-## Initial profiles
+## Active profile in common comparisons
 
 ### `durability-balanced`
-Balanced persistence expectations suitable for mainstream comparison.
 
-### `max-throughput`
-Favors throughput over stronger durability assumptions.
+Used for stage3/stage4 common experiments.
 
-### `reopen-focused`
-Optimized for repeated close/reopen scenarios.
+Interpretation in stage4:
 
-### `crash-safety-focused`
-Favors safer persistence semantics even if throughput drops.
+- both engines follow the same semantic workload;
+- each adapter applies engine-specific settings that correspond to balanced durability.
 
-## Stage 1 rule
+SQLite stage4 mapping:
 
-Stage 1 only defines the schema and names.
-Engine-specific mappings remain TODO in the Polar.DB and SQLite adapter projects.
+- `PRAGMA journal_mode=WAL`
+- `PRAGMA synchronous=FULL`
+- `PRAGMA temp_store=FILE`
 
-## Stage 3 first baseline mapping
+Polar.DB stage4 mapping:
 
-For the first common comparison (`persons-load-build-reopen-random-lookup`) the platform uses `durability-balanced`.
+- use real load/build/reopen/lookup flow with persisted artifacts (`f0.bin`, index files, `state.bin`);
+- no synthetic shortcuts that bypass persistence behavior.
 
-### Polar.DB interpretation (stage3 baseline)
+## Other profile names (reserved)
 
-- use the real adapter flow `Load -> Build -> Close -> Reopen/Refresh -> Lookup`;
-- no synthetic shortcuts or skipped persistence phases;
-- artifacts are measured as produced (`f0.bin`, index segments, `state.bin`).
+- `max-throughput`
+- `reopen-focused`
+- `crash-safety-focused`
 
-### SQLite interpretation (stage3 baseline)
+These names are part of the catalog, but stage4 common adapters only implement `durability-balanced`.
 
-- `PRAGMA journal_mode=WAL`;
-- `PRAGMA synchronous=FULL`;
-- `PRAGMA temp_store=FILE`;
-- schema and index are materialized via SQL (`CREATE TABLE`, bulk `INSERT`, `CREATE INDEX`);
-- reopen and point lookup run against the persisted database file.
+## Stage4 comparison-set rule
 
-### Scope note
+Fairness profile is part of comparison filtering and of aggregated `comparison-series` artifacts.
 
-This is the first minimal fairness baseline, not a universal final policy system. Stage4 can extend mappings and profile families.
+That means one comparison set should keep the same fairness profile across engines and measured runs.

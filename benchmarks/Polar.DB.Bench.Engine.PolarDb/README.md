@@ -1,22 +1,30 @@
-# Polar.DB Engine Adapter - Stage 2
+# Polar.DB Engine Adapter - Stage 4
 
-Implemented in stage2:
+Implemented common experiments:
 
-- real project reference to `src/Polar.DB`;
-- first real experiment: `persons-load-build-reopen-random-lookup`;
-- workload key used by that experiment: `bulk-load-point-lookup`;
-- experiment flow: load -> build -> reopen/refresh -> random point lookup;
-- artifact topology collection (`f0.bin`, `f1.bin`, `f2.bin`, `state.bin`);
-- raw result metrics and Polar.DB diagnostics.
+- `persons-load-build-reopen-random-lookup` (`bulk-load-point-lookup`);
+- `persons-append-cycles-reopen-lookup` (`append-cycles-reopen-lookup`).
 
-Run example:
+Both use real Polar.DB flow and real artifact collection.
+
+## Stage4 append cycles flow
+
+1. initial load/build;
+2. append batches via `AppendElement`;
+3. close/reopen (`Refresh`) after each batch;
+4. random point lookup sample after each reopen;
+5. artifact growth metrics in raw result.
+
+## Run examples
+
+Single run:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.polar-db.json --work benchmarks/results/work/polar-db-first --raw-out benchmarks/results/raw
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.polar-db.json --work benchmarks/work/polar-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
 ```
 
-Deferred to stage3:
+Series run in one comparison set (defaults to 1 warmup + 3 measured):
 
-- additional experiment families;
-- deeper state/recovery diagnostics;
-- parity with SQLite adapter.
+```bash
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.polar-db.json --work benchmarks/work/polar-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+```

@@ -4,7 +4,7 @@ public sealed class AnalysisOptions
 {
     public static string UsageText =>
         "Usage policy mode: --raw <path> --policy <path> --baseline <path> --analyzed-out <dir>\n" +
-        "Usage comparison mode: --raw-dir <dir> --compare-experiment <key> --comparison-out <dir> [--compare-dataset <key>] [--compare-fairness <key>] [--compare-env <class>]";
+        "Usage comparison mode: --raw-dir <dir> --compare-experiment <key> --comparison-out <dir> [--compare-dataset <key>] [--compare-fairness <key>] [--compare-env <class>] [--compare-set <id>]";
 
     public string? RawResultPath { get; init; }
     public string? PolicyPath { get; init; }
@@ -16,6 +16,7 @@ public sealed class AnalysisOptions
     public string? ComparisonDatasetProfileKey { get; init; }
     public string? ComparisonFairnessProfileKey { get; init; }
     public string? ComparisonEnvironmentClass { get; init; }
+    public string? ComparisonSetId { get; init; }
 
     public bool IsComparisonMode =>
         !string.IsNullOrWhiteSpace(RawResultsDirectory) ||
@@ -41,7 +42,8 @@ public sealed class AnalysisOptions
             ComparisonExperimentKey = map.GetValueOrDefault("--compare-experiment"),
             ComparisonDatasetProfileKey = map.GetValueOrDefault("--compare-dataset"),
             ComparisonFairnessProfileKey = map.GetValueOrDefault("--compare-fairness"),
-            ComparisonEnvironmentClass = map.GetValueOrDefault("--compare-env")
+            ComparisonEnvironmentClass = map.GetValueOrDefault("--compare-env"),
+            ComparisonSetId = map.GetValueOrDefault("--compare-set")
         };
     }
 

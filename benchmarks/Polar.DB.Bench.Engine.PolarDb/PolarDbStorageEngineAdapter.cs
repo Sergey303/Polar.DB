@@ -45,6 +45,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
         public Task<RunResult> ExecuteAsync(CancellationToken cancellationToken = default)
         {
             ValidateSpec(_spec);
+            if (_spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return ExecuteAppendCyclesAsync(cancellationToken);
+            }
 
             var manifest = EnvironmentCollector.Collect(
                 environmentClass: _workspace.EnvironmentClass,
@@ -209,7 +213,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 diagnostics["stateAppendOffset"] = state.Value.AppendOffset.ToString(CultureInfo.InvariantCulture);
             }
 
-            notes.Add("Stage2 real adapter run for Polar.DB.");
+            notes.Add("Stage4 real adapter run for Polar.DB.");
             notes.Add("Experiment flow: load -> build -> reopen/refresh -> random point lookup.");
 
             return Task.FromResult(new RunResult
@@ -237,27 +241,277 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             });
         }
 
+        private Task<RunResult> ExecuteAppendCyclesAsync(CancellationToken cancellationToken)
+        {
+            var manifest = EnvironmentCollector.Collect(
+                environmentClass: _workspace.EnvironmentClass,
+                repositoryRoot: _workspace.RootDirectory);
+
+            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue, manifest.EnvironmentClass);
+            var timestampUtc = DateTimeOffset.UtcNow;
+
+            var metrics = new List<RunMetric>();
+            var notes = new List<string>();
+            var artifacts = new List<ArtifactDescriptor>();
+            var diagnostics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var loadMs = 0.0;
+            var appendMs = 0.0;
+            var buildMs = 0.0;
+            var reopenRefreshMs = 0.0;
+            var lookupMs = 0.0;
+            var lookupHits = 0L;
+            var lookupAttempts = 0L;
+            var lookupCountPerCycle = ResolveLookupCount(_spec.Workload);
+            var appendCycleShape = ResolveAppendCycleShape(_spec.Workload);
+            var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
+            var totalStopwatch = Stopwatch.StartNew();
+            var artifactLayout = CreateArtifactLayout(_workspace, runId);
+            var technicalSuccess = true;
+            string? technicalFailureReason = null;
+            bool? semanticSuccess = null;
+            string? semanticFailureReason = null;
+            var rowCountMismatches = new List<string>();
+            var cycleArtifactBytes = new List<long>();
+            var initialArtifactBytes = 0L;
+            var expectedCount = _spec.Dataset.RecordCount;
+
+            PolarDbLib.USequence? session = null;
+            PolarDbLib.USequence? reopened = null;
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Directory.CreateDirectory(artifactLayout.ArtifactsRootDirectory);
+
+                var initialLoadWatch = Stopwatch.StartNew();
+                session = CreateSequence(artifactLayout);
+                session.Load(GeneratePersons(_spec.Dataset.RecordCount, _spec.Dataset.Seed ?? 1));
+                initialLoadWatch.Stop();
+                loadMs += initialLoadWatch.Elapsed.TotalMilliseconds;
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var initialBuildWatch = Stopwatch.StartNew();
+                session.Build();
+                initialBuildWatch.Stop();
+                buildMs = initialBuildWatch.Elapsed.TotalMilliseconds;
+
+                session.Close();
+                session = null;
+
+                var initialCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                initialArtifactBytes = initialCollected.TotalBytes;
+                cycleArtifactBytes.Add(initialCollected.TotalBytes);
+
+                var appendRandom = new Random((_spec.Dataset.Seed ?? 1) ^ 0x55aa12ef);
+
+                for (var cycle = 0; cycle < appendCycleShape.BatchCount; cycle++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    session = CreateSequence(artifactLayout);
+                    session.Refresh();
+
+                    var appendWatch = Stopwatch.StartNew();
+                    var firstId = checked((int)(expectedCount + 1));
+                    for (var i = 0; i < appendCycleShape.BatchSize; i++)
+                    {
+                        if ((i & 0x3FF) == 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+
+                        var id = checked(firstId + i);
+                        session.AppendElement(CreatePersonRecord(id, appendRandom));
+                    }
+
+                    appendWatch.Stop();
+                    appendMs += appendWatch.Elapsed.TotalMilliseconds;
+                    loadMs += appendWatch.Elapsed.TotalMilliseconds;
+                    expectedCount += appendCycleShape.BatchSize;
+
+                    session.Close();
+                    session = null;
+
+                    var reopenWatch = Stopwatch.StartNew();
+                    reopened = CreateSequence(artifactLayout);
+                    reopened.Refresh();
+                    reopenWatch.Stop();
+                    reopenRefreshMs += reopenWatch.Elapsed.TotalMilliseconds;
+
+                    var actualCount = reopened.Sequence.Count();
+                    if (actualCount != expectedCount)
+                    {
+                        rowCountMismatches.Add($"cycle{cycle + 1}:count={actualCount},expected={expectedCount}");
+                    }
+
+                    var random = new Random((_spec.Dataset.Seed ?? 1) ^ (0x6e7f0000 + cycle));
+                    var maxKeyExclusive = checked((int)expectedCount) + 1;
+                    var lookupWatch = Stopwatch.StartNew();
+                    for (var i = 0; i < lookupCountPerCycle; i++)
+                    {
+                        if ((i & 0x3FF) == 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+
+                        var key = random.Next(1, maxKeyExclusive);
+                        var row = reopened.GetByKey(key) as object[];
+                        lookupAttempts++;
+                        if (row is not null && row.Length > 0 && row[0] is int rowKey && rowKey == key)
+                        {
+                            lookupHits++;
+                        }
+                    }
+
+                    lookupWatch.Stop();
+                    lookupMs += lookupWatch.Elapsed.TotalMilliseconds;
+
+                    reopened.Close();
+                    reopened = null;
+
+                    var cycleCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                    cycleArtifactBytes.Add(cycleCollected.TotalBytes);
+                }
+
+                semanticSuccess = lookupHits == lookupAttempts && rowCountMismatches.Count == 0;
+                if (!semanticSuccess.Value)
+                {
+                    semanticFailureReason = BuildAppendSemanticFailureReason(
+                        expectedCount,
+                        rowCountMismatches,
+                        lookupAttempts,
+                        lookupHits);
+                }
+            }
+            catch (Exception ex)
+            {
+                technicalSuccess = false;
+                technicalFailureReason = ex.ToString();
+            }
+            finally
+            {
+                TryClose(session);
+                TryClose(reopened);
+                totalStopwatch.Stop();
+            }
+
+            var managedAfter = GC.GetTotalMemory(forceFullCollection: false);
+            var gcInfo = GC.GetGCMemoryInfo();
+            var processPeakWorkingSet = Process.GetCurrentProcess().PeakWorkingSet64;
+
+            var collected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+            artifacts.AddRange(collected.Descriptors);
+            var artifactGrowthBytes = Math.Max(0L, collected.TotalBytes - initialArtifactBytes);
+
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
+            metrics.Add(new RunMetric { MetricKey = "appendMs", Value = appendMs });
+            metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
+            metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupAttempts });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
+            metrics.Add(new RunMetric { MetricKey = "appendBatchCount", Value = appendCycleShape.BatchCount });
+            metrics.Add(new RunMetric { MetricKey = "appendBatchSize", Value = appendCycleShape.BatchSize });
+            metrics.Add(new RunMetric { MetricKey = "lookupCountPerCycle", Value = lookupCountPerCycle });
+            metrics.Add(new RunMetric { MetricKey = "initialArtifactBytes", Value = initialArtifactBytes });
+            metrics.Add(new RunMetric { MetricKey = "artifactGrowthBytes", Value = artifactGrowthBytes });
+            metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
+            metrics.Add(new RunMetric { MetricKey = "primaryDataBytes", Value = collected.PrimaryDataBytes });
+            metrics.Add(new RunMetric { MetricKey = "indexBytes", Value = collected.IndexBytes });
+            metrics.Add(new RunMetric { MetricKey = "stateFileBytes", Value = collected.StateBytes });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesBefore", Value = managedBefore });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesAfter", Value = managedAfter });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesDelta", Value = managedAfter - managedBefore });
+            metrics.Add(new RunMetric { MetricKey = "heapSizeBytes", Value = gcInfo.HeapSizeBytes });
+            metrics.Add(new RunMetric { MetricKey = "fragmentedBytes", Value = gcInfo.FragmentedBytes });
+            metrics.Add(new RunMetric { MetricKey = "processPeakWorkingSetBytes", Value = processPeakWorkingSet });
+
+            diagnostics["appendBatchCount"] = appendCycleShape.BatchCount.ToString(CultureInfo.InvariantCulture);
+            diagnostics["appendBatchSize"] = appendCycleShape.BatchSize.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupCountPerCycle"] = lookupCountPerCycle.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupCount"] = lookupAttempts.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
+            diagnostics["expectedCountAfterCycles"] = expectedCount.ToString(CultureInfo.InvariantCulture);
+            diagnostics["initialArtifactBytes"] = initialArtifactBytes.ToString(CultureInfo.InvariantCulture);
+            diagnostics["artifactGrowthBytes"] = artifactGrowthBytes.ToString(CultureInfo.InvariantCulture);
+            diagnostics["cycleArtifactBytes"] = string.Join(",", cycleArtifactBytes);
+            diagnostics["stateFileBytes"] = ToInvariant(collected.StateBytes);
+            diagnostics["indexFileBytes"] = ToInvariant(collected.IndexBytes);
+            diagnostics["primaryDataFileBytes"] = ToInvariant(collected.PrimaryDataBytes);
+            diagnostics["totalArtifactBytes"] = ToInvariant(collected.TotalBytes);
+            diagnostics["semanticSuccess"] = semanticSuccess?.ToString() ?? "not-evaluated";
+
+            if (rowCountMismatches.Count > 0)
+            {
+                diagnostics["rowCountMismatches"] = string.Join(" | ", rowCountMismatches);
+            }
+
+            if (!string.IsNullOrWhiteSpace(semanticFailureReason))
+            {
+                diagnostics["semanticFailureReason"] = semanticFailureReason;
+            }
+
+            if (!technicalSuccess && !string.IsNullOrWhiteSpace(technicalFailureReason))
+            {
+                diagnostics["technicalFailureReason"] = technicalFailureReason;
+            }
+
+            notes.Add("Stage4 real adapter run for Polar.DB.");
+            notes.Add("Experiment flow: initial load/build, append batches, reopen after each batch, random lookup sample.");
+
+            return Task.FromResult(new RunResult
+            {
+                RunId = runId,
+                TimestampUtc = timestampUtc,
+                EngineKey = EngineKeyValue,
+                ExperimentKey = _spec.ExperimentKey,
+                DatasetProfileKey = _spec.Dataset.ProfileKey,
+                FairnessProfileKey = _spec.FairnessProfile?.FairnessProfileKey ?? "unspecified",
+                Environment = manifest,
+                TechnicalSuccess = technicalSuccess,
+                TechnicalFailureReason = technicalFailureReason,
+                SemanticSuccess = semanticSuccess,
+                SemanticFailureReason = semanticFailureReason,
+                Metrics = metrics,
+                Artifacts = artifacts,
+                EngineDiagnostics = diagnostics,
+                Tags = new Dictionary<string, string>
+                {
+                    ["researchQuestionId"] = _spec.ResearchQuestionId ?? string.Empty,
+                    ["hypothesisId"] = _spec.HypothesisId ?? string.Empty
+                },
+                Notes = notes
+            });
+        }
+
         private const string EngineKeyValue = "polar-db";
-        private const string SupportedExperimentKey = "persons-load-build-reopen-random-lookup";
-        private const string SupportedWorkloadKey = "bulk-load-point-lookup";
+        private const string LoadBuildExperimentKey = "persons-load-build-reopen-random-lookup";
+        private const string LoadBuildWorkloadKey = "bulk-load-point-lookup";
+        private const string AppendCyclesExperimentKey = "persons-append-cycles-reopen-lookup";
+        private const string AppendCyclesWorkloadKey = "append-cycles-reopen-lookup";
 
         private static void ValidateSpec(ExperimentSpec spec)
         {
             if (spec.Dataset.RecordCount <= 0 || spec.Dataset.RecordCount > int.MaxValue - 1)
             {
-                throw new NotSupportedException("Polar.DB stage2 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
+                throw new NotSupportedException("Polar.DB stage4 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
             }
 
-            if (!spec.ExperimentKey.Equals(SupportedExperimentKey, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new NotSupportedException(
-                    $"Experiment '{spec.ExperimentKey}' is not implemented in stage2 Polar.DB adapter.");
-            }
+            var isLoadBuildExperiment = spec.ExperimentKey.Equals(LoadBuildExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                                        spec.Workload.WorkloadKey.Equals(LoadBuildWorkloadKey, StringComparison.OrdinalIgnoreCase);
 
-            if (!spec.Workload.WorkloadKey.Equals(SupportedWorkloadKey, StringComparison.OrdinalIgnoreCase))
+            var isAppendCyclesExperiment = spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                                           spec.Workload.WorkloadKey.Equals(AppendCyclesWorkloadKey, StringComparison.OrdinalIgnoreCase);
+
+            if (!isLoadBuildExperiment && !isAppendCyclesExperiment)
             {
                 throw new NotSupportedException(
-                    $"Workload '{spec.Workload.WorkloadKey}' is not implemented in stage2 Polar.DB adapter.");
+                    $"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in Polar.DB stage4 adapter.");
             }
         }
 
@@ -277,6 +531,21 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             return 10_000;
         }
 
+        private static (int BatchCount, int BatchSize) ResolveAppendCycleShape(WorkloadSpec workload)
+        {
+            if (!workload.BatchCount.HasValue || workload.BatchCount.Value <= 0)
+            {
+                throw new NotSupportedException("append-cycles-reopen-lookup requires workload.batchCount >= 1.");
+            }
+
+            if (!workload.BatchSize.HasValue || workload.BatchSize.Value <= 0)
+            {
+                throw new NotSupportedException("append-cycles-reopen-lookup requires workload.batchSize >= 1.");
+            }
+
+            return (workload.BatchCount.Value, workload.BatchSize.Value);
+        }
+
         private static IEnumerable<object> GeneratePersons(long recordCount, int seed)
         {
             var random = new Random(seed);
@@ -290,6 +559,41 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                     random.Next(18, 90)
                 };
             }
+        }
+
+        private static object[] CreatePersonRecord(int id, Random random)
+        {
+            return new object[]
+            {
+                id,
+                $"={id}=",
+                random.Next(18, 90)
+            };
+        }
+
+        private static string BuildAppendSemanticFailureReason(
+            long expectedCountAfterCycles,
+            IReadOnlyList<string> rowCountMismatches,
+            long lookupAttempts,
+            long lookupHits)
+        {
+            var reasons = new List<string>();
+            if (rowCountMismatches.Count > 0)
+            {
+                reasons.Add($"rowCountMismatches={string.Join(";", rowCountMismatches)}");
+            }
+
+            if (lookupAttempts != lookupHits)
+            {
+                reasons.Add($"lookupHits={lookupHits}, lookupCount={lookupAttempts}");
+            }
+
+            if (reasons.Count == 0)
+            {
+                reasons.Add($"expectedCountAfterCycles={expectedCountAfterCycles}");
+            }
+
+            return string.Join("; ", reasons);
         }
 
         private static PolarDbLib.USequence CreateSequence(ArtifactLayout layout)
