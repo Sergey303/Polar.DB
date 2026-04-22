@@ -1,10 +1,9 @@
-using System.Text;
-using System.Text.Json;
-using Polar.DB.Bench.Core.Models;
-using Polar.DB.Bench.Core.Services;
-
 namespace Polar.DB.Bench.Charts.Runtime;
 
+/// <summary>
+/// Entry point for benchmark chart/report generation.
+/// It supports analyzed-result summaries and cross-engine comparison summaries.
+/// </summary>
 public static class ChartsApplication
 {
     public static async Task<int> RunAsync(string[] args)
@@ -27,24 +26,13 @@ public static class ChartsApplication
 
     private static async Task<int> RunAnalyzedModeAsync(ChartsOptions options)
     {
-        var files = Directory.GetFiles(options.AnalyzedResultsDirectory!, "*.eval.json", SearchOption.TopDirectoryOnly)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var results = new List<AnalyzedResult>();
-        foreach (var file in files)
-        {
-            await using var stream = File.OpenRead(file);
-            var value = await JsonSerializer.DeserializeAsync<AnalyzedResult>(stream, JsonDefaults.Default);
-            if (value is not null)
-            {
-                results.Add(value);
-            }
-        }
+        var loader = new ChartsArtifactLoader();
+        var renderer = new AnalyzedSummaryRenderer();
+        var results = await loader.LoadAnalyzedResultsAsync(options.AnalyzedResultsDirectory!);
 
         Directory.CreateDirectory(options.ReportsDirectory!);
-        await File.WriteAllTextAsync(Path.Combine(options.ReportsDirectory!, "summary.md"), BuildMarkdown(results));
-        await File.WriteAllTextAsync(Path.Combine(options.ReportsDirectory!, "summary.csv"), BuildCsv(results));
+        await File.WriteAllTextAsync(Path.Combine(options.ReportsDirectory!, "summary.md"), renderer.BuildMarkdown(results));
+        await File.WriteAllTextAsync(Path.Combine(options.ReportsDirectory!, "summary.csv"), renderer.BuildCsv(results));
 
         Console.WriteLine($"Reports written to: {options.ReportsDirectory}");
         return 0;
@@ -52,280 +40,35 @@ public static class ChartsApplication
 
     private static async Task<int> RunComparisonModeAsync(ChartsOptions options)
     {
-        var seriesFiles = Directory.GetFiles(options.ComparisonResultsDirectory!, "*.comparison-series.json", SearchOption.TopDirectoryOnly)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var seriesComparisons = new List<CrossEngineComparisonSeriesResult>();
-        foreach (var file in seriesFiles)
-        {
-            await using var stream = File.OpenRead(file);
-            var value = await JsonSerializer.DeserializeAsync<CrossEngineComparisonSeriesResult>(stream, JsonDefaults.Default);
-            if (value is not null)
-            {
-                seriesComparisons.Add(value);
-            }
-        }
+        var loader = new ChartsArtifactLoader();
+        var seriesComparisons = await loader.LoadSeriesComparisonsAsync(options.ComparisonResultsDirectory!);
 
         Directory.CreateDirectory(options.ReportsDirectory!);
         if (seriesComparisons.Count > 0)
         {
+            var seriesRenderer = new SeriesComparisonReportRenderer();
             await File.WriteAllTextAsync(
                 Path.Combine(options.ReportsDirectory!, "comparison-summary.md"),
-                BuildSeriesComparisonMarkdown(seriesComparisons));
+                seriesRenderer.BuildMarkdown(seriesComparisons));
             await File.WriteAllTextAsync(
                 Path.Combine(options.ReportsDirectory!, "comparison-summary.csv"),
-                BuildSeriesComparisonCsv(seriesComparisons));
+                seriesRenderer.BuildCsv(seriesComparisons));
 
             Console.WriteLine($"Comparison reports written to: {options.ReportsDirectory}");
             return 0;
         }
 
-        var legacyFiles = Directory.GetFiles(options.ComparisonResultsDirectory!, "*.comparison.json", SearchOption.TopDirectoryOnly)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var legacyComparisons = new List<CrossEngineComparisonResult>();
-        foreach (var file in legacyFiles)
-        {
-            await using var stream = File.OpenRead(file);
-            var value = await JsonSerializer.DeserializeAsync<CrossEngineComparisonResult>(stream, JsonDefaults.Default);
-            if (value is not null)
-            {
-                legacyComparisons.Add(value);
-            }
-        }
+        var legacyComparisons = await loader.LoadLegacyComparisonsAsync(options.ComparisonResultsDirectory!);
+        var legacyRenderer = new LegacyComparisonReportRenderer();
 
         await File.WriteAllTextAsync(
             Path.Combine(options.ReportsDirectory!, "comparison-summary.md"),
-            BuildLegacyComparisonMarkdown(legacyComparisons));
+            legacyRenderer.BuildMarkdown(legacyComparisons));
         await File.WriteAllTextAsync(
             Path.Combine(options.ReportsDirectory!, "comparison-summary.csv"),
-            BuildLegacyComparisonCsv(legacyComparisons));
+            legacyRenderer.BuildCsv(legacyComparisons));
 
         Console.WriteLine($"Comparison reports written to: {options.ReportsDirectory}");
         return 0;
-    }
-
-    private static string BuildMarkdown(IReadOnlyList<AnalyzedResult> results)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("# Benchmark Summary");
-        sb.AppendLine();
-        sb.AppendLine($"Generated at: {DateTimeOffset.UtcNow:O}");
-        sb.AppendLine();
-        sb.AppendLine("| RunId | Status | Policy | Baseline |");
-        sb.AppendLine("| --- | --- | --- | --- |");
-        foreach (var result in results)
-        {
-            sb.AppendLine($"| {Escape(result.RunId)} | {Escape(result.OverallStatus)} | {Escape(result.PolicyId ?? string.Empty)} | {Escape(result.BaselineId ?? string.Empty)} |");
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("Current charts output is markdown and CSV summary only.");
-        return sb.ToString();
-    }
-
-    private static string BuildCsv(IReadOnlyList<AnalyzedResult> results)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("RunId,OverallStatus,PolicyId,BaselineId");
-        foreach (var result in results)
-        {
-            sb.AppendLine($"{Csv(result.RunId)},{Csv(result.OverallStatus)},{Csv(result.PolicyId ?? string.Empty)},{Csv(result.BaselineId ?? string.Empty)}");
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildSeriesComparisonMarkdown(IReadOnlyList<CrossEngineComparisonSeriesResult> comparisons)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("# Cross-Engine Comparison Summary");
-        sb.AppendLine();
-        sb.AppendLine($"Generated at: {DateTimeOffset.UtcNow:O}");
-        sb.AppendLine();
-        sb.AppendLine("This summary compares measured runs inside the same comparison set.");
-        sb.AppendLine("Fairness profile means both engines map one shared intent (durability/performance balance) to engine-specific settings.");
-        sb.AppendLine("Primary bytes are the main data file(s). Side bytes are WAL/state/index/other side artifacts.");
-        sb.AppendLine("Technical success means run infrastructure completed. Semantic success means workload-level checks passed.");
-        sb.AppendLine();
-        sb.AppendLine("| ComparisonId | Set | Experiment | Dataset | Fairness | Engine | Measured runs | Elapsed ms (min/avg/med/max) | Load ms (min/avg/med/max) | Build ms (min/avg/med/max) | Reopen ms (min/avg/med/max) | Lookup ms (min/avg/med/max) | Total bytes (min/avg/med/max) | Primary bytes (min/avg/med/max) | Side bytes (min/avg/med/max) | Technical success | Semantic success |");
-        sb.AppendLine("| --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: |");
-
-        foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
-        {
-            foreach (var engine in comparison.EngineSeries.OrderBy(x => x.EngineKey, StringComparer.OrdinalIgnoreCase))
-            {
-                sb.AppendLine(
-                    $"| {Escape(comparison.ComparisonId)} | {Escape(comparison.ComparisonSetId)} | {Escape(comparison.ExperimentKey)} | {Escape(comparison.DatasetProfileKey ?? string.Empty)} | {Escape(comparison.FairnessProfileKey ?? string.Empty)} | {Escape(engine.EngineKey)} | {engine.MeasuredRunCount} | {FormatStats(engine.ElapsedMs)} | {FormatStats(engine.LoadMs)} | {FormatStats(engine.BuildMs)} | {FormatStats(engine.ReopenMs)} | {FormatStats(engine.LookupMs)} | {FormatStats(engine.TotalArtifactBytes)} | {FormatStats(engine.PrimaryArtifactBytes)} | {FormatStats(engine.SideArtifactBytes)} | {engine.TechnicalSuccessCount}/{engine.MeasuredRunCount} | {engine.SemanticSuccessCount}/{engine.MeasuredRunCount} |");
-            }
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("Metric format is min/avg/median/max. If some runs miss a metric, a suffix like [n=2/3] shows available values.");
-        return sb.ToString();
-    }
-
-    private static string BuildSeriesComparisonCsv(IReadOnlyList<CrossEngineComparisonSeriesResult> comparisons)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("ComparisonId,ComparisonSetId,ExperimentKey,DatasetProfileKey,FairnessProfileKey,EngineKey,MeasuredRunCount,WarmupRunCount,TechnicalSuccessCount,SemanticSuccessCount,SemanticEvaluatedCount,ElapsedCount,ElapsedMissing,ElapsedMin,ElapsedMax,ElapsedAverage,ElapsedMedian,LoadCount,LoadMissing,LoadMin,LoadMax,LoadAverage,LoadMedian,BuildCount,BuildMissing,BuildMin,BuildMax,BuildAverage,BuildMedian,ReopenCount,ReopenMissing,ReopenMin,ReopenMax,ReopenAverage,ReopenMedian,LookupCount,LookupMissing,LookupMin,LookupMax,LookupAverage,LookupMedian,TotalBytesCount,TotalBytesMissing,TotalBytesMin,TotalBytesMax,TotalBytesAverage,TotalBytesMedian,PrimaryBytesCount,PrimaryBytesMissing,PrimaryBytesMin,PrimaryBytesMax,PrimaryBytesAverage,PrimaryBytesMedian,SideBytesCount,SideBytesMissing,SideBytesMin,SideBytesMax,SideBytesAverage,SideBytesMedian");
-
-        foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
-        {
-            foreach (var engine in comparison.EngineSeries.OrderBy(x => x.EngineKey, StringComparer.OrdinalIgnoreCase))
-            {
-                sb.AppendLine(
-                    $"{Csv(comparison.ComparisonId)}," +
-                    $"{Csv(comparison.ComparisonSetId)}," +
-                    $"{Csv(comparison.ExperimentKey)}," +
-                    $"{Csv(comparison.DatasetProfileKey ?? string.Empty)}," +
-                    $"{Csv(comparison.FairnessProfileKey ?? string.Empty)}," +
-                    $"{Csv(engine.EngineKey)}," +
-                    $"{engine.MeasuredRunCount}," +
-                    $"{engine.WarmupRunCount}," +
-                    $"{engine.TechnicalSuccessCount}," +
-                    $"{engine.SemanticSuccessCount}," +
-                    $"{engine.SemanticEvaluatedCount}," +
-                    $"{FormatStatsCsv(engine.ElapsedMs)}," +
-                    $"{FormatStatsCsv(engine.LoadMs)}," +
-                    $"{FormatStatsCsv(engine.BuildMs)}," +
-                    $"{FormatStatsCsv(engine.ReopenMs)}," +
-                    $"{FormatStatsCsv(engine.LookupMs)}," +
-                    $"{FormatStatsCsv(engine.TotalArtifactBytes)}," +
-                    $"{FormatStatsCsv(engine.PrimaryArtifactBytes)}," +
-                    $"{FormatStatsCsv(engine.SideArtifactBytes)}");
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildLegacyComparisonMarkdown(IReadOnlyList<CrossEngineComparisonResult> comparisons)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("# Cross-Engine Comparison Summary");
-        sb.AppendLine();
-        sb.AppendLine($"Generated at: {DateTimeOffset.UtcNow:O}");
-        sb.AppendLine();
-        sb.AppendLine("Legacy mode: comparison-series artifacts were not found, so this summary uses single-run comparison artifacts.");
-        sb.AppendLine();
-        sb.AppendLine("| ComparisonId | Experiment | Dataset | Fairness | Polar elapsed ms | SQLite elapsed ms | Polar load ms | SQLite load ms | Polar build ms | SQLite build ms | Polar reopen ms | SQLite reopen ms | Polar lookup ms | SQLite lookup ms | Polar total bytes | SQLite total bytes | Polar primary bytes | SQLite db bytes | Polar side bytes | SQLite side bytes | Polar semantic | SQLite semantic | Polar technical | SQLite technical |");
-        sb.AppendLine("| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- |");
-
-        foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
-        {
-            var polar = FindEngine(comparison, "polar-db");
-            var sqlite = FindEngine(comparison, "sqlite");
-
-            sb.AppendLine(
-                $"| {Escape(comparison.ComparisonId)} | {Escape(comparison.ExperimentKey)} | {Escape(comparison.DatasetProfileKey ?? string.Empty)} | {Escape(comparison.FairnessProfileKey ?? string.Empty)} | {FormatNumber(polar?.ElapsedMsSingleRun)} | {FormatNumber(sqlite?.ElapsedMsSingleRun)} | {FormatNumber(polar?.LoadMs)} | {FormatNumber(sqlite?.LoadMs)} | {FormatNumber(polar?.BuildMs)} | {FormatNumber(sqlite?.BuildMs)} | {FormatNumber(polar?.ReopenMs)} | {FormatNumber(sqlite?.ReopenMs)} | {FormatNumber(polar?.LookupMs)} | {FormatNumber(sqlite?.LookupMs)} | {FormatNumber(polar?.TotalArtifactBytes)} | {FormatNumber(sqlite?.TotalArtifactBytes)} | {FormatNumber(polar?.PrimaryArtifactBytes)} | {FormatNumber(sqlite?.PrimaryArtifactBytes)} | {FormatNumber(polar?.SideArtifactBytes)} | {FormatNumber(sqlite?.SideArtifactBytes)} | {FormatBool(polar?.SemanticSuccess)} | {FormatBool(sqlite?.SemanticSuccess)} | {FormatBool(polar?.TechnicalSuccess)} | {FormatBool(sqlite?.TechnicalSuccess)} |");
-        }
-
-        return sb.ToString();
-    }
-
-    private static string BuildLegacyComparisonCsv(IReadOnlyList<CrossEngineComparisonResult> comparisons)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("ComparisonId,ExperimentKey,DatasetProfileKey,FairnessProfileKey,PolarElapsedMsSingleRun,SqliteElapsedMsSingleRun,PolarLoadMs,SqliteLoadMs,PolarBuildMs,SqliteBuildMs,PolarReopenMs,SqliteReopenMs,PolarLookupMs,SqliteLookupMs,PolarTotalArtifactBytes,SqliteTotalArtifactBytes,PolarPrimaryArtifactBytes,SqlitePrimaryArtifactBytes,PolarSideArtifactBytes,SqliteSideArtifactBytes,PolarSemanticSuccess,SqliteSemanticSuccess,PolarTechnicalSuccess,SqliteTechnicalSuccess");
-
-        foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
-        {
-            var polar = FindEngine(comparison, "polar-db");
-            var sqlite = FindEngine(comparison, "sqlite");
-
-            sb.AppendLine(
-                $"{Csv(comparison.ComparisonId)}," +
-                $"{Csv(comparison.ExperimentKey)}," +
-                $"{Csv(comparison.DatasetProfileKey ?? string.Empty)}," +
-                $"{Csv(comparison.FairnessProfileKey ?? string.Empty)}," +
-                $"{Csv(FormatNumber(polar?.ElapsedMsSingleRun))}," +
-                $"{Csv(FormatNumber(sqlite?.ElapsedMsSingleRun))}," +
-                $"{Csv(FormatNumber(polar?.LoadMs))}," +
-                $"{Csv(FormatNumber(sqlite?.LoadMs))}," +
-                $"{Csv(FormatNumber(polar?.BuildMs))}," +
-                $"{Csv(FormatNumber(sqlite?.BuildMs))}," +
-                $"{Csv(FormatNumber(polar?.ReopenMs))}," +
-                $"{Csv(FormatNumber(sqlite?.ReopenMs))}," +
-                $"{Csv(FormatNumber(polar?.LookupMs))}," +
-                $"{Csv(FormatNumber(sqlite?.LookupMs))}," +
-                $"{Csv(FormatNumber(polar?.TotalArtifactBytes))}," +
-                $"{Csv(FormatNumber(sqlite?.TotalArtifactBytes))}," +
-                $"{Csv(FormatNumber(polar?.PrimaryArtifactBytes))}," +
-                $"{Csv(FormatNumber(sqlite?.PrimaryArtifactBytes))}," +
-                $"{Csv(FormatNumber(polar?.SideArtifactBytes))}," +
-                $"{Csv(FormatNumber(sqlite?.SideArtifactBytes))}," +
-                $"{Csv(FormatBool(polar?.SemanticSuccess))}," +
-                $"{Csv(FormatBool(sqlite?.SemanticSuccess))}," +
-                $"{Csv(FormatBool(polar?.TechnicalSuccess))}," +
-                $"{Csv(FormatBool(sqlite?.TechnicalSuccess))}");
-        }
-
-        return sb.ToString();
-    }
-
-    private static CrossEngineComparisonEntry? FindEngine(CrossEngineComparisonResult comparison, string engineKey)
-    {
-        return comparison.Engines.FirstOrDefault(x => x.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string FormatStats(MetricSeriesStats stats)
-    {
-        var min = FormatNumber(stats.Min);
-        var avg = FormatNumber(stats.Average);
-        var med = FormatNumber(stats.Median);
-        var max = FormatNumber(stats.Max);
-        if (string.IsNullOrWhiteSpace(min) &&
-            string.IsNullOrWhiteSpace(avg) &&
-            string.IsNullOrWhiteSpace(med) &&
-            string.IsNullOrWhiteSpace(max))
-        {
-            return string.Empty;
-        }
-
-        var value = $"{min}/{avg}/{med}/{max}";
-        if (stats.MissingCount > 0)
-        {
-            value += $" [n={stats.Count - stats.MissingCount}/{stats.Count}]";
-        }
-
-        return value;
-    }
-
-    private static string FormatStatsCsv(MetricSeriesStats stats)
-    {
-        return
-            $"{stats.Count}," +
-            $"{stats.MissingCount}," +
-            $"{Csv(FormatNumber(stats.Min))}," +
-            $"{Csv(FormatNumber(stats.Max))}," +
-            $"{Csv(FormatNumber(stats.Average))}," +
-            $"{Csv(FormatNumber(stats.Median))}";
-    }
-
-    private static string FormatNumber(double? value)
-    {
-        return value.HasValue
-            ? value.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
-            : string.Empty;
-    }
-
-    private static string FormatBool(bool? value)
-    {
-        return value?.ToString() ?? string.Empty;
-    }
-
-    private static string Escape(string value) => value.Replace("|", "\\|");
-
-    private static string Csv(string value)
-    {
-        if (value.Contains(',') || value.Contains('"'))
-        {
-            return "\"" + value.Replace("\"", "\"\"") + "\"";
-        }
-
-        return value;
     }
 }
