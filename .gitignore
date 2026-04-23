@@ -1,6 +1,7 @@
 
 **/*.bin
 **/*.pac
+/.dotnet-cli/*
 
 ## --- .NET / Visual Studio ---
 [Bb]in/
