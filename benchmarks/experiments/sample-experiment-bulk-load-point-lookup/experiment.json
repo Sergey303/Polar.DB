@@ -28,8 +28,10 @@
     "PointLookup",
     "PhysicalArtifactInspection"
   ],
-  "engines": {
-    "synthetic": {}
+  "targets": {
+    "synthetic": {
+      "engine": "synthetic"
+    }
   },
   "compare": {
     "history": false,

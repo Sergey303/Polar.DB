@@ -35,18 +35,6 @@ public static class ExperimentSpecLoader
             return ConvertManifestToSpec(manifest, cliEngine);
         }
 
-        // Legacy fallback: support old "engines" key for backward compatibility during migration.
-        if (document.RootElement.TryGetProperty("engines", out _))
-        {
-            var manifest = document.RootElement.Deserialize<ExperimentManifest>(JsonDefaults.Default);
-            if (manifest is null)
-            {
-                throw new InvalidOperationException("Failed to deserialize experiment manifest.");
-            }
-
-            return ConvertManifestToSpec(manifest, cliEngine);
-        }
-
         var legacySpec = document.RootElement.Deserialize<ExperimentSpec>(JsonDefaults.Default);
         return legacySpec ?? throw new InvalidOperationException("Failed to deserialize experiment spec.");
     }
