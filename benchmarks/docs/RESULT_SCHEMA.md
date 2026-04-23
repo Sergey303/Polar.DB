@@ -57,7 +57,27 @@ Analyzed artifacts do not contain cross-engine comparison payloads.
 
 No raw facts are rewritten.
 
-## 3) Legacy comparison (`*.comparison.json`)
+## 3) Comparisons folder (`comparisons/`)
+
+`comparisons/` is the only place for comparison artifacts and derived expectations.
+
+### `latest-engines.json`
+
+- compares latest successful measured series per engine inside current experiment;
+- generated automatically when experiment has multiple engines.
+
+### `latest-history.json`
+
+- compares successful measured series of the same experiment over time;
+- generated only when `experiment.json -> compare.history.enabled` is `true`.
+
+### `latest-other-experiments.json`
+
+- compares current experiment with configured external experiment snapshots for context;
+- generated only when `experiment.json -> compare.otherExperiments.enabled` is `true`;
+- target experiments come from `compare.otherExperiments.experiments`.
+
+### Legacy comparison (`*.comparison.json`)
 
 Legacy single-run comparison artifact from stage3.
 Comparison artifacts are stored under `benchmarks/experiments/<experiment>/comparisons/`.
