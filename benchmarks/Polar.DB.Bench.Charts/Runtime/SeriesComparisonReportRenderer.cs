@@ -15,16 +15,16 @@ internal sealed class SeriesComparisonReportRenderer
     public string BuildMarkdown(IReadOnlyList<CrossEngineComparisonSeriesResult> comparisons)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# Cross-Engine Comparison Summary");
+        sb.AppendLine("# Cross-Target Comparison Summary");
         sb.AppendLine();
         sb.AppendLine($"Generated at: {DateTimeOffset.UtcNow:O}");
         sb.AppendLine();
         sb.AppendLine("This summary compares measured runs inside the same comparison set.");
-        sb.AppendLine("Fairness profile means both engines map one shared intent (durability/performance balance) to engine-specific settings.");
+        sb.AppendLine("Fairness profile means each target maps one shared intent (durability/performance balance) to engine-specific settings.");
         sb.AppendLine("Primary bytes are the main data file(s). Side bytes are WAL/state/index/other side artifacts.");
         sb.AppendLine("Technical success means run infrastructure completed. Semantic success means workload-level checks passed.");
         sb.AppendLine();
-        sb.AppendLine("| ComparisonId | Set | Experiment | Experiment label | Dataset | Fairness | Engine | Lookup batch avg | Measured runs | Elapsed ms (min/avg/med/max) | Load ms (min/avg/med/max) | Build ms (min/avg/med/max) | Reopen ms (min/avg/med/max) | Lookup ms (min/avg/med/max) | Total bytes (min/avg/med/max) | Primary bytes (min/avg/med/max) | Side bytes (min/avg/med/max) | Technical success | Semantic success |");
+        sb.AppendLine("| ComparisonId | Set | Experiment | Experiment label | Dataset | Fairness | Target | Lookup batch avg | Measured runs | Elapsed ms (min/avg/med/max) | Load ms (min/avg/med/max) | Build ms (min/avg/med/max) | Reopen ms (min/avg/med/max) | Lookup ms (min/avg/med/max) | Total bytes (min/avg/med/max) | Primary bytes (min/avg/med/max) | Side bytes (min/avg/med/max) | Technical success | Semantic success |");
         sb.AppendLine("| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: |");
 
         foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
@@ -57,7 +57,7 @@ internal sealed class SeriesComparisonReportRenderer
     public string BuildCsv(IReadOnlyList<CrossEngineComparisonSeriesResult> comparisons)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("ComparisonId,ComparisonSetId,ExperimentKey,ExperimentDisplayName,DatasetProfileKey,FairnessProfileKey,EngineKey,MeasuredRunCount,WarmupRunCount,TechnicalSuccessCount,SemanticSuccessCount,SemanticEvaluatedCount,ElapsedCount,ElapsedMissing,ElapsedMin,ElapsedMax,ElapsedAverage,ElapsedMedian,LoadCount,LoadMissing,LoadMin,LoadMax,LoadAverage,LoadMedian,BuildCount,BuildMissing,BuildMin,BuildMax,BuildAverage,BuildMedian,ReopenCount,ReopenMissing,ReopenMin,ReopenMax,ReopenAverage,ReopenMedian,LookupCount,LookupMissing,LookupMin,LookupMax,LookupAverage,LookupMedian,LookupBatchCount,LookupBatchMissing,LookupBatchMin,LookupBatchMax,LookupBatchAverage,LookupBatchMedian,TotalBytesCount,TotalBytesMissing,TotalBytesMin,TotalBytesMax,TotalBytesAverage,TotalBytesMedian,PrimaryBytesCount,PrimaryBytesMissing,PrimaryBytesMin,PrimaryBytesMax,PrimaryBytesAverage,PrimaryBytesMedian,SideBytesCount,SideBytesMissing,SideBytesMin,SideBytesMax,SideBytesAverage,SideBytesMedian");
+        sb.AppendLine("ComparisonId,ComparisonSetId,ExperimentKey,ExperimentDisplayName,DatasetProfileKey,FairnessProfileKey,TargetKey,MeasuredRunCount,WarmupRunCount,TechnicalSuccessCount,SemanticSuccessCount,SemanticEvaluatedCount,ElapsedCount,ElapsedMissing,ElapsedMin,ElapsedMax,ElapsedAverage,ElapsedMedian,LoadCount,LoadMissing,LoadMin,LoadMax,LoadAverage,LoadMedian,BuildCount,BuildMissing,BuildMin,BuildMax,BuildAverage,BuildMedian,ReopenCount,ReopenMissing,ReopenMin,ReopenMax,ReopenAverage,ReopenMedian,LookupCount,LookupMissing,LookupMin,LookupMax,LookupAverage,LookupMedian,LookupBatchCount,LookupBatchMissing,LookupBatchMin,LookupBatchMax,LookupBatchAverage,LookupBatchMedian,TotalBytesCount,TotalBytesMissing,TotalBytesMin,TotalBytesMax,TotalBytesAverage,TotalBytesMedian,PrimaryBytesCount,PrimaryBytesMissing,PrimaryBytesMin,PrimaryBytesMax,PrimaryBytesAverage,PrimaryBytesMedian,SideBytesCount,SideBytesMissing,SideBytesMin,SideBytesMax,SideBytesAverage,SideBytesMedian");
 
         foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
         {

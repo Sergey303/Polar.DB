@@ -25,7 +25,9 @@ public sealed record RunResult
     public required DateTimeOffset TimestampUtc { get; init; }
 
     /// <summary>
-    /// Engine identifier, for example <c>polar-db</c> or <c>sqlite</c>.
+    /// Target key (runtime variant identifier), for example <c>polar-db-current</c>, <c>polar-db-2.1.1</c>, or <c>sqlite</c>.
+    /// This is the resolved target key from the experiment manifest, not the engine family name.
+    /// The JSON property name <c>engine</c> is preserved for backward compatibility with existing raw run files.
     /// </summary>
     [JsonPropertyName("engine")]
     public required string EngineKey { get; init; }

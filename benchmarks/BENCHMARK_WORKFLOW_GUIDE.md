@@ -16,7 +16,7 @@ Each experiment lives under:
 
 Expected structure:
 
-- `experiment.json` - canonical manifest (identity, dataset, workload, engines, compare flags);
+- `experiment.json` - canonical manifest (identity, dataset, workload, targets, compare flags);
 - `raw/` - immutable factual run outputs (`*.run.json`);
 - `analyzed/` - local interpretation artifacts for this experiment only;
 - `comparisons/` - all comparison artifacts and derived expectations;
@@ -28,7 +28,7 @@ Keep these boundaries strict:
 
 - `raw/` = facts from executor, immutable;
 - `analyzed/` = local derived artifacts (no cross-object comparisons);
-- `comparisons/` = engine comparison, history comparison, cross-experiment context, derived expectations.
+- `comparisons/` = target comparison, history comparison, cross-experiment context, derived expectations.
 
 Do not place comparison artifacts into `analyzed/`.
 
@@ -38,11 +38,18 @@ Minimal logical blocks:
 
 - `experiment`, `title`, `description`;
 - `dataset`, `workload`, `fairness`;
-- `engines`;
+- `targets`;
 - `compare.history`;
 - `compare.otherExperiments`.
 
-Engine runtime semantics:
+Target runtime semantics:
+
+- A **target** is a runtime variant identified by a unique key (e.g. `polar-db-current`, `polar-db-2.1.1`, `sqlite`).
+- Each target specifies an **engine family** (`engine`) and optionally a pinned NuGet version (`nuget`).
+- One experiment can contain multiple targets from the same engine family (e.g. three Polar.DB variants: current source, NuGet 2.1.1, NuGet 2.1.0).
+- The target key is the runtime variant id; the engine field identifies the engine family.
+
+Engine family runtime semantics:
 
 - `polar-db` without `nuget` -> current source from this repository;
 - `polar-db` with `nuget` -> pinned Polar.DB NuGet version;
@@ -51,15 +58,15 @@ Engine runtime semantics:
 
 ## 4. End-to-End Flow
 
-### Step 1: Run executor for each engine
+### Step 1: Run executor for each target
 
-Run both engines with the same comparison set id for fair series comparison.
+Run both targets with the same comparison set id for fair series comparison.
 
 Example:
 
 ```bash
 dotnet run --project benchmarks/Polar.DB.Bench.Exec -- \
-  --engine polar-db \
+  --engine polar-db-current \
   --spec benchmarks/experiments/persons-load-build-reopen-random-lookup \
   --work benchmarks/work/polar-series \
   --comparison-set stage4-load-001
@@ -77,8 +84,8 @@ Executor output is written to:
 
 Filename pattern:
 
-- single run: `<timestamp>__<engine>.run.json`;
-- series run: `<timestamp>__<engine>__<role>-<seq>.run.json`.
+- single run: `<timestamp>__<target-key>.run.json`;
+- series run: `<timestamp>__<target-key>__<role>-<seq>.run.json`.
 
 ### Step 2: Run analysis
 
@@ -93,7 +100,7 @@ dotnet run --project benchmarks/Polar.DB.Bench.Analysis -- \
 
 Analysis writes:
 
-- local analyzed snapshots to `analyzed/` (for example `latest-series.polar-db.json`);
+- local analyzed snapshots to `analyzed/` (for example `latest-series.polar-db-current.json`);
 - comparison artifacts to `comparisons/`.
 
 ### Step 3: Run charts/reporting
@@ -112,22 +119,22 @@ dotnet run --project benchmarks/Polar.DB.Bench.Charts -- \
 
 The `comparisons/` folder should contain:
 
-- `latest-engines.json` - latest successful measured per-engine comparison inside this experiment;
+- `latest-engines.json` - latest successful measured per-target comparison inside this experiment;
 - `latest-history.json` - same-experiment history over time (controlled by `compare.history`);
 - `latest-other-experiments.json` - context vs configured other experiments (controlled by `compare.otherExperiments`);
 - optional legacy `*.comparison.json` or `*.comparison-series.json` files.
 
 Automatic behavior:
 
-- engine comparison is automatic when multiple engines exist in the manifest;
+- target comparison is automatic when multiple targets exist in the manifest;
 - history and other-experiments are controlled by manifest flags.
 
 ## 6. `index.html` Content Model
 
 The human-readable page should show:
 
-1. experiment identity (title, description, dataset, workload, engines);
-2. latest engine comparison;
+1. experiment identity (title, description, dataset, workload, targets);
+2. latest target comparison;
 3. history inside this experiment;
 4. cross-experiment context (when enabled);
 5. links to machine-readable artifacts from `raw/`, `analyzed/`, `comparisons/`.
@@ -156,13 +163,13 @@ Required charts:
 1. History chart:
    - x = series/date;
    - y = elapsed median;
-   - one line/bar per engine.
+   - one line/bar per target.
 2. Phase breakdown chart:
    - load / build / reopen / lookup;
-   - latest series per engine.
+   - latest series per target.
 3. Artifact size chart:
    - primary / side / total bytes;
-   - latest series per engine.
+   - latest series per target.
 
 Avoid turning reporting into a large frontend app.
 
@@ -171,7 +178,7 @@ Avoid turning reporting into a large frontend app.
 1. Create `benchmarks/experiments/<slug>/`.
 2. Add `experiment.json`.
 3. Create subfolders: `raw/`, `analyzed/`, `comparisons/`.
-4. Run executor for configured engines with shared comparison set id.
+4. Run executor for configured targets with shared comparison set id.
 5. Run analysis.
 6. Run charts to regenerate `index.html`.
 7. Verify:

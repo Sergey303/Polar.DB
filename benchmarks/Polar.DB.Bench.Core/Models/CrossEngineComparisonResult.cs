@@ -49,7 +49,8 @@ public sealed record CrossEngineComparisonResult
     public string? EnvironmentClass { get; init; }
 
     /// <summary>
-    /// Per-engine entries (normally Polar.DB and SQLite).
+    /// Per-target entries (one per runtime variant in the comparison).
+    /// The JSON property name <c>engines</c> is preserved for backward compatibility.
     /// </summary>
     [JsonPropertyName("engines")]
     public required IReadOnlyList<CrossEngineComparisonEntry> Engines { get; init; }
@@ -62,13 +63,13 @@ public sealed record CrossEngineComparisonResult
 }
 
 /// <summary>
-/// One engine row inside a legacy comparison artifact.
+/// One target row inside a legacy comparison artifact.
 /// Values are copied or derived from one selected raw run.
 /// </summary>
 public sealed record CrossEngineComparisonEntry
 {
     /// <summary>
-    /// Engine identifier.
+    /// Target key (runtime variant identifier).
     /// </summary>
     [JsonPropertyName("engine")]
     public required string EngineKey { get; init; }
@@ -207,7 +208,8 @@ public sealed record CrossEngineComparisonSeriesResult
     public string? EnvironmentClass { get; init; }
 
     /// <summary>
-    /// Engine list included in the comparison.
+    /// Target keys included in the comparison.
+    /// The JSON property name <c>engines</c> is preserved for backward compatibility.
     /// </summary>
     [JsonPropertyName("engines")]
     public required IReadOnlyList<string> Engines { get; init; }
@@ -226,13 +228,13 @@ public sealed record CrossEngineComparisonSeriesResult
 }
 
 /// <summary>
-/// Aggregated metrics for one engine inside a comparison series.
+/// Aggregated metrics for one target inside a comparison series.
 /// Counts and stats are derived from measured runs in the set.
 /// </summary>
 public sealed record CrossEngineSeriesEngineEntry
 {
     /// <summary>
-    /// Engine identifier.
+    /// Target key (runtime variant identifier).
     /// </summary>
     [JsonPropertyName("engine")]
     public required string EngineKey { get; init; }

@@ -228,7 +228,7 @@ internal static class ChartRenderer
     }
 
     /// <summary>
-    /// Returns a stable color for a given target key or engine family.
+    /// Returns a stable color for a given target key.
     /// Target keys like "polar-db-current", "polar-db-2.1.1" map to the polar-db color.
     /// </summary>
     public static string EngineColor(string engineKey)

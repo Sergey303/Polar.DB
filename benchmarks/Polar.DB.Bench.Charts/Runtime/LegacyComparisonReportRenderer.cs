@@ -16,7 +16,7 @@ internal sealed class LegacyComparisonReportRenderer
     public string BuildMarkdown(IReadOnlyList<CrossEngineComparisonResult> comparisons)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# Cross-Engine Comparison Summary");
+        sb.AppendLine("# Cross-Target Comparison Summary");
         sb.AppendLine();
         sb.AppendLine($"Generated at: {DateTimeOffset.UtcNow:O}");
         sb.AppendLine();

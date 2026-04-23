@@ -16,7 +16,7 @@
 
 Ожидаемая структура:
 
-- `experiment.json` - канонический манифест (идентичность, dataset, workload, engines, compare flags);
+- `experiment.json` - канонический манифест (идентичность, dataset, workload, targets, compare flags);
 - `raw/` - неизменяемые фактические результаты запусков (`*.run.json`);
 - `analyzed/` - локальные интерпретации только этого эксперимента;
 - `comparisons/` - все comparison-артефакты и derived expectations;
@@ -28,7 +28,7 @@
 
 - `raw/` = факты от executor, неизменяемые;
 - `analyzed/` = локальные производные артефакты (без кросс-сравнений);
-- `comparisons/` = сравнение движков, история, межэкспериментный контекст, derived expectations.
+- `comparisons/` = сравнение targets, история, межэкспериментный контекст, derived expectations.
 
 Не кладите comparison-артефакты в `analyzed/`.
 
@@ -38,11 +38,18 @@
 
 - `experiment`, `title`, `description`;
 - `dataset`, `workload`, `fairness`;
-- `engines`;
+- `targets`;
 - `compare.history`;
 - `compare.otherExperiments`.
 
-Семантика runtime для engines:
+Семантика runtime для target:
+
+- **Target** — это вариант рантайма, идентифицируемый уникальным ключом (например, `polar-db-current`, `polar-db-2.1.1`, `sqlite`).
+- Каждый target указывает **семейство движков** (`engine`) и опционально зафиксированную версию NuGet (`nuget`).
+- Один эксперимент может содержать несколько targets из одного семейства движков (например, три варианта Polar.DB: текущий source, NuGet 2.1.1, NuGet 2.1.0).
+- Ключ target — это идентификатор варианта рантайма; поле engine идентифицирует семейство движков.
+
+Семантика runtime для семейства движков:
 
 - `polar-db` без `nuget` -> текущий source из репозитория;
 - `polar-db` с `nuget` -> зафиксированная версия Polar.DB из NuGet;
@@ -51,15 +58,15 @@
 
 ## 4. Сквозной процесс
 
-### Шаг 1: запустить executor для каждого движка
+### Шаг 1: запустить executor для каждого target
 
-Для честного series-comparison запускайте движки с одинаковым `comparison set id`.
+Для честного series-comparison запускайте targets с одинаковым `comparison set id`.
 
 Пример:
 
 ```bash
 dotnet run --project benchmarks/Polar.DB.Bench.Exec -- \
-  --engine polar-db \
+  --engine polar-db-current \
   --spec benchmarks/experiments/persons-load-build-reopen-random-lookup \
   --work benchmarks/work/polar-series \
   --comparison-set stage4-load-001
@@ -77,8 +84,8 @@ dotnet run --project benchmarks/Polar.DB.Bench.Exec -- \
 
 Шаблон имён файлов:
 
-- одиночный запуск: `<timestamp>__<engine>.run.json`;
-- серийный запуск: `<timestamp>__<engine>__<role>-<seq>.run.json`.
+- одиночный запуск: `<timestamp>__<target-key>.run.json`;
+- серийный запуск: `<timestamp>__<target-key>__<role>-<seq>.run.json`.
 
 ### Шаг 2: запустить analysis
 
@@ -93,7 +100,7 @@ dotnet run --project benchmarks/Polar.DB.Bench.Analysis -- \
 
 Analysis записывает:
 
-- локальные снимки в `analyzed/` (например, `latest-series.polar-db.json`);
+- локальные снимки в `analyzed/` (например, `latest-series.polar-db-current.json`);
 - comparison-артефакты в `comparisons/`.
 
 ### Шаг 3: запустить charts/reporting
@@ -112,22 +119,22 @@ dotnet run --project benchmarks/Polar.DB.Bench.Charts -- \
 
 В папке `comparisons/` должны быть:
 
-- `latest-engines.json` - последнее успешное measured-сравнение движков внутри эксперимента;
+- `latest-engines.json` - последнее успешное measured-сравнение targets внутри эксперимента;
 - `latest-history.json` - история того же эксперимента во времени (управляется `compare.history`);
 - `latest-other-experiments.json` - контекст против указанных других экспериментов (управляется `compare.otherExperiments`);
 - при необходимости legacy `*.comparison.json` или `*.comparison-series.json`.
 
 Автоматическое поведение:
 
-- сравнение движков включается автоматически, если в манифесте больше одного engine;
+- сравнение targets включается автоматически, если в манифесте больше одного target;
 - history и other-experiments управляются флагами манифеста.
 
 ## 6. Модель содержимого `index.html`
 
 Человекочитаемая страница должна показывать:
 
-1. идентичность эксперимента (title, description, dataset, workload, engines);
-2. последнее сравнение движков;
+1. идентичность эксперимента (title, description, dataset, workload, targets);
+2. последнее сравнение targets;
 3. историю внутри эксперимента;
 4. межэкспериментный контекст (если включён);
 5. ссылки на machine-readable артефакты из `raw/`, `analyzed/`, `comparisons/`.
@@ -156,13 +163,13 @@ dotnet run --project benchmarks/Polar.DB.Bench.Charts -- \
 1. History chart:
    - x = series/date;
    - y = elapsed median;
-   - отдельная линия/бар на каждый engine.
+   - отдельная линия/бар на каждый target.
 2. Phase breakdown chart:
    - load / build / reopen / lookup;
-   - latest series по engines.
+   - latest series по targets.
 3. Artifact size chart:
    - primary / side / total bytes;
-   - latest series по engines.
+   - latest series по targets.
 
 Не превращайте reporting в большой frontend-приложение.
 
@@ -171,7 +178,7 @@ dotnet run --project benchmarks/Polar.DB.Bench.Charts -- \
 1. Создать `benchmarks/experiments/<slug>/`.
 2. Добавить `experiment.json`.
 3. Создать подпапки: `raw/`, `analyzed/`, `comparisons/`.
-4. Запустить executor для сконфигурированных engines с общим `comparison set id`.
+4. Запустить executor для сконфигурированных targets с общим `comparison set id`.
 5. Запустить analysis.
 6. Запустить charts и пересобрать `index.html`.
 7. Проверить:
