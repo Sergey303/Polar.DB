@@ -31,9 +31,13 @@
     "ReopenRecovery",
     "PhysicalArtifactInspection"
   ],
-  "engines": {
-    "polar-db": {},
-    "sqlite": {}
+  "targets": {
+    "polar-db": {
+      "engine": "polar-db"
+    },
+    "sqlite": {
+      "engine": "sqlite"
+    }
   },
   "compare": {
     "history": true,
