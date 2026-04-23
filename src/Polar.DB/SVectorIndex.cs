@@ -171,10 +171,10 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            Build(sequence.CreateLogicalBuildSnapshot());
+            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
         }
 
-        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
         {
             List<string> values_list = new List<string>();
             List<long> offsets_list = new List<long>();

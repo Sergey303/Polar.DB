@@ -86,10 +86,10 @@ namespace Polar.DB
 
         public void Build()
         {
-            Build(sequence.CreateLogicalBuildSnapshot());
+            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
         }
 
-        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
         {
             int count = snapshot.Count;
             int[] localHkeys = new int[count];

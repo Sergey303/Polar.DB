@@ -164,10 +164,10 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            Build(sequence.CreateLogicalBuildSnapshot());
+            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
         }
 
-        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
         {
             int initialCapacity = snapshot.Count;
             List<int> hkeys_list = initialCapacity > 0 ? new List<int>(initialCapacity) : new List<int>();

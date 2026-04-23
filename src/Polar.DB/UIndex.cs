@@ -129,10 +129,10 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            Build(sequence.CreateLogicalBuildSnapshot());
+            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
         }
 
-        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
         {
             if (hashFunc == null)
                 BuildOffsets(snapshot);

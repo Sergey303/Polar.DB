@@ -405,22 +405,22 @@ namespace Polar.DB
 
             LogicalBuildEntry[] snapshot = CreateLogicalBuildSnapshot();
 
-            primaryKeyIndex.Build(snapshot);
+            primaryKeyIndex.BuildFromSnapshot(snapshot);
             foreach (var ind in uindexes)
             {
                 switch (ind)
                 {
                     case UVectorIndex uVectorIndex:
-                        uVectorIndex.Build(snapshot);
+                        uVectorIndex.BuildFromSnapshot(snapshot);
                         break;
                     case UVecIndex uVecIndex:
-                        uVecIndex.Build(snapshot);
+                        uVecIndex.BuildFromSnapshot(snapshot);
                         break;
                     case SVectorIndex sVectorIndex:
-                        sVectorIndex.Build(snapshot);
+                        sVectorIndex.BuildFromSnapshot(snapshot);
                         break;
                     case UIndex uIndex:
-                        uIndex.Build(snapshot);
+                        uIndex.BuildFromSnapshot(snapshot);
                         break;
                     default:
                         ind.Build();
