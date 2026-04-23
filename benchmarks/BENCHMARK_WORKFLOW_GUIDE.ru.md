@@ -194,3 +194,24 @@ dotnet run --project benchmarks/Polar.DB.Bench.Charts -- \
 - `benchmarks/BENCHMARK_PLATFORM_SPEC.md`
 - `benchmarks/docs/BENCHMARK_METHOD.md`
 - `benchmarks/docs/RESULT_SCHEMA.md`
+- `benchmarks/docs/archive/` — историческая документация stage-1
+- `benchmarks/docs/examples/` — примеры policy и baseline файлов
+
+## 11. Очищенная структура верхнего уровня
+
+Каноническая структура бенчмарков теперь состоит из:
+
+- `experiments/` — одна папка на эксперимент, каждая содержит `experiment.json`, `raw/`, `analyzed/`, `comparisons/`, `index.html`
+- `docs/` — активная документация
+- `docs/archive/` — исторические материалы stage-1
+- `docs/examples/` — примеры policy и baseline файлов
+- Папки проектов бенчмарков (`Polar.DB.Bench.*`)
+- `.gitignore`, `Directory.Build.props`, `BENCHMARK_PLATFORM_SPEC.md`, `BENCHMARK_WORKFLOW_GUIDE.md`
+
+Следующие папки верхнего уровня больше не являются частью активной канонической структуры:
+
+- `contracts/` — примеры файлов перемещены в `docs/examples/`
+- `baselines/` — примеры файлов перемещены в `docs/examples/`
+- `results/` — устарело; результаты экспериментов хранятся внутри папки каждого эксперимента
+- `reports/` — устарело; отчёты генерируются для каждого эксперимента
+- `work/` — неканоническое рабочее пространство, создаётся по требованию
