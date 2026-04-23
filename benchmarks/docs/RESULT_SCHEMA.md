@@ -6,16 +6,23 @@ Raw run is immutable factual execution data from one executor launch.
 
 Main groups:
 
-- run identity (`runId`, timestamp, engine, experiment, dataset, fairness);
+- run identity (`run`, `at`, `engine`, `experiment`, `dataset`, `fairness`, optional `runtime`);
 - stage4 series identity:
-  - `comparisonSetId` (optional),
-  - `runSeriesSequenceNumber` (optional),
-  - `runRole` (`warmup` or `measured`, optional for old runs);
-- technical result (`technicalSuccess`, optional failure reason);
-- semantic result (`semanticSuccess`, optional failure reason);
+  - `set` (optional),
+  - `seq` (optional),
+  - `role` (`warmup` or `measured`, optional for old runs);
+- technical result (`technical`, optional `technicalError`);
+- semantic result (`semantic`, optional `semanticError`);
 - measured metrics;
 - artifact inventory;
-- engine diagnostics and notes.
+- diagnostics and notes.
+
+Engine runtime semantics in raw runs:
+
+- `engine: "polar-db"` + no `nuget` in experiment spec -> `runtime.source = "source-current"`;
+- `engine: "polar-db"` + `nuget: "X.Y.Z"` -> `runtime.source = "nuget-pinned"`, `runtime.nuget = "X.Y.Z"`;
+- non-Polar engine without `nuget` -> `runtime.source = "nuget-latest"`;
+- non-Polar engine with `nuget` -> `runtime.source = "nuget-pinned"`, `runtime.nuget = "X.Y.Z"`.
 
 For imported `persons-load-build-reopen-random-lookup` workload, raw metrics also include:
 
@@ -49,14 +56,14 @@ Still supported as fallback for old raw data without comparison sets.
 
 ## 4) Stage4 aggregated comparison (`*.comparison-series.json`)
 
-Comparison-series artifact is an analysis-layer derivative built from one `comparisonSetId`.
+Comparison-series artifact is an analysis-layer derivative built from one comparison set id (`set`).
 
 Contains:
 
 - experiment key;
 - dataset profile;
 - fairness profile;
-- `comparisonSetId`;
+- `set`;
 - environment class;
 - engine list;
 - per-engine aggregated stats (measured runs only):
@@ -76,5 +83,5 @@ Contains:
 
 Missing metric handling:
 
-- stats include `missingCount`;
+- stats include `missing`;
 - aggregation skips missing values instead of silently substituting fake numbers.

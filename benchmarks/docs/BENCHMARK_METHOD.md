@@ -35,25 +35,32 @@ Default behavior:
 - with `--comparison-set`: `warmup=1`, `measured=3`;
 - without `--comparison-set`: legacy single run (`warmup=0`, `measured=1`).
 
+## Engine runtime syntax in experiment JSON
+
+- `"engine": "polar-db"` -> run current source from repository.
+- `"engine": "polar-db", "nuget": "2.1.1"` -> run pinned Polar.DB NuGet version.
+- `"engine": "sqlite"` -> run SQLite latest NuGet version.
+- `"engine": "sqlite", "nuget": "X.Y.Z"` -> run pinned SQLite NuGet version.
+
 ## Typical commands
 
 Single raw run (Polar.DB):
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.polar-db.json --work benchmarks/work/polar-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.polar-db.json --work benchmarks/work/polar-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
 ```
 
 Single raw run (SQLite):
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/sqlite-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/sqlite-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
 ```
 
 Series run with one comparison set:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.polar-db.json --work benchmarks/work/polar-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.sqlite.json --work benchmarks/work/sqlite-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.polar-db.json --work benchmarks/work/polar-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.sqlite.json --work benchmarks/work/sqlite-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
 ```
 
 Build aggregated comparison:

@@ -1,10 +1,10 @@
 {
-  "baselineId": "sample-baseline-v1",
-  "experimentKey": "bulk-load-point-lookup",
-  "datasetProfileKey": "persons-100k-reverse",
-  "engineKey": "synthetic",
-  "fairnessProfileKey": "durability-balanced",
-  "environmentClass": "local",
+  "baseline": "sample-baseline-v1",
+  "experiment": "bulk-load-point-lookup",
+  "dataset": "persons-100k-reverse",
+  "engine": "synthetic",
+  "fairness": "durability-balanced",
+  "env": "local",
   "metrics": {
     "elapsedMsSingleRun": 1200.0,
     "totalArtifactBytes": 1800000.0,

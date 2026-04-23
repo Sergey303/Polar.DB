@@ -23,6 +23,7 @@ public static class ExecApplication
         }
 
         var spec = await LoadSpecAsync(options.SpecPath!);
+        var (engineKey, runtime) = EngineRuntimeResolver.Resolve(options.EngineKey, spec);
         Directory.CreateDirectory(options.RawResultsDirectory!);
         Directory.CreateDirectory(options.WorkingDirectory!);
 
@@ -41,7 +42,7 @@ public static class ExecApplication
         };
         Directory.CreateDirectory(workspace.ArtifactsDirectory);
 
-        var adapter = CreateAdapter(options.EngineKey!);
+        var adapter = CreateAdapter(engineKey);
         var executionPlan = BuildExecutionPlan(options);
         var measuredResults = new List<RunResult>(executionPlan.MeasuredCount);
 
@@ -59,6 +60,7 @@ public static class ExecApplication
                 runRole,
                 executionPlan.WarmupCount,
                 executionPlan.MeasuredCount);
+            taggedResult = AttachEngineRuntimeInfo(taggedResult, engineKey, runtime);
 
             var rawPath = BuildRawPath(workspace, taggedResult, runRole, sequenceNumber, executionPlan.TotalCount > 1);
             await using var stream = File.Create(rawPath);
@@ -77,7 +79,7 @@ public static class ExecApplication
     private static async Task<ExperimentSpec> LoadSpecAsync(string specPath)
     {
         await using var stream = File.OpenRead(specPath);
-        var spec = await JsonSerializer.DeserializeAsync<ExperimentSpec>(stream, JsonDefaults.Default);
+        var spec = await JsonAliasNormalizer.DeserializeAsync<ExperimentSpec>(stream, JsonDefaults.Default);
         return spec ?? throw new InvalidOperationException("Failed to deserialize experiment spec.");
     }
 
@@ -153,7 +155,7 @@ public static class ExecApplication
 
         tags["warmupCount"] = warmupCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
         tags["measuredCount"] = measuredCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        tags["runRole"] = runRole;
+        tags["role"] = runRole;
 
         return result with
         {
@@ -161,6 +163,29 @@ public static class ExecApplication
             RunSeriesSequenceNumber = sequenceNumber,
             RunRole = runRole,
             Tags = tags
+        };
+    }
+
+    private static RunResult AttachEngineRuntimeInfo(
+        RunResult result,
+        string engineKey,
+        EngineRuntimeDescriptor runtime)
+    {
+        var diagnostics = result.EngineDiagnostics is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(result.EngineDiagnostics, StringComparer.OrdinalIgnoreCase);
+
+        diagnostics["runtimeSource"] = runtime.Source;
+        if (!string.IsNullOrWhiteSpace(runtime.Nuget))
+        {
+            diagnostics["runtimeNuget"] = runtime.Nuget;
+        }
+
+        return result with
+        {
+            EngineKey = engineKey,
+            Runtime = runtime,
+            EngineDiagnostics = diagnostics
         };
     }
 

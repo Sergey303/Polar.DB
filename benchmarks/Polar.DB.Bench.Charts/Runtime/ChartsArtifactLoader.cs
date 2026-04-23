@@ -44,7 +44,7 @@ internal sealed class ChartsArtifactLoader
         foreach (var file in files)
         {
             await using var stream = File.OpenRead(file);
-            var value = await JsonSerializer.DeserializeAsync<T>(stream, JsonDefaults.Default);
+            var value = await JsonAliasNormalizer.DeserializeAsync<T>(stream, JsonDefaults.Default);
             if (value is not null)
             {
                 results.Add(value);

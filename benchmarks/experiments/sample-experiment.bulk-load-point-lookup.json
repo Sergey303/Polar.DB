@@ -1,28 +1,29 @@
 {
-  "experimentKey": "bulk-load-point-lookup",
-  "researchQuestionId": "RQ-COMMON-001",
-  "hypothesisId": "H-COMMON-001",
+  "experiment": "bulk-load-point-lookup",
+  "research": "RQ-COMMON-001",
+  "hypothesis": "H-COMMON-001",
   "description": "Synthetic stage-1 experiment used to validate the raw -> analyzed -> charts pipeline.",
+  "engine": "synthetic",
   "dataset": {
-    "profileKey": "persons-100k-reverse",
-    "recordCount": 100000,
+    "profile": "persons-100k-reverse",
+    "count": 100000,
     "seed": 12345,
     "notes": "Stage-1 synthetic dataset profile."
   },
   "workload": {
-    "workloadKey": "bulk-load-point-lookup",
-    "lookupCount": 10000,
+    "type": "bulk-load-point-lookup",
+    "lookup": 10000,
     "notes": "Synthetic executor interprets this as a deterministic run shape."
   },
-  "faultProfile": {
-    "faultProfileKey": "none",
+  "fault": {
+    "type": "none",
     "notes": "No corruption in stage-1 sample."
   },
-  "fairnessProfile": {
-    "fairnessProfileKey": "durability-balanced",
+  "fairness": {
+    "type": "durability-balanced",
     "notes": "Only a schema placeholder in stage 1."
   },
-  "requiredCapabilities": [
+  "requires": [
     "BulkLoad",
     "PointLookup",
     "PhysicalArtifactInspection"
