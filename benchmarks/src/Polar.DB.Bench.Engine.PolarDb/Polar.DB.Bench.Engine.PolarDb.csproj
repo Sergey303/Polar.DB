@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Polar.DB.Bench.Engine.PolarDb</RootNamespace>
+    <AssemblyName>Polar.DB.Bench.Engine.PolarDb</AssemblyName>
+    <Nullable>enable</Nullable>
+    <LangVersion>10</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Polar.DB\Polar.DB.csproj" />
+    <ProjectReference Include="..\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj" />
+  </ItemGroup>
+</Project>
