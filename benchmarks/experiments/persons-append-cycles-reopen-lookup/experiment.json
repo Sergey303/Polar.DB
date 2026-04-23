@@ -36,14 +36,7 @@
     "sqlite": {}
   },
   "compare": {
-    "history": {
-      "enabled": true
-    },
-    "otherExperiments": {
-      "enabled": true,
-      "experiments": [
-        "persons-load-build-reopen-random-lookup"
-      ]
-    }
+    "history": true,
+    "otherExperiments": true
   }
 }

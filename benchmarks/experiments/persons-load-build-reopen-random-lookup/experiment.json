@@ -34,14 +34,7 @@
     "sqlite": {}
   },
   "compare": {
-    "history": {
-      "enabled": true
-    },
-    "otherExperiments": {
-      "enabled": true,
-      "experiments": [
-        "persons-append-cycles-reopen-lookup"
-      ]
-    }
+    "history": true,
+    "otherExperiments": true
   }
 }
