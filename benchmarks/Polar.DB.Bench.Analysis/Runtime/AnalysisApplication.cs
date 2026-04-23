@@ -314,7 +314,7 @@ public static class AnalysisApplication
             files,
             experimentDirectory,
             manifest.ExperimentKey,
-            compareConfig,
+            compareConfig.OtherExperimentsEnabled,
             latestSnapshot);
 
         var latestEnginesPath = Path.Combine(comparisonOutputDirectory, "latest-engines.json");
@@ -389,11 +389,18 @@ public static class AnalysisApplication
         };
     }
 
+    /// <summary>
+    /// Builds cross-experiment context artifact.
+    /// When otherExperimentsEnabled is true, auto-discovers other experiment folders
+    /// under the experiments root directory (parent of current experiment folder).
+    /// No manual experiment lists needed.
+    /// This is informative context, not strict apples-to-apples comparison.
+    /// </summary>
     private static async Task<LatestOtherExperimentsComparisonArtifact> BuildLatestOtherExperimentsArtifactAsync(
         BenchmarkFileReader files,
         string currentExperimentDirectory,
         string currentExperimentKey,
-        ResolvedCompareConfig compareConfig,
+        bool otherExperimentsEnabled,
         ComparisonSnapshot? currentSnapshot)
     {
         var notes = new List<string>
@@ -402,7 +409,7 @@ public static class AnalysisApplication
             "No workload similarity or apples-to-apples scoring is inferred in this artifact."
         };
 
-        if (!compareConfig.OtherExperimentsEnabled)
+        if (!otherExperimentsEnabled)
         {
             notes.Add("Disabled by experiment compare.otherExperiments flag.");
             return new LatestOtherExperimentsComparisonArtifact
@@ -435,8 +442,11 @@ public static class AnalysisApplication
             };
         }
 
+        // Auto-discover other experiment folders from the experiments root.
+        var otherExperimentKeys = DiscoverOtherExperimentKeys(experimentsRoot, currentExperimentKey);
+
         var snapshots = new List<ComparisonSnapshot>();
-        foreach (var otherExperimentKey in compareConfig.OtherExperiments)
+        foreach (var otherExperimentKey in otherExperimentKeys)
         {
             var otherExperimentDirectory = Path.Combine(experimentsRoot, otherExperimentKey);
             var otherManifestPath = Path.Combine(otherExperimentDirectory, ManifestFileName);
@@ -485,6 +495,30 @@ public static class AnalysisApplication
             DerivedExpectations = BuildOtherExperimentExpectations(currentSnapshot, snapshots),
             Notes = notes
         };
+    }
+
+    /// <summary>
+    /// Discovers other experiment folders under the experiments root.
+    /// Looks for subdirectories that contain experiment.json.
+    /// Excludes the current experiment.
+    /// </summary>
+    private static IReadOnlyList<string> DiscoverOtherExperimentKeys(
+        string experimentsRoot,
+        string currentExperimentKey)
+    {
+        if (!Directory.Exists(experimentsRoot))
+        {
+            return Array.Empty<string>();
+        }
+
+        return Directory.GetDirectories(experimentsRoot)
+            .Select(dir => Path.GetFileName(dir))
+            .Where(name =>
+                !string.IsNullOrWhiteSpace(name) &&
+                !name.Equals(currentExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(Path.Combine(experimentsRoot, name, ManifestFileName)))
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static IReadOnlyList<string> BuildEngineExpectations(ComparisonSnapshot? snapshot)
@@ -569,7 +603,7 @@ public static class AnalysisApplication
         }
 
         expectations.Add(
-            $"Current experiment '{currentSnapshot.ExperimentKey}' is shown with {otherSnapshots.Count} configured external context snapshots.");
+            $"Current experiment '{currentSnapshot.ExperimentKey}' is shown with {otherSnapshots.Count} auto-discovered external context snapshots.");
         return expectations;
     }
 }

@@ -32,12 +32,7 @@
     "synthetic": {}
   },
   "compare": {
-    "history": {
-      "enabled": false
-    },
-    "otherExperiments": {
-      "enabled": false,
-      "experiments": []
-    }
+    "history": false,
+    "otherExperiments": false
   }
 }
