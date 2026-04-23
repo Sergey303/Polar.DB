@@ -6,7 +6,7 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 /// <summary>
 /// Entry point for benchmark analysis commands.
 /// It supports two flows:
-/// policy evaluation for one raw run and cross-engine comparison artifact generation.
+/// local run interpretation artifacts in <c>analyzed/</c> and comparison artifacts in <c>comparisons/</c>.
 /// </summary>
 public static class AnalysisApplication
 {
@@ -37,6 +37,9 @@ public static class AnalysisApplication
         var raw = await files.ReadAsync<RunResult>(options.RawResultPath!);
         var policy = await files.ReadAsync<PolicyContract>(options.PolicyPath!);
         var baseline = await files.ReadAsync<BaselineDescriptor>(options.BaselinePath!);
+        var analyzedResultsDirectory = AnalysisOptions.ResolveAnalyzedResultsDirectoryForPolicy(
+            options.RawResultPath!,
+            options.AnalyzedResultsDirectory);
 
         var checks = PolicyEvaluator.Evaluate(raw, policy, baseline);
         var overallStatus = checks.Select(x => x.Status).Contains("Broken")
@@ -64,10 +67,10 @@ public static class AnalysisApplication
             }
         };
 
-        Directory.CreateDirectory(options.AnalyzedResultsDirectory!);
+        Directory.CreateDirectory(analyzedResultsDirectory);
         var timestamp = raw.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
         var outputPath = ResultPathBuilder.BuildAnalyzedResultPath(
-            options.AnalyzedResultsDirectory!,
+            analyzedResultsDirectory,
             timestamp,
             raw.ExperimentKey,
             raw.DatasetProfileKey,
@@ -88,7 +91,15 @@ public static class AnalysisApplication
     private static async Task<int> RunComparisonModeAsync(AnalysisOptions options)
     {
         var files = new BenchmarkFileReader();
-        var rawRuns = await files.LoadRawRunsAsync(options.RawResultsDirectory!);
+        var rawResultsDirectory = AnalysisOptions.ResolveRawResultsDirectory(options.RawResultsDirectory!);
+        var comparisonOutputDirectory = AnalysisOptions.ResolveComparisonOutputDirectory(
+            options.RawResultsDirectory!,
+            options.ComparisonOutputDirectory);
+        var analyzedResultsDirectory = AnalysisOptions.ResolveAnalyzedResultsDirectoryForComparison(
+            options.RawResultsDirectory!,
+            options.AnalyzedResultsDirectory);
+
+        var rawRuns = await files.LoadRawRunsAsync(rawResultsDirectory);
         var selector = new ComparisonSelectionService(PolarEngineKey, SqliteEngineKey);
         var filtered = selector.SelectRuns(rawRuns, options);
 
@@ -98,7 +109,8 @@ public static class AnalysisApplication
         }
 
         var comparisonSetId = selector.ResolveComparisonSetId(filtered, options.ComparisonSetId);
-        Directory.CreateDirectory(options.ComparisonOutputDirectory!);
+        Directory.CreateDirectory(comparisonOutputDirectory);
+        Directory.CreateDirectory(analyzedResultsDirectory);
 
         if (!string.IsNullOrWhiteSpace(comparisonSetId))
         {
@@ -106,7 +118,7 @@ public static class AnalysisApplication
             var seriesResult = seriesBuilder.Build(filtered, options.ComparisonExperimentKey!, comparisonSetId);
             var timestampToken = seriesResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
             var outputPath = ResultPathBuilder.BuildComparisonSeriesResultPath(
-                options.ComparisonOutputDirectory!,
+                comparisonOutputDirectory,
                 timestampToken,
                 seriesResult.ExperimentKey,
                 seriesResult.DatasetProfileKey ?? "mixed",
@@ -115,6 +127,7 @@ public static class AnalysisApplication
 
             await files.WriteAsync(outputPath, seriesResult);
             Console.WriteLine($"Comparison series result written: {outputPath}");
+            await WriteLatestSeriesArtifactsAsync(files, analyzedResultsDirectory, seriesResult);
             return 0;
         }
 
@@ -122,7 +135,7 @@ public static class AnalysisApplication
         var legacyResult = legacyBuilder.Build(filtered, options.ComparisonExperimentKey!);
         var legacyTimestampToken = legacyResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
         var legacyPath = ResultPathBuilder.BuildComparisonResultPath(
-            options.ComparisonOutputDirectory!,
+            comparisonOutputDirectory,
             legacyTimestampToken,
             legacyResult.ExperimentKey,
             legacyResult.DatasetProfileKey ?? "mixed",
@@ -130,6 +143,112 @@ public static class AnalysisApplication
 
         await files.WriteAsync(legacyPath, legacyResult);
         Console.WriteLine($"Comparison result written: {legacyPath}");
+        await WriteLatestSeriesArtifactsFromLegacyAsync(files, analyzedResultsDirectory, legacyResult);
         return 0;
+    }
+
+    private static async Task WriteLatestSeriesArtifactsAsync(
+        BenchmarkFileReader files,
+        string analyzedResultsDirectory,
+        CrossEngineComparisonSeriesResult seriesResult)
+    {
+        foreach (var seriesEntry in seriesResult.EngineSeries)
+        {
+            var localArtifact = new LocalAnalyzedSeriesResult
+            {
+                ArtifactKind = "latest-series",
+                AnalysisTimestampUtc = seriesResult.TimestampUtc,
+                ExperimentKey = seriesResult.ExperimentKey,
+                EngineKey = seriesEntry.EngineKey,
+                ComparisonSetId = seriesResult.ComparisonSetId,
+                DatasetProfileKey = seriesResult.DatasetProfileKey,
+                FairnessProfileKey = seriesResult.FairnessProfileKey,
+                EnvironmentClass = seriesResult.EnvironmentClass,
+                MeasuredRunCount = seriesEntry.MeasuredRunCount,
+                WarmupRunCount = seriesEntry.WarmupRunCount,
+                TechnicalSuccessCount = seriesEntry.TechnicalSuccessCount,
+                SemanticSuccessCount = seriesEntry.SemanticSuccessCount,
+                SemanticEvaluatedCount = seriesEntry.SemanticEvaluatedCount,
+                RawResultPaths = seriesEntry.RawResultPaths,
+                ElapsedMs = seriesEntry.ElapsedMs,
+                LoadMs = seriesEntry.LoadMs,
+                BuildMs = seriesEntry.BuildMs,
+                ReopenMs = seriesEntry.ReopenMs,
+                LookupMs = seriesEntry.LookupMs,
+                LookupBatchCount = seriesEntry.LookupBatchCount,
+                TotalArtifactBytes = seriesEntry.TotalArtifactBytes,
+                PrimaryArtifactBytes = seriesEntry.PrimaryArtifactBytes,
+                SideArtifactBytes = seriesEntry.SideArtifactBytes,
+                Notes = new List<string>
+                {
+                    "Local analyzed artifact for one engine.",
+                    "Derived from latest measured comparison set in this experiment.",
+                    "Cross-engine comparison artifacts are stored in comparisons/."
+                }
+            };
+
+            var outputPath = Path.Combine(analyzedResultsDirectory, $"latest-series.{seriesEntry.EngineKey}.json");
+            await files.WriteAsync(outputPath, localArtifact);
+            Console.WriteLine($"Local analyzed series written: {outputPath}");
+        }
+    }
+
+    private static async Task WriteLatestSeriesArtifactsFromLegacyAsync(
+        BenchmarkFileReader files,
+        string analyzedResultsDirectory,
+        CrossEngineComparisonResult legacyResult)
+    {
+        foreach (var entry in legacyResult.Engines)
+        {
+            var localArtifact = new LocalAnalyzedSeriesResult
+            {
+                ArtifactKind = "latest-series",
+                AnalysisTimestampUtc = legacyResult.TimestampUtc,
+                ExperimentKey = legacyResult.ExperimentKey,
+                EngineKey = entry.EngineKey,
+                ComparisonSetId = null,
+                DatasetProfileKey = legacyResult.DatasetProfileKey,
+                FairnessProfileKey = legacyResult.FairnessProfileKey,
+                EnvironmentClass = legacyResult.EnvironmentClass,
+                MeasuredRunCount = 1,
+                WarmupRunCount = 0,
+                TechnicalSuccessCount = entry.TechnicalSuccess ? 1 : 0,
+                SemanticSuccessCount = entry.SemanticSuccess == true ? 1 : 0,
+                SemanticEvaluatedCount = entry.SemanticSuccess is null ? 0 : 1,
+                RawResultPaths = new[] { entry.RawResultPath },
+                ElapsedMs = CreateSingleValueStats(entry.ElapsedMsSingleRun),
+                LoadMs = CreateSingleValueStats(entry.LoadMs),
+                BuildMs = CreateSingleValueStats(entry.BuildMs),
+                ReopenMs = CreateSingleValueStats(entry.ReopenMs),
+                LookupMs = CreateSingleValueStats(entry.LookupMs),
+                LookupBatchCount = null,
+                TotalArtifactBytes = CreateSingleValueStats(entry.TotalArtifactBytes),
+                PrimaryArtifactBytes = CreateSingleValueStats(entry.PrimaryArtifactBytes),
+                SideArtifactBytes = CreateSingleValueStats(entry.SideArtifactBytes),
+                Notes = new List<string>
+                {
+                    "Local analyzed artifact for one engine.",
+                    "Derived from legacy single-run fallback (no comparison set id).",
+                    "Cross-engine comparison artifacts are stored in comparisons/."
+                }
+            };
+
+            var outputPath = Path.Combine(analyzedResultsDirectory, $"latest-series.{entry.EngineKey}.json");
+            await files.WriteAsync(outputPath, localArtifact);
+            Console.WriteLine($"Local analyzed series written: {outputPath}");
+        }
+    }
+
+    private static MetricSeriesStats CreateSingleValueStats(double value)
+    {
+        return new MetricSeriesStats
+        {
+            Count = 1,
+            MissingCount = 0,
+            Min = value,
+            Max = value,
+            Average = value,
+            Median = value
+        };
     }
 }

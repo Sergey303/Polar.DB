@@ -5,7 +5,7 @@
 The platform keeps three layers separate:
 
 - executor writes immutable raw runs;
-- analysis builds derived artifacts (policy checks and comparisons);
+- analysis builds local derived artifacts in `analyzed/` and comparison artifacts in `comparisons/`;
 - charts produce human-readable summaries.
 
 This separation lets us rerun analysis/reporting without re-running expensive engine workloads.
@@ -46,6 +46,18 @@ One experiment now lives in one folder and has one canonical manifest:
 - `benchmarks/experiments/<experiment-slug>/index.html`
 
 `Bench.Exec --spec` accepts either the experiment folder or direct path to `experiment.json`.
+If `--raw-out` is omitted, executor writes to `<experiment>/raw` automatically.
+
+Roles:
+
+- `raw/` = immutable run facts (`*.run.json`) from executor only;
+- `analyzed/` = local interpretation for this experiment/engine (for example `*.eval.json`, `latest-series.<engine>.json`);
+- `comparisons/` = cross-engine/cross-object comparison artifacts (`*.comparison*.json`).
+
+Raw filename rule:
+
+- single run: `<timestamp>__<engine>.run.json`
+- series run: `<timestamp>__<engine>__<role>-<seq>.run.json`
 
 ## Engine runtime syntax in experiment manifest
 
@@ -63,26 +75,26 @@ If manifest contains multiple engines, pass `--engine <key>`.
 Single raw run (Polar.DB):
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/polar-single --raw-out benchmarks/experiments/persons-load-build-reopen-random-lookup/raw --warmup-count 0 --measured-count 1
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/polar-single --warmup-count 0 --measured-count 1
 ```
 
 Single raw run (SQLite):
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/sqlite-single --raw-out benchmarks/experiments/persons-load-build-reopen-random-lookup/raw --warmup-count 0 --measured-count 1
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/sqlite-single --warmup-count 0 --measured-count 1
 ```
 
 Series run with one comparison set:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/polar-series --raw-out benchmarks/experiments/persons-append-cycles-reopen-lookup/raw --comparison-set stage4-append-001
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/sqlite-series --raw-out benchmarks/experiments/persons-append-cycles-reopen-lookup/raw --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/polar-series --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/sqlite-series --comparison-set stage4-append-001
 ```
 
 Build aggregated comparison:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Analysis -- --raw-dir benchmarks/experiments/persons-append-cycles-reopen-lookup/raw --compare-experiment persons-append-cycles-reopen-lookup --compare-set stage4-append-001 --comparison-out benchmarks/experiments/persons-append-cycles-reopen-lookup/comparisons
+dotnet run --project benchmarks/Polar.DB.Bench.Analysis -- --raw-dir benchmarks/experiments/persons-append-cycles-reopen-lookup --compare-experiment persons-append-cycles-reopen-lookup --compare-set stage4-append-001
 ```
 
 Build markdown/csv report:

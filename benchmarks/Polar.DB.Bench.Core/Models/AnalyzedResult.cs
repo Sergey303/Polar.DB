@@ -2,6 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace Polar.DB.Bench.Core.Models;
 
+/// <summary>
+/// Local analyzed artifact for one raw run.
+/// This model stores interpretation of a single run (policy/baseline checks) and is kept inside experiment <c>analyzed/</c>.
+/// </summary>
+/// <remarks>
+/// Cross-engine or cross-experiment comparison artifacts are not represented by this model and must be stored in <c>comparisons/</c>.
+/// </remarks>
 public sealed record AnalyzedResult
 {
     [JsonPropertyName("run")]

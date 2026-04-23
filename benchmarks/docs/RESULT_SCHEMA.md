@@ -3,6 +3,11 @@
 ## 1) Raw run (`*.run.json`)
 
 Raw run is immutable factual execution data from one executor launch.
+Raw files are stored under `benchmarks/experiments/<experiment>/raw/`.
+Filename rule:
+
+- single run: `<timestamp>__<engine>.run.json`;
+- series run: `<timestamp>__<engine>__<role>-<seq>.run.json`.
 
 Main groups:
 
@@ -35,7 +40,15 @@ Backward compatibility:
 
 ## 2) Analyzed result (`*.eval.json`)
 
-Analyzed result references one raw run and adds policy/baseline evaluation.
+Analyzed artifacts are local interpretation outputs for one experiment.
+They are stored under `benchmarks/experiments/<experiment>/analyzed/`.
+
+Examples:
+
+- per-run policy interpretation: `*.eval.json`;
+- latest local engine series snapshot: `latest-series.polar-db.json`, `latest-series.sqlite.json`.
+
+Analyzed artifacts do not contain cross-engine comparison payloads.
 
 - policy id;
 - baseline id;
@@ -47,6 +60,7 @@ No raw facts are rewritten.
 ## 3) Legacy comparison (`*.comparison.json`)
 
 Legacy single-run comparison artifact from stage3.
+Comparison artifacts are stored under `benchmarks/experiments/<experiment>/comparisons/`.
 
 - one selected run per engine;
 - common comparable metrics;
