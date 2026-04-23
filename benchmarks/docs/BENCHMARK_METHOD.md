@@ -6,9 +6,26 @@ The platform keeps three layers separate:
 
 - executor writes immutable raw runs;
 - analysis builds local derived artifacts in `analyzed/` and comparison artifacts in `comparisons/`;
-- charts produce human-readable summaries.
+- charts produce human-readable summaries and the canonical experiment page `index.html`.
 
 This separation lets us rerun analysis/reporting without re-running expensive engine workloads.
+
+## Experiment index page
+
+`benchmarks/experiments/<experiment>/index.html` is the main human-readable page.
+
+- HTML generation is always on (no `generateHtml` flag).
+- Main tables use scientific display for large values.
+- Bytes also include practical binary units (`KiB/MiB/GiB`).
+- Exact raw numeric values remain available via tooltip/title metadata.
+
+Minimum charts on the page:
+
+1. history chart (series/date vs elapsed median, one line per engine);
+2. phase breakdown chart (load/build/reopen/lookup for latest series);
+3. artifact size chart (primary/side/total bytes for latest series).
+
+The page also links machine-readable artifacts from `raw/`, `analyzed/`, and `comparisons/`.
 
 ## Stage4 comparison method
 
@@ -112,3 +129,5 @@ Build markdown/csv report:
 ```bash
 dotnet run --project benchmarks/Polar.DB.Bench.Charts -- --comparisons benchmarks/experiments/persons-append-cycles-reopen-lookup/comparisons --reports-out benchmarks/experiments/persons-append-cycles-reopen-lookup
 ```
+
+This command also regenerates `benchmarks/experiments/persons-append-cycles-reopen-lookup/index.html`.
