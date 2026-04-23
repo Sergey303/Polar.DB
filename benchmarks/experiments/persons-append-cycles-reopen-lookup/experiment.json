@@ -1,9 +1,9 @@
 {
   "experiment": "persons-append-cycles-reopen-lookup",
+  "title": "Persons Append Cycles Reopen Lookup",
   "research": "RQ-COMMON-002",
-  "hypothesis": "H-POLAR-STAGE4-002",
+  "hypothesis": "H-COMMON-STAGE4-002",
   "description": "Stage4 common experiment: initial load/build, append batches, reopen after each batch, random point lookup sample, artifact growth tracking.",
-  "engine": "polar-db",
   "dataset": {
     "profile": "persons-400k-plus-append-3x200k",
     "count": 400000,
@@ -30,5 +30,15 @@
     "PointLookup",
     "ReopenRecovery",
     "PhysicalArtifactInspection"
-  ]
+  ],
+  "engines": {
+    "polar-db": {},
+    "sqlite": {}
+  },
+  "compare": {
+    "history": [],
+    "otherExperiments": [
+      "persons-load-build-reopen-random-lookup"
+    ]
+  }
 }

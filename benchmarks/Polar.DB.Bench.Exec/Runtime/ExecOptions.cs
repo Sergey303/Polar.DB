@@ -3,7 +3,7 @@ namespace Polar.DB.Bench.Exec.Runtime;
 public sealed class ExecOptions
 {
     public static string UsageText =>
-        "Usage: --spec <path> --work <dir> --raw-out <dir> [--engine <key>] " +
+        "Usage: --spec <experiment.json|experiment-folder> --work <dir> --raw-out <dir> [--engine <key>] " +
         "[--env <class>] [--comparison-set <id>] [--warmup-count <n>] [--measured-count <n>]";
 
     public string? EngineKey { get; init; }
@@ -38,9 +38,19 @@ public sealed class ExecOptions
 
     public bool IsValid(out string error)
     {
-        if (string.IsNullOrWhiteSpace(SpecPath) || !File.Exists(SpecPath))
+        if (string.IsNullOrWhiteSpace(SpecPath))
         {
-            error = "Missing or invalid --spec path.";
+            error = "Missing --spec path.";
+            return false;
+        }
+
+        try
+        {
+            _ = ExperimentSpecLoader.ResolveSpecPath(SpecPath);
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
             return false;
         }
 

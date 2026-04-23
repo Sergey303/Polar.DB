@@ -22,10 +22,9 @@ Normalization choices for fair Polar.DB vs SQLite comparison:
 - one shared workload meaning (internal APIs differ, semantics do not);
 - one shared artifact accounting rule (`total`, `primary`, `side` bytes).
 
-Experiment specs:
+Experiment manifest:
 
-- `experiments/persons-load-build-reopen-random-lookup.polar-db.json`
-- `experiments/persons-load-build-reopen-random-lookup.sqlite.json`
+- `experiments/persons-load-build-reopen-random-lookup/experiment.json`
 
 ### `append-cycles-reopen-lookup` (stage4)
 
@@ -37,10 +36,9 @@ Semantic flow:
 4. after reopen run random point lookup sample;
 5. track artifact growth.
 
-Experiment specs:
+Experiment manifest:
 
-- `experiments/persons-append-cycles-reopen-lookup.polar-db.json`
-- `experiments/persons-append-cycles-reopen-lookup.sqlite.json`
+- `experiments/persons-append-cycles-reopen-lookup/experiment.json`
 
 ## Planned common workloads
 

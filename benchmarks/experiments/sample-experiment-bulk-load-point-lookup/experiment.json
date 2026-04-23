@@ -1,9 +1,9 @@
 {
   "experiment": "bulk-load-point-lookup",
+  "title": "Sample Bulk Load Point Lookup",
   "research": "RQ-COMMON-001",
   "hypothesis": "H-COMMON-001",
   "description": "Synthetic stage-1 experiment used to validate the raw -> analyzed -> charts pipeline.",
-  "engine": "synthetic",
   "dataset": {
     "profile": "persons-100k-reverse",
     "count": 100000,
@@ -17,7 +17,7 @@
   },
   "fault": {
     "type": "none",
-    "notes": "No corruption in stage-1 sample."
+    "notes": "No corruption in stage 1 sample."
   },
   "fairness": {
     "type": "durability-balanced",
@@ -27,5 +27,12 @@
     "BulkLoad",
     "PointLookup",
     "PhysicalArtifactInspection"
-  ]
+  ],
+  "engines": {
+    "synthetic": {}
+  },
+  "compare": {
+    "history": [],
+    "otherExperiments": []
+  }
 }

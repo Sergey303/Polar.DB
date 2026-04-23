@@ -90,8 +90,8 @@ Study the boundary between acceptable in-place rewrite and append-and-relink app
 
 ## 7. Cross-engine architecture — 8 required decisions
 
-### 7.1. `ExperimentSpec` is central
-Experiments describe data model, dataset profile, workload, faults, fairness, required capabilities, and collected metrics.
+### 7.1. `experiment.json` manifest is central
+Each experiment is stored as one folder with one main manifest that describes data model, dataset profile, workload, fairness, engine matrix, and compare links.
 
 ### 7.2. Use engine adapters
 Each engine implements a common adapter contract.
@@ -120,7 +120,7 @@ Common experiments are comparable across engines. Engine-deep families explain e
 One run equals one immutable raw result file.
 
 ### Analyzed result
-Analysis reads raw result plus contracts/baselines and writes enriched output.
+Analysis reads raw result and writes enriched output. Optional policy/baseline inputs are supported, but they are not the mandatory center of the platform.
 
 ### Reports
 Charts, markdown reports, HTML dashboards, and comparison summaries are all derived outputs.

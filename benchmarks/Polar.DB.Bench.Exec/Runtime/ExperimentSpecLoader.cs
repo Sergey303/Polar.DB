@@ -1,0 +1,154 @@
+using System.Text.Json;
+using Polar.DB.Bench.Core.Models;
+using Polar.DB.Bench.Core.Services;
+
+namespace Polar.DB.Bench.Exec.Runtime;
+
+public static class ExperimentSpecLoader
+{
+    private const string ManifestFileName = "experiment.json";
+
+    public static async Task<ExperimentSpec> LoadAsync(
+        string specPath,
+        string? cliEngine,
+        CancellationToken cancellationToken = default)
+    {
+        var resolvedSpecPath = ResolveSpecPath(specPath);
+
+        await using var stream = File.OpenRead(resolvedSpecPath);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("Experiment spec JSON must be an object.");
+        }
+
+        if (document.RootElement.TryGetProperty("engines", out _))
+        {
+            var manifest = document.RootElement.Deserialize<ExperimentManifest>(JsonDefaults.Default);
+            if (manifest is null)
+            {
+                throw new InvalidOperationException("Failed to deserialize experiment manifest.");
+            }
+
+            return ConvertManifestToSpec(manifest, cliEngine);
+        }
+
+        var legacySpec = document.RootElement.Deserialize<ExperimentSpec>(JsonDefaults.Default);
+        return legacySpec ?? throw new InvalidOperationException("Failed to deserialize experiment spec.");
+    }
+
+    public static string ResolveSpecPath(string specPath)
+    {
+        if (string.IsNullOrWhiteSpace(specPath))
+        {
+            throw new InvalidOperationException("Missing --spec path.");
+        }
+
+        if (Directory.Exists(specPath))
+        {
+            var manifestPath = Path.Combine(specPath, ManifestFileName);
+            if (File.Exists(manifestPath))
+            {
+                return manifestPath;
+            }
+
+            throw new InvalidOperationException(
+                $"Experiment directory '{specPath}' does not contain '{ManifestFileName}'.");
+        }
+
+        if (File.Exists(specPath))
+        {
+            return specPath;
+        }
+
+        throw new InvalidOperationException($"Missing or invalid --spec path: '{specPath}'.");
+    }
+
+    private static ExperimentSpec ConvertManifestToSpec(ExperimentManifest manifest, string? cliEngine)
+    {
+        if (manifest.Engines.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Experiment '{manifest.ExperimentKey}' does not declare any engines.");
+        }
+
+        var selectedEngine = ResolveEngineKey(cliEngine, manifest.Engines);
+        var engineSpec = GetEngineSpec(manifest.Engines, selectedEngine);
+
+        return new ExperimentSpec
+        {
+            ExperimentKey = manifest.ExperimentKey,
+            ResearchQuestionId = manifest.ResearchQuestionId,
+            HypothesisId = manifest.HypothesisId,
+            Description = manifest.Description,
+            Engine = selectedEngine,
+            Nuget = NormalizeNuget(engineSpec.Nuget),
+            Dataset = manifest.Dataset,
+            Workload = manifest.Workload,
+            FaultProfile = manifest.FaultProfile,
+            FairnessProfile = manifest.FairnessProfile,
+            RequiredCapabilities = manifest.RequiredCapabilities
+        };
+    }
+
+    private static string ResolveEngineKey(
+        string? cliEngine,
+        IReadOnlyDictionary<string, ExperimentEngineSpec> configuredEngines)
+    {
+        var normalizedCliEngine = Normalize(cliEngine);
+        if (normalizedCliEngine is not null)
+        {
+            foreach (var configuredEngine in configuredEngines.Keys)
+            {
+                if (configuredEngine.Equals(normalizedCliEngine, StringComparison.OrdinalIgnoreCase))
+                {
+                    return configuredEngine;
+                }
+            }
+
+            var configured = string.Join(", ", configuredEngines.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+            throw new InvalidOperationException(
+                $"Engine '{normalizedCliEngine}' is not configured in experiment manifest. Configured engines: {configured}.");
+        }
+
+        if (configuredEngines.Count == 1)
+        {
+            return configuredEngines.Keys.First();
+        }
+
+        var engineList = string.Join(", ", configuredEngines.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+        throw new InvalidOperationException(
+            $"Experiment manifest defines multiple engines ({engineList}). Pass --engine <key>.");
+    }
+
+    private static ExperimentEngineSpec GetEngineSpec(
+        IReadOnlyDictionary<string, ExperimentEngineSpec> configuredEngines,
+        string selectedEngine)
+    {
+        foreach (var (engineKey, engineSpec) in configuredEngines)
+        {
+            if (engineKey.Equals(selectedEngine, StringComparison.OrdinalIgnoreCase))
+            {
+                return engineSpec;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Internal error: failed to resolve engine '{selectedEngine}' in experiment manifest.");
+    }
+
+    private static string? Normalize(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized)
+            ? null
+            : normalized.ToLowerInvariant();
+    }
+
+    private static string? NormalizeNuget(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+}
