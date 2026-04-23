@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Polar.DB.Bench.Exec</RootNamespace>
+    <AssemblyName>Polar.DB.Bench.Exec</AssemblyName>
+    <LangVersion>10</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj" />
+    <ProjectReference Include="..\Polar.DB.Bench.Engine.PolarDb\Polar.DB.Bench.Engine.PolarDb.csproj" />
+    <ProjectReference Include="..\Polar.DB.Bench.Engine.Sqlite\Polar.DB.Bench.Engine.Sqlite.csproj" />
+  </ItemGroup>
+</Project>

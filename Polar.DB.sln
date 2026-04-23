@@ -35,17 +35,43 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GetStarted.IndexesAndSearch
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{018206B5-A401-4F02-8782-F88082A9E14A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Analysis", "benchmarks\Polar.DB.Bench.Analysis\Polar.DB.Bench.Analysis.csproj", "{8BC2A4D6-DADE-41E6-8FB9-2A370B03E377}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Analysis", "benchmarks\src\Polar.DB.Bench.Analysis\Polar.DB.Bench.Analysis.csproj", "{8BC2A4D6-DADE-41E6-8FB9-2A370B03E377}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Charts", "benchmarks\Polar.DB.Bench.Charts\Polar.DB.Bench.Charts.csproj", "{348FC7C5-C523-4F92-B6C7-05B18955EEDD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Charts", "benchmarks\src\Polar.DB.Bench.Charts\Polar.DB.Bench.Charts.csproj", "{348FC7C5-C523-4F92-B6C7-05B18955EEDD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Core", "benchmarks\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj", "{12A88C62-479D-4910-A051-FABBAE17FCF0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Core", "benchmarks\src\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj", "{12A88C62-479D-4910-A051-FABBAE17FCF0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Engine.PolarDb", "benchmarks\Polar.DB.Bench.Engine.PolarDb\Polar.DB.Bench.Engine.PolarDb.csproj", "{F971141C-4390-4F81-ADD1-7E659240A6FB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Engine.PolarDb", "benchmarks\src\Polar.DB.Bench.Engine.PolarDb\Polar.DB.Bench.Engine.PolarDb.csproj", "{F971141C-4390-4F81-ADD1-7E659240A6FB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Engine.Sqlite", "benchmarks\Polar.DB.Bench.Engine.Sqlite\Polar.DB.Bench.Engine.Sqlite.csproj", "{4186ACC1-91E6-44A2-B347-515AA440D122}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Engine.Sqlite", "benchmarks\src\Polar.DB.Bench.Engine.Sqlite\Polar.DB.Bench.Engine.Sqlite.csproj", "{4186ACC1-91E6-44A2-B347-515AA440D122}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec", "benchmarks\Polar.DB.Bench.Exec\Polar.DB.Bench.Exec.csproj", "{5472A235-3DFE-471F-83A4-9CC013931140}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec", "benchmarks\src\Polar.DB.Bench.Exec\Polar.DB.Bench.Exec.csproj", "{5472A235-3DFE-471F-83A4-9CC013931140}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7406FEE2-CAC6-4561-B00D-A0701EC53696}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{74248134-5223-402A-B48D-96F9435DE59E}"
+	ProjectSection(SolutionItems) = preProject
+		benchmarks\docs\BENCHMARK_METHOD.md = benchmarks\docs\BENCHMARK_METHOD.md
+		benchmarks\docs\BENCHMARK_PLATFORM_SPEC.md = benchmarks\docs\BENCHMARK_PLATFORM_SPEC.md
+		benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.md = benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.md
+		benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.ru.md = benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.ru.md
+		benchmarks\docs\FAIRNESS_PROFILES.md = benchmarks\docs\FAIRNESS_PROFILES.md
+		benchmarks\docs\FAULT_CATALOG.md = benchmarks\docs\FAULT_CATALOG.md
+		benchmarks\docs\RESEARCH_NOTES.md = benchmarks\docs\RESEARCH_NOTES.md
+		benchmarks\docs\RESULT_SCHEMA.md = benchmarks\docs\RESULT_SCHEMA.md
+		benchmarks\docs\STAGE1_SCOPE.md = benchmarks\docs\STAGE1_SCOPE.md
+		benchmarks\docs\WORKLOAD_CATALOG.md = benchmarks\docs\WORKLOAD_CATALOG.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "experiments", "experiments", "{9008BEF7-0D6F-4568-BA8D-90FA2C914F08}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{CA1F5AA8-B4A7-44F9-A038-DEEB2019CD23}"
+	ProjectSection(SolutionItems) = preProject
+		benchmarks\docs\examples\baselines-README.md = benchmarks\docs\examples\baselines-README.md
+		benchmarks\docs\examples\contracts-README.md = benchmarks\docs\examples\contracts-README.md
+		benchmarks\docs\examples\sample-baseline.v1.json = benchmarks\docs\examples\sample-baseline.v1.json
+		benchmarks\docs\examples\sample-policy.v1.json = benchmarks\docs\examples\sample-policy.v1.json
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -104,11 +130,15 @@ Global
 		{DAA0D7C7-0E96-4F24-94D4-032C90D20058} = {36AD9BFD-026E-4817-8B73-817D8865E96E}
 		{3CCFEB6F-F8D3-48BC-A9E9-070321DFECDD} = {36AD9BFD-026E-4817-8B73-817D8865E96E}
 		{73A7226C-4726-4B2D-B7A6-936D0728A15E} = {36AD9BFD-026E-4817-8B73-817D8865E96E}
-		{8BC2A4D6-DADE-41E6-8FB9-2A370B03E377} = {018206B5-A401-4F02-8782-F88082A9E14A}
-		{348FC7C5-C523-4F92-B6C7-05B18955EEDD} = {018206B5-A401-4F02-8782-F88082A9E14A}
-		{12A88C62-479D-4910-A051-FABBAE17FCF0} = {018206B5-A401-4F02-8782-F88082A9E14A}
-		{F971141C-4390-4F81-ADD1-7E659240A6FB} = {018206B5-A401-4F02-8782-F88082A9E14A}
-		{4186ACC1-91E6-44A2-B347-515AA440D122} = {018206B5-A401-4F02-8782-F88082A9E14A}
-		{5472A235-3DFE-471F-83A4-9CC013931140} = {018206B5-A401-4F02-8782-F88082A9E14A}
+		{7406FEE2-CAC6-4561-B00D-A0701EC53696} = {018206B5-A401-4F02-8782-F88082A9E14A}
+		{8BC2A4D6-DADE-41E6-8FB9-2A370B03E377} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{348FC7C5-C523-4F92-B6C7-05B18955EEDD} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{12A88C62-479D-4910-A051-FABBAE17FCF0} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{F971141C-4390-4F81-ADD1-7E659240A6FB} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{4186ACC1-91E6-44A2-B347-515AA440D122} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{5472A235-3DFE-471F-83A4-9CC013931140} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{74248134-5223-402A-B48D-96F9435DE59E} = {018206B5-A401-4F02-8782-F88082A9E14A}
+		{9008BEF7-0D6F-4568-BA8D-90FA2C914F08} = {018206B5-A401-4F02-8782-F88082A9E14A}
+		{CA1F5AA8-B4A7-44F9-A038-DEEB2019CD23} = {74248134-5223-402A-B48D-96F9435DE59E}
 	EndGlobalSection
 EndGlobal
