@@ -6,7 +6,7 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 
 /// <summary>
 /// Reads and writes benchmark artifact files.
-/// This class is intentionally small: deserialize one file, serialize one file, or load raw run files from a folder.
+/// This class is intentionally small: deserialize one file, serialize one file, or load raw run files from an experiment raw folder.
 /// </summary>
 internal sealed class BenchmarkFileReader
 {
@@ -31,7 +31,7 @@ internal sealed class BenchmarkFileReader
     }
 
     /// <summary>
-    /// Loads all raw run artifacts from a directory.
+    /// Loads all immutable raw run artifacts from one raw directory.
     /// Files are sorted by file path to keep deterministic processing order.
     /// </summary>
     public async Task<IReadOnlyList<RawRunEntry>> LoadRawRunsAsync(string rawResultsDirectory)

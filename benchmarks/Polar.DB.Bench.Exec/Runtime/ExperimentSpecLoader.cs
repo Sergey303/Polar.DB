@@ -7,6 +7,7 @@ namespace Polar.DB.Bench.Exec.Runtime;
 public static class ExperimentSpecLoader
 {
     private const string ManifestFileName = "experiment.json";
+    private const string RawDirectoryName = "raw";
 
     public static async Task<ExperimentSpec> LoadAsync(
         string specPath,
@@ -63,6 +64,51 @@ public static class ExperimentSpecLoader
         }
 
         throw new InvalidOperationException($"Missing or invalid --spec path: '{specPath}'.");
+    }
+
+    public static string? TryResolveExperimentDirectory(string specPath)
+    {
+        if (string.IsNullOrWhiteSpace(specPath))
+        {
+            return null;
+        }
+
+        if (Directory.Exists(specPath))
+        {
+            var fullDirectoryPath = Path.GetFullPath(specPath);
+            var manifestPath = Path.Combine(fullDirectoryPath, ManifestFileName);
+            return File.Exists(manifestPath) ? fullDirectoryPath : null;
+        }
+
+        if (File.Exists(specPath))
+        {
+            var fullFilePath = Path.GetFullPath(specPath);
+            if (!fullFilePath.EndsWith(ManifestFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return Path.GetDirectoryName(fullFilePath);
+        }
+
+        return null;
+    }
+
+    public static string ResolveRawResultsDirectory(string specPath, string? rawResultsDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(rawResultsDirectory))
+        {
+            return Path.GetFullPath(rawResultsDirectory);
+        }
+
+        var experimentDirectory = TryResolveExperimentDirectory(specPath);
+        if (string.IsNullOrWhiteSpace(experimentDirectory))
+        {
+            throw new InvalidOperationException(
+                "Missing --raw-out. For non-canonical spec paths, raw output directory must be provided explicitly.");
+        }
+
+        return Path.Combine(experimentDirectory, RawDirectoryName);
     }
 
     private static ExperimentSpec ConvertManifestToSpec(ExperimentManifest manifest, string? cliEngine)

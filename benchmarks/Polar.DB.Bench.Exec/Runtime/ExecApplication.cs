@@ -24,7 +24,8 @@ public static class ExecApplication
 
         var spec = await ExperimentSpecLoader.LoadAsync(options.SpecPath!, options.EngineKey);
         var (engineKey, runtime) = EngineRuntimeResolver.Resolve(options.EngineKey, spec);
-        Directory.CreateDirectory(options.RawResultsDirectory!);
+        var rawResultsDirectory = ExperimentSpecLoader.ResolveRawResultsDirectory(options.SpecPath!, options.RawResultsDirectory);
+        Directory.CreateDirectory(rawResultsDirectory);
         Directory.CreateDirectory(options.WorkingDirectory!);
 
         var repositoryRoot =
@@ -36,7 +37,7 @@ public static class ExecApplication
         {
             RootDirectory = repositoryRoot,
             WorkingDirectory = options.WorkingDirectory!,
-            RawResultsDirectory = options.RawResultsDirectory!,
+            RawResultsDirectory = rawResultsDirectory,
             EnvironmentClass = options.EnvironmentClass,
             ArtifactsDirectory = Path.Combine(options.WorkingDirectory!, "artifacts")
         };
@@ -190,18 +191,12 @@ public static class ExecApplication
         bool includeSeriesSuffix)
     {
         var timestampToken = runResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        if (includeSeriesSuffix)
-        {
-            timestampToken = $"{timestampToken}__{sequenceNumber:D2}-{runRole}";
-        }
-
         var rawPath = ResultPathBuilder.BuildRawResultPath(
             workspace.RawResultsDirectory,
             timestampToken,
-            runResult.ExperimentKey,
-            runResult.DatasetProfileKey,
             runResult.EngineKey,
-            runResult.Environment.EnvironmentClass);
+            includeSeriesSuffix ? runRole : null,
+            includeSeriesSuffix ? sequenceNumber : null);
 
         if (!File.Exists(rawPath))
         {
@@ -209,9 +204,7 @@ public static class ExecApplication
         }
 
         var ext = ".run.json";
-        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
-            ? rawPath[..^ext.Length]
-            : rawPath;
+        var baseName = rawPath[..^ext.Length];
         var attempt = 2;
         var candidate = $"{baseName}.v{attempt}{ext}";
         while (File.Exists(candidate))

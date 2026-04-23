@@ -3,7 +3,7 @@ namespace Polar.DB.Bench.Exec.Runtime;
 public sealed class ExecOptions
 {
     public static string UsageText =>
-        "Usage: --spec <experiment.json|experiment-folder> --work <dir> --raw-out <dir> [--engine <key>] " +
+        "Usage: --spec <experiment.json|experiment-folder> --work <dir> [--raw-out <dir>] [--engine <key>] " +
         "[--env <class>] [--comparison-set <id>] [--warmup-count <n>] [--measured-count <n>]";
 
     public string? EngineKey { get; init; }
@@ -60,9 +60,13 @@ public sealed class ExecOptions
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(RawResultsDirectory))
+        try
         {
-            error = "Missing --raw-out.";
+            _ = ExperimentSpecLoader.ResolveRawResultsDirectory(SpecPath, RawResultsDirectory);
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
             return false;
         }
 

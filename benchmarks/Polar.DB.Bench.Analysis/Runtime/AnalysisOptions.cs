@@ -2,9 +2,14 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 
 public sealed class AnalysisOptions
 {
+    private const string RawDirectoryName = "raw";
+    private const string AnalyzedDirectoryName = "analyzed";
+    private const string ComparisonsDirectoryName = "comparisons";
+    private const string ManifestFileName = "experiment.json";
+
     public static string UsageText =>
-        "Usage policy mode: --raw <path> --policy <path> --baseline <path> --analyzed-out <dir>\n" +
-        "Usage comparison mode: --raw-dir <dir> --compare-experiment <key> --comparison-out <dir> [--compare-dataset <key>] [--compare-fairness <key>] [--compare-env <class>] [--compare-set <id>]";
+        "Usage policy mode: --raw <path> --policy <path> --baseline <path> [--analyzed-out <dir>]\n" +
+        "Usage comparison mode: --raw-dir <experiment-dir|raw-dir> --compare-experiment <key> [--comparison-out <dir>] [--analyzed-out <dir>] [--compare-dataset <key>] [--compare-fairness <key>] [--compare-env <class>] [--compare-set <id>]";
 
     public string? RawResultPath { get; init; }
     public string? PolicyPath { get; init; }
@@ -77,9 +82,13 @@ public sealed class AnalysisOptions
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(AnalyzedResultsDirectory))
+        try
         {
-            error = "Missing --analyzed-out.";
+            _ = ResolveAnalyzedResultsDirectoryForPolicy(RawResultPath, AnalyzedResultsDirectory);
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
             return false;
         }
 
@@ -91,16 +100,15 @@ public sealed class AnalysisOptions
     {
         if (!string.IsNullOrWhiteSpace(RawResultPath) ||
             !string.IsNullOrWhiteSpace(PolicyPath) ||
-            !string.IsNullOrWhiteSpace(BaselinePath) ||
-            !string.IsNullOrWhiteSpace(AnalyzedResultsDirectory))
+            !string.IsNullOrWhiteSpace(BaselinePath))
         {
-            error = "Comparison mode cannot be combined with --raw/--policy/--baseline/--analyzed-out.";
+            error = "Comparison mode cannot be combined with --raw/--policy/--baseline.";
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(RawResultsDirectory) || !Directory.Exists(RawResultsDirectory))
+        if (string.IsNullOrWhiteSpace(RawResultsDirectory))
         {
-            error = "Missing or invalid --raw-dir.";
+            error = "Missing --raw-dir.";
             return false;
         }
 
@@ -110,13 +118,165 @@ public sealed class AnalysisOptions
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(ComparisonOutputDirectory))
+        try
         {
-            error = "Missing --comparison-out.";
+            _ = ResolveRawResultsDirectory(RawResultsDirectory);
+            _ = ResolveComparisonOutputDirectory(RawResultsDirectory, ComparisonOutputDirectory);
+            _ = ResolveAnalyzedResultsDirectoryForComparison(RawResultsDirectory, AnalyzedResultsDirectory);
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
             return false;
         }
 
         error = string.Empty;
         return true;
+    }
+
+    public static string ResolveRawResultsDirectory(string rawDirectoryOrExperimentDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(rawDirectoryOrExperimentDirectory))
+        {
+            throw new InvalidOperationException("Missing --raw-dir.");
+        }
+
+        if (!Directory.Exists(rawDirectoryOrExperimentDirectory))
+        {
+            throw new InvalidOperationException("Missing or invalid --raw-dir.");
+        }
+
+        var fullPath = Path.GetFullPath(rawDirectoryOrExperimentDirectory);
+        if (Directory.GetFiles(fullPath, "*.run.json", SearchOption.TopDirectoryOnly).Length > 0)
+        {
+            return fullPath;
+        }
+
+        var rawSubdirectory = Path.Combine(fullPath, RawDirectoryName);
+        if (Directory.Exists(rawSubdirectory))
+        {
+            return rawSubdirectory;
+        }
+
+        throw new InvalidOperationException(
+            "Invalid --raw-dir: expected experiment folder with raw/ or a directory containing *.run.json files.");
+    }
+
+    public static string ResolveComparisonOutputDirectory(
+        string rawDirectoryOrExperimentDirectory,
+        string? comparisonOutputDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(comparisonOutputDirectory))
+        {
+            return Path.GetFullPath(comparisonOutputDirectory);
+        }
+
+        var experimentDirectory = TryResolveExperimentDirectoryFromRawDirectory(rawDirectoryOrExperimentDirectory);
+        if (!string.IsNullOrWhiteSpace(experimentDirectory))
+        {
+            return Path.Combine(experimentDirectory, ComparisonsDirectoryName);
+        }
+
+        throw new InvalidOperationException(
+            "Missing --comparison-out. For non-canonical raw paths, comparison output directory must be provided explicitly.");
+    }
+
+    public static string ResolveAnalyzedResultsDirectoryForPolicy(
+        string rawResultPath,
+        string? analyzedResultsDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(analyzedResultsDirectory))
+        {
+            return Path.GetFullPath(analyzedResultsDirectory);
+        }
+
+        var experimentDirectory = TryResolveExperimentDirectoryFromRawFile(rawResultPath);
+        if (!string.IsNullOrWhiteSpace(experimentDirectory))
+        {
+            return Path.Combine(experimentDirectory, AnalyzedDirectoryName);
+        }
+
+        throw new InvalidOperationException(
+            "Missing --analyzed-out. For raw files outside experiment/raw, analyzed output directory must be provided explicitly.");
+    }
+
+    public static string ResolveAnalyzedResultsDirectoryForComparison(
+        string rawDirectoryOrExperimentDirectory,
+        string? analyzedResultsDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(analyzedResultsDirectory))
+        {
+            return Path.GetFullPath(analyzedResultsDirectory);
+        }
+
+        var experimentDirectory = TryResolveExperimentDirectoryFromRawDirectory(rawDirectoryOrExperimentDirectory);
+        if (!string.IsNullOrWhiteSpace(experimentDirectory))
+        {
+            return Path.Combine(experimentDirectory, AnalyzedDirectoryName);
+        }
+
+        throw new InvalidOperationException(
+            "Missing --analyzed-out. For non-canonical raw paths, analyzed output directory must be provided explicitly.");
+    }
+
+    private static string? TryResolveExperimentDirectoryFromRawFile(string rawResultPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawResultPath) || !File.Exists(rawResultPath))
+        {
+            return null;
+        }
+
+        var directoryPath = Path.GetDirectoryName(Path.GetFullPath(rawResultPath));
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            return null;
+        }
+
+        var directoryName = Path.GetFileName(directoryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (!directoryName.Equals(RawDirectoryName, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var parentDirectory = Directory.GetParent(directoryPath)?.FullName;
+        if (string.IsNullOrWhiteSpace(parentDirectory))
+        {
+            return null;
+        }
+
+        var manifestPath = Path.Combine(parentDirectory, ManifestFileName);
+        return File.Exists(manifestPath) ? parentDirectory : null;
+    }
+
+    private static string? TryResolveExperimentDirectoryFromRawDirectory(string rawDirectoryOrExperimentDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(rawDirectoryOrExperimentDirectory) ||
+            !Directory.Exists(rawDirectoryOrExperimentDirectory))
+        {
+            return null;
+        }
+
+        var fullPath = Path.GetFullPath(rawDirectoryOrExperimentDirectory);
+        var manifestInCurrentDirectory = Path.Combine(fullPath, ManifestFileName);
+        if (File.Exists(manifestInCurrentDirectory))
+        {
+            return fullPath;
+        }
+
+        var directoryName = Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (directoryName.Equals(RawDirectoryName, StringComparison.OrdinalIgnoreCase))
+        {
+            var parentDirectory = Directory.GetParent(fullPath)?.FullName;
+            if (!string.IsNullOrWhiteSpace(parentDirectory))
+            {
+                var manifestInParent = Path.Combine(parentDirectory, ManifestFileName);
+                if (File.Exists(manifestInParent))
+                {
+                    return parentDirectory;
+                }
+            }
+        }
+
+        return null;
     }
 }

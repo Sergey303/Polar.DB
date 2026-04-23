@@ -8,7 +8,7 @@ namespace Polar.DB.Bench.Core.Models;
 /// </summary>
 /// <remarks>
 /// This record is a derived artifact produced by analysis.
-/// It does not modify raw run files.
+/// It does not modify raw run files and should be stored under experiment <c>comparisons/</c>.
 /// </remarks>
 public sealed record CrossEngineComparisonResult
 {
@@ -160,6 +160,7 @@ public sealed record CrossEngineComparisonEntry
 /// Input: raw runs that share one comparison set id.
 /// Output: aggregated per-engine statistics over measured runs only.
 /// Warmup runs remain part of raw facts but are excluded from final stats.
+/// This artifact belongs to experiment <c>comparisons/</c>, not <c>analyzed/</c>.
 /// </remarks>
 public sealed record CrossEngineComparisonSeriesResult
 {
