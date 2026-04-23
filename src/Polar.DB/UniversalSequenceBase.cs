@@ -708,6 +708,7 @@ public class UniversalSequenceBase
             fs.Position = savedPosition;
         }
     }
+    
 
     /// <summary>
     ///     Добавляет поток элементов в логический конец последовательности
@@ -767,6 +768,7 @@ public class UniversalSequenceBase
             fs.Position = savedPosition;
         }
     }
+
 
     /// <summary>
     ///     Десериализует элемент из текущей позиции потока.

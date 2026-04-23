@@ -1,0 +1,97 @@
+{
+  "artifact": "latest-series",
+  "at": "2026-04-23T18:32:01.9458038+00:00",
+  "experiment": "persons-full-adapter-coverage-version-matrix",
+  "engine": "polar-db-current",
+  "set": "simple-20260423T183042",
+  "dataset": "persons-400k-plus-append-3x200k-reverse",
+  "fairness": "durability-balanced",
+  "env": "local",
+  "measured": 3,
+  "warmup": 1,
+  "technicalOk": 3,
+  "semanticOk": 3,
+  "semanticChecked": 3,
+  "raw": [
+    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-35Z__polar-db-current__measured-02.run.json",
+    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-41Z__polar-db-current__measured-03.run.json",
+    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-47Z__polar-db-current__measured-04.run.json"
+  ],
+  "elapsed": {
+    "count": 3,
+    "missing": 0,
+    "min": 5706.3139,
+    "max": 5855.25,
+    "avg": 5769.621166666667,
+    "median": 5747.2996
+  },
+  "load": {
+    "count": 3,
+    "missing": 0,
+    "min": 90.2407,
+    "max": 90.6555,
+    "avg": 90.41166666666668,
+    "median": 90.3388
+  },
+  "build": {
+    "count": 3,
+    "missing": 0,
+    "min": 267.7224,
+    "max": 299.498,
+    "avg": 278.8351666666667,
+    "median": 269.2851
+  },
+  "reopen": {
+    "count": 3,
+    "missing": 0,
+    "min": 1285.6001,
+    "max": 1363.6963,
+    "avg": 1321.8509000000001,
+    "median": 1316.2563
+  },
+  "lookup": {
+    "count": 3,
+    "missing": 0,
+    "min": 729.737,
+    "max": 787.7601,
+    "avg": 755.5170333333332,
+    "median": 749.054
+  },
+  "lookupBatch": {
+    "count": 3,
+    "missing": 0,
+    "min": 25000,
+    "max": 25000,
+    "avg": 25000,
+    "median": 25000
+  },
+  "totalBytes": {
+    "count": 3,
+    "missing": 0,
+    "min": 21688936,
+    "max": 21688936,
+    "avg": 21688936,
+    "median": 21688936
+  },
+  "primaryBytes": {
+    "count": 3,
+    "missing": 0,
+    "min": 16888904,
+    "max": 16888904,
+    "avg": 16888904,
+    "median": 16888904
+  },
+  "sideBytes": {
+    "count": 3,
+    "missing": 0,
+    "min": 4800032,
+    "max": 4800032,
+    "avg": 4800032,
+    "median": 4800032
+  },
+  "notes": [
+    "Local analyzed artifact for one engine.",
+    "Derived from latest measured comparison set in this experiment.",
+    "Cross-engine comparison artifacts are stored in comparisons/."
+  ]
+}

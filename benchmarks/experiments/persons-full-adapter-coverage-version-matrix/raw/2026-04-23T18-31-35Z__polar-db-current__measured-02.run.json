@@ -1,0 +1,211 @@
+{
+  "run": "2026-04-23T18-31-35Z__persons-full-adapter-coverage-version-matrix__persons-400k-plus-append-3x200k-reverse__polar-db__local",
+  "at": "2026-04-23T18:31:35.8745017+00:00",
+  "engine": "polar-db-current",
+  "experiment": "persons-full-adapter-coverage-version-matrix",
+  "dataset": "persons-400k-plus-append-3x200k-reverse",
+  "fairness": "durability-balanced",
+  "set": "simple-20260423T183042",
+  "seq": 2,
+  "role": "measured",
+  "env": {
+    "env": "local",
+    "machine": "COMP",
+    "os": "Microsoft Windows 10.0.26200",
+    "osArch": "X64",
+    "processArch": "X64",
+    "framework": ".NET 10.0.5",
+    "is64Bit": true,
+    "cpuCount": 12,
+    "cwd": "D:\\projects\\Polar.DB",
+    "user": "LuxVe",
+    "git": {
+      "commit": "8be8f65669a288fe3d23cf7d06c09bcba88d3289",
+      "branch": "dev_benchmarks"
+    }
+  },
+  "runtime": {
+    "source": "source-current"
+  },
+  "technical": true,
+  "semantic": true,
+  "metrics": [
+    {
+      "metric": "elapsedMsTotal",
+      "value": 5747.2996
+    },
+    {
+      "metric": "elapsedMsSingleRun",
+      "value": 5747.2996
+    },
+    {
+      "metric": "loadMs",
+      "value": 90.2407
+    },
+    {
+      "metric": "buildMs",
+      "value": 267.7224
+    },
+    {
+      "metric": "reopenRefreshMs",
+      "value": 1285.6001
+    },
+    {
+      "metric": "directPointLookupMs",
+      "value": 0.0567
+    },
+    {
+      "metric": "directPointLookupKey",
+      "value": 200000
+    },
+    {
+      "metric": "directPointLookupHit",
+      "value": 1
+    },
+    {
+      "metric": "randomPointLookupMs",
+      "value": 749.054
+    },
+    {
+      "metric": "randomPointLookupCount",
+      "value": 25000
+    },
+    {
+      "metric": "randomPointLookupHits",
+      "value": 25000
+    },
+    {
+      "metric": "randomPointLookupMisses",
+      "value": 0
+    },
+    {
+      "metric": "appendMs",
+      "value": 3342.4067
+    },
+    {
+      "metric": "appendBatchCount",
+      "value": 3
+    },
+    {
+      "metric": "appendBatchSize",
+      "value": 200000
+    },
+    {
+      "metric": "lookupCountPerCycle",
+      "value": 5000
+    },
+    {
+      "metric": "initialArtifactBytes",
+      "value": 11488935
+    },
+    {
+      "metric": "artifactGrowthBytes",
+      "value": 10200001
+    },
+    {
+      "metric": "totalArtifactBytes",
+      "value": 21688936
+    },
+    {
+      "metric": "primaryDataBytes",
+      "value": 16888904
+    },
+    {
+      "metric": "indexBytes",
+      "value": 4800016
+    },
+    {
+      "metric": "stateFileBytes",
+      "value": 16
+    },
+    {
+      "metric": "managedBytesBefore",
+      "value": 82856248
+    },
+    {
+      "metric": "managedBytesAfter",
+      "value": 81837440
+    },
+    {
+      "metric": "managedBytesDelta",
+      "value": -1018808
+    },
+    {
+      "metric": "heapSizeBytes",
+      "value": 98507648
+    },
+    {
+      "metric": "fragmentedBytes",
+      "value": 17484384
+    },
+    {
+      "metric": "processPeakWorkingSetBytes",
+      "value": 157921280
+    }
+  ],
+  "artifacts": [
+    {
+      "role": "PrimaryData",
+      "path": "artifacts/polar-db/2026-04-23T18-31-35Z__persons-full-adapter-coverage-version-matrix__persons-400k-plus-append-3x200k-reverse__polar-db__local/f0.bin",
+      "bytes": 16888904,
+      "notes": "Polar.DB primary sequence data"
+    },
+    {
+      "role": "SecondaryIndex",
+      "path": "artifacts/polar-db/2026-04-23T18-31-35Z__persons-full-adapter-coverage-version-matrix__persons-400k-plus-append-3x200k-reverse__polar-db__local/f1.bin",
+      "bytes": 1600008,
+      "notes": "Polar.DB primary-key index segment"
+    },
+    {
+      "role": "SecondaryIndex",
+      "path": "artifacts/polar-db/2026-04-23T18-31-35Z__persons-full-adapter-coverage-version-matrix__persons-400k-plus-append-3x200k-reverse__polar-db__local/f2.bin",
+      "bytes": 3200008,
+      "notes": "Polar.DB primary-key index segment"
+    },
+    {
+      "role": "State",
+      "path": "artifacts/polar-db/2026-04-23T18-31-35Z__persons-full-adapter-coverage-version-matrix__persons-400k-plus-append-3x200k-reverse__polar-db__local/state.bin",
+      "bytes": 16,
+      "notes": "Polar.DB state sidecar"
+    }
+  ],
+  "diagnostics": {
+    "appendBatchCount": "3",
+    "appendBatchSize": "200000",
+    "lookupCountPerCycle": "5000",
+    "lookupCount": "25000",
+    "lookupHitCount": "25000",
+    "expectedCountAfterCycles": "1000000",
+    "initialArtifactBytes": "11488935",
+    "artifactGrowthBytes": "10200001",
+    "cycleArtifactBytes": "11488935,14888935,18288935,21688936",
+    "stateFileBytes": "16",
+    "indexFileBytes": "4800016",
+    "primaryDataFileBytes": "16888904",
+    "totalArtifactBytes": "21688936",
+    "directLookupKey": "200000",
+    "directLookupHit": "True",
+    "directLookupMs": "0.0567",
+    "directLookupEnabled": "True",
+    "reopenAfterInitialLoad": "True",
+    "reopenAfterEachBatch": "True",
+    "randomLookupAfterEachBatch": "True",
+    "sequenceCountAfterRefresh": "1000000",
+    "sequenceAppendOffsetAfterRefresh": "16888904",
+    "semanticSuccess": "True",
+    "stateCount": "400000",
+    "stateAppendOffset": "6688903",
+    "runtimeSource": "source-current"
+  },
+  "tags": {
+    "research": "RQ-COMMON-003",
+    "hypothesis": "H-COMMON-VERSION-MATRIX-001",
+    "warmupCount": "1",
+    "measuredCount": "3",
+    "role": "measured"
+  },
+  "notes": [
+    "Stage4 real adapter run for Polar.DB.",
+    "Experiment flow: initial reverse load/build, optional reopen, direct lookup, random lookups, append batches, optional reopen per batch."
+  ]
+}

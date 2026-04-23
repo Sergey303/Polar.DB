@@ -16,12 +16,25 @@ namespace Polar.DB
     /// </remarks>
     public class USequence
     {
-        public UniversalSequenceBase Sequence { get; }
+        internal readonly struct LogicalBuildEntry
+        {
+            internal LogicalBuildEntry(long offset, object element)
+            {
+                Offset = offset;
+                Element = element;
+            }
+
+            internal long Offset { get; }
+            internal object Element { get; }
+        }
+
+        public readonly UniversalSequenceBase sequence;
         private readonly Func<object, bool> isEmpty;
         private readonly Func<object, IComparable> keyFunc;
         private readonly UKeyIndex primaryKeyIndex;
         private readonly bool optimise;
-
+        
+        public long Count  => sequence.Count();
         /// <summary>
         /// Gets or sets secondary indexes attached to this sequence.
         /// </summary>
@@ -54,7 +67,7 @@ namespace Polar.DB
             _ = isEmpty ?? throw new ArgumentNullException(nameof(isEmpty));
             _ = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
             _ = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
-            Sequence = new UniversalSequenceBase(tp_el, streamGen());
+            sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
             this.keyFunc = keyFunc;
             this.optimise = optimise;
@@ -77,8 +90,8 @@ namespace Polar.DB
 
             using var statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
             using var writer = new BinaryWriter(statefile);
-            writer.Write(Sequence.Count());
-            writer.Write(Sequence.AppendOffset);
+            writer.Write(sequence.Count());
+            writer.Write(sequence.AppendOffset);
         }
 
         private (long Count, long AppendOffset) ReadStateOrDefault()
@@ -101,7 +114,7 @@ namespace Polar.DB
 
         private void RefreshStaticState()
         {
-            Sequence.Refresh();
+            sequence.Refresh();
             primaryKeyIndex.Refresh();
             foreach (var ui in uindexes) ui.Refresh();
         }
@@ -114,7 +127,7 @@ namespace Polar.DB
             long synchronizedCount = state.Count;
             long synchronizedAppendOffset = state.AppendOffset;
 
-            long currentCount = Sequence.Count();
+            long currentCount = sequence.Count();
             if (currentCount <= synchronizedCount)
             {
                 if (updateStateFile) SaveState();
@@ -122,7 +135,7 @@ namespace Polar.DB
             }
 
             long additionalCount = currentCount - synchronizedCount;
-            var additional = Sequence.ElementOffsetValuePairs(synchronizedAppendOffset, additionalCount);
+            var additional = sequence.ElementOffsetValuePairs(synchronizedAppendOffset, additionalCount);
             foreach (var pair in additional)
             {
                 if (applyToPrimary)
@@ -156,7 +169,7 @@ namespace Polar.DB
             RefreshStaticState();
 
             var state = ReadStateOrDefault();
-            bool hasUnsynchronizedTail = Sequence.Count() > state.Count;
+            bool hasUnsynchronizedTail = sequence.Count() > state.Count;
             if (!hasUnsynchronizedTail)
             {
                 SaveState();
@@ -172,7 +185,7 @@ namespace Polar.DB
         /// </summary>
         public void Clear()
         {
-            Sequence.Clear();
+            sequence.Clear();
             primaryKeyIndex.Clear();
             foreach (var ui in uindexes) ui.Clear();
             SaveState();
@@ -183,7 +196,7 @@ namespace Polar.DB
         /// </summary>
         public void Flush()
         {
-            Sequence.Flush();
+            sequence.Flush();
             primaryKeyIndex.Flush();
             foreach (var ui in uindexes) ui.Flush();
         }
@@ -193,7 +206,7 @@ namespace Polar.DB
         /// </summary>
         public void Close()
         {
-            Sequence.Close();
+            sequence.Close();
             primaryKeyIndex.Close();
             foreach (var ui in uindexes) ui.Close();
         }
@@ -220,7 +233,7 @@ namespace Polar.DB
             _ = flow ?? throw new ArgumentNullException(nameof(flow));
             Clear();
 
-            Sequence.AppendElements(flow.Where(element => !isEmpty(element)));
+            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
 
             Flush();
             SaveState();
@@ -238,7 +251,7 @@ namespace Polar.DB
         /// <returns>Logical view of sequence elements after primary-key originality filtering.</returns>
         public IEnumerable<object> ElementValues()
         {
-            return Sequence.ElementOffsetValuePairs()
+            return sequence.ElementOffsetValuePairs()
                 .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
                 .Select(pair => pair.Item2);
         }
@@ -250,7 +263,22 @@ namespace Polar.DB
         public void Scan(Func<long, object, bool> handler)
         {
             _ = handler ?? throw new ArgumentNullException(nameof(handler));
-            Sequence.Scan((off, ob) => IsOriginalAndNotEmpty(ob, off) ? handler(off, ob) : true);
+            sequence.Scan((off, ob) => IsOriginalAndNotEmpty(ob, off) ? handler(off, ob) : true);
+        }
+
+        internal LogicalBuildEntry[] CreateLogicalBuildSnapshot()
+        {
+            long count = Count;
+            int capacity = count > int.MaxValue ? int.MaxValue : (int)count;
+            List<LogicalBuildEntry> snapshot = new List<LogicalBuildEntry>(capacity);
+
+            Scan((off, obj) =>
+            {
+                snapshot.Add(new LogicalBuildEntry(off, obj));
+                return true;
+            });
+
+            return snapshot.ToArray();
         }
 
         /// <summary>
@@ -261,7 +289,7 @@ namespace Polar.DB
         public long AppendElement(object element)
         {
             _ = element ?? throw new ArgumentNullException(nameof(element));
-            long off = Sequence.AppendElement(element);
+            long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             foreach (var uind in uindexes) uind.OnAppendElement(element, off);
             return off;
@@ -273,7 +301,7 @@ namespace Polar.DB
         /// <param name="off">Physical stream offset of the element to replay.</param>
         public void CorrectOnAppendElement(long off)
         {
-            object element = Sequence.GetElement(off);
+            object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
@@ -291,7 +319,7 @@ namespace Polar.DB
 
         internal object GetByOffset(long off)
         {
-            return Sequence.GetElement(off);
+            return sequence.GetElement(off);
         }
 
         /// <summary>
@@ -389,10 +417,32 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            Sequence.Flush();
+            sequence.Flush();
 
-            primaryKeyIndex.Build();
-            foreach (var ind in uindexes) ind.Build();
+            LogicalBuildEntry[] snapshot = CreateLogicalBuildSnapshot();
+
+            primaryKeyIndex.BuildFromSnapshot(snapshot);
+            foreach (var ind in uindexes)
+            {
+                switch (ind)
+                {
+                    case UVectorIndex uVectorIndex:
+                        uVectorIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    case UVecIndex uVecIndex:
+                        uVecIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    case SVectorIndex sVectorIndex:
+                        sVectorIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    case UIndex uIndex:
+                        uIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    default:
+                        ind.Build();
+                        break;
+                }
+            }
 
             primaryKeyIndex.Flush();
             foreach (var ind in uindexes) ind.Flush();

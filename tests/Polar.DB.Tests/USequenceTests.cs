@@ -81,7 +81,7 @@ public class USequenceTests
     {
         using var scope = new USequenceScope(PersonType);
 
-        var baseSequence = scope.Sequence.Sequence;
+        var baseSequence = scope.Sequence.sequence;
         baseSequence.Clear();
         long offset = baseSequence.AppendElement(new object[] { 77, "Manual" });
         baseSequence.Flush();
@@ -103,7 +103,7 @@ public class USequenceTests
         });
         scope.Sequence.Build();
 
-        var baseSequence = scope.Sequence.Sequence;
+        var baseSequence = scope.Sequence.sequence;
         baseSequence.AppendElement(new object[] { 2, "Bob" });
         baseSequence.Flush();
 

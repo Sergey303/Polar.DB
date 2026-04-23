@@ -124,8 +124,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 reopenWatch.Stop();
                 reopenRefreshMs = reopenWatch.Elapsed.TotalMilliseconds;
 
-                sequenceCountAfterRefresh = reopened.Sequence.Count();
-                appendOffsetAfterRefresh = reopened.Sequence.AppendOffset;
+                sequenceCountAfterRefresh = reopened.sequence.Count();
+                appendOffsetAfterRefresh = reopened.sequence.AppendOffset;
 
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -372,7 +372,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                     reopenWatch.Stop();
                     reopenRefreshMs += reopenWatch.Elapsed.TotalMilliseconds;
 
-                    var actualCount = reopened.Sequence.Count();
+                    var actualCount = reopened.sequence.Count();
                     if (actualCount != expectedCount)
                     {
                         rowCountMismatches.Add($"cycle{cycle + 1}:count={actualCount},expected={expectedCount}");
@@ -680,14 +680,14 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                         reopened = null;
                     }
 
-                    var actualCount = active!.Sequence.Count();
+                    var actualCount = active!.sequence.Count();
                     if (actualCount != expectedCount)
                     {
                         rowCountMismatches.Add($"cycle{cycle + 1}:count={actualCount},expected={expectedCount}");
                     }
 
                     sequenceCountAfterRefresh = actualCount;
-                    appendOffsetAfterRefresh = active.Sequence.AppendOffset;
+                    appendOffsetAfterRefresh = active.sequence.AppendOffset;
 
                     if (randomLookupAfterEachBatch)
                     {

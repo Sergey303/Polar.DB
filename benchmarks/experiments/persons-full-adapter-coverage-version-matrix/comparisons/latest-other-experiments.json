@@ -1,0 +1,370 @@
+{
+  "artifact": "latest-other-experiments",
+  "at": "2026-04-23T18:32:02.0189478+00:00",
+  "experiment": "persons-full-adapter-coverage-version-matrix",
+  "enabled": true,
+  "current": {
+    "experiment": "persons-full-adapter-coverage-version-matrix",
+    "set": "simple-20260423T183042",
+    "at": "2026-04-23T18:31:58.2343469+00:00",
+    "dataset": "persons-400k-plus-append-3x200k-reverse",
+    "fairness": "durability-balanced",
+    "env": "local",
+    "engines": [
+      "polar-db-2.1.0",
+      "polar-db-2.1.1",
+      "polar-db-current",
+      "sqlite"
+    ],
+    "series": [
+      {
+        "engine": "polar-db-2.1.0",
+        "measured": 3,
+        "warmup": 1,
+        "technicalOk": 3,
+        "semanticOk": 3,
+        "semanticChecked": 3,
+        "raw": [
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-30-49Z__polar-db-2.1.0__measured-02.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-30-55Z__polar-db-2.1.0__measured-03.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-01Z__polar-db-2.1.0__measured-04.run.json"
+        ],
+        "elapsed": {
+          "count": 3,
+          "missing": 0,
+          "min": 5763.8582,
+          "max": 5916.2884,
+          "avg": 5825.8603,
+          "median": 5797.4343
+        },
+        "load": {
+          "count": 3,
+          "missing": 0,
+          "min": 93.5676,
+          "max": 141.7048,
+          "avg": 110.69893333333334,
+          "median": 96.8244
+        },
+        "build": {
+          "count": 3,
+          "missing": 0,
+          "min": 291.7012,
+          "max": 352.2037,
+          "avg": 329.35673333333335,
+          "median": 344.1653
+        },
+        "reopen": {
+          "count": 3,
+          "missing": 0,
+          "min": 1251.6686,
+          "max": 1328.4077,
+          "avg": 1283.9250333333332,
+          "median": 1271.6988
+        },
+        "lookup": {
+          "count": 3,
+          "missing": 0,
+          "min": 753.6367,
+          "max": 762.3581,
+          "avg": 758.2484,
+          "median": 758.7503999999999
+        },
+        "lookupBatch": {
+          "count": 3,
+          "missing": 0,
+          "min": 25000,
+          "max": 25000,
+          "avg": 25000,
+          "median": 25000
+        },
+        "totalBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 21688936,
+          "max": 21688936,
+          "avg": 21688936,
+          "median": 21688936
+        },
+        "primaryBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 16888904,
+          "max": 16888904,
+          "avg": 16888904,
+          "median": 16888904
+        },
+        "sideBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 4800032,
+          "max": 4800032,
+          "avg": 4800032,
+          "median": 4800032
+        }
+      },
+      {
+        "engine": "polar-db-2.1.1",
+        "measured": 3,
+        "warmup": 1,
+        "technicalOk": 3,
+        "semanticOk": 3,
+        "semanticChecked": 3,
+        "raw": [
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-13Z__polar-db-2.1.1__measured-02.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-18Z__polar-db-2.1.1__measured-03.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-24Z__polar-db-2.1.1__measured-04.run.json"
+        ],
+        "elapsed": {
+          "count": 3,
+          "missing": 0,
+          "min": 5547.7935,
+          "max": 5786.3745,
+          "avg": 5635.324466666668,
+          "median": 5571.8054
+        },
+        "load": {
+          "count": 3,
+          "missing": 0,
+          "min": 92.3568,
+          "max": 102.9693,
+          "avg": 96.34356666666667,
+          "median": 93.7046
+        },
+        "build": {
+          "count": 3,
+          "missing": 0,
+          "min": 260.1084,
+          "max": 291.8941,
+          "avg": 272.37716666666665,
+          "median": 265.129
+        },
+        "reopen": {
+          "count": 3,
+          "missing": 0,
+          "min": 1267.6500999999998,
+          "max": 1328.1408,
+          "avg": 1293.9629666666667,
+          "median": 1286.098
+        },
+        "lookup": {
+          "count": 3,
+          "missing": 0,
+          "min": 717.6804,
+          "max": 754.3832,
+          "avg": 731.6169666666666,
+          "median": 722.7873
+        },
+        "lookupBatch": {
+          "count": 3,
+          "missing": 0,
+          "min": 25000,
+          "max": 25000,
+          "avg": 25000,
+          "median": 25000
+        },
+        "totalBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 21688936,
+          "max": 21688936,
+          "avg": 21688936,
+          "median": 21688936
+        },
+        "primaryBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 16888904,
+          "max": 16888904,
+          "avg": 16888904,
+          "median": 16888904
+        },
+        "sideBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 4800032,
+          "max": 4800032,
+          "avg": 4800032,
+          "median": 4800032
+        }
+      },
+      {
+        "engine": "polar-db-current",
+        "measured": 3,
+        "warmup": 1,
+        "technicalOk": 3,
+        "semanticOk": 3,
+        "semanticChecked": 3,
+        "raw": [
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-35Z__polar-db-current__measured-02.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-41Z__polar-db-current__measured-03.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-47Z__polar-db-current__measured-04.run.json"
+        ],
+        "elapsed": {
+          "count": 3,
+          "missing": 0,
+          "min": 5706.3139,
+          "max": 5855.25,
+          "avg": 5769.621166666667,
+          "median": 5747.2996
+        },
+        "load": {
+          "count": 3,
+          "missing": 0,
+          "min": 90.2407,
+          "max": 90.6555,
+          "avg": 90.41166666666668,
+          "median": 90.3388
+        },
+        "build": {
+          "count": 3,
+          "missing": 0,
+          "min": 267.7224,
+          "max": 299.498,
+          "avg": 278.8351666666667,
+          "median": 269.2851
+        },
+        "reopen": {
+          "count": 3,
+          "missing": 0,
+          "min": 1285.6001,
+          "max": 1363.6963,
+          "avg": 1321.8509000000001,
+          "median": 1316.2563
+        },
+        "lookup": {
+          "count": 3,
+          "missing": 0,
+          "min": 729.737,
+          "max": 787.7601,
+          "avg": 755.5170333333332,
+          "median": 749.054
+        },
+        "lookupBatch": {
+          "count": 3,
+          "missing": 0,
+          "min": 25000,
+          "max": 25000,
+          "avg": 25000,
+          "median": 25000
+        },
+        "totalBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 21688936,
+          "max": 21688936,
+          "avg": 21688936,
+          "median": 21688936
+        },
+        "primaryBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 16888904,
+          "max": 16888904,
+          "avg": 16888904,
+          "median": 16888904
+        },
+        "sideBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 4800032,
+          "max": 4800032,
+          "avg": 4800032,
+          "median": 4800032
+        }
+      },
+      {
+        "engine": "sqlite",
+        "measured": 3,
+        "warmup": 1,
+        "technicalOk": 3,
+        "semanticOk": 3,
+        "semanticChecked": 3,
+        "raw": [
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-55Z__sqlite__measured-02.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-56Z__sqlite__measured-03.run.json",
+          "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-58Z__sqlite__measured-04.run.json"
+        ],
+        "elapsed": {
+          "count": 3,
+          "missing": 0,
+          "min": 1509.3662,
+          "max": 1628.2013,
+          "avg": 1551.8747333333333,
+          "median": 1518.0567
+        },
+        "load": {
+          "count": 3,
+          "missing": 0,
+          "min": 379.8152,
+          "max": 430.5097,
+          "avg": 402.28293333333335,
+          "median": 396.5239
+        },
+        "build": {
+          "count": 3,
+          "missing": 0,
+          "min": 90.4049,
+          "max": 99.1751,
+          "avg": 94.5272,
+          "median": 94.0016
+        },
+        "reopen": {
+          "count": 3,
+          "missing": 0,
+          "min": 3.2975,
+          "max": 3.8434999999999997,
+          "avg": 3.5535666666666663,
+          "median": 3.5197
+        },
+        "lookup": {
+          "count": 3,
+          "missing": 0,
+          "min": 140.99380000000002,
+          "max": 159.2596,
+          "avg": 148.94263333333333,
+          "median": 146.5745
+        },
+        "lookupBatch": {
+          "count": 3,
+          "missing": 0,
+          "min": 25000,
+          "max": 25000,
+          "avg": 25000,
+          "median": 25000
+        },
+        "totalBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 35065856,
+          "max": 35065856,
+          "avg": 35065856,
+          "median": 35065856
+        },
+        "primaryBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 35065856,
+          "max": 35065856,
+          "avg": 35065856,
+          "median": 35065856
+        },
+        "sideBytes": {
+          "count": 3,
+          "missing": 0,
+          "min": 0,
+          "max": 0,
+          "avg": 0,
+          "median": 0
+        }
+      }
+    ]
+  },
+  "others": [],
+  "expectations": [
+    "Use these comparisons as context for planning and diagnostics, not as strict apples-to-apples conclusions."
+  ],
+  "notes": [
+    "Cross-experiment comparison is context only; workloads may be semantically different.",
+    "No workload similarity or apples-to-apples scoring is inferred in this artifact."
+  ]
+}
