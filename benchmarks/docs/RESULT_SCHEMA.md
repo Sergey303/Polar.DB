@@ -119,3 +119,28 @@ Missing metric handling:
 
 - stats include `missing`;
 - aggregation skips missing values instead of silently substituting fake numbers.
+
+## 5) Human-readable experiment page (`index.html`)
+
+Each experiment folder contains one canonical HTML page:
+
+- `benchmarks/experiments/<experiment>/index.html`
+
+The page is derived from:
+
+- `experiment.json` identity;
+- latest local analyzed artifacts from `analyzed/`;
+- latest comparison artifacts from `comparisons/`;
+- artifact file lists from `raw/`, `analyzed/`, and `comparisons/`.
+
+Formatting rules used in the page:
+
+- large numeric values are shown in scientific form in main cells;
+- bytes also include binary units (`KiB/MiB/GiB`);
+- exact raw values are preserved in tooltip/title details.
+
+The page includes three baseline charts:
+
+1. history (`elapsed median` by series and engine);
+2. phase breakdown (load/build/reopen/lookup for latest series);
+3. artifact sizes (primary/side/total bytes for latest series).

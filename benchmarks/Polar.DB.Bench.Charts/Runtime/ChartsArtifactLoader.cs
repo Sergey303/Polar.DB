@@ -34,6 +34,30 @@ internal sealed class ChartsArtifactLoader
         return LoadAsync<CrossEngineComparisonResult>(directory, "*.comparison.json");
     }
 
+    /// <summary>
+    /// Loads local analyzed latest-series artifacts for one experiment.
+    /// </summary>
+    public Task<IReadOnlyList<LocalAnalyzedSeriesResult>> LoadLocalAnalyzedSeriesAsync(string directory)
+    {
+        return LoadAsync<LocalAnalyzedSeriesResult>(directory, "latest-series.*.json");
+    }
+
+    /// <summary>
+    /// Reads one JSON file when it exists.
+    /// Returns <c>null</c> for missing file or deserialization failure.
+    /// </summary>
+    public async Task<T?> TryLoadSingleAsync<T>(string path)
+        where T : class
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        await using var stream = File.OpenRead(path);
+        return await JsonSerializer.DeserializeAsync<T>(stream, JsonDefaults.Default);
+    }
+
     private static async Task<IReadOnlyList<T>> LoadAsync<T>(string directory, string pattern)
     {
         var files = Directory.GetFiles(directory, pattern, SearchOption.TopDirectoryOnly)
