@@ -194,3 +194,24 @@ For deeper details:
 - `benchmarks/BENCHMARK_PLATFORM_SPEC.md`
 - `benchmarks/docs/BENCHMARK_METHOD.md`
 - `benchmarks/docs/RESULT_SCHEMA.md`
+- `benchmarks/docs/archive/` — historical stage-1 documentation
+- `benchmarks/docs/examples/` — sample policy and baseline files
+
+## 11. Cleaned Top-Level Structure
+
+The canonical benchmark layout now consists of:
+
+- `experiments/` — one folder per experiment, each containing `experiment.json`, `raw/`, `analyzed/`, `comparisons/`, `index.html`
+- `docs/` — active documentation
+- `docs/archive/` — historical stage-1 material
+- `docs/examples/` — sample policy and baseline files
+- Benchmark project folders (`Polar.DB.Bench.*`)
+- `.gitignore`, `Directory.Build.props`, `BENCHMARK_PLATFORM_SPEC.md`, `BENCHMARK_WORKFLOW_GUIDE.md`
+
+The following top-level folders are no longer part of the active canonical structure:
+
+- `contracts/` — sample files moved to `docs/examples/`
+- `baselines/` — sample files moved to `docs/examples/`
+- `results/` — obsolete; experiment outputs live inside each experiment folder
+- `reports/` — obsolete; reports are generated per experiment
+- `work/` — non-canonical scratch space, recreated on demand

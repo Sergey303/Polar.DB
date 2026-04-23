@@ -1,8 +1,6 @@
-results/raw/*
-!results/raw/.gitkeep
-results/analyzed/*
-!results/analyzed/.gitkeep
-reports/*
-!reports/.gitkeep
+# Scratch workspace — recreated on demand, never tracked
+work/
+
+# Build artifacts
 **/bin/
 **/obj/
