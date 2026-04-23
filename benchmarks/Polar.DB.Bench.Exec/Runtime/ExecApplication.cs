@@ -22,7 +22,7 @@ public static class ExecApplication
             return 2;
         }
 
-        var spec = await LoadSpecAsync(options.SpecPath!);
+        var spec = await ExperimentSpecLoader.LoadAsync(options.SpecPath!, options.EngineKey);
         var (engineKey, runtime) = EngineRuntimeResolver.Resolve(options.EngineKey, spec);
         Directory.CreateDirectory(options.RawResultsDirectory!);
         Directory.CreateDirectory(options.WorkingDirectory!);
@@ -74,13 +74,6 @@ public static class ExecApplication
         }
 
         return measuredResults.All(x => x.TechnicalSuccess) ? 0 : 1;
-    }
-
-    private static async Task<ExperimentSpec> LoadSpecAsync(string specPath)
-    {
-        await using var stream = File.OpenRead(specPath);
-        var spec = await JsonSerializer.DeserializeAsync<ExperimentSpec>(stream, JsonDefaults.Default);
-        return spec ?? throw new InvalidOperationException("Failed to deserialize experiment spec.");
     }
 
     private static IStorageEngineAdapter CreateAdapter(string engineKey)
@@ -236,3 +229,4 @@ public static class ExecApplication
         int MeasuredCount,
         int TotalCount);
 }
+

@@ -27,11 +27,11 @@ reverse bulk load -> build index -> reopen -> one direct key lookup -> random lo
 Single run:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup.sqlite.json --work benchmarks/work/sqlite-single --raw-out benchmarks/results/raw --warmup-count 0 --measured-count 1
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/sqlite-single --raw-out benchmarks/experiments/persons-load-build-reopen-random-lookup/raw --warmup-count 0 --measured-count 1
 ```
 
 Series run in one comparison set (defaults to 1 warmup + 3 measured):
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup.sqlite.json --work benchmarks/work/sqlite-series --raw-out benchmarks/results/raw --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/sqlite-series --raw-out benchmarks/experiments/persons-append-cycles-reopen-lookup/raw --comparison-set stage4-append-001
 ```

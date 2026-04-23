@@ -1,9 +1,9 @@
 {
   "experiment": "persons-load-build-reopen-random-lookup",
+  "title": "Persons Load-Build-Reopen Random Lookup",
   "research": "RQ-COMMON-001",
   "hypothesis": "H-COMMON-REFERENCE-IMPORT-001",
-  "description": "Imported reference workload for fair cross-engine comparison: reverse bulk load, build, reopen/refresh, one direct lookup, 10k random point lookups.",
-  "engine": "polar-db",
+  "description": "Imported reference workload for fair cross-engine comparison: reverse bulk load, build, reopen, one direct lookup, and 10k random point lookups.",
   "dataset": {
     "profile": "persons-1m-reverse",
     "count": 1000000,
@@ -13,7 +13,7 @@
   "workload": {
     "type": "bulk-load-point-lookup",
     "lookup": 10000,
-    "notes": "After build and reopen/refresh: execute one direct lookup by key, then random point lookups by id."
+    "notes": "After build and reopen: execute one direct lookup by key, then random point lookups by id."
   },
   "fault": {
     "type": "none",
@@ -28,5 +28,15 @@
     "PointLookup",
     "ReopenRecovery",
     "PhysicalArtifactInspection"
-  ]
+  ],
+  "engines": {
+    "polar-db": {},
+    "sqlite": {}
+  },
+  "compare": {
+    "history": [],
+    "otherExperiments": [
+      "persons-append-cycles-reopen-lookup"
+    ]
+  }
 }
