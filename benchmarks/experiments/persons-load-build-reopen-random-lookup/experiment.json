@@ -15,22 +15,12 @@
     "lookup": 10000,
     "notes": "After build and reopen: execute one direct lookup by key, then random point lookups by id."
   },
-  "fault": {
-    "type": "none",
-    "notes": "No fault injection for imported reference workload."
-  },
   "fairness": {
     "type": "durability-balanced",
     "notes": "Shared fairness intent for Polar.DB vs SQLite imported reference comparison."
   },
-  "requires": [
-    "BulkLoad",
-    "PointLookup",
-    "ReopenRecovery",
-    "PhysicalArtifactInspection"
-  ],
   "targets": {
-    "polar-db": {
+    "polar-db-current": {
       "engine": "polar-db"
     },
     "sqlite": {

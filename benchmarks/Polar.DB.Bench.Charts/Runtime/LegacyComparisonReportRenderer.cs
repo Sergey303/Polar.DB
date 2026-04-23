@@ -6,6 +6,7 @@ namespace Polar.DB.Bench.Charts.Runtime;
 /// <summary>
 /// Renders legacy single-run comparison artifacts.
 /// This is a fallback path when comparison-series files are not available.
+/// Shows all targets dynamically instead of hardcoding polar-db/sqlite columns.
 /// </summary>
 internal sealed class LegacyComparisonReportRenderer
 {
@@ -21,16 +22,46 @@ internal sealed class LegacyComparisonReportRenderer
         sb.AppendLine();
         sb.AppendLine("Legacy mode: comparison-series artifacts were not found, so this summary uses single-run comparison artifacts.");
         sb.AppendLine();
-        sb.AppendLine("| ComparisonId | Experiment | Dataset | Fairness | Polar elapsed ms | SQLite elapsed ms | Polar load ms | SQLite load ms | Polar build ms | SQLite build ms | Polar reopen ms | SQLite reopen ms | Polar lookup ms | SQLite lookup ms | Polar total bytes | SQLite total bytes | Polar primary bytes | SQLite db bytes | Polar side bytes | SQLite side bytes | Polar semantic | SQLite semantic | Polar technical | SQLite technical |");
-        sb.AppendLine("| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- |");
 
         foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
         {
-            var polar = FindEngine(comparison, "polar-db");
-            var sqlite = FindEngine(comparison, "sqlite");
+            var engineKeys = comparison.Engines
+                .Select(e => e.EngineKey)
+                .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            // Build dynamic header columns per engine.
+            var headerCols = string.Join(" | ", engineKeys.SelectMany(k => new[]
+            {
+                $"{k} elapsed ms", $"{k} load ms", $"{k} build ms",
+                $"{k} reopen ms", $"{k} lookup ms",
+                $"{k} total bytes", $"{k} primary bytes", $"{k} side bytes",
+                $"{k} semantic", $"{k} technical"
+            }));
+            sb.AppendLine($"| ComparisonId | Experiment | Dataset | Fairness | {headerCols} |");
+            var alignCols = string.Join(" | ", engineKeys.SelectMany(_ => new[] { "---:", "---:", "---:", "---:", "---:", "---:", "---:", "---:", "---:", "---:" }));
+            sb.AppendLine($"| --- | --- | --- | --- | {alignCols} |");
+
+            var engineValues = engineKeys.SelectMany(k =>
+            {
+                var e = FindEngine(comparison, k);
+                return new[]
+                {
+                    ReportFormatting.FormatNumber(e?.ElapsedMsSingleRun),
+                    ReportFormatting.FormatNumber(e?.LoadMs),
+                    ReportFormatting.FormatNumber(e?.BuildMs),
+                    ReportFormatting.FormatNumber(e?.ReopenMs),
+                    ReportFormatting.FormatNumber(e?.LookupMs),
+                    ReportFormatting.FormatNumber(e?.TotalArtifactBytes),
+                    ReportFormatting.FormatNumber(e?.PrimaryArtifactBytes),
+                    ReportFormatting.FormatNumber(e?.SideArtifactBytes),
+                    ReportFormatting.FormatBool(e?.SemanticSuccess),
+                    ReportFormatting.FormatBool(e?.TechnicalSuccess)
+                };
+            });
 
             sb.AppendLine(
-                $"| {ReportFormatting.EscapeMarkdownCell(comparison.ComparisonId)} | {ReportFormatting.EscapeMarkdownCell(comparison.ExperimentKey)} | {ReportFormatting.EscapeMarkdownCell(comparison.DatasetProfileKey ?? string.Empty)} | {ReportFormatting.EscapeMarkdownCell(comparison.FairnessProfileKey ?? string.Empty)} | {ReportFormatting.FormatNumber(polar?.ElapsedMsSingleRun)} | {ReportFormatting.FormatNumber(sqlite?.ElapsedMsSingleRun)} | {ReportFormatting.FormatNumber(polar?.LoadMs)} | {ReportFormatting.FormatNumber(sqlite?.LoadMs)} | {ReportFormatting.FormatNumber(polar?.BuildMs)} | {ReportFormatting.FormatNumber(sqlite?.BuildMs)} | {ReportFormatting.FormatNumber(polar?.ReopenMs)} | {ReportFormatting.FormatNumber(sqlite?.ReopenMs)} | {ReportFormatting.FormatNumber(polar?.LookupMs)} | {ReportFormatting.FormatNumber(sqlite?.LookupMs)} | {ReportFormatting.FormatNumber(polar?.TotalArtifactBytes)} | {ReportFormatting.FormatNumber(sqlite?.TotalArtifactBytes)} | {ReportFormatting.FormatNumber(polar?.PrimaryArtifactBytes)} | {ReportFormatting.FormatNumber(sqlite?.PrimaryArtifactBytes)} | {ReportFormatting.FormatNumber(polar?.SideArtifactBytes)} | {ReportFormatting.FormatNumber(sqlite?.SideArtifactBytes)} | {ReportFormatting.FormatBool(polar?.SemanticSuccess)} | {ReportFormatting.FormatBool(sqlite?.SemanticSuccess)} | {ReportFormatting.FormatBool(polar?.TechnicalSuccess)} | {ReportFormatting.FormatBool(sqlite?.TechnicalSuccess)} |");
+                $"| {ReportFormatting.EscapeMarkdownCell(comparison.ComparisonId)} | {ReportFormatting.EscapeMarkdownCell(comparison.ExperimentKey)} | {ReportFormatting.EscapeMarkdownCell(comparison.DatasetProfileKey ?? string.Empty)} | {ReportFormatting.EscapeMarkdownCell(comparison.FairnessProfileKey ?? string.Empty)} | {string.Join(" | ", engineValues)} |");
         }
 
         return sb.ToString();
@@ -42,38 +73,47 @@ internal sealed class LegacyComparisonReportRenderer
     public string BuildCsv(IReadOnlyList<CrossEngineComparisonResult> comparisons)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("ComparisonId,ExperimentKey,DatasetProfileKey,FairnessProfileKey,PolarElapsedMsSingleRun,SqliteElapsedMsSingleRun,PolarLoadMs,SqliteLoadMs,PolarBuildMs,SqliteBuildMs,PolarReopenMs,SqliteReopenMs,PolarLookupMs,SqliteLookupMs,PolarTotalArtifactBytes,SqliteTotalArtifactBytes,PolarPrimaryArtifactBytes,SqlitePrimaryArtifactBytes,PolarSideArtifactBytes,SqliteSideArtifactBytes,PolarSemanticSuccess,SqliteSemanticSuccess,PolarTechnicalSuccess,SqliteTechnicalSuccess");
 
         foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
         {
-            var polar = FindEngine(comparison, "polar-db");
-            var sqlite = FindEngine(comparison, "sqlite");
+            var engineKeys = comparison.Engines
+                .Select(e => e.EngineKey)
+                .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var headerCols = string.Join(",", engineKeys.SelectMany(k => new[]
+            {
+                $"{k}ElapsedMsSingleRun", $"{k}LoadMs", $"{k}BuildMs",
+                $"{k}ReopenMs", $"{k}LookupMs",
+                $"{k}TotalArtifactBytes", $"{k}PrimaryArtifactBytes", $"{k}SideArtifactBytes",
+                $"{k}SemanticSuccess", $"{k}TechnicalSuccess"
+            }));
+            sb.AppendLine($"ComparisonId,ExperimentKey,DatasetProfileKey,FairnessProfileKey,{headerCols}");
+
+            var engineValues = engineKeys.SelectMany(k =>
+            {
+                var e = FindEngine(comparison, k);
+                return new[]
+                {
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.ElapsedMsSingleRun)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.LoadMs)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.BuildMs)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.ReopenMs)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.LookupMs)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.TotalArtifactBytes)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.PrimaryArtifactBytes)),
+                    ReportFormatting.Csv(ReportFormatting.FormatNumber(e?.SideArtifactBytes)),
+                    ReportFormatting.Csv(ReportFormatting.FormatBool(e?.SemanticSuccess)),
+                    ReportFormatting.Csv(ReportFormatting.FormatBool(e?.TechnicalSuccess))
+                };
+            });
 
             sb.AppendLine(
                 $"{ReportFormatting.Csv(comparison.ComparisonId)}," +
                 $"{ReportFormatting.Csv(comparison.ExperimentKey)}," +
                 $"{ReportFormatting.Csv(comparison.DatasetProfileKey ?? string.Empty)}," +
                 $"{ReportFormatting.Csv(comparison.FairnessProfileKey ?? string.Empty)}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.ElapsedMsSingleRun))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.ElapsedMsSingleRun))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.LoadMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.LoadMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.BuildMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.BuildMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.ReopenMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.ReopenMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.LookupMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.LookupMs))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.TotalArtifactBytes))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.TotalArtifactBytes))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.PrimaryArtifactBytes))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.PrimaryArtifactBytes))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(polar?.SideArtifactBytes))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatNumber(sqlite?.SideArtifactBytes))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatBool(polar?.SemanticSuccess))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatBool(sqlite?.SemanticSuccess))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatBool(polar?.TechnicalSuccess))}," +
-                $"{ReportFormatting.Csv(ReportFormatting.FormatBool(sqlite?.TechnicalSuccess))}");
+                string.Join(",", engineValues));
         }
 
         return sb.ToString();

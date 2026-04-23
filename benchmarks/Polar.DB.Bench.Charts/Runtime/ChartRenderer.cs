@@ -228,13 +228,20 @@ internal static class ChartRenderer
     }
 
     /// <summary>
-    /// Returns a stable color for a given engine key.
+    /// Returns a stable color for a given target key or engine family.
+    /// Target keys like "polar-db-current", "polar-db-2.1.1" map to the polar-db color.
     /// </summary>
     public static string EngineColor(string engineKey)
     {
-        return engineKey.ToLowerInvariant() switch
+        var normalized = engineKey.ToLowerInvariant();
+        // Map target keys to engine family colors.
+        if (normalized.StartsWith("polar-db", StringComparison.OrdinalIgnoreCase))
         {
-            "polar-db" => "#0f6f9f",
+            return "#0f6f9f";
+        }
+
+        return normalized switch
+        {
             "sqlite" => "#a04f15",
             "synthetic" => "#5c3ea6",
             _ => "#2d7b63"

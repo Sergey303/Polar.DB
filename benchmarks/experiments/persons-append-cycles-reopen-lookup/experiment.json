@@ -17,22 +17,12 @@
     "lookup": 5000,
     "notes": "For each cycle: append batch, close/reopen, run random point lookup sample."
   },
-  "fault": {
-    "type": "none",
-    "notes": "No fault injection in stage4 common append cycles experiment."
-  },
   "fairness": {
     "type": "durability-balanced",
     "notes": "Common stage4 fairness baseline."
   },
-  "requires": [
-    "BulkLoad",
-    "PointLookup",
-    "ReopenRecovery",
-    "PhysicalArtifactInspection"
-  ],
   "targets": {
-    "polar-db": {
+    "polar-db-current": {
       "engine": "polar-db"
     },
     "sqlite": {

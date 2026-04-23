@@ -11,7 +11,7 @@ public static class ExperimentSpecLoader
 
     public static async Task<ExperimentSpec> LoadAsync(
         string specPath,
-        string? cliEngine,
+        string? cliTarget,
         CancellationToken cancellationToken = default)
     {
         var resolvedSpecPath = ResolveSpecPath(specPath);
@@ -32,7 +32,7 @@ public static class ExperimentSpecLoader
                 throw new InvalidOperationException("Failed to deserialize experiment manifest.");
             }
 
-            return ConvertManifestToSpec(manifest, cliEngine);
+            return ConvertManifestToSpec(manifest, cliTarget);
         }
 
         var legacySpec = document.RootElement.Deserialize<ExperimentSpec>(JsonDefaults.Default);
@@ -111,7 +111,7 @@ public static class ExperimentSpecLoader
         return Path.Combine(experimentDirectory, RawDirectoryName);
     }
 
-    private static ExperimentSpec ConvertManifestToSpec(ExperimentManifest manifest, string? cliEngine)
+    private static ExperimentSpec ConvertManifestToSpec(ExperimentManifest manifest, string? cliTarget)
     {
         if (manifest.Targets.Count == 0)
         {
@@ -119,8 +119,8 @@ public static class ExperimentSpecLoader
                 $"Experiment '{manifest.ExperimentKey}' does not declare any targets.");
         }
 
-        var selectedTarget = ResolveTargetKey(cliEngine, manifest.Targets);
-        var targetSpec = manifest.Targets[selectedTarget];
+        var selectedTargetKey = ResolveTargetKey(cliTarget, manifest.Targets);
+        var targetSpec = manifest.Targets[selectedTargetKey];
 
         return new ExperimentSpec
         {
@@ -128,6 +128,7 @@ public static class ExperimentSpecLoader
             ResearchQuestionId = manifest.ResearchQuestionId,
             HypothesisId = manifest.HypothesisId,
             Description = manifest.Description,
+            TargetKey = selectedTargetKey,
             Engine = targetSpec.Engine,
             Nuget = NormalizeNuget(targetSpec.Nuget),
             Dataset = manifest.Dataset,
@@ -139,16 +140,16 @@ public static class ExperimentSpecLoader
     }
 
     private static string ResolveTargetKey(
-        string? cliEngine,
+        string? cliTarget,
         IReadOnlyDictionary<string, ExperimentTargetSpec> targets)
     {
-        var normalizedCliEngine = Normalize(cliEngine);
-        if (normalizedCliEngine is not null)
+        var normalizedCliTarget = Normalize(cliTarget);
+        if (normalizedCliTarget is not null)
         {
             // First try exact target key match.
             foreach (var targetKey in targets.Keys)
             {
-                if (targetKey.Equals(normalizedCliEngine, StringComparison.OrdinalIgnoreCase))
+                if (targetKey.Equals(normalizedCliTarget, StringComparison.OrdinalIgnoreCase))
                 {
                     return targetKey;
                 }
@@ -157,7 +158,7 @@ public static class ExperimentSpecLoader
             // Then try engine family match (for backward compat with --engine).
             foreach (var (targetKey, targetSpec) in targets)
             {
-                if (targetSpec.Engine.Equals(normalizedCliEngine, StringComparison.OrdinalIgnoreCase))
+                if (targetSpec.Engine.Equals(normalizedCliTarget, StringComparison.OrdinalIgnoreCase))
                 {
                     return targetKey;
                 }
@@ -165,7 +166,7 @@ public static class ExperimentSpecLoader
 
             var configured = string.Join(", ", targets.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
             throw new InvalidOperationException(
-                $"Target '{normalizedCliEngine}' is not configured in experiment manifest. Configured targets: {configured}.");
+                $"Target '{normalizedCliTarget}' is not configured in experiment manifest. Configured targets: {configured}.");
         }
 
         if (targets.Count == 1)

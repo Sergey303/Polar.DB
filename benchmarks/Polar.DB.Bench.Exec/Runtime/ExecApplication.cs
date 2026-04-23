@@ -23,7 +23,8 @@ public static class ExecApplication
         }
 
         var spec = await ExperimentSpecLoader.LoadAsync(options.SpecPath!, options.EngineKey);
-        var (engineKey, runtime) = EngineRuntimeResolver.Resolve(options.EngineKey, spec);
+        var (engineFamily, runtime) = EngineRuntimeResolver.Resolve(spec);
+        var targetKey = spec.TargetKey;
         var rawResultsDirectory = ExperimentSpecLoader.ResolveRawResultsDirectory(options.SpecPath!, options.RawResultsDirectory);
         Directory.CreateDirectory(rawResultsDirectory);
         Directory.CreateDirectory(options.WorkingDirectory!);
@@ -43,7 +44,7 @@ public static class ExecApplication
         };
         Directory.CreateDirectory(workspace.ArtifactsDirectory);
 
-        var adapter = CreateAdapter(engineKey);
+        var adapter = CreateAdapter(engineFamily);
         var executionPlan = BuildExecutionPlan(options);
         var measuredResults = new List<RunResult>(executionPlan.MeasuredCount);
 
@@ -61,7 +62,7 @@ public static class ExecApplication
                 runRole,
                 executionPlan.WarmupCount,
                 executionPlan.MeasuredCount);
-            taggedResult = AttachEngineRuntimeInfo(taggedResult, engineKey, runtime);
+            taggedResult = AttachEngineRuntimeInfo(taggedResult, targetKey, engineFamily, runtime);
 
             var rawPath = BuildRawPath(workspace, taggedResult, runRole, sequenceNumber, executionPlan.TotalCount > 1);
             await using var stream = File.Create(rawPath);
@@ -162,7 +163,8 @@ public static class ExecApplication
 
     private static RunResult AttachEngineRuntimeInfo(
         RunResult result,
-        string engineKey,
+        string targetKey,
+        string engineFamily,
         EngineRuntimeDescriptor runtime)
     {
         var diagnostics = result.EngineDiagnostics is null
@@ -177,7 +179,7 @@ public static class ExecApplication
 
         return result with
         {
-            EngineKey = engineKey,
+            EngineKey = targetKey,
             Runtime = runtime,
             EngineDiagnostics = diagnostics
         };
@@ -220,4 +222,3 @@ public static class ExecApplication
         int MeasuredCount,
         int TotalCount);
 }
-

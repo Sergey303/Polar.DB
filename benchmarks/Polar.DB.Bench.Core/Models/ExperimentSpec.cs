@@ -3,6 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Polar.DB.Bench.Core.Models;
 
+/// <summary>
+/// Resolved experiment spec for one specific target.
+/// This is the runtime spec used by the executor after target selection from the manifest.
+/// </summary>
 public sealed record ExperimentSpec
 {
     [JsonPropertyName("experiment")]
@@ -17,9 +21,21 @@ public sealed record ExperimentSpec
     [JsonPropertyName("description")]
     public string? Description { get; init; }
 
-    [JsonPropertyName("engine")]
-    public string? Engine { get; init; }
+    /// <summary>
+    /// The resolved target key (runtime variant id), e.g. "polar-db-current", "polar-db-2.1.1", "sqlite".
+    /// </summary>
+    [JsonPropertyName("target")]
+    public required string TargetKey { get; init; }
 
+    /// <summary>
+    /// The engine family identifier, e.g. "polar-db", "sqlite".
+    /// </summary>
+    [JsonPropertyName("engine")]
+    public required string Engine { get; init; }
+
+    /// <summary>
+    /// Optional pinned NuGet version.
+    /// </summary>
     [JsonPropertyName("nuget")]
     public string? Nuget { get; init; }
 
