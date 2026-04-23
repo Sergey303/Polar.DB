@@ -4,23 +4,15 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 
 /// <summary>
 /// Builds stage4 comparison-series artifacts.
-/// Input is a comparison set: related warmup/measured runs from both engines.
-/// Output is one derived artifact with aggregated measured statistics per engine.
+/// Input is a comparison set: related warmup/measured runs from all targets.
+/// Output is one derived artifact with aggregated measured statistics per target.
+/// This builder is engine-family agnostic: it does not hardcode Polar.DB or SQLite keys.
 /// </summary>
 internal sealed class SeriesComparisonBuilder
 {
     private const string WarmupRunRole = "warmup";
     private const string MeasuredRunRole = "measured";
     private const string ImportedReferenceExperimentKey = "persons-load-build-reopen-random-lookup";
-
-    private readonly string _polarEngineKey;
-    private readonly string _sqliteEngineKey;
-
-    public SeriesComparisonBuilder(string polarEngineKey, string sqliteEngineKey)
-    {
-        _polarEngineKey = polarEngineKey;
-        _sqliteEngineKey = sqliteEngineKey;
-    }
 
     /// <summary>
     /// Creates one comparison-series artifact for one comparison set id.
@@ -40,17 +32,25 @@ internal sealed class SeriesComparisonBuilder
             throw new InvalidOperationException($"No runs found for comparison set '{comparisonSetId}'.");
         }
 
-        var polarRuns = setRuns.Where(x => x.Result.EngineKey.Equals(_polarEngineKey, StringComparison.OrdinalIgnoreCase)).ToArray();
-        var sqliteRuns = setRuns.Where(x => x.Result.EngineKey.Equals(_sqliteEngineKey, StringComparison.OrdinalIgnoreCase)).ToArray();
+        // Group by engine key (which represents the runtime variant / target).
+        var engineGroups = setRuns
+            .GroupBy(item => item.Result.EngineKey, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        if (!polarRuns.Any(IsMeasuredRun))
+        if (engineGroups.Length < 2)
         {
-            throw new InvalidOperationException($"Comparison set '{comparisonSetId}' has no measured Polar.DB runs.");
+            throw new InvalidOperationException(
+                $"Comparison set '{comparisonSetId}' must contain at least two distinct engine targets. Found: {engineGroups.Length}.");
         }
 
-        if (!sqliteRuns.Any(IsMeasuredRun))
+        foreach (var group in engineGroups)
         {
-            throw new InvalidOperationException($"Comparison set '{comparisonSetId}' has no measured SQLite runs.");
+            if (!group.Any(IsMeasuredRun))
+            {
+                throw new InvalidOperationException(
+                    $"Comparison set '{comparisonSetId}' has no measured runs for target '{group.Key}'.");
+            }
         }
 
         var timestampUtc = DateTimeOffset.UtcNow;
@@ -73,19 +73,17 @@ internal sealed class SeriesComparisonBuilder
 
         return new CrossEngineComparisonSeriesResult
         {
-            ComparisonId = $"{timestampToken}__{experimentKey}__{datasetProfileKey}__{comparisonSetId}__polar-db-vs-sqlite",
+            ComparisonId = $"{timestampToken}__{experimentKey}__{datasetProfileKey}__{comparisonSetId}__multi-target",
             TimestampUtc = timestampUtc,
             ExperimentKey = experimentKey,
             ComparisonSetId = comparisonSetId,
             DatasetProfileKey = datasetProfileKey,
             FairnessProfileKey = fairnessProfileKey,
             EnvironmentClass = environmentClass,
-            Engines = new[] { _polarEngineKey, _sqliteEngineKey },
-            EngineSeries = new[]
-            {
-                BuildEngineSeriesEntry(_polarEngineKey, polarRuns),
-                BuildEngineSeriesEntry(_sqliteEngineKey, sqliteRuns)
-            },
+            Engines = engineGroups.Select(g => g.Key).ToArray(),
+            EngineSeries = engineGroups
+                .Select(group => BuildEngineSeriesEntry(group.Key, group.ToArray()))
+                .ToArray(),
             Notes = notes
         };
     }

@@ -5,20 +5,12 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 /// <summary>
 /// Builds the legacy single-run comparison artifact.
 /// This path exists for old raw data that does not have comparison-set metadata.
+/// This builder is engine-family agnostic: it does not hardcode Polar.DB or SQLite keys.
 /// </summary>
 internal sealed class LegacyComparisonBuilder
 {
-    private readonly string _polarEngineKey;
-    private readonly string _sqliteEngineKey;
-
-    public LegacyComparisonBuilder(string polarEngineKey, string sqliteEngineKey)
-    {
-        _polarEngineKey = polarEngineKey;
-        _sqliteEngineKey = sqliteEngineKey;
-    }
-
     /// <summary>
-    /// Selects the latest matching run for each engine and creates one legacy comparison artifact.
+    /// Selects the latest matching run for each distinct engine key and creates one legacy comparison artifact.
     /// </summary>
     public CrossEngineComparisonResult Build(IReadOnlyList<RawRunEntry> filteredRuns, string experimentKey)
     {
@@ -27,17 +19,14 @@ internal sealed class LegacyComparisonBuilder
             .Select(group => group.OrderByDescending(item => item.Result.TimestampUtc).First())
             .ToDictionary(item => item.Result.EngineKey, item => item, StringComparer.OrdinalIgnoreCase);
 
-        if (!latestByEngine.TryGetValue(_polarEngineKey, out var polar))
+        if (latestByEngine.Count < 2)
         {
-            throw new InvalidOperationException("Comparison mode requires at least one matching Polar.DB raw result.");
+            var keys = string.Join(", ", latestByEngine.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+            throw new InvalidOperationException(
+                $"Legacy comparison mode requires at least two distinct engine targets. Found: {latestByEngine.Count} ({keys}).");
         }
 
-        if (!latestByEngine.TryGetValue(_sqliteEngineKey, out var sqlite))
-        {
-            throw new InvalidOperationException("Comparison mode requires at least one matching SQLite raw result.");
-        }
-
-        var selected = new[] { polar, sqlite };
+        var selected = latestByEngine.Values.ToArray();
         var timestampUtc = DateTimeOffset.UtcNow;
         var timestampToken = timestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
         var datasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(selected.Select(item => item.Result.DatasetProfileKey));
@@ -45,13 +34,13 @@ internal sealed class LegacyComparisonBuilder
         var environmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(selected.Select(item => item.Result.Environment.EnvironmentClass));
 
         var entries = selected
-            .OrderBy(item => item.Result.EngineKey.Equals(_polarEngineKey, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .OrderBy(item => item.Result.EngineKey, StringComparer.OrdinalIgnoreCase)
             .Select(item => BuildEntry(item.Result, item.Path))
             .ToArray();
 
         return new CrossEngineComparisonResult
         {
-            ComparisonId = $"{timestampToken}__{experimentKey}__{datasetProfileKey}__polar-db-vs-sqlite",
+            ComparisonId = $"{timestampToken}__{experimentKey}__{datasetProfileKey}__multi-target",
             TimestampUtc = timestampUtc,
             ExperimentKey = experimentKey,
             DatasetProfileKey = datasetProfileKey,
@@ -61,7 +50,7 @@ internal sealed class LegacyComparisonBuilder
             Notes = new List<string>
             {
                 "Legacy fallback: no comparison-set metadata found in matching runs.",
-                "Latest matching run per engine is selected by timestamp.",
+                "Latest matching run per target is selected by timestamp.",
                 "Use --comparison-set and measured run series for stable stage4 comparison."
             }
         };

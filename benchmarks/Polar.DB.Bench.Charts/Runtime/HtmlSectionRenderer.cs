@@ -32,7 +32,7 @@ internal static class HtmlSectionRenderer
     }
 
     /// <summary>
-    /// Renders the identity section: dataset, workload, fairness, and engines tables.
+    /// Renders the identity section: dataset, workload, fairness, and targets tables.
     /// </summary>
     public static void AppendIdentitySection(System.Text.StringBuilder sb, ExperimentIndexModel model)
     {
@@ -70,19 +70,20 @@ internal static class HtmlSectionRenderer
         sb.AppendLine("</section>");
 
         sb.AppendLine("<section class=\"card wide\">");
-        sb.AppendLine("  <h2>Engines</h2>");
+        sb.AppendLine("  <h2>Targets</h2>");
         sb.AppendLine("  <table>");
-        sb.AppendLine("    <thead><tr><th>Engine</th><th>Spec</th><th>Runtime semantics</th></tr></thead>");
+        sb.AppendLine("    <thead><tr><th>Target</th><th>Engine family</th><th>Spec</th><th>Runtime semantics</th></tr></thead>");
         sb.AppendLine("    <tbody>");
-        foreach (var (engineKey, engineSpec) in model.Manifest.Engines.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        foreach (var (targetKey, targetSpec) in model.Manifest.Targets.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
         {
-            var spec = string.IsNullOrWhiteSpace(engineSpec.Nuget)
+            var spec = string.IsNullOrWhiteSpace(targetSpec.Nuget)
                 ? "{}"
-                : "{ \"nuget\": \"" + NumberFormatter.HtmlEncode(engineSpec.Nuget!) + "\" }";
+                : "{ \"nuget\": \"" + NumberFormatter.HtmlEncode(targetSpec.Nuget!) + "\" }";
             sb.AppendLine("      <tr>");
-            sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(engineKey) + "</code></td>");
+            sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(targetKey) + "</code></td>");
+            sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(targetSpec.Engine) + "</code></td>");
             sb.AppendLine("        <td><code>" + spec + "</code></td>");
-            sb.AppendLine("        <td>" + NumberFormatter.HtmlEncode(DescribeRuntimeSemantics(engineKey, engineSpec)) + "</td>");
+            sb.AppendLine("        <td>" + NumberFormatter.HtmlEncode(DescribeRuntimeSemantics(targetKey, targetSpec)) + "</td>");
             sb.AppendLine("      </tr>");
         }
 
@@ -98,7 +99,7 @@ internal static class HtmlSectionRenderer
     {
         var latestEngines = model.LatestEngines;
         sb.AppendLine("<section class=\"card wide\">");
-        sb.AppendLine("  <h2>Latest Engine Comparison</h2>");
+        sb.AppendLine("  <h2>Latest Target Comparison</h2>");
 
         if (latestEngines is null)
         {
@@ -113,7 +114,7 @@ internal static class HtmlSectionRenderer
 
         if (latestEngines.Snapshot is null)
         {
-            sb.AppendLine("  <p class=\"muted\">No complete successful measured series is currently available for all configured engines.</p>");
+            sb.AppendLine("  <p class=\"muted\">No complete successful measured series is currently available for all configured targets.</p>");
             AppendNotes(sb, latestEngines.Notes);
             sb.AppendLine("</section>");
             return;
@@ -130,7 +131,7 @@ internal static class HtmlSectionRenderer
         sb.AppendLine("  <table>");
         sb.AppendLine("    <thead>");
         sb.AppendLine("      <tr>");
-        sb.AppendLine("        <th>Engine</th><th>Measured</th><th>Technical</th><th>Semantic</th>");
+        sb.AppendLine("        <th>Target</th><th>Measured</th><th>Technical</th><th>Semantic</th>");
         sb.AppendLine("        <th>Elapsed median</th><th>Load median</th><th>Build median</th><th>Reopen median</th><th>Lookup median</th>");
         sb.AppendLine("        <th>Total bytes median</th><th>Primary bytes median</th><th>Side bytes median</th>");
         sb.AppendLine("      </tr>");
@@ -336,7 +337,7 @@ internal static class HtmlSectionRenderer
         }
 
         sb.AppendLine("  <table>");
-        sb.AppendLine("    <thead><tr><th>Experiment</th><th>Set</th><th>Timestamp</th><th>Dataset</th><th>Fairness</th><th>Elapsed median per engine</th></tr></thead>");
+        sb.AppendLine("    <thead><tr><th>Experiment</th><th>Set</th><th>Timestamp</th><th>Dataset</th><th>Fairness</th><th>Elapsed median per target</th></tr></thead>");
         sb.AppendLine("    <tbody>");
         foreach (var snapshot in others)
         {
@@ -378,7 +379,7 @@ internal static class HtmlSectionRenderer
         {
             sb.AppendLine("  <h3>Local Analyzed Snapshot</h3>");
             sb.AppendLine("  <table>");
-            sb.AppendLine("    <thead><tr><th>Engine</th><th>Set</th><th>Elapsed median</th><th>Total bytes median</th><th>Measured</th></tr></thead>");
+            sb.AppendLine("    <thead><tr><th>Target</th><th>Set</th><th>Elapsed median</th><th>Total bytes median</th><th>Measured</th></tr></thead>");
             sb.AppendLine("    <tbody>");
             foreach (var item in model.LocalAnalyzedSeries.OrderBy(x => x.EngineKey, StringComparer.OrdinalIgnoreCase))
             {
@@ -478,12 +479,12 @@ internal static class HtmlSectionRenderer
     }
 
     /// <summary>
-    /// Describes runtime semantics for an engine spec in human-readable form.
+    /// Describes runtime semantics for a target spec in human-readable form.
     /// </summary>
-    private static string DescribeRuntimeSemantics(string engineKey, ExperimentEngineSpec spec)
+    private static string DescribeRuntimeSemantics(string targetKey, ExperimentTargetSpec spec)
     {
         var hasNuget = !string.IsNullOrWhiteSpace(spec.Nuget);
-        var isPolar = engineKey.Equals("polar-db", StringComparison.OrdinalIgnoreCase);
+        var isPolar = spec.Engine.Equals("polar-db", StringComparison.OrdinalIgnoreCase);
 
         if (isPolar && !hasNuget)
         {

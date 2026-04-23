@@ -39,20 +39,34 @@ public sealed record ExperimentManifest
     [JsonPropertyName("requires")]
     public IReadOnlyList<EngineCapability>? RequiredCapabilities { get; init; }
 
-    [JsonPropertyName("engines")]
-    public required IReadOnlyDictionary<string, ExperimentEngineSpec> Engines { get; init; }
+    /// <summary>
+    /// Runtime targets for this experiment.
+    /// A target is a runtime variant identified by a unique key (e.g. "polar-db-current", "polar-db-2.1.1", "sqlite").
+    /// Each target specifies an engine family and optionally a pinned NuGet version.
+    /// One experiment can contain multiple targets from the same engine family
+    /// (e.g. three Polar.DB variants: current source, NuGet 2.1.1, NuGet 2.1.0).
+    /// The target key is the runtime variant id; the engine field identifies the engine family.
+    /// </summary>
+    [JsonPropertyName("targets")]
+    public required IReadOnlyDictionary<string, ExperimentTargetSpec> Targets { get; init; }
 
     [JsonPropertyName("compare")]
     public ExperimentCompareSpec Compare { get; init; } = new();
 }
 
 /// <summary>
-/// Engine runtime specification.
-/// Empty object = current source (for polar-db) or latest NuGet (for non-Polar engines).
-/// With nuget field = pinned NuGet version.
+/// Target runtime specification for one variant inside an experiment.
+/// A target represents one specific runtime variant of an engine family.
+/// - engine: the engine family identifier (e.g. "polar-db", "sqlite").
+/// - nuget (optional): pinned NuGet package version.
+///   For Polar.DB: absent means current source from repository; present means pinned NuGet version.
+///   For non-Polar engines: absent means latest/default package/runtime already used by the platform.
 /// </summary>
-public sealed record ExperimentEngineSpec
+public sealed record ExperimentTargetSpec
 {
+    [JsonPropertyName("engine")]
+    public required string Engine { get; init; }
+
     [JsonPropertyName("nuget")]
     public string? Nuget { get; init; }
 }

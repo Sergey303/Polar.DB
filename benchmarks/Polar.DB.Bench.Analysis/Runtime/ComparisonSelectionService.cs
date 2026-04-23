@@ -3,23 +3,15 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 /// <summary>
 /// Selects raw runs that are valid inputs for cross-engine comparison.
 /// It also resolves which comparison set should be used in stage4 mode.
+/// This service is engine-family agnostic: it does not hardcode Polar.DB or SQLite keys.
 /// </summary>
 internal sealed class ComparisonSelectionService
 {
     private const string MeasuredRunRole = "measured";
 
-    private readonly string _polarEngineKey;
-    private readonly string _sqliteEngineKey;
-
-    public ComparisonSelectionService(string polarEngineKey, string sqliteEngineKey)
-    {
-        _polarEngineKey = polarEngineKey;
-        _sqliteEngineKey = sqliteEngineKey;
-    }
-
     /// <summary>
     /// Filters raw runs by experiment and optional dataset/fairness/environment selectors.
-    /// Only Polar.DB and SQLite runs are kept because this comparison artifact is a two-engine report.
+    /// No engine-family filtering is applied; all targets are included.
     /// </summary>
     public RawRunEntry[] SelectRuns(IReadOnlyList<RawRunEntry> allRuns, AnalysisOptions options)
     {
@@ -28,15 +20,13 @@ internal sealed class ComparisonSelectionService
             .Where(item => MatchesOptional(item.Result.DatasetProfileKey, options.ComparisonDatasetProfileKey))
             .Where(item => MatchesOptional(item.Result.FairnessProfileKey, options.ComparisonFairnessProfileKey))
             .Where(item => MatchesOptional(item.Result.Environment.EnvironmentClass, options.ComparisonEnvironmentClass))
-            .Where(item =>
-                item.Result.EngineKey.Equals(_polarEngineKey, StringComparison.OrdinalIgnoreCase) ||
-                item.Result.EngineKey.Equals(_sqliteEngineKey, StringComparison.OrdinalIgnoreCase))
             .ToArray();
     }
 
     /// <summary>
     /// Resolves comparison-set id for stage4 aggregation.
     /// If an explicit set id is provided, it must exist. Otherwise the latest complete set is selected.
+    /// A complete set is one that has at least one measured run per distinct engine family present in the set.
     /// </summary>
     public string? ResolveComparisonSetId(IReadOnlyList<RawRunEntry> filteredRuns, string? explicitSetId)
     {
@@ -63,11 +53,18 @@ internal sealed class ComparisonSelectionService
             return selected.SetId;
         }
 
+        // Select the latest set that has at least one measured run per distinct engine family.
         var latestCompleteSet = availableSets
-            .Where(set => set.Items.Any(item => item.Result.EngineKey.Equals(_polarEngineKey, StringComparison.OrdinalIgnoreCase) && IsMeasuredRun(item)))
-            .Where(set => set.Items.Any(item => item.Result.EngineKey.Equals(_sqliteEngineKey, StringComparison.OrdinalIgnoreCase) && IsMeasuredRun(item)))
             .OrderByDescending(set => set.Latest)
-            .FirstOrDefault();
+            .FirstOrDefault(set =>
+            {
+                var engineFamilies = set.Items
+                    .Where(IsMeasuredRun)
+                    .Select(item => item.Result.EngineKey)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                return engineFamilies.Length >= 2;
+            });
 
         return latestCompleteSet?.SetId;
     }
