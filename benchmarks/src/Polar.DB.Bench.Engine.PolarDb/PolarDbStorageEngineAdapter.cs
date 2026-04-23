@@ -55,6 +55,11 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 return ExecuteAppendCyclesAsync(cancellationToken);
             }
 
+            if (_spec.ExperimentKey.Equals(FullCoverageExperimentKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return ExecuteFullAdapterCoverageAsync(cancellationToken);
+            }
+
             var manifest = EnvironmentCollector.Collect(
                 environmentClass: _workspace.EnvironmentClass,
                 repositoryRoot: _workspace.RootDirectory);
@@ -516,11 +521,342 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             });
         }
 
+        private Task<RunResult> ExecuteFullAdapterCoverageAsync(CancellationToken cancellationToken)
+        {
+            var manifest = EnvironmentCollector.Collect(
+                environmentClass: _workspace.EnvironmentClass,
+                repositoryRoot: _workspace.RootDirectory);
+
+            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue, manifest.EnvironmentClass);
+            var timestampUtc = DateTimeOffset.UtcNow;
+
+            var metrics = new List<RunMetric>();
+            var notes = new List<string>();
+            var artifacts = new List<ArtifactDescriptor>();
+            var diagnostics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var loadMs = 0.0;
+            var buildMs = 0.0;
+            var reopenRefreshMs = 0.0;
+            var directLookupMs = 0.0;
+            var randomLookupMs = 0.0;
+            var appendMs = 0.0;
+            var lookupHits = 0L;
+            var lookupAttempts = 0L;
+            var directLookupKey = ResolveDirectLookupKey(_spec.Dataset.RecordCount);
+            var directLookupHit = false;
+            var initialLookupCount = ResolveLookupCount(_spec.Workload);
+            var appendCycleShape = ResolveAppendCycleShape(_spec.Workload);
+            var lookupCountPerCycle = ResolveIntOption(_spec.Workload, "randomLookupPerBatch", DefaultRandomLookupPerBatch, 1);
+            var directLookupEnabled = ResolveBooleanOption(_spec.Workload, "directLookup", fallback: true);
+            var reopenAfterInitialLoad = ResolveBooleanOption(_spec.Workload, "reopenAfterInitialLoad", fallback: true);
+            var reopenAfterEachBatch = ResolveBooleanOption(_spec.Workload, "reopenAfterEachBatch", fallback: true);
+            var randomLookupAfterEachBatch = ResolveBooleanOption(_spec.Workload, "randomLookupAfterEachBatch", fallback: true);
+            var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
+            var totalStopwatch = Stopwatch.StartNew();
+            var artifactLayout = CreateArtifactLayout(_workspace, runId);
+            var technicalSuccess = true;
+            string? technicalFailureReason = null;
+            bool? semanticSuccess = null;
+            string? semanticFailureReason = null;
+            var rowCountMismatches = new List<string>();
+            var cycleArtifactBytes = new List<long>();
+            var initialArtifactBytes = 0L;
+            var expectedCount = _spec.Dataset.RecordCount;
+            var sequenceCountAfterRefresh = 0L;
+            var appendOffsetAfterRefresh = 0L;
+
+            USequence? active = null;
+            USequence? reopened = null;
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Directory.CreateDirectory(artifactLayout.ArtifactsRootDirectory);
+
+                active = CreateSequence(artifactLayout);
+
+                var loadWatch = Stopwatch.StartNew();
+                active.Load(GeneratePersons(_spec.Dataset.RecordCount, _spec.Dataset.Seed ?? 1));
+                loadWatch.Stop();
+                loadMs = loadWatch.Elapsed.TotalMilliseconds;
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var buildWatch = Stopwatch.StartNew();
+                active.Build();
+                buildWatch.Stop();
+                buildMs = buildWatch.Elapsed.TotalMilliseconds;
+
+                if (reopenAfterInitialLoad)
+                {
+                    active.Close();
+                    active = null;
+
+                    var initialCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                    initialArtifactBytes = initialCollected.TotalBytes;
+                    cycleArtifactBytes.Add(initialCollected.TotalBytes);
+
+                    var initialReopenWatch = Stopwatch.StartNew();
+                    reopened = CreateSequence(artifactLayout);
+                    reopened.Refresh();
+                    initialReopenWatch.Stop();
+                    reopenRefreshMs += initialReopenWatch.Elapsed.TotalMilliseconds;
+
+                    active = reopened;
+                    reopened = null;
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (directLookupEnabled)
+                {
+                    var directLookupWatch = Stopwatch.StartNew();
+                    var directRow = active!.GetByKey(directLookupKey);
+                    directLookupWatch.Stop();
+                    directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
+                    directLookupHit = TryReadPersonKey(directRow, out var directRowKey) && directRowKey == directLookupKey;
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var initialLookup = ExecuteRandomLookups(
+                    active!,
+                    initialLookupCount,
+                    checked((int)_spec.Dataset.RecordCount) + 1,
+                    (_spec.Dataset.Seed ?? 1) ^ CommonLookupSeedSalt,
+                    cancellationToken);
+                randomLookupMs += initialLookup.ElapsedMs;
+                lookupHits += initialLookup.Hits;
+                lookupAttempts += initialLookupCount;
+
+                if (!reopenAfterInitialLoad)
+                {
+                    active!.Close();
+                    active = null;
+
+                    var initialCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                    initialArtifactBytes = initialCollected.TotalBytes;
+                    cycleArtifactBytes.Add(initialCollected.TotalBytes);
+
+                    active = CreateSequence(artifactLayout);
+                    active.Refresh();
+                }
+
+                var appendRandom = new Random((_spec.Dataset.Seed ?? 1) ^ 0x55aa12ef);
+                for (var cycle = 0; cycle < appendCycleShape.BatchCount; cycle++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var appendWatch = Stopwatch.StartNew();
+                    var firstId = checked((int)(expectedCount + 1));
+                    for (var i = 0; i < appendCycleShape.BatchSize; i++)
+                    {
+                        if ((i & 0x3FF) == 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+
+                        var id = checked(firstId + i);
+                        active!.AppendElement(CreatePersonRecord(id, appendRandom));
+                    }
+
+                    appendWatch.Stop();
+                    appendMs += appendWatch.Elapsed.TotalMilliseconds;
+                    expectedCount += appendCycleShape.BatchSize;
+
+                    if (reopenAfterEachBatch)
+                    {
+                        active!.Close();
+                        active = null;
+
+                        var reopenWatch = Stopwatch.StartNew();
+                        reopened = CreateSequence(artifactLayout);
+                        reopened.Refresh();
+                        reopenWatch.Stop();
+                        reopenRefreshMs += reopenWatch.Elapsed.TotalMilliseconds;
+
+                        active = reopened;
+                        reopened = null;
+                    }
+
+                    var actualCount = active!.Sequence.Count();
+                    if (actualCount != expectedCount)
+                    {
+                        rowCountMismatches.Add($"cycle{cycle + 1}:count={actualCount},expected={expectedCount}");
+                    }
+
+                    sequenceCountAfterRefresh = actualCount;
+                    appendOffsetAfterRefresh = active.Sequence.AppendOffset;
+
+                    if (randomLookupAfterEachBatch)
+                    {
+                        var cycleLookup = ExecuteRandomLookups(
+                            active,
+                            lookupCountPerCycle,
+                            checked((int)expectedCount) + 1,
+                            (_spec.Dataset.Seed ?? 1) ^ (0x6e7f0000 + cycle),
+                            cancellationToken);
+                        randomLookupMs += cycleLookup.ElapsedMs;
+                        lookupHits += cycleLookup.Hits;
+                        lookupAttempts += lookupCountPerCycle;
+                    }
+
+                    var cycleCollected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+                    cycleArtifactBytes.Add(cycleCollected.TotalBytes);
+                }
+
+                active?.Close();
+                active = null;
+
+                var directLookupSemanticSuccess = !directLookupEnabled || directLookupHit;
+                semanticSuccess = directLookupSemanticSuccess &&
+                                  lookupHits == lookupAttempts &&
+                                  rowCountMismatches.Count == 0;
+
+                if (!semanticSuccess.Value)
+                {
+                    semanticFailureReason = BuildFullCoverageSemanticFailureReason(
+                        directLookupEnabled,
+                        directLookupKey,
+                        directLookupHit,
+                        lookupAttempts,
+                        lookupHits,
+                        rowCountMismatches,
+                        expectedCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                technicalSuccess = false;
+                technicalFailureReason = ex.ToString();
+            }
+            finally
+            {
+                TryClose(active);
+                TryClose(reopened);
+                totalStopwatch.Stop();
+            }
+
+            var managedAfter = GC.GetTotalMemory(forceFullCollection: false);
+            var gcInfo = GC.GetGCMemoryInfo();
+            var processPeakWorkingSet = Process.GetCurrentProcess().PeakWorkingSet64;
+
+            var collected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
+            artifacts.AddRange(collected.Descriptors);
+            var artifactGrowthBytes = Math.Max(0L, collected.TotalBytes - initialArtifactBytes);
+
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
+            metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
+            metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupKey", Value = directLookupKey });
+            metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = randomLookupMs });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupAttempts });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
+            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
+            metrics.Add(new RunMetric { MetricKey = "appendMs", Value = appendMs });
+            metrics.Add(new RunMetric { MetricKey = "appendBatchCount", Value = appendCycleShape.BatchCount });
+            metrics.Add(new RunMetric { MetricKey = "appendBatchSize", Value = appendCycleShape.BatchSize });
+            metrics.Add(new RunMetric { MetricKey = "lookupCountPerCycle", Value = lookupCountPerCycle });
+            metrics.Add(new RunMetric { MetricKey = "initialArtifactBytes", Value = initialArtifactBytes });
+            metrics.Add(new RunMetric { MetricKey = "artifactGrowthBytes", Value = artifactGrowthBytes });
+            metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
+            metrics.Add(new RunMetric { MetricKey = "primaryDataBytes", Value = collected.PrimaryDataBytes });
+            metrics.Add(new RunMetric { MetricKey = "indexBytes", Value = collected.IndexBytes });
+            metrics.Add(new RunMetric { MetricKey = "stateFileBytes", Value = collected.StateBytes });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesBefore", Value = managedBefore });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesAfter", Value = managedAfter });
+            metrics.Add(new RunMetric { MetricKey = "managedBytesDelta", Value = managedAfter - managedBefore });
+            metrics.Add(new RunMetric { MetricKey = "heapSizeBytes", Value = gcInfo.HeapSizeBytes });
+            metrics.Add(new RunMetric { MetricKey = "fragmentedBytes", Value = gcInfo.FragmentedBytes });
+            metrics.Add(new RunMetric { MetricKey = "processPeakWorkingSetBytes", Value = processPeakWorkingSet });
+
+            diagnostics["appendBatchCount"] = appendCycleShape.BatchCount.ToString(CultureInfo.InvariantCulture);
+            diagnostics["appendBatchSize"] = appendCycleShape.BatchSize.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupCountPerCycle"] = lookupCountPerCycle.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupCount"] = lookupAttempts.ToString(CultureInfo.InvariantCulture);
+            diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
+            diagnostics["expectedCountAfterCycles"] = expectedCount.ToString(CultureInfo.InvariantCulture);
+            diagnostics["initialArtifactBytes"] = initialArtifactBytes.ToString(CultureInfo.InvariantCulture);
+            diagnostics["artifactGrowthBytes"] = artifactGrowthBytes.ToString(CultureInfo.InvariantCulture);
+            diagnostics["cycleArtifactBytes"] = string.Join(",", cycleArtifactBytes);
+            diagnostics["stateFileBytes"] = ToInvariant(collected.StateBytes);
+            diagnostics["indexFileBytes"] = ToInvariant(collected.IndexBytes);
+            diagnostics["primaryDataFileBytes"] = ToInvariant(collected.PrimaryDataBytes);
+            diagnostics["totalArtifactBytes"] = ToInvariant(collected.TotalBytes);
+            diagnostics["directLookupKey"] = directLookupKey.ToString(CultureInfo.InvariantCulture);
+            diagnostics["directLookupHit"] = directLookupHit.ToString();
+            diagnostics["directLookupMs"] = ToInvariant(directLookupMs);
+            diagnostics["directLookupEnabled"] = directLookupEnabled.ToString();
+            diagnostics["reopenAfterInitialLoad"] = reopenAfterInitialLoad.ToString();
+            diagnostics["reopenAfterEachBatch"] = reopenAfterEachBatch.ToString();
+            diagnostics["randomLookupAfterEachBatch"] = randomLookupAfterEachBatch.ToString();
+            diagnostics["sequenceCountAfterRefresh"] = sequenceCountAfterRefresh.ToString(CultureInfo.InvariantCulture);
+            diagnostics["sequenceAppendOffsetAfterRefresh"] = appendOffsetAfterRefresh.ToString(CultureInfo.InvariantCulture);
+            diagnostics["semanticSuccess"] = semanticSuccess?.ToString() ?? "not-evaluated";
+
+            if (rowCountMismatches.Count > 0)
+            {
+                diagnostics["rowCountMismatches"] = string.Join(" | ", rowCountMismatches);
+            }
+
+            if (!string.IsNullOrWhiteSpace(semanticFailureReason))
+            {
+                diagnostics["semanticFailureReason"] = semanticFailureReason;
+            }
+
+            if (!technicalSuccess && !string.IsNullOrWhiteSpace(technicalFailureReason))
+            {
+                diagnostics["technicalFailureReason"] = technicalFailureReason;
+            }
+
+            var state = TryReadState(artifactLayout.StateFilePath);
+            if (state.HasValue)
+            {
+                diagnostics["stateCount"] = state.Value.Count.ToString(CultureInfo.InvariantCulture);
+                diagnostics["stateAppendOffset"] = state.Value.AppendOffset.ToString(CultureInfo.InvariantCulture);
+            }
+
+            notes.Add("Stage4 real adapter run for Polar.DB.");
+            notes.Add("Experiment flow: initial reverse load/build, optional reopen, direct lookup, random lookups, append batches, optional reopen per batch.");
+
+            return Task.FromResult(new RunResult
+            {
+                RunId = runId,
+                TimestampUtc = timestampUtc,
+                EngineKey = EngineKeyValue,
+                ExperimentKey = _spec.ExperimentKey,
+                DatasetProfileKey = _spec.Dataset.ProfileKey,
+                FairnessProfileKey = _spec.FairnessProfile?.FairnessProfileKey ?? "unspecified",
+                Environment = manifest,
+                TechnicalSuccess = technicalSuccess,
+                TechnicalFailureReason = technicalFailureReason,
+                SemanticSuccess = semanticSuccess,
+                SemanticFailureReason = semanticFailureReason,
+                Metrics = metrics,
+                Artifacts = artifacts,
+                EngineDiagnostics = diagnostics,
+                Tags = new Dictionary<string, string>
+                {
+                    ["research"] = _spec.ResearchQuestionId ?? string.Empty,
+                    ["hypothesis"] = _spec.HypothesisId ?? string.Empty
+                },
+                Notes = notes
+            });
+        }
+
         private const string EngineKeyValue = "polar-db";
         private const string LoadBuildExperimentKey = "persons-load-build-reopen-random-lookup";
         private const string LoadBuildWorkloadKey = "bulk-load-point-lookup";
         private const string AppendCyclesExperimentKey = "persons-append-cycles-reopen-lookup";
         private const string AppendCyclesWorkloadKey = "append-cycles-reopen-lookup";
+        private const string FullCoverageExperimentKey = "persons-full-adapter-coverage-version-matrix";
+        private const string FullCoverageWorkloadKey = "full-adapter-coverage";
+        private const int DefaultRandomLookupPerBatch = 5_000;
         private const int CommonLookupSeedSalt = unchecked((int)0x1f2e3d4c);
 
         private static void ValidateSpec(ExperimentSpec spec)
@@ -536,7 +872,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var isAppendCyclesExperiment = spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase) &&
                                            spec.Workload.WorkloadKey.Equals(AppendCyclesWorkloadKey, StringComparison.OrdinalIgnoreCase);
 
-            if (!isLoadBuildExperiment && !isAppendCyclesExperiment)
+            var isFullCoverageExperiment = spec.ExperimentKey.Equals(FullCoverageExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                                           spec.Workload.WorkloadKey.Equals(FullCoverageWorkloadKey, StringComparison.OrdinalIgnoreCase);
+
+            if (!isLoadBuildExperiment && !isAppendCyclesExperiment && !isFullCoverageExperiment)
             {
                 throw new NotSupportedException(
                     $"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in Polar.DB stage4 adapter.");
@@ -577,6 +916,109 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
 
             return (workload.BatchCount.Value, workload.BatchSize.Value);
+        }
+
+        private static bool ResolveBooleanOption(WorkloadSpec workload, string key, bool fallback)
+        {
+            if (!TryGetOptionValue(workload, key, out var value))
+            {
+                return fallback;
+            }
+
+            switch (value.Trim().ToLowerInvariant())
+            {
+                case "1":
+                case "true":
+                case "yes":
+                case "y":
+                case "on":
+                    return true;
+                case "0":
+                case "false":
+                case "no":
+                case "n":
+                case "off":
+                    return false;
+                default:
+                    return fallback;
+            }
+        }
+
+        private static int ResolveIntOption(WorkloadSpec workload, string key, int fallback, int minValue)
+        {
+            if (!TryGetOptionValue(workload, key, out var value))
+            {
+                return fallback;
+            }
+
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= minValue)
+            {
+                return parsed;
+            }
+
+            return fallback;
+        }
+
+        private static bool TryGetOptionValue(WorkloadSpec workload, string key, out string value)
+        {
+            value = string.Empty;
+            if (workload.Parameters is null || workload.Parameters.Count == 0)
+            {
+                return false;
+            }
+
+            if (workload.Parameters.TryGetValue(key, out var exactValue) && !string.IsNullOrWhiteSpace(exactValue))
+            {
+                value = exactValue;
+                return true;
+            }
+
+            foreach (var pair in workload.Parameters)
+            {
+                if (!pair.Key.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    return false;
+                }
+
+                value = pair.Value;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static (long Hits, double ElapsedMs) ExecuteRandomLookups(
+            USequence sequence,
+            int lookupCount,
+            int maxKeyExclusive,
+            int seed,
+            CancellationToken cancellationToken)
+        {
+            var hits = 0L;
+            var random = new Random(seed);
+            var lookupWatch = Stopwatch.StartNew();
+            for (var i = 0; i < lookupCount; i++)
+            {
+                if ((i & 0x3FF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                var key = random.Next(1, maxKeyExclusive);
+                var row = sequence.GetByKey(key);
+                if (TryReadPersonKey(row, out var rowKey) && rowKey == key)
+                {
+                    hits++;
+                }
+            }
+
+            lookupWatch.Stop();
+            return (hits, lookupWatch.Elapsed.TotalMilliseconds);
         }
 
         private static IEnumerable<object> GeneratePersons(long recordCount, int seed)
@@ -655,6 +1097,39 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             if (lookupAttempts != lookupHits)
             {
                 reasons.Add($"lookupHits={lookupHits}, lookupCount={lookupAttempts}");
+            }
+
+            if (reasons.Count == 0)
+            {
+                reasons.Add($"expectedCountAfterCycles={expectedCountAfterCycles}");
+            }
+
+            return string.Join("; ", reasons);
+        }
+
+        private static string BuildFullCoverageSemanticFailureReason(
+            bool directLookupRequired,
+            int directLookupKey,
+            bool directLookupHit,
+            long lookupAttempts,
+            long lookupHits,
+            IReadOnlyList<string> rowCountMismatches,
+            long expectedCountAfterCycles)
+        {
+            var reasons = new List<string>();
+            if (directLookupRequired && !directLookupHit)
+            {
+                reasons.Add($"directLookupMiss key={directLookupKey}");
+            }
+
+            if (lookupHits != lookupAttempts)
+            {
+                reasons.Add($"lookupHits={lookupHits}, lookupCount={lookupAttempts}");
+            }
+
+            if (rowCountMismatches.Count > 0)
+            {
+                reasons.Add($"rowCountMismatches={string.Join(";", rowCountMismatches)}");
             }
 
             if (reasons.Count == 0)
