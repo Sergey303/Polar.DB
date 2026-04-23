@@ -191,12 +191,10 @@ public static class ExecApplication
         bool includeSeriesSuffix)
     {
         var timestampToken = runResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        var rawPath = ResultPathBuilder.BuildRawResultPath(
-            workspace.RawResultsDirectory,
-            timestampToken,
-            runResult.EngineKey,
-            includeSeriesSuffix ? runRole : null,
-            includeSeriesSuffix ? sequenceNumber : null);
+        var fileName = includeSeriesSuffix
+            ? $"{timestampToken}__{runResult.EngineKey}__{runRole}-{sequenceNumber:D2}.run.json"
+            : $"{timestampToken}__{runResult.EngineKey}.run.json";
+        var rawPath = Path.Combine(workspace.RawResultsDirectory, fileName);
 
         if (!File.Exists(rawPath))
         {
