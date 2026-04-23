@@ -24,6 +24,18 @@ public static class ExperimentSpecLoader
             throw new InvalidOperationException("Experiment spec JSON must be an object.");
         }
 
+        if (document.RootElement.TryGetProperty("targets", out _))
+        {
+            var manifest = document.RootElement.Deserialize<ExperimentManifest>(JsonDefaults.Default);
+            if (manifest is null)
+            {
+                throw new InvalidOperationException("Failed to deserialize experiment manifest.");
+            }
+
+            return ConvertManifestToSpec(manifest, cliEngine);
+        }
+
+        // Legacy fallback: support old "engines" key for backward compatibility during migration.
         if (document.RootElement.TryGetProperty("engines", out _))
         {
             var manifest = document.RootElement.Deserialize<ExperimentManifest>(JsonDefaults.Default);
@@ -113,14 +125,14 @@ public static class ExperimentSpecLoader
 
     private static ExperimentSpec ConvertManifestToSpec(ExperimentManifest manifest, string? cliEngine)
     {
-        if (manifest.Engines.Count == 0)
+        if (manifest.Targets.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Experiment '{manifest.ExperimentKey}' does not declare any engines.");
+                $"Experiment '{manifest.ExperimentKey}' does not declare any targets.");
         }
 
-        var selectedEngine = ResolveEngineKey(cliEngine, manifest.Engines);
-        var engineSpec = GetEngineSpec(manifest.Engines, selectedEngine);
+        var selectedTarget = ResolveTargetKey(cliEngine, manifest.Targets);
+        var targetSpec = manifest.Targets[selectedTarget];
 
         return new ExperimentSpec
         {
@@ -128,8 +140,8 @@ public static class ExperimentSpecLoader
             ResearchQuestionId = manifest.ResearchQuestionId,
             HypothesisId = manifest.HypothesisId,
             Description = manifest.Description,
-            Engine = selectedEngine,
-            Nuget = NormalizeNuget(engineSpec.Nuget),
+            Engine = targetSpec.Engine,
+            Nuget = NormalizeNuget(targetSpec.Nuget),
             Dataset = manifest.Dataset,
             Workload = manifest.Workload,
             FaultProfile = manifest.FaultProfile,
@@ -138,50 +150,44 @@ public static class ExperimentSpecLoader
         };
     }
 
-    private static string ResolveEngineKey(
+    private static string ResolveTargetKey(
         string? cliEngine,
-        IReadOnlyDictionary<string, ExperimentEngineSpec> configuredEngines)
+        IReadOnlyDictionary<string, ExperimentTargetSpec> targets)
     {
         var normalizedCliEngine = Normalize(cliEngine);
         if (normalizedCliEngine is not null)
         {
-            foreach (var configuredEngine in configuredEngines.Keys)
+            // First try exact target key match.
+            foreach (var targetKey in targets.Keys)
             {
-                if (configuredEngine.Equals(normalizedCliEngine, StringComparison.OrdinalIgnoreCase))
+                if (targetKey.Equals(normalizedCliEngine, StringComparison.OrdinalIgnoreCase))
                 {
-                    return configuredEngine;
+                    return targetKey;
                 }
             }
 
-            var configured = string.Join(", ", configuredEngines.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
-            throw new InvalidOperationException(
-                $"Engine '{normalizedCliEngine}' is not configured in experiment manifest. Configured engines: {configured}.");
-        }
-
-        if (configuredEngines.Count == 1)
-        {
-            return configuredEngines.Keys.First();
-        }
-
-        var engineList = string.Join(", ", configuredEngines.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
-        throw new InvalidOperationException(
-            $"Experiment manifest defines multiple engines ({engineList}). Pass --engine <key>.");
-    }
-
-    private static ExperimentEngineSpec GetEngineSpec(
-        IReadOnlyDictionary<string, ExperimentEngineSpec> configuredEngines,
-        string selectedEngine)
-    {
-        foreach (var (engineKey, engineSpec) in configuredEngines)
-        {
-            if (engineKey.Equals(selectedEngine, StringComparison.OrdinalIgnoreCase))
+            // Then try engine family match (for backward compat with --engine).
+            foreach (var (targetKey, targetSpec) in targets)
             {
-                return engineSpec;
+                if (targetSpec.Engine.Equals(normalizedCliEngine, StringComparison.OrdinalIgnoreCase))
+                {
+                    return targetKey;
+                }
             }
+
+            var configured = string.Join(", ", targets.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+            throw new InvalidOperationException(
+                $"Target '{normalizedCliEngine}' is not configured in experiment manifest. Configured targets: {configured}.");
         }
 
+        if (targets.Count == 1)
+        {
+            return targets.Keys.First();
+        }
+
+        var targetList = string.Join(", ", targets.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
         throw new InvalidOperationException(
-            $"Internal error: failed to resolve engine '{selectedEngine}' in experiment manifest.");
+            $"Experiment manifest defines multiple targets ({targetList}). Pass --engine <target-key>.");
     }
 
     private static string? Normalize(string? value)

@@ -12,8 +12,6 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 public static class AnalysisApplication
 {
     private const string ManifestFileName = "experiment.json";
-    private const string PolarEngineKey = "polar-db";
-    private const string SqliteEngineKey = "sqlite";
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -111,12 +109,12 @@ public static class AnalysisApplication
         }
 
         var compareConfig = ExperimentCompareConfigResolver.Resolve(manifest);
-        var configuredEngineKeys = manifest.Engines.Keys
+        var configuredTargetKeys = manifest.Targets.Keys
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         var rawRuns = await files.LoadRawRunsAsync(rawResultsDirectory);
-        var selector = new ComparisonSelectionService(PolarEngineKey, SqliteEngineKey);
+        var selector = new ComparisonSelectionService();
         var filtered = selector.SelectRuns(rawRuns, options);
 
         if (filtered.Length == 0)
@@ -130,7 +128,7 @@ public static class AnalysisApplication
 
         if (!string.IsNullOrWhiteSpace(comparisonSetId))
         {
-            var seriesBuilder = new SeriesComparisonBuilder(PolarEngineKey, SqliteEngineKey);
+            var seriesBuilder = new SeriesComparisonBuilder();
             var seriesResult = seriesBuilder.Build(filtered, options.ComparisonExperimentKey!, comparisonSetId);
             var timestampToken = seriesResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
             var outputPath = ResultPathBuilder.BuildComparisonSeriesResultPath(
@@ -147,7 +145,7 @@ public static class AnalysisApplication
         }
         else
         {
-            var legacyBuilder = new LegacyComparisonBuilder(PolarEngineKey, SqliteEngineKey);
+            var legacyBuilder = new LegacyComparisonBuilder();
             var legacyResult = legacyBuilder.Build(filtered, options.ComparisonExperimentKey!);
             var legacyTimestampToken = legacyResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
             var legacyPath = ResultPathBuilder.BuildComparisonResultPath(
@@ -169,7 +167,7 @@ public static class AnalysisApplication
             manifest,
             compareConfig,
             rawRuns,
-            configuredEngineKeys);
+            configuredTargetKeys);
 
         return 0;
     }
@@ -286,16 +284,16 @@ public static class AnalysisApplication
         ExperimentManifest manifest,
         ResolvedCompareConfig compareConfig,
         IReadOnlyList<RawRunEntry> currentExperimentRuns,
-        IReadOnlyList<string> configuredEngineKeys)
+        IReadOnlyList<string> configuredTargetKeys)
     {
         var latestSnapshot = ComparisonSnapshotBuilder.BuildLatestSuccessfulMeasuredSnapshot(
             manifest.ExperimentKey,
             currentExperimentRuns,
-            configuredEngineKeys);
+            configuredTargetKeys);
         var historySnapshots = ComparisonSnapshotBuilder.BuildSuccessfulMeasuredSnapshots(
             manifest.ExperimentKey,
             currentExperimentRuns,
-            configuredEngineKeys);
+            configuredTargetKeys);
 
         if (historySnapshots.Count == 0 && latestSnapshot is not null)
         {
@@ -304,7 +302,7 @@ public static class AnalysisApplication
 
         var latestEnginesArtifact = BuildLatestEnginesArtifact(
             manifest.ExperimentKey,
-            configuredEngineKeys,
+            configuredTargetKeys,
             latestSnapshot);
         var latestHistoryArtifact = BuildLatestHistoryArtifact(
             manifest.ExperimentKey,
@@ -332,23 +330,23 @@ public static class AnalysisApplication
 
     private static LatestEnginesComparisonArtifact BuildLatestEnginesArtifact(
         string experimentKey,
-        IReadOnlyList<string> configuredEngineKeys,
+        IReadOnlyList<string> configuredTargetKeys,
         ComparisonSnapshot? latestSnapshot)
     {
-        var enabled = configuredEngineKeys.Count > 1;
+        var enabled = configuredTargetKeys.Count > 1;
         var notes = new List<string>
         {
-            "Compares latest successful measured series per engine inside this experiment.",
-            "Generated automatically when experiment manifest contains multiple engines."
+            "Compares latest successful measured series per target inside this experiment.",
+            "Generated automatically when experiment manifest contains multiple targets."
         };
 
         if (!enabled)
         {
-            notes.Add("Disabled: experiment has fewer than two configured engines.");
+            notes.Add("Disabled: experiment has fewer than two configured targets.");
         }
         else if (latestSnapshot is null)
         {
-            notes.Add("No complete successful measured series was found for all configured engines.");
+            notes.Add("No complete successful measured series was found for all configured targets.");
         }
 
         return new LatestEnginesComparisonArtifact
@@ -465,13 +463,13 @@ public static class AnalysisApplication
             }
 
             var otherRuns = await files.LoadRawRunsAsync(otherRawDirectory);
-            var otherEngineKeys = otherManifest.Engines.Keys
+            var otherTargetKeys = otherManifest.Targets.Keys
                 .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             var otherSnapshot = ComparisonSnapshotBuilder.BuildLatestSuccessfulMeasuredSnapshot(
                 otherManifest.ExperimentKey,
                 otherRuns,
-                otherEngineKeys);
+                otherTargetKeys);
 
             if (otherSnapshot is null)
             {
