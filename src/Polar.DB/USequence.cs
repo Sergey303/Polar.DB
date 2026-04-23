@@ -16,12 +16,25 @@ namespace Polar.DB
     /// </remarks>
     public class USequence
     {
+        internal readonly struct LogicalBuildEntry
+        {
+            internal LogicalBuildEntry(long offset, object element)
+            {
+                Offset = offset;
+                Element = element;
+            }
+
+            internal long Offset { get; }
+            internal object Element { get; }
+        }
+
         private readonly UniversalSequenceBase sequence;
         private readonly Func<object, bool> isEmpty;
         private readonly Func<object, IComparable> keyFunc;
         private readonly UKeyIndex primaryKeyIndex;
         private readonly bool optimise;
-
+        
+        public long Count  => sequence.Count();
         /// <summary>
         /// Gets or sets secondary indexes attached to this sequence.
         /// </summary>
@@ -214,11 +227,7 @@ namespace Polar.DB
         {
             Clear();
 
-            foreach (var element in flow)
-            {
-                if (!isEmpty(element))
-                    sequence.AppendElement(element);
-            }
+            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
 
             Flush();
             SaveState();
@@ -245,6 +254,21 @@ namespace Polar.DB
         public void Scan(Func<long, object, bool> handler)
         {
             sequence.Scan((off, ob) => IsOriginalAndNotEmpty(ob, off) ? handler(off, ob) : true);
+        }
+
+        internal LogicalBuildEntry[] CreateLogicalBuildSnapshot()
+        {
+            long count = Count;
+            int capacity = count > int.MaxValue ? int.MaxValue : (int)count;
+            List<LogicalBuildEntry> snapshot = new List<LogicalBuildEntry>(capacity);
+
+            Scan((off, obj) =>
+            {
+                snapshot.Add(new LogicalBuildEntry(off, obj));
+                return true;
+            });
+
+            return snapshot.ToArray();
         }
 
         /// <summary>
@@ -379,8 +403,30 @@ namespace Polar.DB
         {
             sequence.Flush();
 
-            primaryKeyIndex.Build();
-            foreach (var ind in uindexes) ind.Build();
+            LogicalBuildEntry[] snapshot = CreateLogicalBuildSnapshot();
+
+            primaryKeyIndex.BuildFromSnapshot(snapshot);
+            foreach (var ind in uindexes)
+            {
+                switch (ind)
+                {
+                    case UVectorIndex uVectorIndex:
+                        uVectorIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    case UVecIndex uVecIndex:
+                        uVecIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    case SVectorIndex sVectorIndex:
+                        sVectorIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    case UIndex uIndex:
+                        uIndex.BuildFromSnapshot(snapshot);
+                        break;
+                    default:
+                        ind.Build();
+                        break;
+                }
+            }
 
             primaryKeyIndex.Flush();
             foreach (var ind in uindexes) ind.Flush();

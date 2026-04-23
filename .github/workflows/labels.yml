@@ -7,12 +7,16 @@ on:
       - ".github/labels.yml"
 
 permissions:
+  contents: read
   issues: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Sync repository labels
         uses: EndBug/label-sync@v2
         with:

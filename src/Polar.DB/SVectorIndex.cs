@@ -171,20 +171,24 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
+            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
+        }
+
+        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        {
             List<string> values_list = new List<string>();
             List<long> offsets_list = new List<long>();
-            sequence.Scan((off, obj) =>
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                var vals = valuesFunc(obj);
+                var entry = snapshot[i];
+                var vals = valuesFunc(entry.Element);
                 foreach (var v in vals)
                 {
                     if (string.IsNullOrEmpty(v)) continue;
-                    offsets_list.Add(off);
+                    offsets_list.Add(entry.Offset);
                     values_list.Add(v);
                 }
-
-                return true;
-            });
+            }
 
             values_arr = values_list
                 .Select(s => ignorecase ? s.ToUpper() : s)
@@ -194,17 +198,11 @@ namespace Polar.DB
             Array.Sort(values_arr, offsets_arr, StringComparer.Ordinal);
 
             values.Clear();
-            foreach (var v in values_arr)
-            {
-                values.AppendElement(v);
-            }
+            values.AppendElements(values_arr.Select(static x => (object)x));
             values.Flush();
 
             element_offsets.Clear();
-            foreach (var off in offsets_arr)
-            {
-                element_offsets.AppendElement(off);
-            }
+            element_offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             element_offsets.Flush();
         }
 

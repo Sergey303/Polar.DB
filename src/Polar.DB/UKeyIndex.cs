@@ -86,22 +86,26 @@ namespace Polar.DB
 
         public void Build()
         {
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
-            sequence.Scan((off, obj) =>
-            {
-                offsets_list.Add(off);
-                hkeys_list.Add(hashOfKey(keyFunc(obj)));
-                return true;
-            });
+            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
+        }
 
-            hkeys_arr = hkeys_list.ToArray();
-            long[] offsets_arr = offsets_list.ToArray();
+        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        {
+            int count = snapshot.Count;
+            int[] localHkeys = new int[count];
+            long[] offsets_arr = new long[count];
+            for (int i = 0; i < count; i++)
+            {
+                var entry = snapshot[i];
+                offsets_arr[i] = entry.Offset;
+                localHkeys[i] = hashOfKey(keyFunc(entry.Element));
+            }
+
+            hkeys_arr = localHkeys;
             Array.Sort(hkeys_arr, offsets_arr);
 
             hkeys.Clear();
-            foreach (var hkey in hkeys_arr)
-                hkeys.AppendElement(hkey);
+            hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
             hkeys.Flush();
 
             if (!keysinmemory)
@@ -110,8 +114,7 @@ namespace Polar.DB
             }
 
             offsets.Clear();
-            foreach (var off in offsets_arr)
-                offsets.AppendElement(off);
+            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             offsets.Flush();
         }
 
