@@ -2,10 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace Polar.DB.Bench.Core.Models;
 
-/// <summary>
-/// Local analyzed artifact for one engine within one experiment.
-/// This artifact stores local interpretation derived from raw runs and does not contain cross-engine comparison output.
-/// </summary>
+    /// <summary>
+    /// Local analyzed artifact for one target within one experiment.
+    /// This artifact stores local interpretation derived from raw runs and does not contain cross-target comparison output.
+    /// </summary>
 public sealed record LocalAnalyzedSeriesResult
 {
     [JsonPropertyName("artifact")]
@@ -17,6 +17,10 @@ public sealed record LocalAnalyzedSeriesResult
     [JsonPropertyName("experiment")]
     public required string ExperimentKey { get; init; }
 
+    /// <summary>
+    /// Target key (runtime variant identifier), for example <c>polar-db-current</c> or <c>sqlite</c>.
+    /// The JSON property name <c>engine</c> is preserved for backward compatibility.
+    /// </summary>
     [JsonPropertyName("engine")]
     public required string EngineKey { get; init; }
 

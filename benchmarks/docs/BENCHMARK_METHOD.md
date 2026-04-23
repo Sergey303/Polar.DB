@@ -21,7 +21,7 @@ This separation lets us rerun analysis/reporting without re-running expensive en
 
 Minimum charts on the page:
 
-1. history chart (series/date vs elapsed median, one line per engine);
+1. history chart (series/date vs elapsed median, one line per target);
 2. phase breakdown chart (load/build/reopen/lookup for latest series);
 3. artifact size chart (primary/side/total bytes for latest series).
 
@@ -31,14 +31,14 @@ The page also links machine-readable artifacts from `raw/`, `analyzed/`, and `co
 
 Stage4 comparison is series-based.
 
-1. Run warmup + measured runs for one engine with `--comparison-set <id>`.
-2. Run warmup + measured runs for the second engine with the same set id.
+1. Run warmup + measured runs for one target with `--comparison-set <id>`.
+2. Run warmup + measured runs for the second target with the same set id.
 3. Build `comparison-series` artifact from that set.
 4. Build markdown/csv report from `comparison-series`.
 
-Why this is better than "latest run per engine":
+Why this is better than "latest run per target":
 
-- both engines are compared inside one explicit run series;
+- both targets are compared inside one explicit run series;
 - measured statistics (`min/max/avg/median`) are calculated from multiple runs;
 - warmup runs are stored but excluded from aggregation.
 
@@ -68,13 +68,13 @@ If `--raw-out` is omitted, executor writes to `<experiment>/raw` automatically.
 Roles:
 
 - `raw/` = immutable run facts (`*.run.json`) from executor only;
-- `analyzed/` = local interpretation for this experiment/engine (for example `*.eval.json`, `latest-series.<engine>.json`);
-- `comparisons/` = cross-engine/cross-object comparison artifacts and derived expectations (`latest-engines.json`, `latest-history.json`, `latest-other-experiments.json`, `*.comparison*.json`).
+- `analyzed/` = local interpretation for this experiment/target (for example `*.eval.json`, `latest-series.<target-key>.json`);
+- `comparisons/` = cross-target/cross-object comparison artifacts and derived expectations (`latest-engines.json`, `latest-history.json`, `latest-other-experiments.json`, `*.comparison*.json`).
 
 Raw filename rule:
 
-- single run: `<timestamp>__<engine>.run.json`
-- series run: `<timestamp>__<engine>__<role>-<seq>.run.json`
+- single run: `<timestamp>__<target-key>.run.json`
+- series run: `<timestamp>__<target-key>__<role>-<seq>.run.json`
 
 ## Compare flags in manifest
 
@@ -84,25 +84,25 @@ Raw filename rule:
 - `compare.otherExperiments.enabled` - enables `latest-other-experiments.json`;
 - `compare.otherExperiments.experiments` - list of experiment slugs for cross-experiment context.
 
-`latest-engines.json` is generated automatically when experiment has multiple engines.
+`latest-engines.json` is generated automatically when experiment has multiple targets.
 
-## Engine runtime syntax in experiment manifest
+## Target runtime syntax in experiment manifest
 
-`experiment.json` defines engines as a map:
+`experiment.json` defines targets as a map:
 
-- `"polar-db": {}` -> run current source from repository.
-- `"polar-db": { "nuget": "2.1.1" }` -> run pinned Polar.DB NuGet version.
-- `"sqlite": {}` -> run SQLite latest NuGet version.
-- `"sqlite": { "nuget": "X.Y.Z" }` -> run pinned SQLite NuGet version.
+- `"polar-db-current": { "engine": "polar-db" }` -> run current source from repository.
+- `"polar-db-2.1.1": { "engine": "polar-db", "nuget": "2.1.1" }` -> run pinned Polar.DB NuGet version.
+- `"sqlite": { "engine": "sqlite" }` -> run SQLite latest NuGet version.
+- `"sqlite": { "engine": "sqlite", "nuget": "X.Y.Z" }` -> run pinned SQLite NuGet version.
 
-If manifest contains multiple engines, pass `--engine <key>`.
+If manifest contains multiple targets, pass `--engine <target-key>`.
 
 ## Typical commands
 
-Single raw run (Polar.DB):
+Single raw run (Polar.DB current source):
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/polar-single --warmup-count 0 --measured-count 1
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db-current --spec benchmarks/experiments/persons-load-build-reopen-random-lookup --work benchmarks/work/polar-single --warmup-count 0 --measured-count 1
 ```
 
 Single raw run (SQLite):
@@ -114,7 +114,7 @@ dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec be
 Series run with one comparison set:
 
 ```bash
-dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/polar-series --comparison-set stage4-append-001
+dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine polar-db-current --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/polar-series --comparison-set stage4-append-001
 dotnet run --project benchmarks/Polar.DB.Bench.Exec -- --engine sqlite --spec benchmarks/experiments/persons-append-cycles-reopen-lookup --work benchmarks/work/sqlite-series --comparison-set stage4-append-001
 ```
 

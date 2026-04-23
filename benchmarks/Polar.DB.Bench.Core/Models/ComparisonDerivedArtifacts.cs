@@ -112,6 +112,10 @@ public sealed record ComparisonSnapshot
     [JsonPropertyName("env")]
     public string? EnvironmentClass { get; init; }
 
+    /// <summary>
+    /// Target keys included in this snapshot.
+    /// The JSON property name <c>engines</c> is preserved for backward compatibility.
+    /// </summary>
     [JsonPropertyName("engines")]
     public required IReadOnlyList<string> Engines { get; init; }
 

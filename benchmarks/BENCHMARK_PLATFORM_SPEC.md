@@ -91,7 +91,7 @@ Study the boundary between acceptable in-place rewrite and append-and-relink app
 ## 7. Cross-engine architecture — 8 required decisions
 
 ### 7.1. `experiment.json` manifest is central
-Each experiment is stored as one folder with one main manifest that describes data model, dataset profile, workload, fairness, engine matrix, and compare links.
+Each experiment is stored as one folder with one main manifest that describes data model, dataset profile, workload, fairness, target matrix, and compare links.
 
 ### 7.2. Use engine adapters
 Each engine implements a common adapter contract.
@@ -106,7 +106,7 @@ Unsupported features are represented explicitly rather than treated as failures.
 Common metrics power direct comparisons. Engine diagnostics explain them.
 
 ### 7.6. Artifact topology is role-based
-The platform models artifact sets, not a single “database file”.
+The platform models artifact sets, not a single "database file".
 
 ### 7.7. Fairness profiles are explicit
 Each engine maps the same fairness profile to engine-specific settings.

@@ -356,7 +356,7 @@ public static class AnalysisApplication
             ExperimentKey = experimentKey,
             Enabled = enabled,
             Snapshot = enabled ? latestSnapshot : null,
-            DerivedExpectations = BuildEngineExpectations(latestSnapshot),
+            DerivedExpectations = BuildTargetExpectations(latestSnapshot),
             Notes = notes
         };
     }
@@ -519,7 +519,7 @@ public static class AnalysisApplication
             .ToArray();
     }
 
-    private static IReadOnlyList<string> BuildEngineExpectations(ComparisonSnapshot? snapshot)
+    private static IReadOnlyList<string> BuildTargetExpectations(ComparisonSnapshot? snapshot)
     {
         if (snapshot is null)
         {

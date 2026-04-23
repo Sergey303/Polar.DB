@@ -40,4 +40,4 @@ These names are part of the catalog, but stage4 common adapters only implement `
 
 Fairness profile is part of comparison filtering and of aggregated `comparison-series` artifacts.
 
-That means one comparison set should keep the same fairness profile across engines and measured runs.
+That means one comparison set should keep the same fairness profile across targets and measured runs.

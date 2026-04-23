@@ -6,8 +6,8 @@ Raw run is immutable factual execution data from one executor launch.
 Raw files are stored under `benchmarks/experiments/<experiment>/raw/`.
 Filename rule:
 
-- single run: `<timestamp>__<engine>.run.json`;
-- series run: `<timestamp>__<engine>__<role>-<seq>.run.json`.
+- single run: `<timestamp>__<target-key>.run.json`;
+- series run: `<timestamp>__<target-key>__<role>-<seq>.run.json`.
 
 Main groups:
 
@@ -46,9 +46,9 @@ They are stored under `benchmarks/experiments/<experiment>/analyzed/`.
 Examples:
 
 - per-run policy interpretation: `*.eval.json`;
-- latest local engine series snapshot: `latest-series.polar-db.json`, `latest-series.sqlite.json`.
+- latest local target series snapshot: `latest-series.polar-db-current.json`, `latest-series.sqlite.json`.
 
-Analyzed artifacts do not contain cross-engine comparison payloads.
+Analyzed artifacts do not contain cross-target comparison payloads.
 
 - policy id;
 - baseline id;
@@ -63,8 +63,8 @@ No raw facts are rewritten.
 
 ### `latest-engines.json`
 
-- compares latest successful measured series per engine inside current experiment;
-- generated automatically when experiment has multiple engines.
+- compares latest successful measured series per target inside current experiment;
+- generated automatically when experiment has multiple targets.
 
 ### `latest-history.json`
 
@@ -82,7 +82,7 @@ No raw facts are rewritten.
 Legacy single-run comparison artifact from stage3.
 Comparison artifacts are stored under `benchmarks/experiments/<experiment>/comparisons/`.
 
-- one selected run per engine;
+- one selected run per target;
 - common comparable metrics;
 - no policy decisions.
 
@@ -99,8 +99,8 @@ Contains:
 - fairness profile;
 - `set`;
 - environment class;
-- engine list;
-- per-engine aggregated stats (measured runs only):
+- target list;
+- per-target aggregated stats (measured runs only):
   - run counts (measured/warmup),
   - `count/min/max/average/median` for:
     - elapsed,
@@ -141,6 +141,6 @@ Formatting rules used in the page:
 
 The page includes three baseline charts:
 
-1. history (`elapsed median` by series and engine);
+1. history (`elapsed median` by series and target);
 2. phase breakdown (load/build/reopen/lookup for latest series);
 3. artifact sizes (primary/side/total bytes for latest series).
