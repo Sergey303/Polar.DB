@@ -7,27 +7,19 @@ public static class EngineRuntimeResolver
     private const string PolarEngine = "polar-db";
     private const string SyntheticEngine = "synthetic";
 
-    public static (string Engine, EngineRuntimeDescriptor Runtime) Resolve(string? cliEngine, ExperimentSpec spec)
+    /// <summary>
+    /// Resolves the engine family key and runtime descriptor from an experiment spec.
+    /// The spec already contains the resolved target key, engine family, and optional nuget version.
+    /// </summary>
+    public static (string EngineKey, EngineRuntimeDescriptor Runtime) Resolve(ExperimentSpec spec)
     {
-        var specEngine = Normalize(spec.Engine);
-        var cli = Normalize(cliEngine);
-        var nuget = NormalizeNuget(spec.Nuget);
-
-        if (!string.IsNullOrWhiteSpace(cli) &&
-            !string.IsNullOrWhiteSpace(specEngine) &&
-            !cli.Equals(specEngine, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                $"Engine mismatch: --engine='{cli}' but spec.engine='{specEngine}'.");
-        }
-
-        var engine = cli ?? specEngine;
+        var engine = Normalize(spec.Engine);
         if (string.IsNullOrWhiteSpace(engine))
         {
-            throw new InvalidOperationException("Engine is not specified. Set spec.engine or pass --engine.");
+            throw new InvalidOperationException("Engine is not specified in experiment spec.");
         }
 
-        var runtime = ResolveRuntime(engine, nuget);
+        var runtime = ResolveRuntime(engine, spec.Nuget);
         return (engine, runtime);
     }
 
@@ -63,11 +55,5 @@ public static class EngineRuntimeResolver
         return string.IsNullOrWhiteSpace(normalized)
             ? null
             : normalized.ToLowerInvariant();
-    }
-
-    private static string? NormalizeNuget(string? value)
-    {
-        var normalized = value?.Trim();
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 }

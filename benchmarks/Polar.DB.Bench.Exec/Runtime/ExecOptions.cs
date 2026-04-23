@@ -3,7 +3,7 @@ namespace Polar.DB.Bench.Exec.Runtime;
 public sealed class ExecOptions
 {
     public static string UsageText =>
-        "Usage: --spec <experiment.json|experiment-folder> --work <dir> [--raw-out <dir>] [--engine <key>] " +
+        "Usage: --spec <experiment.json|experiment-folder> --work <dir> [--raw-out <dir>] [--engine <target-key>] " +
         "[--env <class>] [--comparison-set <id>] [--warmup-count <n>] [--measured-count <n>]";
 
     public string? EngineKey { get; init; }
