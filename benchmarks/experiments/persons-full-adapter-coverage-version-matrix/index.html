@@ -1,0 +1,690 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Persons Full Adapter Coverage Version Matrix - Benchmark Experiment</title>
+  <style>
+    :root {
+      --bg: #f7f8f9;
+      --panel: #ffffff;
+      --ink: #111315;
+      --muted: #5b636e;
+      --line: #d9dde3;
+      --accent: #0f6f9f;
+      --accent-2: #a04f15;
+      --good: #1f7a3f;
+      --warn: #9a6a05;
+      --bad: #9f1f2a;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --ui: "Segoe UI", "Noto Sans", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: linear-gradient(170deg, #eef2f5 0%, var(--bg) 50%, #f4f7fb 100%); color: var(--ink); font-family: var(--ui); }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 32px; }
+    .header { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.03); }
+    h1 { margin: 0 0 8px; font-size: clamp(1.35rem, 2vw, 2.05rem); line-height: 1.2; }
+    h2 { margin: 0 0 10px; font-size: 1.15rem; }
+    p { margin: 8px 0; line-height: 1.5; }
+    .meta { color: var(--muted); font-size: 0.92rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-top: 12px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.025); }
+    .card.wide { margin-top: 12px; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin-top: 8px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 7px 8px; vertical-align: top; text-align: left; }
+    th { font-weight: 650; background: #f3f6f9; }
+    tr:last-child td { border-bottom: none; }
+    code { font-family: var(--mono); font-size: 0.87em; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
+    .kpi { border: 1px solid var(--line); border-radius: 10px; background: #fafbfd; padding: 8px; }
+    .kpi .label { display: block; color: var(--muted); font-size: 0.82rem; margin-bottom: 2px; }
+    .kpi .val { font-size: 0.93rem; font-weight: 650; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; color: var(--muted); }
+    .swatch { width: 11px; height: 11px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.15); }
+    .status-on { color: var(--good); font-weight: 650; }
+    .status-off { color: var(--warn); font-weight: 650; }
+    .chart-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    svg.chart { min-width: 720px; width: 100%; height: auto; display: block; }
+    ul.clean { margin: 8px 0 0; padding-left: 18px; }
+    ul.clean li { margin: 4px 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .small { font-size: 0.84rem; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+<section class="header">
+  <h1>Persons Full Adapter Coverage Version Matrix</h1>
+  <p class="muted">Experiment: <code>persons-full-adapter-coverage-version-matrix</code></p>
+  <p>Common cross-engine and cross-version experiment that exercises the currently available adapter capabilities in one coherent scenario: reverse bulk load, prepare point lookup, reopen or refresh, one direct lookup, random point lookup batch, append cycles with reopen after each cycle, and artifact growth tracking.</p>
+  <p class="meta">
+    Generated: <span class="mono">2026-04-23 18:12:42 UTC</span>.
+    Numbers use scientific display for large values; exact raw values are available in tooltip.
+  </p>
+</section>
+<section class="grid">
+  <article class="card">
+    <h2>Dataset</h2>
+    <table>
+      <tr><th>Profile</th><td><code>persons-400k-plus-append-3x200k-reverse</code></td></tr>
+      <tr><th>Count</th><td><span title="raw: 400000">4 &times; 10<sup>5</sup></span></td></tr>
+      <tr><th>Seed</th><td>12345</td></tr>
+      <tr><th>Notes</th><td>Initial persons(id,name,age) dataset is generated in reverse id order. Three append batches grow the dataset to one million rows.</td></tr>
+    </table>
+  </article>
+  <article class="card">
+    <h2>Workload</h2>
+    <table>
+      <tr><th>Type</th><td><code>full-adapter-coverage</code></td></tr>
+      <tr><th>Lookup</th><td>10000</td></tr>
+      <tr><th>Batches</th><td>3</td></tr>
+      <tr><th>Batch size</th><td>200000</td></tr>
+      <tr><th>Notes</th><td>Scenario: reverse bulk load, prepare structure for point lookup, reopen or refresh, one direct lookup by key, 10k random point lookups, then append cycles with reopen after each cycle and lookup sampling.</td></tr>
+    </table>
+  </article>
+  <article class="card">
+    <h2>Fairness</h2>
+    <table>
+      <tr><th>Profile</th><td><code>durability-balanced</code></td></tr>
+      <tr><th>Notes</th><td>Use one shared fairness intent across Polar.DB current source, Polar.DB 2.1.1 NuGet, Polar.DB 2.1.0 NuGet, and SQLite.</td></tr>
+      <tr><th>Research</th><td>RQ-COMMON-003</td></tr>
+      <tr><th>Hypothesis</th><td>H-COMMON-VERSION-MATRIX-001</td></tr>
+    </table>
+  </article>
+</section>
+<section class="card wide">
+  <h2>Targets</h2>
+  <table>
+    <thead><tr><th>Target</th><th>Engine family</th><th>Spec</th><th>Runtime semantics</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-2.1.0</code></td>
+        <td><code>polar-db</code></td>
+        <td><code>{ "nuget": "2.1.0" }</code></td>
+        <td>Pinned NuGet version 2.1.0.</td>
+      </tr>
+      <tr>
+        <td><code>polar-db-2.1.1</code></td>
+        <td><code>polar-db</code></td>
+        <td><code>{ "nuget": "2.1.1" }</code></td>
+        <td>Pinned NuGet version 2.1.1.</td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>polar-db</code></td>
+        <td><code>{}</code></td>
+        <td>Current source from repository.</td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>sqlite</code></td>
+        <td><code>{}</code></td>
+        <td>Latest NuGet package.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+<section class="card wide">
+  <h2>Latest Target Comparison</h2>
+  <p>Status: <span class="status-on">enabled</span></p>
+  <div class="kpis">
+    <div class="kpi"><span class="label">Comparison set</span><span class="val mono">simple-20260423T181022</span></div>
+    <div class="kpi"><span class="label">Timestamp</span><span class="val mono">2026-04-23 18:12:35 UTC</span></div>
+    <div class="kpi"><span class="label">Dataset</span><span class="val mono">persons-400k-plus-append-3x200k-reverse</span></div>
+    <div class="kpi"><span class="label">Fairness</span><span class="val mono">durability-balanced</span></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Target</th><th>Measured</th><th>Technical</th><th>Semantic</th>
+        <th>Elapsed median</th><th>Load median</th><th>Build median</th><th>Reopen median</th><th>Lookup median</th>
+        <th>Total bytes median</th><th>Primary bytes median</th><th>Side bytes median</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-2.1.0</code></td>
+        <td>3</td>
+        <td>3/3</td>
+        <td>3/3</td>
+        <td><span title="raw: 10736.2823 ms">1.074 &times; 10<sup>4</sup> ms (10.736 s)</span></td>
+        <td><span title="raw: 112.4153 ms">112.415 ms</span></td>
+        <td><span title="raw: 4622.0532 ms">4.622 &times; 10<sup>3</sup> ms (4.622 s)</span></td>
+        <td><span title="raw: 1526.6922 ms">1.527 &times; 10<sup>3</sup> ms (1.527 s)</span></td>
+        <td><span title="raw: 823.1702 ms">823.17 ms</span></td>
+        <td><span title="raw: 21688936 B">2.169 &times; 10<sup>7</sup> B (20.684 MiB)</span></td>
+        <td><span title="raw: 16888904 B">1.689 &times; 10<sup>7</sup> B (16.107 MiB)</span></td>
+        <td><span title="raw: 4800032 B">4.8 &times; 10<sup>6</sup> B (4.578 MiB)</span></td>
+      </tr>
+      <tr>
+        <td><code>polar-db-2.1.1</code></td>
+        <td>3</td>
+        <td>3/3</td>
+        <td>3/3</td>
+        <td><span title="raw: 10277.4582 ms">1.028 &times; 10<sup>4</sup> ms (10.277 s)</span></td>
+        <td><span title="raw: 111.1924 ms">111.192 ms</span></td>
+        <td><span title="raw: 4404.4738 ms">4.404 &times; 10<sup>3</sup> ms (4.404 s)</span></td>
+        <td><span title="raw: 1467.0579 ms">1.467 &times; 10<sup>3</sup> ms (1.467 s)</span></td>
+        <td><span title="raw: 796.4366 ms">796.437 ms</span></td>
+        <td><span title="raw: 21688936 B">2.169 &times; 10<sup>7</sup> B (20.684 MiB)</span></td>
+        <td><span title="raw: 16888904 B">1.689 &times; 10<sup>7</sup> B (16.107 MiB)</span></td>
+        <td><span title="raw: 4800032 B">4.8 &times; 10<sup>6</sup> B (4.578 MiB)</span></td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td>3</td>
+        <td>3/3</td>
+        <td>3/3</td>
+        <td><span title="raw: 11256.0596 ms">1.126 &times; 10<sup>4</sup> ms (11.256 s)</span></td>
+        <td><span title="raw: 97.6722 ms">97.672 ms</span></td>
+        <td><span title="raw: 4507.2947 ms">4.507 &times; 10<sup>3</sup> ms (4.507 s)</span></td>
+        <td><span title="raw: 1568.6085 ms">1.569 &times; 10<sup>3</sup> ms (1.569 s)</span></td>
+        <td><span title="raw: 885.1764 ms">885.176 ms</span></td>
+        <td><span title="raw: 21688936 B">2.169 &times; 10<sup>7</sup> B (20.684 MiB)</span></td>
+        <td><span title="raw: 16888904 B">1.689 &times; 10<sup>7</sup> B (16.107 MiB)</span></td>
+        <td><span title="raw: 4800032 B">4.8 &times; 10<sup>6</sup> B (4.578 MiB)</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td>3</td>
+        <td>3/3</td>
+        <td>3/3</td>
+        <td><span title="raw: 1750.7699 ms">1.751 &times; 10<sup>3</sup> ms (1.751 s)</span></td>
+        <td><span title="raw: 439.8382 ms">439.838 ms</span></td>
+        <td><span title="raw: 106.0736 ms">106.074 ms</span></td>
+        <td><span title="raw: 3.5747 ms">3.575 ms</span></td>
+        <td><span title="raw: 176.5621 ms">176.562 ms</span></td>
+        <td><span title="raw: 35065856 B">3.507 &times; 10<sup>7</sup> B (33.441 MiB)</span></td>
+        <td><span title="raw: 35065856 B">3.507 &times; 10<sup>7</sup> B (33.441 MiB)</span></td>
+        <td><span title="raw: 0 B">0 B (0 B)</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="chart-wrap">
+<svg class="chart" viewBox="0 0 940 340" role="img" aria-label="Phase Breakdown (latest series, median ms)">
+  <rect x="0" y="0" width="100%" height="100%" fill="#ffffff" />
+  <text x="18" y="20" font-size="14" fill="#20252b" font-weight="650">Phase Breakdown (latest series, median ms)</text>
+  <line x1="72" y1="266" x2="920" y2="266" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="270" text-anchor="end" font-size="11" fill="#66717f">0 ms</text>
+  <line x1="72" y1="217.6" x2="920" y2="217.6" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="221.6" text-anchor="end" font-size="11" fill="#66717f">1.017e+3 ms</text>
+  <line x1="72" y1="169.2" x2="920" y2="169.2" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="173.2" text-anchor="end" font-size="11" fill="#66717f">2.034e+3 ms</text>
+  <line x1="72" y1="120.8" x2="920" y2="120.8" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="124.8" text-anchor="end" font-size="11" fill="#66717f">3.051e+3 ms</text>
+  <line x1="72" y1="72.4" x2="920" y2="72.4" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="76.4" text-anchor="end" font-size="11" fill="#66717f">4.067e+3 ms</text>
+  <line x1="72" y1="24" x2="920" y2="24" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="28" text-anchor="end" font-size="11" fill="#66717f">5.084e+3 ms</text>
+  <line x1="72" y1="24" x2="72" y2="266" stroke="#9ca7b5" stroke-width="1.2" />
+  <line x1="72" y1="266" x2="920" y2="266" stroke="#9ca7b5" stroke-width="1.2" />
+  <rect x="106.259" y="260.649" width="29.002" height="5.351" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Load | 112.4153 ms</title>
+  </rect>
+  <rect x="144.419" y="260.707" width="29.002" height="5.293" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Load | 111.1924 ms</title>
+  </rect>
+  <rect x="182.579" y="261.351" width="29.002" height="4.649" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Load | 97.6722 ms</title>
+  </rect>
+  <rect x="220.739" y="245.065" width="29.002" height="20.935" fill="#a04f15" rx="2">
+    <title>sqlite | Load | 439.8382 ms</title>
+  </rect>
+  <text x="178" y="284" text-anchor="middle" font-size="11" fill="#66717f">Load</text>
+  <rect x="318.259" y="46" width="29.002" height="220" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Build | 4622.0532 ms</title>
+  </rect>
+  <rect x="356.419" y="56.356" width="29.002" height="209.644" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Build | 4404.4738 ms</title>
+  </rect>
+  <rect x="394.579" y="51.462" width="29.002" height="214.538" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Build | 4507.2947 ms</title>
+  </rect>
+  <rect x="432.739" y="260.951" width="29.002" height="5.049" fill="#a04f15" rx="2">
+    <title>sqlite | Build | 106.0736 ms</title>
+  </rect>
+  <text x="390" y="284" text-anchor="middle" font-size="11" fill="#66717f">Build</text>
+  <rect x="530.259" y="193.333" width="29.002" height="72.667" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Reopen | 1526.6922 ms</title>
+  </rect>
+  <rect x="568.419" y="196.171" width="29.002" height="69.829" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Reopen | 1467.0579 ms</title>
+  </rect>
+  <rect x="606.579" y="191.338" width="29.002" height="74.662" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Reopen | 1568.6085 ms</title>
+  </rect>
+  <rect x="644.739" y="265.83" width="29.002" height="0.17" fill="#a04f15" rx="2">
+    <title>sqlite | Reopen | 3.5747 ms</title>
+  </rect>
+  <text x="602" y="284" text-anchor="middle" font-size="11" fill="#66717f">Reopen</text>
+  <rect x="742.259" y="226.819" width="29.002" height="39.181" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Lookup | 823.1702 ms</title>
+  </rect>
+  <rect x="780.419" y="228.091" width="29.002" height="37.909" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Lookup | 796.4366 ms</title>
+  </rect>
+  <rect x="818.579" y="223.867" width="29.002" height="42.133" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Lookup | 885.1764 ms</title>
+  </rect>
+  <rect x="856.739" y="257.596" width="29.002" height="8.404" fill="#a04f15" rx="2">
+    <title>sqlite | Lookup | 176.5621 ms</title>
+  </rect>
+  <text x="814" y="284" text-anchor="middle" font-size="11" fill="#66717f">Lookup</text>
+  <rect x="72" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="88" y="316" font-size="11" fill="#4e5a68">polar-db-2.1.0</text>
+  <rect x="202" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="218" y="316" font-size="11" fill="#4e5a68">polar-db-2.1.1</text>
+  <rect x="332" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="348" y="316" font-size="11" fill="#4e5a68">polar-db-current</text>
+  <rect x="462" y="307" width="12" height="12" fill="#a04f15" rx="2" />
+  <text x="478" y="316" font-size="11" fill="#4e5a68">sqlite</text>
+</svg>
+
+  </div>
+  <div class="chart-wrap">
+<svg class="chart" viewBox="0 0 940 340" role="img" aria-label="Artifact Sizes (latest series, median bytes)">
+  <rect x="0" y="0" width="100%" height="100%" fill="#ffffff" />
+  <text x="18" y="20" font-size="14" fill="#20252b" font-weight="650">Artifact Sizes (latest series, median bytes)</text>
+  <line x1="72" y1="266" x2="920" y2="266" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="270" text-anchor="end" font-size="11" fill="#66717f">0 B</text>
+  <line x1="72" y1="217.6" x2="920" y2="217.6" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="221.6" text-anchor="end" font-size="11" fill="#66717f">7.714e+6 B</text>
+  <line x1="72" y1="169.2" x2="920" y2="169.2" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="173.2" text-anchor="end" font-size="11" fill="#66717f">1.543e+7 B</text>
+  <line x1="72" y1="120.8" x2="920" y2="120.8" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="124.8" text-anchor="end" font-size="11" fill="#66717f">2.314e+7 B</text>
+  <line x1="72" y1="72.4" x2="920" y2="72.4" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="76.4" text-anchor="end" font-size="11" fill="#66717f">3.086e+7 B</text>
+  <line x1="72" y1="24" x2="920" y2="24" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="28" text-anchor="end" font-size="11" fill="#66717f">3.857e+7 B</text>
+  <line x1="72" y1="24" x2="72" y2="266" stroke="#9ca7b5" stroke-width="1.2" />
+  <line x1="72" y1="266" x2="920" y2="266" stroke="#9ca7b5" stroke-width="1.2" />
+  <rect x="117.679" y="160.041" width="38.669" height="105.959" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Primary | 16888904 B</title>
+  </rect>
+  <rect x="168.559" y="160.041" width="38.669" height="105.959" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Primary | 16888904 B</title>
+  </rect>
+  <rect x="219.439" y="160.041" width="38.669" height="105.959" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Primary | 16888904 B</title>
+  </rect>
+  <rect x="270.319" y="46" width="38.669" height="220" fill="#a04f15" rx="2">
+    <title>sqlite | Primary | 35065856 B</title>
+  </rect>
+  <text x="213.333" y="284" text-anchor="middle" font-size="11" fill="#66717f">Primary</text>
+  <rect x="400.346" y="235.885" width="38.669" height="30.115" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Side | 4800032 B</title>
+  </rect>
+  <rect x="451.226" y="235.885" width="38.669" height="30.115" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Side | 4800032 B</title>
+  </rect>
+  <rect x="502.106" y="235.885" width="38.669" height="30.115" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Side | 4800032 B</title>
+  </rect>
+  <rect x="552.986" y="266" width="38.669" height="0" fill="#a04f15" rx="2">
+    <title>sqlite | Side | 0 B</title>
+  </rect>
+  <text x="496" y="284" text-anchor="middle" font-size="11" fill="#66717f">Side</text>
+  <rect x="683.012" y="129.926" width="38.669" height="136.074" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.0 | Total | 21688936 B</title>
+  </rect>
+  <rect x="733.892" y="129.926" width="38.669" height="136.074" fill="#0f6f9f" rx="2">
+    <title>polar-db-2.1.1 | Total | 21688936 B</title>
+  </rect>
+  <rect x="784.772" y="129.926" width="38.669" height="136.074" fill="#0f6f9f" rx="2">
+    <title>polar-db-current | Total | 21688936 B</title>
+  </rect>
+  <rect x="835.652" y="46" width="38.669" height="220" fill="#a04f15" rx="2">
+    <title>sqlite | Total | 35065856 B</title>
+  </rect>
+  <text x="778.667" y="284" text-anchor="middle" font-size="11" fill="#66717f">Total</text>
+  <rect x="72" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="88" y="316" font-size="11" fill="#4e5a68">polar-db-2.1.0</text>
+  <rect x="202" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="218" y="316" font-size="11" fill="#4e5a68">polar-db-2.1.1</text>
+  <rect x="332" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="348" y="316" font-size="11" fill="#4e5a68">polar-db-current</text>
+  <rect x="462" y="307" width="12" height="12" fill="#a04f15" rx="2" />
+  <text x="478" y="316" font-size="11" fill="#4e5a68">sqlite</text>
+</svg>
+
+  </div>
+  <h3>Notes</h3>
+  <ul class="clean">
+    <li>Compares latest successful measured series per target inside this experiment.</li>
+    <li>Generated automatically when experiment manifest contains multiple targets.</li>
+  </ul>
+  <h3>Derived Expectations</h3>
+  <ul class="clean">
+    <li>Expected measured elapsed for &#39;polar-db-2.1.0&#39; near 10759.571 ms under the same fairness profile.</li>
+    <li>Expected measured elapsed for &#39;polar-db-2.1.1&#39; near 10301.302 ms under the same fairness profile.</li>
+    <li>Expected measured elapsed for &#39;polar-db-current&#39; near 11058.422 ms under the same fairness profile.</li>
+    <li>Expected measured elapsed for &#39;sqlite&#39; near 1731.84 ms under the same fairness profile.</li>
+    <li>In this snapshot &#39;sqlite&#39; is faster than &#39;polar-db-2.1.1&#39; by elapsed average context.</li>
+  </ul>
+</section>
+<section class="card wide">
+  <h2>History</h2>
+  <table>
+    <thead><tr><th>#</th><th>Set</th><th>Timestamp</th>
+<th>Elapsed median: <code>polar-db-2.1.0</code></th>
+<th>Elapsed median: <code>polar-db-2.1.1</code></th>
+<th>Elapsed median: <code>polar-db-current</code></th>
+<th>Elapsed median: <code>sqlite</code></th>
+</tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><code>simple-20260423T174358</code></td>
+        <td class="mono">2026-04-23 17:46:08</td>
+        <td><span title="raw: 10017.4759 ms">1.002 &times; 10<sup>4</sup> ms (10.017 s)</span></td>
+        <td><span title="raw: 10059.8182 ms">1.006 &times; 10<sup>4</sup> ms (10.06 s)</span></td>
+        <td><span title="raw: 10284.0554 ms">1.028 &times; 10<sup>4</sup> ms (10.284 s)</span></td>
+        <td><span title="raw: 1602.0163 ms">1.602 &times; 10<sup>3</sup> ms (1.602 s)</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><code>simple-20260423T175316</code></td>
+        <td class="mono">2026-04-23 17:55:24</td>
+        <td><span title="raw: 9425.1293 ms">9.425 &times; 10<sup>3</sup> ms (9.425 s)</span></td>
+        <td><span title="raw: 9738.8612 ms">9.739 &times; 10<sup>3</sup> ms (9.739 s)</span></td>
+        <td><span title="raw: 9885.315 ms">9.885 &times; 10<sup>3</sup> ms (9.885 s)</span></td>
+        <td><span title="raw: 1611.9913 ms">1.612 &times; 10<sup>3</sup> ms (1.612 s)</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><code>simple-20260423T181022</code></td>
+        <td class="mono">2026-04-23 18:12:35</td>
+        <td><span title="raw: 10736.2823 ms">1.074 &times; 10<sup>4</sup> ms (10.736 s)</span></td>
+        <td><span title="raw: 10277.4582 ms">1.028 &times; 10<sup>4</sup> ms (10.277 s)</span></td>
+        <td><span title="raw: 11256.0596 ms">1.126 &times; 10<sup>4</sup> ms (11.256 s)</span></td>
+        <td><span title="raw: 1750.7699 ms">1.751 &times; 10<sup>3</sup> ms (1.751 s)</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="chart-wrap">
+<svg class="chart" viewBox="0 0 940 340" role="img" aria-label="History elapsed median chart">
+  <rect x="0" y="0" width="100%" height="100%" fill="#ffffff" />
+  <text x="18" y="20" font-size="14" fill="#20252b" font-weight="650">History: elapsed median (ms) by series</text>
+  <line x1="72" y1="262" x2="916" y2="262" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="266" text-anchor="end" font-size="11" fill="#66717f">829.693 ms</text>
+  <line x1="72" y1="214.4" x2="916" y2="214.4" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="218.4" text-anchor="end" font-size="11" fill="#66717f">3.069e+3 ms</text>
+  <line x1="72" y1="166.8" x2="916" y2="166.8" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="170.8" text-anchor="end" font-size="11" fill="#66717f">5.309e+3 ms</text>
+  <line x1="72" y1="119.2" x2="916" y2="119.2" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="123.2" text-anchor="end" font-size="11" fill="#66717f">7.549e+3 ms</text>
+  <line x1="72" y1="71.6" x2="916" y2="71.6" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="75.6" text-anchor="end" font-size="11" fill="#66717f">9.789e+3 ms</text>
+  <line x1="72" y1="24" x2="916" y2="24" stroke="#e6eaf0" stroke-width="1" />
+  <text x="64" y="28" text-anchor="end" font-size="11" fill="#66717f">1.203e+4 ms</text>
+  <line x1="72" y1="24" x2="72" y2="262" stroke="#9ca7b5" stroke-width="1.2" />
+  <line x1="72" y1="262" x2="916" y2="262" stroke="#9ca7b5" stroke-width="1.2" />
+  <polyline points="72,66.737 494,79.326 916,51.46" fill="none" stroke="#0f6f9f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="72" cy="66.737" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-2.1.0 | simple-20260423T174358 | 2026-04-23 17:46:08 UTC | median: 10017.4759 ms</title>
+  </circle>
+  <circle cx="494" cy="79.326" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-2.1.0 | simple-20260423T175316 | 2026-04-23 17:55:24 UTC | median: 9425.1293 ms</title>
+  </circle>
+  <circle cx="916" cy="51.46" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-2.1.0 | simple-20260423T181022 | 2026-04-23 18:12:35 UTC | median: 10736.2823 ms</title>
+  </circle>
+  <polyline points="72,65.837 494,72.658 916,61.212" fill="none" stroke="#0f6f9f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="72" cy="65.837" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-2.1.1 | simple-20260423T174358 | 2026-04-23 17:46:08 UTC | median: 10059.8182 ms</title>
+  </circle>
+  <circle cx="494" cy="72.658" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-2.1.1 | simple-20260423T175316 | 2026-04-23 17:55:24 UTC | median: 9738.8612 ms</title>
+  </circle>
+  <circle cx="916" cy="61.212" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-2.1.1 | simple-20260423T181022 | 2026-04-23 18:12:35 UTC | median: 10277.4582 ms</title>
+  </circle>
+  <polyline points="72,61.071 494,69.546 916,40.414" fill="none" stroke="#0f6f9f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="72" cy="61.071" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-current | simple-20260423T174358 | 2026-04-23 17:46:08 UTC | median: 10284.0554 ms</title>
+  </circle>
+  <circle cx="494" cy="69.546" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-current | simple-20260423T175316 | 2026-04-23 17:55:24 UTC | median: 9885.315 ms</title>
+  </circle>
+  <circle cx="916" cy="40.414" r="3.8" fill="#0f6f9f" stroke="#ffffff" stroke-width="1">
+    <title>polar-db-current | simple-20260423T181022 | 2026-04-23 18:12:35 UTC | median: 11256.0596 ms</title>
+  </circle>
+  <polyline points="72,245.586 494,245.374 916,242.425" fill="none" stroke="#a04f15" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="72" cy="245.586" r="3.8" fill="#a04f15" stroke="#ffffff" stroke-width="1">
+    <title>sqlite | simple-20260423T174358 | 2026-04-23 17:46:08 UTC | median: 1602.0163 ms</title>
+  </circle>
+  <circle cx="494" cy="245.374" r="3.8" fill="#a04f15" stroke="#ffffff" stroke-width="1">
+    <title>sqlite | simple-20260423T175316 | 2026-04-23 17:55:24 UTC | median: 1611.9913 ms</title>
+  </circle>
+  <circle cx="916" cy="242.425" r="3.8" fill="#a04f15" stroke="#ffffff" stroke-width="1">
+    <title>sqlite | simple-20260423T181022 | 2026-04-23 18:12:35 UTC | median: 1750.7699 ms</title>
+  </circle>
+  <text x="72" y="280" text-anchor="middle" font-size="11" fill="#66717f">simple-2026...</text>
+  <text x="494" y="280" text-anchor="middle" font-size="11" fill="#66717f">simple-2026...</text>
+  <text x="916" y="280" text-anchor="middle" font-size="11" fill="#66717f">simple-2026...</text>
+  <rect x="72" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="88" y="316" font-size="11" fill="#4e5a68">polar-db-2.1.0</text>
+  <rect x="202" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="218" y="316" font-size="11" fill="#4e5a68">polar-db-2.1.1</text>
+  <rect x="332" y="307" width="12" height="12" fill="#0f6f9f" rx="2" />
+  <text x="348" y="316" font-size="11" fill="#4e5a68">polar-db-current</text>
+  <rect x="462" y="307" width="12" height="12" fill="#a04f15" rx="2" />
+  <text x="478" y="316" font-size="11" fill="#4e5a68">sqlite</text>
+</svg>
+
+  </div>
+  <h3>Notes</h3>
+  <ul class="clean">
+    <li>Compares successful measured series of the same experiment over time.</li>
+  </ul>
+  <h3>Derived Expectations</h3>
+  <ul class="clean">
+    <li>History trend for &#39;polar-db-2.1.0&#39;: elapsed average changed by 11.97% vs previous series.</li>
+    <li>History trend for &#39;polar-db-2.1.1&#39;: elapsed average changed by 6.2% vs previous series.</li>
+    <li>History trend for &#39;polar-db-current&#39;: elapsed average changed by 11.93% vs previous series.</li>
+    <li>History trend for &#39;sqlite&#39;: elapsed average changed by 7.96% vs previous series.</li>
+  </ul>
+</section>
+<section class="card wide">
+  <h2>Context With Other Experiments</h2>
+  <p class="muted">This section is context-only and does not claim strict apples-to-apples equivalence.</p>
+  <p class="muted">No resolved external snapshots were found for auto-discovered experiments.</p>
+  <h3>Notes</h3>
+  <ul class="clean">
+    <li>Cross-experiment comparison is context only; workloads may be semantically different.</li>
+    <li>No workload similarity or apples-to-apples scoring is inferred in this artifact.</li>
+  </ul>
+</section>
+<section class="card wide">
+  <h2>Machine-Readable Artifacts</h2>
+  <p class="muted small">These links point to raw facts and derived JSON artifacts inside this experiment folder.</p>
+  <h3>Latest Raw Files</h3>
+  <table>
+    <thead><tr><th>File</th><th>Updated (UTC)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-12-35Z__sqlite__measured-04.run.json"><code>2026-04-23T18-12-35Z__sqlite__measured-04.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:37</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-12-34Z__sqlite__measured-03.run.json"><code>2026-04-23T18-12-34Z__sqlite__measured-03.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:35</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-12-32Z__sqlite__measured-02.run.json"><code>2026-04-23T18-12-32Z__sqlite__measured-02.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:34</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-12-30Z__sqlite__warmup-01.run.json"><code>2026-04-23T18-12-30Z__sqlite__warmup-01.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:32</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-12-19Z__polar-db-current__measured-04.run.json"><code>2026-04-23T18-12-19Z__polar-db-current__measured-04.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:30</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-12-07Z__polar-db-current__measured-03.run.json"><code>2026-04-23T18-12-07Z__polar-db-current__measured-03.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:19</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-11-57Z__polar-db-current__measured-02.run.json"><code>2026-04-23T18-11-57Z__polar-db-current__measured-02.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:07</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-11-47Z__polar-db-current__warmup-01.run.json"><code>2026-04-23T18-11-47Z__polar-db-current__warmup-01.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:11:57</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-11-36Z__polar-db-2.1.1__measured-04.run.json"><code>2026-04-23T18-11-36Z__polar-db-2.1.1__measured-04.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:11:47</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-11-26Z__polar-db-2.1.1__measured-03.run.json"><code>2026-04-23T18-11-26Z__polar-db-2.1.1__measured-03.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:11:36</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-11-16Z__polar-db-2.1.1__measured-02.run.json"><code>2026-04-23T18-11-16Z__polar-db-2.1.1__measured-02.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:11:26</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-11-05Z__polar-db-2.1.1__warmup-01.run.json"><code>2026-04-23T18-11-05Z__polar-db-2.1.1__warmup-01.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:11:16</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-10-55Z__polar-db-2.1.0__measured-04.run.json"><code>2026-04-23T18-10-55Z__polar-db-2.1.0__measured-04.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:11:05</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-10-44Z__polar-db-2.1.0__measured-03.run.json"><code>2026-04-23T18-10-44Z__polar-db-2.1.0__measured-03.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:10:55</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-10-33Z__polar-db-2.1.0__measured-02.run.json"><code>2026-04-23T18-10-33Z__polar-db-2.1.0__measured-02.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:10:44</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T18-10-22Z__polar-db-2.1.0__warmup-01.run.json"><code>2026-04-23T18-10-22Z__polar-db-2.1.0__warmup-01.run.json</code></a></td>
+        <td class="mono">2026-04-23 18:10:33</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-55-24Z__sqlite__measured-04.run.json"><code>2026-04-23T17-55-24Z__sqlite__measured-04.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:55:25</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-55-22Z__sqlite__measured-03.run.json"><code>2026-04-23T17-55-22Z__sqlite__measured-03.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:55:24</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-55-20Z__sqlite__measured-02.run.json"><code>2026-04-23T17-55-20Z__sqlite__measured-02.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:55:22</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-55-18Z__sqlite__warmup-01.run.json"><code>2026-04-23T17-55-18Z__sqlite__warmup-01.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:55:20</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-55-08Z__polar-db-current__measured-04.run.json"><code>2026-04-23T17-55-08Z__polar-db-current__measured-04.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:55:18</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-54-58Z__polar-db-current__measured-03.run.json"><code>2026-04-23T17-54-58Z__polar-db-current__measured-03.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:55:08</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-54-48Z__polar-db-current__measured-02.run.json"><code>2026-04-23T17-54-48Z__polar-db-current__measured-02.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:54:58</td>
+      </tr>
+      <tr>
+        <td><a href="./raw/2026-04-23T17-54-39Z__polar-db-current__warmup-01.run.json"><code>2026-04-23T17-54-39Z__polar-db-current__warmup-01.run.json</code></a></td>
+        <td class="mono">2026-04-23 17:54:48</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="muted small">Showing 24 of 48 files.</p>
+  <h3>Analyzed Files</h3>
+  <table>
+    <thead><tr><th>File</th><th>Updated (UTC)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="./analyzed/latest-series.polar-db-2.1.1.json"><code>latest-series.polar-db-2.1.1.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+      <tr>
+        <td><a href="./analyzed/latest-series.polar-db-current.json"><code>latest-series.polar-db-current.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+      <tr>
+        <td><a href="./analyzed/latest-series.sqlite.json"><code>latest-series.sqlite.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+      <tr>
+        <td><a href="./analyzed/latest-series.polar-db-2.1.0.json"><code>latest-series.polar-db-2.1.0.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Comparison Files</h3>
+  <table>
+    <thead><tr><th>File</th><th>Updated (UTC)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="./comparisons/latest-other-experiments.json"><code>latest-other-experiments.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+      <tr>
+        <td><a href="./comparisons/latest-history.json"><code>latest-history.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+      <tr>
+        <td><a href="./comparisons/latest-engines.json"><code>latest-engines.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+      <tr>
+        <td><a href="./comparisons/2026-04-23T18-12-39Z.persons-full-ada-5de4d6ff6ac2.persons-400k-plu-83f839c5888a.durability-b-676db063be6d.simple-20260423t-90153e4c0e98.comparison-series.json"><code>2026-04-23T18-12-39Z.persons-full-ada-5de4d6ff6ac2.persons-400k-plu-83f839c5888a.durability-b-676db063be6d.simple-20260423t-90153e4c0e98.comparison-series.json</code></a></td>
+        <td class="mono">2026-04-23 18:12:39</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Local Analyzed Snapshot</h3>
+  <table>
+    <thead><tr><th>Target</th><th>Set</th><th>Elapsed median</th><th>Total bytes median</th><th>Measured</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-2.1.0</code></td>
+        <td><code>simple-20260423T181022</code></td>
+        <td><span title="raw: 10736.2823 ms">1.074 &times; 10<sup>4</sup> ms (10.736 s)</span></td>
+        <td><span title="raw: 21688936 B">2.169 &times; 10<sup>7</sup> B (20.684 MiB)</span></td>
+        <td>3</td>
+      </tr>
+      <tr>
+        <td><code>polar-db-2.1.1</code></td>
+        <td><code>simple-20260423T181022</code></td>
+        <td><span title="raw: 10277.4582 ms">1.028 &times; 10<sup>4</sup> ms (10.277 s)</span></td>
+        <td><span title="raw: 21688936 B">2.169 &times; 10<sup>7</sup> B (20.684 MiB)</span></td>
+        <td>3</td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>simple-20260423T181022</code></td>
+        <td><span title="raw: 11256.0596 ms">1.126 &times; 10<sup>4</sup> ms (11.256 s)</span></td>
+        <td><span title="raw: 21688936 B">2.169 &times; 10<sup>7</sup> B (20.684 MiB)</span></td>
+        <td>3</td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>simple-20260423T181022</code></td>
+        <td><span title="raw: 1750.7699 ms">1.751 &times; 10<sup>3</sup> ms (1.751 s)</span></td>
+        <td><span title="raw: 35065856 B">3.507 &times; 10<sup>7</sup> B (33.441 MiB)</span></td>
+        <td>3</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+</div>
+</body>
+</html>

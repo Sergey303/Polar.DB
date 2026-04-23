@@ -27,11 +27,19 @@ internal sealed class BenchmarkFileReader
 
     /// <summary>
     /// Writes one typed model as JSON.
+    /// Creates parent directory if it does not exist.
     /// Existing behavior is preserved: the file is overwritten by <see cref="File.Create(string)"/>.
     /// </summary>
     public async Task WriteAsync<T>(string path, T value)
     {
-        await using var stream = File.Create(path);
+        var fullPath = Path.GetFullPath(path);
+        var parentDirectory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(parentDirectory))
+        {
+            Directory.CreateDirectory(parentDirectory);
+        }
+
+        await using var stream = File.Create(fullPath);
         await JsonSerializer.SerializeAsync(stream, value, JsonDefaults.Default);
     }
 

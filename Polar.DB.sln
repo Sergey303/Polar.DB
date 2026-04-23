@@ -51,24 +51,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7406FEE2-CAC
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{74248134-5223-402A-B48D-96F9435DE59E}"
 	ProjectSection(SolutionItems) = preProject
-		benchmarks\docs\BENCHMARK_METHOD.md = benchmarks\docs\BENCHMARK_METHOD.md
-		benchmarks\docs\BENCHMARK_PLATFORM_SPEC.md = benchmarks\docs\BENCHMARK_PLATFORM_SPEC.md
 		benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.md = benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.md
 		benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.ru.md = benchmarks\docs\BENCHMARK_WORKFLOW_GUIDE.ru.md
-		benchmarks\docs\FAIRNESS_PROFILES.md = benchmarks\docs\FAIRNESS_PROFILES.md
-		benchmarks\docs\FAULT_CATALOG.md = benchmarks\docs\FAULT_CATALOG.md
-		benchmarks\docs\RESEARCH_NOTES.md = benchmarks\docs\RESEARCH_NOTES.md
-		benchmarks\docs\RESULT_SCHEMA.md = benchmarks\docs\RESULT_SCHEMA.md
-		benchmarks\docs\STAGE1_SCOPE.md = benchmarks\docs\STAGE1_SCOPE.md
-		benchmarks\docs\WORKLOAD_CATALOG.md = benchmarks\docs\WORKLOAD_CATALOG.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "experiments", "experiments", "{9008BEF7-0D6F-4568-BA8D-90FA2C914F08}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{CA1F5AA8-B4A7-44F9-A038-DEEB2019CD23}"
 	ProjectSection(SolutionItems) = preProject
-		benchmarks\docs\examples\baselines-README.md = benchmarks\docs\examples\baselines-README.md
-		benchmarks\docs\examples\contracts-README.md = benchmarks\docs\examples\contracts-README.md
 		benchmarks\docs\examples\sample-baseline.v1.json = benchmarks\docs\examples\sample-baseline.v1.json
 		benchmarks\docs\examples\sample-policy.v1.json = benchmarks\docs\examples\sample-policy.v1.json
 	EndProjectSection
