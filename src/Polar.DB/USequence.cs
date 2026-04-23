@@ -21,7 +21,8 @@ namespace Polar.DB
         private readonly Func<object, IComparable> keyFunc;
         private readonly UKeyIndex primaryKeyIndex;
         private readonly bool optimise;
-
+        
+        public long Count  => sequence.Count();
         /// <summary>
         /// Gets or sets secondary indexes attached to this sequence.
         /// </summary>

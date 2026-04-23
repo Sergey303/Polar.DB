@@ -86,8 +86,11 @@ namespace Polar.DB
 
         public void Build()
         {
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
+            long count = sequence.Count;
+            int capacity = count > int.MaxValue ? int.MaxValue : (int)count;
+            List<int> hkeys_list = new List<int>(capacity);
+            List<long> offsets_list = new List<long>(capacity);
+
             sequence.Scan((off, obj) =>
             {
                 offsets_list.Add(off);
@@ -100,8 +103,7 @@ namespace Polar.DB
             Array.Sort(hkeys_arr, offsets_arr);
 
             hkeys.Clear();
-            foreach (var hkey in hkeys_arr)
-                hkeys.AppendElement(hkey);
+            hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
             hkeys.Flush();
 
             if (!keysinmemory)
@@ -110,8 +112,7 @@ namespace Polar.DB
             }
 
             offsets.Clear();
-            foreach (var off in offsets_arr)
-                offsets.AppendElement(off);
+            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             offsets.Flush();
         }
 
