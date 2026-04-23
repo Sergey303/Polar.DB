@@ -103,19 +103,23 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
+            Build(sequence.CreateLogicalBuildSnapshot());
+        }
+
+        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        {
             List<IComparable> values_list = new List<IComparable>();
             List<long> offsets_list = new List<long>();
-            sequence.Scan((off, obj) =>
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                var vals = valuesFunc(obj);
+                var entry = snapshot[i];
+                var vals = valuesFunc(entry.Element);
                 foreach (var v in vals)
                 {
-                    offsets_list.Add(off);
+                    offsets_list.Add(entry.Offset);
                     values_list.Add(v);
                 }
-
-                return true;
-            });
+            }
 
             values_arr = values_list.ToArray();
             long[] offsets_arr = offsets_list.ToArray();

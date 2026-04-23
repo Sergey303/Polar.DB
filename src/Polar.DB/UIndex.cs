@@ -11,7 +11,7 @@ namespace Polar.DB
     /// Secondary index over full element values with optional hash pre-bucketing.
     /// </summary>
     /// <remarks>
-    /// Persisted static state is rebuilt by <see cref="Build"/>.
+    /// Persisted static state is rebuilt by <see cref="Build()"/>.
     /// <see cref="OnAppendElement(object,long)"/> updates only the dynamic in-memory set.
     /// </remarks>
     public class UIndex : IUIndex
@@ -27,6 +27,17 @@ namespace Polar.DB
         private HKeyObjOff[] dynset;
         private readonly Comparer<HKeyObjOff> complex_comp;
         private int[]? hkeys_arr;
+        private readonly struct ValueOffset
+        {
+            internal ValueOffset(object value, long offset)
+            {
+                Value = value;
+                Offset = offset;
+            }
+
+            internal object Value { get; }
+            internal long Offset { get; }
+        }
 
         /// <summary>
         /// Creates a value index.
@@ -118,50 +129,53 @@ namespace Polar.DB
         /// </summary>
         public void Build()
         {
-            if (hashFunc == null)
-                BuildOffsets();
-            else
-                BuildHkeyOffsets();
+            Build(sequence.CreateLogicalBuildSnapshot());
         }
 
-        private void BuildOffsets()
+        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
         {
-            var compSpecLong = Comparer<long>.Create((off1, off2) =>
-            {
-                object? v1 = sequence.GetByOffset(off1);
-                object? v2 = sequence.GetByOffset(off2);
-                return comp.Compare(v1!, v2!);
-            });
+            if (hashFunc == null)
+                BuildOffsets(snapshot);
+            else
+                BuildHkeyOffsets(snapshot);
+        }
 
-            long sequenceCount = sequence.Count;
-            int initialCapacity = sequenceCount <= int.MaxValue ? checked((int)sequenceCount) : 0;
-            List<long> offsets_list = initialCapacity > 0 ? new List<long>(initialCapacity) : new List<long>();
-            sequence.Scan((off, obj) =>
+        private void BuildOffsets(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        {
+            int initialCapacity = snapshot.Count;
+            List<ValueOffset> valuesWithOffsets = initialCapacity > 0
+                ? new List<ValueOffset>(initialCapacity)
+                : new List<ValueOffset>();
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                if (applicable(obj)) offsets_list.Add(off);
-                return true;
-            });
+                var entry = snapshot[i];
+                if (applicable(entry.Element))
+                    valuesWithOffsets.Add(new ValueOffset(entry.Element, entry.Offset));
+            }
 
-            long[] offsets_arr = offsets_list.ToArray();
-            Array.Sort(offsets_arr, compSpecLong);
+            ValueOffset[] valuesWithOffsetsArr = valuesWithOffsets.ToArray();
+            Array.Sort(valuesWithOffsetsArr, Comparer<ValueOffset>.Create((v1, v2) => comp.Compare(v1.Value, v2.Value)));
+
+            long[] offsets_arr = new long[valuesWithOffsetsArr.Length];
+            for (int i = 0; i < valuesWithOffsetsArr.Length; i++)
+                offsets_arr[i] = valuesWithOffsetsArr[i].Offset;
 
             offsets.Clear();
             offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             offsets.Flush();
         }
 
-        private void BuildHkeyOffsets()
+        private void BuildHkeyOffsets(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
         {
-            long sequenceCount = sequence.Count;
-            int initialCapacity = sequenceCount <= int.MaxValue ? checked((int)sequenceCount) : 0;
+            int initialCapacity = snapshot.Count;
             List<int> hkeys_list = initialCapacity > 0 ? new List<int>(initialCapacity) : new List<int>();
             List<long> offsets_list = initialCapacity > 0 ? new List<long>(initialCapacity) : new List<long>();
-            sequence.Scan((off, obj) =>
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                offsets_list.Add(off);
-                hkeys_list.Add(hashFunc!(obj));
-                return true;
-            });
+                var entry = snapshot[i];
+                offsets_list.Add(entry.Offset);
+                hkeys_list.Add(hashFunc!(entry.Element));
+            }
 
             hkeys_arr = hkeys_list.ToArray();
             long[] offsets_arr = offsets_list.ToArray();

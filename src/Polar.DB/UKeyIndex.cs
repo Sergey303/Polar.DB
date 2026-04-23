@@ -86,20 +86,22 @@ namespace Polar.DB
 
         public void Build()
         {
-            long count = sequence.Count;
-            int capacity = count > int.MaxValue ? int.MaxValue : (int)count;
-            List<int> hkeys_list = new List<int>(capacity);
-            List<long> offsets_list = new List<long>(capacity);
+            Build(sequence.CreateLogicalBuildSnapshot());
+        }
 
-            sequence.Scan((off, obj) =>
+        internal void Build(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        {
+            int count = snapshot.Count;
+            int[] localHkeys = new int[count];
+            long[] offsets_arr = new long[count];
+            for (int i = 0; i < count; i++)
             {
-                offsets_list.Add(off);
-                hkeys_list.Add(hashOfKey(keyFunc(obj)));
-                return true;
-            });
+                var entry = snapshot[i];
+                offsets_arr[i] = entry.Offset;
+                localHkeys[i] = hashOfKey(keyFunc(entry.Element));
+            }
 
-            hkeys_arr = hkeys_list.ToArray();
-            long[] offsets_arr = offsets_list.ToArray();
+            hkeys_arr = localHkeys;
             Array.Sort(hkeys_arr, offsets_arr);
 
             hkeys.Clear();
