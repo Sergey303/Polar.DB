@@ -1,24 +1,24 @@
 {
-  "policyId": "sample-policy-v1",
-  "appliesTo": {
-    "experimentKey": "bulk-load-point-lookup",
-    "datasetProfileKey": "persons-100k-reverse",
-    "engineKey": "synthetic",
-    "fairnessProfileKey": "durability-balanced",
-    "environmentClass": "local"
+  "policy": "sample-policy-v1",
+  "applies": {
+    "experiment": "bulk-load-point-lookup",
+    "dataset": "persons-100k-reverse",
+    "engine": "synthetic",
+    "fairness": "durability-balanced",
+    "env": "local"
   },
   "guards": [
     {
-      "metricKey": "elapsedMsSingleRun",
+      "metric": "elapsedMsSingleRun",
       "mode": "relative_to_baseline",
-      "maxRegressionPercent": 15.0,
-      "fixedSlack": 25.0,
+      "maxRegression": 15.0,
+      "slack": 25.0,
       "severity": "Regressed"
     },
     {
-      "metricKey": "totalArtifactBytes",
+      "metric": "totalArtifactBytes",
       "mode": "absolute_max",
-      "absoluteMax": 10000000.0,
+      "max": 10000000.0,
       "severity": "Broken"
     }
   ]

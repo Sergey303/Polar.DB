@@ -3,7 +3,7 @@ namespace Polar.DB.Bench.Exec.Runtime;
 public sealed class ExecOptions
 {
     public static string UsageText =>
-        "Usage: --engine <key> --spec <path> --work <dir> --raw-out <dir> " +
+        "Usage: --spec <path> --work <dir> --raw-out <dir> [--engine <key>] " +
         "[--env <class>] [--comparison-set <id>] [--warmup-count <n>] [--measured-count <n>]";
 
     public string? EngineKey { get; init; }
@@ -38,12 +38,6 @@ public sealed class ExecOptions
 
     public bool IsValid(out string error)
     {
-        if (string.IsNullOrWhiteSpace(EngineKey))
-        {
-            error = "Missing --engine.";
-            return false;
-        }
-
         if (string.IsNullOrWhiteSpace(SpecPath) || !File.Exists(SpecPath))
         {
             error = "Missing or invalid --spec path.";

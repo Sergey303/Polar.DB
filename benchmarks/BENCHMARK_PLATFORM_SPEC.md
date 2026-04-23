@@ -42,7 +42,7 @@ The center of the system is **not a library**. The center is the **experiment pl
 ## 5. Research frame — 10 mandatory directions
 
 ### 5.1. Formalize research questions
-Each experiment should support `ResearchQuestionId` and `HypothesisId`.
+Each experiment should support `research` and `hypothesis`.
 
 ### 5.2. Separate correctness, performance, and storage economics
 Every run should reflect those as distinct dimensions.

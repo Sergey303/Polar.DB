@@ -81,8 +81,8 @@ internal sealed class SyntheticStorageEngineAdapter : IStorageEngineAdapter
                 },
                 Tags = new Dictionary<string, string>
                 {
-                    ["researchQuestionId"] = _spec.ResearchQuestionId ?? string.Empty,
-                    ["hypothesisId"] = _spec.HypothesisId ?? string.Empty
+                    ["research"] = _spec.ResearchQuestionId ?? string.Empty,
+                    ["hypothesis"] = _spec.HypothesisId ?? string.Empty
                 },
                 Notes = new List<string>
                 {

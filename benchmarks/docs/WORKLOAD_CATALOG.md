@@ -11,7 +11,7 @@ Semantic flow (imported and normalized from reference console experiments):
 3. build/stabilize lookup structure for point access;
 4. close/reopen to reach point-lookup-ready persisted state;
 5. execute one direct lookup by key;
-6. execute random point lookup batch (`lookupCount=10_000`);
+6. execute random point lookup batch (`lookup=10_000`);
 7. collect artifact sizes.
 
 Normalization choices for fair Polar.DB vs SQLite comparison:
