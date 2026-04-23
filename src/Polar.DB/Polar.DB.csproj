@@ -13,15 +13,17 @@
         <!-- Legacy naming preserved here because this is an external historical URL. -->
         <!-- <RepositoryUrl>https://github.com/agmarchuk/PolarDB</RepositoryUrl> -->
 		<RepositoryUrl>https://github.com/Sergey303/Polar.DB</RepositoryUrl>
-        <PackageReadmeFile>..\..\README.md</PackageReadmeFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageProjectUrl>https://github.com/Sergey303/Polar.DB</PackageProjectUrl>
 		<RepositoryType>git</RepositoryType>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<PackageIcon>..\..\icon.png</PackageIcon>
-		<PackageLicenseFile>..\..\LICENSE</PackageLicenseFile>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Version>2.1.2</Version>
 		
     </PropertyGroup>
 
