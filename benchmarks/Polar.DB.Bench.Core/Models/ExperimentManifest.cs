@@ -1,4 +1,5 @@
 using Polar.DB.Bench.Core.Abstractions;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Polar.DB.Bench.Core.Models;
@@ -51,8 +52,8 @@ public sealed record ExperimentEngineSpec
 public sealed record ExperimentCompareSpec
 {
     [JsonPropertyName("history")]
-    public IReadOnlyList<string> History { get; init; } = [];
+    public JsonElement History { get; init; }
 
     [JsonPropertyName("otherExperiments")]
-    public IReadOnlyList<string> OtherExperiments { get; init; } = [];
+    public JsonElement OtherExperiments { get; init; }
 }

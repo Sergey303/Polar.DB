@@ -52,12 +52,22 @@ Roles:
 
 - `raw/` = immutable run facts (`*.run.json`) from executor only;
 - `analyzed/` = local interpretation for this experiment/engine (for example `*.eval.json`, `latest-series.<engine>.json`);
-- `comparisons/` = cross-engine/cross-object comparison artifacts (`*.comparison*.json`).
+- `comparisons/` = cross-engine/cross-object comparison artifacts and derived expectations (`latest-engines.json`, `latest-history.json`, `latest-other-experiments.json`, `*.comparison*.json`).
 
 Raw filename rule:
 
 - single run: `<timestamp>__<engine>.run.json`
 - series run: `<timestamp>__<engine>__<role>-<seq>.run.json`
+
+## Compare flags in manifest
+
+`experiment.json` controls optional comparison layers:
+
+- `compare.history.enabled` - enables `latest-history.json`;
+- `compare.otherExperiments.enabled` - enables `latest-other-experiments.json`;
+- `compare.otherExperiments.experiments` - list of experiment slugs for cross-experiment context.
+
+`latest-engines.json` is generated automatically when experiment has multiple engines.
 
 ## Engine runtime syntax in experiment manifest
 

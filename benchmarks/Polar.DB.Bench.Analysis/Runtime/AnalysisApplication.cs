@@ -1,3 +1,4 @@
+using System.Globalization;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.Services;
 
@@ -10,6 +11,7 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 /// </summary>
 public static class AnalysisApplication
 {
+    private const string ManifestFileName = "experiment.json";
     private const string PolarEngineKey = "polar-db";
     private const string SqliteEngineKey = "sqlite";
 
@@ -92,12 +94,26 @@ public static class AnalysisApplication
     {
         var files = new BenchmarkFileReader();
         var rawResultsDirectory = AnalysisOptions.ResolveRawResultsDirectory(options.RawResultsDirectory!);
+        var experimentDirectory = AnalysisOptions.ResolveExperimentDirectory(options.RawResultsDirectory!);
         var comparisonOutputDirectory = AnalysisOptions.ResolveComparisonOutputDirectory(
             options.RawResultsDirectory!,
             options.ComparisonOutputDirectory);
         var analyzedResultsDirectory = AnalysisOptions.ResolveAnalyzedResultsDirectoryForComparison(
             options.RawResultsDirectory!,
             options.AnalyzedResultsDirectory);
+        var manifestPath = Path.Combine(experimentDirectory, ManifestFileName);
+        var manifest = await files.ReadAsync<ExperimentManifest>(manifestPath);
+
+        if (!manifest.ExperimentKey.Equals(options.ComparisonExperimentKey!, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"--compare-experiment='{options.ComparisonExperimentKey}' does not match manifest experiment '{manifest.ExperimentKey}'.");
+        }
+
+        var compareConfig = ExperimentCompareConfigResolver.Resolve(manifest);
+        var configuredEngineKeys = manifest.Engines.Keys
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         var rawRuns = await files.LoadRawRunsAsync(rawResultsDirectory);
         var selector = new ComparisonSelectionService(PolarEngineKey, SqliteEngineKey);
@@ -128,22 +144,33 @@ public static class AnalysisApplication
             await files.WriteAsync(outputPath, seriesResult);
             Console.WriteLine($"Comparison series result written: {outputPath}");
             await WriteLatestSeriesArtifactsAsync(files, analyzedResultsDirectory, seriesResult);
-            return 0;
+        }
+        else
+        {
+            var legacyBuilder = new LegacyComparisonBuilder(PolarEngineKey, SqliteEngineKey);
+            var legacyResult = legacyBuilder.Build(filtered, options.ComparisonExperimentKey!);
+            var legacyTimestampToken = legacyResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
+            var legacyPath = ResultPathBuilder.BuildComparisonResultPath(
+                comparisonOutputDirectory,
+                legacyTimestampToken,
+                legacyResult.ExperimentKey,
+                legacyResult.DatasetProfileKey ?? "mixed",
+                legacyResult.FairnessProfileKey ?? "mixed");
+
+            await files.WriteAsync(legacyPath, legacyResult);
+            Console.WriteLine($"Comparison result written: {legacyPath}");
+            await WriteLatestSeriesArtifactsFromLegacyAsync(files, analyzedResultsDirectory, legacyResult);
         }
 
-        var legacyBuilder = new LegacyComparisonBuilder(PolarEngineKey, SqliteEngineKey);
-        var legacyResult = legacyBuilder.Build(filtered, options.ComparisonExperimentKey!);
-        var legacyTimestampToken = legacyResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        var legacyPath = ResultPathBuilder.BuildComparisonResultPath(
+        await WriteLatestComparisonArtifactsAsync(
+            files,
             comparisonOutputDirectory,
-            legacyTimestampToken,
-            legacyResult.ExperimentKey,
-            legacyResult.DatasetProfileKey ?? "mixed",
-            legacyResult.FairnessProfileKey ?? "mixed");
+            experimentDirectory,
+            manifest,
+            compareConfig,
+            rawRuns,
+            configuredEngineKeys);
 
-        await files.WriteAsync(legacyPath, legacyResult);
-        Console.WriteLine($"Comparison result written: {legacyPath}");
-        await WriteLatestSeriesArtifactsFromLegacyAsync(files, analyzedResultsDirectory, legacyResult);
         return 0;
     }
 
@@ -250,5 +277,299 @@ public static class AnalysisApplication
             Average = value,
             Median = value
         };
+    }
+
+    private static async Task WriteLatestComparisonArtifactsAsync(
+        BenchmarkFileReader files,
+        string comparisonOutputDirectory,
+        string experimentDirectory,
+        ExperimentManifest manifest,
+        ResolvedCompareConfig compareConfig,
+        IReadOnlyList<RawRunEntry> currentExperimentRuns,
+        IReadOnlyList<string> configuredEngineKeys)
+    {
+        var latestSnapshot = ComparisonSnapshotBuilder.BuildLatestSuccessfulMeasuredSnapshot(
+            manifest.ExperimentKey,
+            currentExperimentRuns,
+            configuredEngineKeys);
+        var historySnapshots = ComparisonSnapshotBuilder.BuildSuccessfulMeasuredSnapshots(
+            manifest.ExperimentKey,
+            currentExperimentRuns,
+            configuredEngineKeys);
+
+        if (historySnapshots.Count == 0 && latestSnapshot is not null)
+        {
+            historySnapshots = new[] { latestSnapshot };
+        }
+
+        var latestEnginesArtifact = BuildLatestEnginesArtifact(
+            manifest.ExperimentKey,
+            configuredEngineKeys,
+            latestSnapshot);
+        var latestHistoryArtifact = BuildLatestHistoryArtifact(
+            manifest.ExperimentKey,
+            compareConfig.HistoryEnabled,
+            historySnapshots);
+        var latestOtherExperimentsArtifact = await BuildLatestOtherExperimentsArtifactAsync(
+            files,
+            experimentDirectory,
+            manifest.ExperimentKey,
+            compareConfig,
+            latestSnapshot);
+
+        var latestEnginesPath = Path.Combine(comparisonOutputDirectory, "latest-engines.json");
+        await files.WriteAsync(latestEnginesPath, latestEnginesArtifact);
+        Console.WriteLine($"Derived comparison artifact written: {latestEnginesPath}");
+
+        var latestHistoryPath = Path.Combine(comparisonOutputDirectory, "latest-history.json");
+        await files.WriteAsync(latestHistoryPath, latestHistoryArtifact);
+        Console.WriteLine($"Derived comparison artifact written: {latestHistoryPath}");
+
+        var latestOtherPath = Path.Combine(comparisonOutputDirectory, "latest-other-experiments.json");
+        await files.WriteAsync(latestOtherPath, latestOtherExperimentsArtifact);
+        Console.WriteLine($"Derived comparison artifact written: {latestOtherPath}");
+    }
+
+    private static LatestEnginesComparisonArtifact BuildLatestEnginesArtifact(
+        string experimentKey,
+        IReadOnlyList<string> configuredEngineKeys,
+        ComparisonSnapshot? latestSnapshot)
+    {
+        var enabled = configuredEngineKeys.Count > 1;
+        var notes = new List<string>
+        {
+            "Compares latest successful measured series per engine inside this experiment.",
+            "Generated automatically when experiment manifest contains multiple engines."
+        };
+
+        if (!enabled)
+        {
+            notes.Add("Disabled: experiment has fewer than two configured engines.");
+        }
+        else if (latestSnapshot is null)
+        {
+            notes.Add("No complete successful measured series was found for all configured engines.");
+        }
+
+        return new LatestEnginesComparisonArtifact
+        {
+            ArtifactKind = "latest-engines",
+            AnalysisTimestampUtc = DateTimeOffset.UtcNow,
+            ExperimentKey = experimentKey,
+            Enabled = enabled,
+            Snapshot = enabled ? latestSnapshot : null,
+            DerivedExpectations = BuildEngineExpectations(latestSnapshot),
+            Notes = notes
+        };
+    }
+
+    private static LatestHistoryComparisonArtifact BuildLatestHistoryArtifact(
+        string experimentKey,
+        bool historyEnabled,
+        IReadOnlyList<ComparisonSnapshot> snapshots)
+    {
+        var notes = new List<string>
+        {
+            "Compares successful measured series of the same experiment over time."
+        };
+        if (!historyEnabled)
+        {
+            notes.Add("Disabled by experiment compare.history flag.");
+        }
+
+        return new LatestHistoryComparisonArtifact
+        {
+            ArtifactKind = "latest-history",
+            AnalysisTimestampUtc = DateTimeOffset.UtcNow,
+            ExperimentKey = experimentKey,
+            Enabled = historyEnabled,
+            Snapshots = historyEnabled ? snapshots : Array.Empty<ComparisonSnapshot>(),
+            DerivedExpectations = BuildHistoryExpectations(historyEnabled ? snapshots : Array.Empty<ComparisonSnapshot>()),
+            Notes = notes
+        };
+    }
+
+    private static async Task<LatestOtherExperimentsComparisonArtifact> BuildLatestOtherExperimentsArtifactAsync(
+        BenchmarkFileReader files,
+        string currentExperimentDirectory,
+        string currentExperimentKey,
+        ResolvedCompareConfig compareConfig,
+        ComparisonSnapshot? currentSnapshot)
+    {
+        var notes = new List<string>
+        {
+            "Cross-experiment comparison is context only; workloads may be semantically different.",
+            "No workload similarity or apples-to-apples scoring is inferred in this artifact."
+        };
+
+        if (!compareConfig.OtherExperimentsEnabled)
+        {
+            notes.Add("Disabled by experiment compare.otherExperiments flag.");
+            return new LatestOtherExperimentsComparisonArtifact
+            {
+                ArtifactKind = "latest-other-experiments",
+                AnalysisTimestampUtc = DateTimeOffset.UtcNow,
+                ExperimentKey = currentExperimentKey,
+                Enabled = false,
+                CurrentExperimentSnapshot = currentSnapshot,
+                OtherExperimentSnapshots = Array.Empty<ComparisonSnapshot>(),
+                DerivedExpectations = Array.Empty<string>(),
+                Notes = notes
+            };
+        }
+
+        var experimentsRoot = Directory.GetParent(currentExperimentDirectory)?.FullName;
+        if (string.IsNullOrWhiteSpace(experimentsRoot))
+        {
+            notes.Add("Cannot resolve experiments root directory.");
+            return new LatestOtherExperimentsComparisonArtifact
+            {
+                ArtifactKind = "latest-other-experiments",
+                AnalysisTimestampUtc = DateTimeOffset.UtcNow,
+                ExperimentKey = currentExperimentKey,
+                Enabled = true,
+                CurrentExperimentSnapshot = currentSnapshot,
+                OtherExperimentSnapshots = Array.Empty<ComparisonSnapshot>(),
+                DerivedExpectations = Array.Empty<string>(),
+                Notes = notes
+            };
+        }
+
+        var snapshots = new List<ComparisonSnapshot>();
+        foreach (var otherExperimentKey in compareConfig.OtherExperiments)
+        {
+            var otherExperimentDirectory = Path.Combine(experimentsRoot, otherExperimentKey);
+            var otherManifestPath = Path.Combine(otherExperimentDirectory, ManifestFileName);
+            if (!Directory.Exists(otherExperimentDirectory) || !File.Exists(otherManifestPath))
+            {
+                notes.Add($"Skipped '{otherExperimentKey}': experiment directory or manifest not found.");
+                continue;
+            }
+
+            var otherManifest = await files.ReadAsync<ExperimentManifest>(otherManifestPath);
+            var otherRawDirectory = Path.Combine(otherExperimentDirectory, "raw");
+            if (!Directory.Exists(otherRawDirectory))
+            {
+                notes.Add($"Skipped '{otherExperimentKey}': raw directory not found.");
+                continue;
+            }
+
+            var otherRuns = await files.LoadRawRunsAsync(otherRawDirectory);
+            var otherEngineKeys = otherManifest.Engines.Keys
+                .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var otherSnapshot = ComparisonSnapshotBuilder.BuildLatestSuccessfulMeasuredSnapshot(
+                otherManifest.ExperimentKey,
+                otherRuns,
+                otherEngineKeys);
+
+            if (otherSnapshot is null)
+            {
+                notes.Add($"Skipped '{otherExperimentKey}': no complete successful measured series.");
+                continue;
+            }
+
+            snapshots.Add(otherSnapshot);
+        }
+
+        return new LatestOtherExperimentsComparisonArtifact
+        {
+            ArtifactKind = "latest-other-experiments",
+            AnalysisTimestampUtc = DateTimeOffset.UtcNow,
+            ExperimentKey = currentExperimentKey,
+            Enabled = true,
+            CurrentExperimentSnapshot = currentSnapshot,
+            OtherExperimentSnapshots = snapshots
+                .OrderBy(snapshot => snapshot.ExperimentKey, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            DerivedExpectations = BuildOtherExperimentExpectations(currentSnapshot, snapshots),
+            Notes = notes
+        };
+    }
+
+    private static IReadOnlyList<string> BuildEngineExpectations(ComparisonSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var expectations = new List<string>();
+        foreach (var engine in snapshot.EngineSeries.OrderBy(item => item.EngineKey, StringComparer.OrdinalIgnoreCase))
+        {
+            if (engine.ElapsedMs.Average is not null)
+            {
+                expectations.Add(
+                    $"Expected measured elapsed for '{engine.EngineKey}' near {engine.ElapsedMs.Average.Value.ToString("0.###", CultureInfo.InvariantCulture)} ms under the same fairness profile.");
+            }
+        }
+
+        var rankedByElapsed = snapshot.EngineSeries
+            .Where(item => item.ElapsedMs.Average is not null)
+            .OrderBy(item => item.ElapsedMs.Average)
+            .ToArray();
+        if (rankedByElapsed.Length >= 2)
+        {
+            var fastest = rankedByElapsed[0];
+            var second = rankedByElapsed[1];
+            expectations.Add(
+                $"In this snapshot '{fastest.EngineKey}' is faster than '{second.EngineKey}' by elapsed average context.");
+        }
+
+        return expectations;
+    }
+
+    private static IReadOnlyList<string> BuildHistoryExpectations(IReadOnlyList<ComparisonSnapshot> snapshots)
+    {
+        if (snapshots.Count < 2)
+        {
+            return snapshots.Count == 1
+                ? new[] { "History has one snapshot only; trend expectations require at least two measured series." }
+                : Array.Empty<string>();
+        }
+
+        var latest = snapshots[^1];
+        var previous = snapshots[^2];
+        var expectations = new List<string>();
+
+        foreach (var latestEngine in latest.EngineSeries)
+        {
+            var previousEngine = previous.EngineSeries
+                .FirstOrDefault(item => item.EngineKey.Equals(latestEngine.EngineKey, StringComparison.OrdinalIgnoreCase));
+            if (previousEngine is null ||
+                latestEngine.ElapsedMs.Average is null ||
+                previousEngine.ElapsedMs.Average is null ||
+                previousEngine.ElapsedMs.Average.Value == 0.0)
+            {
+                continue;
+            }
+
+            var deltaPercent =
+                (latestEngine.ElapsedMs.Average.Value - previousEngine.ElapsedMs.Average.Value) /
+                previousEngine.ElapsedMs.Average.Value * 100.0;
+            expectations.Add(
+                $"History trend for '{latestEngine.EngineKey}': elapsed average changed by {deltaPercent.ToString("0.##", CultureInfo.InvariantCulture)}% vs previous series.");
+        }
+
+        return expectations;
+    }
+
+    private static IReadOnlyList<string> BuildOtherExperimentExpectations(
+        ComparisonSnapshot? currentSnapshot,
+        IReadOnlyList<ComparisonSnapshot> otherSnapshots)
+    {
+        var expectations = new List<string>
+        {
+            "Use these comparisons as context for planning and diagnostics, not as strict apples-to-apples conclusions."
+        };
+
+        if (currentSnapshot is null || otherSnapshots.Count == 0)
+        {
+            return expectations;
+        }
+
+        expectations.Add(
+            $"Current experiment '{currentSnapshot.ExperimentKey}' is shown with {otherSnapshots.Count} configured external context snapshots.");
+        return expectations;
     }
 }

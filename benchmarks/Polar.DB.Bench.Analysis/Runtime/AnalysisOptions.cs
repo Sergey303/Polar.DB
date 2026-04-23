@@ -121,6 +121,7 @@ public sealed class AnalysisOptions
         try
         {
             _ = ResolveRawResultsDirectory(RawResultsDirectory);
+            _ = ResolveExperimentDirectory(RawResultsDirectory);
             _ = ResolveComparisonOutputDirectory(RawResultsDirectory, ComparisonOutputDirectory);
             _ = ResolveAnalyzedResultsDirectoryForComparison(RawResultsDirectory, AnalyzedResultsDirectory);
         }
@@ -217,6 +218,18 @@ public sealed class AnalysisOptions
 
         throw new InvalidOperationException(
             "Missing --analyzed-out. For non-canonical raw paths, analyzed output directory must be provided explicitly.");
+    }
+
+    public static string ResolveExperimentDirectory(string rawDirectoryOrExperimentDirectory)
+    {
+        var experimentDirectory = TryResolveExperimentDirectoryFromRawDirectory(rawDirectoryOrExperimentDirectory);
+        if (!string.IsNullOrWhiteSpace(experimentDirectory))
+        {
+            return experimentDirectory;
+        }
+
+        throw new InvalidOperationException(
+            "Invalid --raw-dir: experiment directory is required for manifest-driven comparison artifacts.");
     }
 
     private static string? TryResolveExperimentDirectoryFromRawFile(string rawResultPath)
