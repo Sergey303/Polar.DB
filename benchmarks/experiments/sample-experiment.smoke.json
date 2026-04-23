@@ -1,0 +1,23 @@
+{
+  "experiment": "bulk-load-point-lookup",
+  "research": "RQ-COMMON-001",
+  "hypothesis": "H-COMMON-001",
+  "description": "Smoke test for the canonical benchmark experiment schema.",
+  "dataset": {
+    "profile": "persons-100k-reverse",
+    "count": 100000,
+    "seed": 12345
+  },
+  "workload": {
+    "type": "bulk-load-point-lookup",
+    "lookup": 10000
+  },
+  "fairness": {
+    "type": "durability-balanced"
+  },
+  "requires": [
+    "BulkLoad",
+    "PointLookup",
+    "PhysicalArtifactInspection"
+  ]
+}
