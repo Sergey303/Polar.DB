@@ -133,7 +133,9 @@ namespace Polar.DB
                 return comp.Compare(v1!, v2!);
             });
 
-            List<long> offsets_list = new List<long>();
+            long sequenceCount = sequence.Count;
+            int initialCapacity = sequenceCount <= int.MaxValue ? checked((int)sequenceCount) : 0;
+            List<long> offsets_list = initialCapacity > 0 ? new List<long>(initialCapacity) : new List<long>();
             sequence.Scan((off, obj) =>
             {
                 if (applicable(obj)) offsets_list.Add(off);
@@ -144,17 +146,16 @@ namespace Polar.DB
             Array.Sort(offsets_arr, compSpecLong);
 
             offsets.Clear();
-            foreach (var off in offsets_arr)
-            {
-                offsets.AppendElement(off);
-            }
+            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             offsets.Flush();
         }
 
         private void BuildHkeyOffsets()
         {
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
+            long sequenceCount = sequence.Count;
+            int initialCapacity = sequenceCount <= int.MaxValue ? checked((int)sequenceCount) : 0;
+            List<int> hkeys_list = initialCapacity > 0 ? new List<int>(initialCapacity) : new List<int>();
+            List<long> offsets_list = initialCapacity > 0 ? new List<long>(initialCapacity) : new List<long>();
             sequence.Scan((off, obj) =>
             {
                 offsets_list.Add(off);
@@ -168,17 +169,11 @@ namespace Polar.DB
             Array.Sort(hkeys_arr, offsets_arr);
 
             hkeys!.Clear();
-            foreach (var hkey in hkeys_arr)
-            {
-                hkeys.AppendElement(hkey);
-            }
+            hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
             hkeys.Flush();
 
             offsets.Clear();
-            foreach (var off in offsets_arr)
-            {
-                offsets.AppendElement(off);
-            }
+            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             offsets.Flush();
         }
 

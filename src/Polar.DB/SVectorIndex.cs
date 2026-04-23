@@ -194,17 +194,11 @@ namespace Polar.DB
             Array.Sort(values_arr, offsets_arr, StringComparer.Ordinal);
 
             values.Clear();
-            foreach (var v in values_arr)
-            {
-                values.AppendElement(v);
-            }
+            values.AppendElements(values_arr.Select(static x => (object)x));
             values.Flush();
 
             element_offsets.Clear();
-            foreach (var off in offsets_arr)
-            {
-                element_offsets.AppendElement(off);
-            }
+            element_offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             element_offsets.Flush();
         }
 
