@@ -16,7 +16,7 @@ internal sealed class BenchmarkFileReader
     public async Task<T> ReadAsync<T>(string path)
     {
         await using var stream = File.OpenRead(path);
-        var value = await JsonAliasNormalizer.DeserializeAsync<T>(stream, JsonDefaults.Default);
+        var value = await JsonSerializer.DeserializeAsync<T>(stream, JsonDefaults.Default);
         return value ?? throw new InvalidOperationException($"Failed to deserialize {typeof(T).Name} from '{path}'.");
     }
 

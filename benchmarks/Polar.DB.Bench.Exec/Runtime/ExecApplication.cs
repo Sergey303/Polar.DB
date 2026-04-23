@@ -79,7 +79,7 @@ public static class ExecApplication
     private static async Task<ExperimentSpec> LoadSpecAsync(string specPath)
     {
         await using var stream = File.OpenRead(specPath);
-        var spec = await JsonAliasNormalizer.DeserializeAsync<ExperimentSpec>(stream, JsonDefaults.Default);
+        var spec = await JsonSerializer.DeserializeAsync<ExperimentSpec>(stream, JsonDefaults.Default);
         return spec ?? throw new InvalidOperationException("Failed to deserialize experiment spec.");
     }
 
