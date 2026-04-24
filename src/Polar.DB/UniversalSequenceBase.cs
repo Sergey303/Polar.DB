@@ -605,7 +605,6 @@ public class UniversalSequenceBase
 
         EnsureAppendOffsetInvariant();
 
-        long savedPosition = fs.Position;
         long originalLength = fs.Length;
         long originalAppendOffset = AppendOffset;
         bool isAppendWrite = off == AppendOffset;
@@ -650,10 +649,6 @@ public class UniversalSequenceBase
             AppendOffset = originalAppendOffset;
             throw;
         }
-        finally
-        {
-            fs.Position = savedPosition;
-        }
     }
 
     /// <summary>
@@ -676,9 +671,11 @@ public class UniversalSequenceBase
     public long AppendElement(object v)
     {
         _ = v ?? throw new ArgumentNullException(nameof(v));
-        long savedPosition = fs.Position;
+
         long off = AppendOffset;
+        long originalAppendOffset = AppendOffset;
         long originalLength = fs.Length;
+        long originalCount = nelements;
 
         try
         {
@@ -686,11 +683,11 @@ public class UniversalSequenceBase
 
             fs.Position = off;
             ByteFlow.Serialize(bw, v, tp_elem);
+            bw.Flush();
 
-            AppendOffset = fs.Length;
-            nelements += 1;
+            AppendOffset = fs.Position;
+            nelements = originalCount + 1;
 
-            EnsureAppendOffsetInvariant();
             return off;
         }
         catch
@@ -700,12 +697,12 @@ public class UniversalSequenceBase
                 fs.SetLength(originalLength);
             }
 
-            AppendOffset = originalLength;
+            AppendOffset = originalAppendOffset;
+            nelements = originalCount;
+
+            fs.Position = AppendOffset;
+
             throw;
-        }
-        finally
-        {
-            fs.Position = savedPosition;
         }
     }
     
@@ -740,7 +737,8 @@ public class UniversalSequenceBase
 
         try
         {
-            fs.Position = AppendOffset;
+            if( fs.Position != AppendOffset)
+                fs.Position = AppendOffset;
 
             foreach (var element in flow)
             {
