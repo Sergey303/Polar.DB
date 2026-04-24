@@ -81,6 +81,10 @@ public sealed class CliOptions
                     options.ShowHelp = true;
                     break;
 
+                case "--all":
+                    error = "Option --all is not supported. Use --exp or interactive single-experiment selection.";
+                    return false;
+
                 default:
                     error = $"Unknown argument: '{argument}'.";
                     return false;
