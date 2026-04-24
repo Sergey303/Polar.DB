@@ -1,9 +1,9 @@
 {
   "artifact": "latest-series",
-  "at": "2026-04-23T18:32:01.9458038+00:00",
+  "at": "2026-04-24T05:15:37.913259+00:00",
   "experiment": "persons-full-adapter-coverage-version-matrix",
   "engine": "polar-db-current",
-  "set": "simple-20260423T183042",
+  "set": "simple-20260424T051455",
   "dataset": "persons-400k-plus-append-3x200k-reverse",
   "fairness": "durability-balanced",
   "env": "local",
@@ -13,49 +13,49 @@
   "semanticOk": 3,
   "semanticChecked": 3,
   "raw": [
-    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-35Z__polar-db-current__measured-02.run.json",
-    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-41Z__polar-db-current__measured-03.run.json",
-    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-23T18-31-47Z__polar-db-current__measured-04.run.json"
+    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-24T05-15-17Z__polar-db-current__measured-02.run.json",
+    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-24T05-15-21Z__polar-db-current__measured-03.run.json",
+    "D:/projects/Polar.DB/benchmarks/experiments/persons-full-adapter-coverage-version-matrix/raw/2026-04-24T05-15-25Z__polar-db-current__measured-04.run.json"
   ],
   "elapsed": {
     "count": 3,
     "missing": 0,
-    "min": 5706.3139,
-    "max": 5855.25,
-    "avg": 5769.621166666667,
-    "median": 5747.2996
+    "min": 4027.4981,
+    "max": 4272.3622,
+    "avg": 4130.554533333333,
+    "median": 4091.8033
   },
   "load": {
     "count": 3,
     "missing": 0,
-    "min": 90.2407,
-    "max": 90.6555,
-    "avg": 90.41166666666668,
-    "median": 90.3388
+    "min": 70.8163,
+    "max": 80.9469,
+    "avg": 76.50353333333332,
+    "median": 77.7474
   },
   "build": {
     "count": 3,
     "missing": 0,
-    "min": 267.7224,
-    "max": 299.498,
-    "avg": 278.8351666666667,
-    "median": 269.2851
+    "min": 234.9052,
+    "max": 242.3469,
+    "avg": 239.15210000000002,
+    "median": 240.2042
   },
   "reopen": {
     "count": 3,
     "missing": 0,
-    "min": 1285.6001,
-    "max": 1363.6963,
-    "avg": 1321.8509000000001,
-    "median": 1316.2563
+    "min": 1016.3285,
+    "max": 1137.5716,
+    "avg": 1070.5042333333333,
+    "median": 1057.6126
   },
   "lookup": {
     "count": 3,
     "missing": 0,
-    "min": 729.737,
-    "max": 787.7601,
-    "avg": 755.5170333333332,
-    "median": 749.054
+    "min": 613.9597,
+    "max": 660.4902999999999,
+    "avg": 641.2342333333332,
+    "median": 649.2527
   },
   "lookupBatch": {
     "count": 3,

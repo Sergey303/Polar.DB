@@ -1,0 +1,87 @@
+{
+  "RunId": "20260424T055914030Z.local-cleanup-smoke",
+  "ExperimentId": "local-cleanup-smoke",
+  "EngineKey": "smoke",
+  "StartedAtUtc": "2026-04-24T05:59:14.0534983+00:00",
+  "FinishedAtUtc": "2026-04-24T05:59:14.0648248+00:00",
+  "Success": true,
+  "Metrics": {
+    "elapsedMs": 10.8594,
+    "artifactTotalBytes": 216
+  },
+  "Artifacts": [
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\work\\sample.sqlite",
+      "Role": "primary-db",
+      "Bytes": 21
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\work\\sample.sqlite-shm",
+      "Role": "shared-memory",
+      "Bytes": 20
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\work\\sample.sqlite-wal",
+      "Role": "wal",
+      "Bytes": 20
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\polar.db",
+      "Role": "polar-primary-data",
+      "Bytes": 23
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\sample.db",
+      "Role": "primary-db",
+      "Bytes": 19
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\sample.db-shm",
+      "Role": "shared-memory",
+      "Bytes": 20
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\sample.db-wal",
+      "Role": "wal",
+      "Bytes": 20
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\data.pdbbin",
+      "Role": "polar-primary-data",
+      "Bytes": 22
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\data.pdbstate",
+      "Role": "state",
+      "Bytes": 21
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\lookup.index",
+      "Role": "secondary-index",
+      "Bytes": 15
+    },
+    {
+      "Path": "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\sequence.state",
+      "Role": "state",
+      "Bytes": 15
+    }
+  ],
+  "Cleanup": {
+    "DeletedFiles": 11,
+    "FailedFiles": 0,
+    "Deleted": [
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\work\\sample.sqlite",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\work\\sample.sqlite-wal",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\work\\sample.sqlite-shm",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\polar.db",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\sample.db",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\sample.db-wal",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\data\\sample.db-shm",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\sequence.state",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\lookup.index",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\data.pdbbin",
+      "D:\\projects\\Polar.DB\\--exp\\runs\\20260424T055914030Z.local-cleanup-smoke\\artifacts\\data.pdbstate"
+    ],
+    "Failed": []
+  }
+}

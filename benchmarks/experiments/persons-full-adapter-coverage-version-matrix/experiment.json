@@ -47,10 +47,6 @@
       "engine": "polar-db",
       "nuget": "2.1.1"
     },
-    "polar-db-2.1.0": {
-      "engine": "polar-db",
-      "nuget": "2.1.0"
-    },
     "sqlite": {
       "engine": "sqlite"
     }
