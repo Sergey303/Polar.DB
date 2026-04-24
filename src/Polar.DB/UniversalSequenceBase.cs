@@ -725,7 +725,7 @@ public class UniversalSequenceBase
     ///     При ошибке длина файла, логический конец и количество элементов
     ///     откатываются к исходному состоянию до начала bulk-записи.
     /// </remarks>
-    public void AppendElements(IEnumerable<object> flow, Action<(object element, long off)>? apply = null)
+    public void AppendElements(IEnumerable<object> flow, Action<object, long>? onAppended = null)
     {
         _ = flow ?? throw new ArgumentNullException(nameof(flow));
 
@@ -738,31 +738,30 @@ public class UniversalSequenceBase
 
         try
         {
-            if( fs.Position != AppendOffset)
+            if (fs.Position != AppendOffset)
                 fs.Position = AppendOffset;
 
             foreach (var element in flow)
             {
                 _ = element ?? throw new ArgumentNullException(nameof(flow), "Sequence flow contains a null element.");
+
+                long off = fs.Position;
                 ByteFlow.Serialize(bw, element, tp_elem);
                 nelements += 1;
-                if (apply == null)
-                    continue;
-                apply(new ValueTuple<object, long>(element, savedPosition));
+                onAppended?.Invoke(element, off);
             }
 
-            AppendOffset = fs.Length;
+            AppendOffset = fs.Position;
             EnsureAppendOffsetInvariant();
         }
         catch
         {
             if (fs.Length != originalLength)
-            {
                 fs.SetLength(originalLength);
-            }
 
             AppendOffset = originalAppendOffset;
             nelements = originalCount;
+            fs.Position = AppendOffset;
             throw;
         }
         finally
@@ -770,7 +769,6 @@ public class UniversalSequenceBase
             fs.Position = savedPosition;
         }
     }
-
 
     /// <summary>
     ///     Десериализует элемент из текущей позиции потока.

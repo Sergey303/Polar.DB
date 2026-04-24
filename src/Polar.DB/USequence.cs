@@ -310,22 +310,15 @@ namespace Polar.DB
         {
             _ = flow ?? throw new ArgumentNullException(nameof(flow));
 
-            long startOffset = sequence.AppendOffset;
-            long startCount = sequence.Count();
-
-            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
-
-            long appendedCount = sequence.Count() - startCount;
-            if (appendedCount <= 0L) return;
-
-            foreach (var pair in sequence.ElementOffsetValuePairs(startOffset, appendedCount))
-            {
-                primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
-                foreach (var uind in uindexes)
-                    uind.OnAppendElement(pair.Item2, pair.Item1);
-            }
+            sequence.AppendElements(
+                flow.Where(element => !isEmpty(element)),
+                (element, off) =>
+                {
+                    primaryKeyIndex.OnAppendElement(element, off);
+                    foreach (var uind in uindexes)
+                        uind.OnAppendElement(element, off);
+                });
         }
-
         /// <summary>
         /// Replays one already-written element into dynamic index state.
         /// </summary>
