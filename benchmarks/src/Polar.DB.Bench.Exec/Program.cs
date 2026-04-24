@@ -58,33 +58,7 @@ if (!ExperimentFolderResolver.TryResolve(benchmarksRoot, experimentInput!, out v
     return 2;
 }
 
-var runId = CreateRunId(experiment.FolderName);
-var paths = new RunPaths(benchmarksRoot, runId);
-var runner = new ExperimentRunner();
-
-var result = runner.Run(
-    paths,
-    experimentId: experiment.FolderName,
-    engineKey: "benchmark",
-    executeExperiment: _ =>
-    {
-        var exitCode = ExecApplication.RunAsync(["--exp", experiment.FolderPath]).GetAwaiter().GetResult();
-        if (exitCode != 0)
-        {
-            throw new InvalidOperationException(
-                $"Experiment '{experiment.FolderName}' failed with exit code {exitCode}.");
-        }
-    });
-
-Console.WriteLine($"Experiment: {experiment.FolderName}");
-Console.WriteLine($"Spec: {experiment.SpecPath}");
-Console.WriteLine($"Run id: {result.RunId}");
-Console.WriteLine($"Success: {result.Success}");
-Console.WriteLine($"Raw result: {paths.RawResultPath}");
-Console.WriteLine($"Deleted temporary files: {result.Cleanup?.DeletedFiles ?? 0}");
-Console.WriteLine($"Cleanup failures: {result.Cleanup?.FailedFiles ?? 0}");
-
-return result.Success ? 0 : 1;
+return ExecApplication.RunAsync(["--exp", experiment.FolderPath]).GetAwaiter().GetResult();
 
 static int RunSmokeCleanup(string benchmarksRoot)
 {
