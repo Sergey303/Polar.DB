@@ -48,3 +48,30 @@ TestResults/
 !.env.example
 dist/
 publish/
+
+
+# benchmark working files
+benchmarks/work/
+benchmarks/tmp/
+benchmarks/scratch/
+benchmarks/runs/*/work/
+benchmarks/runs/*/tmp/
+benchmarks/runs/*/data/
+benchmarks/runs/*/artifacts/
+
+# engine files generated during runs
+benchmarks/**/*.db
+benchmarks/**/*.db-wal
+benchmarks/**/*.db-shm
+benchmarks/**/*.sqlite
+benchmarks/**/*.sqlite-wal
+benchmarks/**/*.sqlite-shm
+benchmarks/**/*.journal
+benchmarks/**/*.state
+benchmarks/**/*.index
+benchmarks/**/*.pdbbin
+benchmarks/**/*.pdbstate
+
+# generated analysis/reports
+benchmarks/results/analyzed/
+benchmarks/reports/

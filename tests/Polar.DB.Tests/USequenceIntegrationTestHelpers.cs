@@ -18,9 +18,9 @@ internal static class USequenceIntegrationTestHelpers
 
     internal static string NameOf(object record) => (string)((object[])record)[1];
 
-    internal static long InnerCount(USequence sequence) => sequence.Sequence.Count();
+    internal static long InnerCount(USequence sequence) => sequence.sequence.Count();
 
-    internal static long InnerAppendOffset(USequence sequence) => sequence.Sequence.AppendOffset;
+    internal static long InnerAppendOffset(USequence sequence) => sequence.sequence.AppendOffset;
 
     internal static (long Count, long AppendOffset) ReadStateFile(string stateFilePath)
     {
