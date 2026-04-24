@@ -64,7 +64,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 environmentClass: _workspace.EnvironmentClass,
                 repositoryRoot: _workspace.RootDirectory);
 
-            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue, manifest.EnvironmentClass);
+            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue,
+                manifest.EnvironmentClass);
             var timestampUtc = DateTimeOffset.UtcNow;
 
             var metrics = new List<RunMetric>();
@@ -191,8 +192,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var collected = CollectArtifacts(artifactLayout, _workspace.WorkingDirectory);
             artifacts.AddRange(collected.Descriptors);
 
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(
+                new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric
+                { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
             metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
             metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
             metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
@@ -202,7 +205,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupCount });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
-            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupCount - lookupHits) });
+            metrics.Add(new RunMetric
+                { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupCount - lookupHits) });
             metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
             metrics.Add(new RunMetric { MetricKey = "primaryDataBytes", Value = collected.PrimaryDataBytes });
             metrics.Add(new RunMetric { MetricKey = "indexBytes", Value = collected.IndexBytes });
@@ -224,7 +228,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             diagnostics["lookupCount"] = lookupCount.ToString(CultureInfo.InvariantCulture);
             diagnostics["lookupHitCount"] = lookupHits.ToString(CultureInfo.InvariantCulture);
             diagnostics["sequenceCountAfterRefresh"] = sequenceCountAfterRefresh.ToString(CultureInfo.InvariantCulture);
-            diagnostics["sequenceAppendOffsetAfterRefresh"] = appendOffsetAfterRefresh.ToString(CultureInfo.InvariantCulture);
+            diagnostics["sequenceAppendOffsetAfterRefresh"] =
+                appendOffsetAfterRefresh.ToString(CultureInfo.InvariantCulture);
             diagnostics["semanticSuccess"] = semanticSuccess?.ToString() ?? "not-evaluated";
 
             if (!string.IsNullOrWhiteSpace(semanticFailureReason))
@@ -245,7 +250,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
 
             notes.Add("Stage4 real adapter run for Polar.DB.");
-            notes.Add("Imported reference workload: load in reverse id order -> build -> reopen/refresh -> direct key lookup -> random point lookup batch.");
+            notes.Add(
+                "Imported reference workload: load in reverse id order -> build -> reopen/refresh -> direct key lookup -> random point lookup batch.");
             notes.Add($"Reference-normalized lookup batch size: {lookupCount}.");
 
             return Task.FromResult(new RunResult
@@ -279,7 +285,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 environmentClass: _workspace.EnvironmentClass,
                 repositoryRoot: _workspace.RootDirectory);
 
-            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue, manifest.EnvironmentClass);
+            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue,
+                manifest.EnvironmentClass);
             var timestampUtc = DateTimeOffset.UtcNow;
 
             var metrics = new List<RunMetric>();
@@ -347,16 +354,11 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 
                     var appendWatch = Stopwatch.StartNew();
                     var firstId = checked((int)(expectedCount + 1));
-                    for (var i = 0; i < appendCycleShape.BatchSize; i++)
-                    {
-                        if ((i & 0x3FF) == 0)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                        }
-
-                        var id = checked(firstId + i);
-                        session.AppendElement(CreatePersonRecord(id, appendRandom));
-                    }
+                    session.AppendElements(GeneratePersonAppendBatch(
+                        firstId,
+                        appendCycleShape.BatchSize,
+                        appendRandom,
+                        cancellationToken));
 
                     appendWatch.Stop();
                     appendMs += appendWatch.Elapsed.TotalMilliseconds;
@@ -437,8 +439,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             artifacts.AddRange(collected.Descriptors);
             var artifactGrowthBytes = Math.Max(0L, collected.TotalBytes - initialArtifactBytes);
 
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(
+                new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric
+                { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
             metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
             metrics.Add(new RunMetric { MetricKey = "appendMs", Value = appendMs });
             metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
@@ -446,7 +450,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupAttempts });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
-            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
+            metrics.Add(new RunMetric
+                { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
             metrics.Add(new RunMetric { MetricKey = "appendBatchCount", Value = appendCycleShape.BatchCount });
             metrics.Add(new RunMetric { MetricKey = "appendBatchSize", Value = appendCycleShape.BatchSize });
             metrics.Add(new RunMetric { MetricKey = "lookupCountPerCycle", Value = lookupCountPerCycle });
@@ -494,7 +499,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
 
             notes.Add("Stage4 real adapter run for Polar.DB.");
-            notes.Add("Experiment flow: initial load/build, append batches, reopen after each batch, random lookup sample.");
+            notes.Add(
+                "Experiment flow: initial load/build, append batches, reopen after each batch, random lookup sample.");
 
             return Task.FromResult(new RunResult
             {
@@ -527,7 +533,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 environmentClass: _workspace.EnvironmentClass,
                 repositoryRoot: _workspace.RootDirectory);
 
-            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue, manifest.EnvironmentClass);
+            var runId = RunIdFactory.Create(_spec.ExperimentKey, _spec.Dataset.ProfileKey, EngineKeyValue,
+                manifest.EnvironmentClass);
             var timestampUtc = DateTimeOffset.UtcNow;
 
             var metrics = new List<RunMetric>();
@@ -547,11 +554,13 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             var directLookupHit = false;
             var initialLookupCount = ResolveLookupCount(_spec.Workload);
             var appendCycleShape = ResolveAppendCycleShape(_spec.Workload);
-            var lookupCountPerCycle = ResolveIntOption(_spec.Workload, "randomLookupPerBatch", DefaultRandomLookupPerBatch, 1);
+            var lookupCountPerCycle =
+                ResolveIntOption(_spec.Workload, "randomLookupPerBatch", DefaultRandomLookupPerBatch, 1);
             var directLookupEnabled = ResolveBooleanOption(_spec.Workload, "directLookup", fallback: true);
             var reopenAfterInitialLoad = ResolveBooleanOption(_spec.Workload, "reopenAfterInitialLoad", fallback: true);
             var reopenAfterEachBatch = ResolveBooleanOption(_spec.Workload, "reopenAfterEachBatch", fallback: true);
-            var randomLookupAfterEachBatch = ResolveBooleanOption(_spec.Workload, "randomLookupAfterEachBatch", fallback: true);
+            var randomLookupAfterEachBatch =
+                ResolveBooleanOption(_spec.Workload, "randomLookupAfterEachBatch", fallback: true);
             var managedBefore = GC.GetTotalMemory(forceFullCollection: false);
             var totalStopwatch = Stopwatch.StartNew();
             var artifactLayout = CreateArtifactLayout(_workspace, runId);
@@ -615,7 +624,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                     var directRow = active!.GetByKey(directLookupKey);
                     directLookupWatch.Stop();
                     directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
-                    directLookupHit = TryReadPersonKey(directRow, out var directRowKey) && directRowKey == directLookupKey;
+                    directLookupHit = TryReadPersonKey(directRow, out var directRowKey) &&
+                                      directRowKey == directLookupKey;
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
@@ -650,17 +660,11 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 
                     var appendWatch = Stopwatch.StartNew();
                     var firstId = checked((int)(expectedCount + 1));
-                    for (var i = 0; i < appendCycleShape.BatchSize; i++)
-                    {
-                        if ((i & 0x3FF) == 0)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                        }
-
-                        var id = checked(firstId + i);
-                        active!.AppendElement(CreatePersonRecord(id, appendRandom));
-                    }
-
+                    active!.AppendElements(GeneratePersonAppendBatch(
+                        firstId,
+                        appendCycleShape.BatchSize,
+                        appendRandom,
+                        cancellationToken));
                     appendWatch.Stop();
                     appendMs += appendWatch.Elapsed.TotalMilliseconds;
                     expectedCount += appendCycleShape.BatchSize;
@@ -746,8 +750,10 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             artifacts.AddRange(collected.Descriptors);
             var artifactGrowthBytes = Math.Max(0L, collected.TotalBytes - initialArtifactBytes);
 
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
-            metrics.Add(new RunMetric { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(
+                new RunMetric { MetricKey = "elapsedMsTotal", Value = totalStopwatch.Elapsed.TotalMilliseconds });
+            metrics.Add(new RunMetric
+                { MetricKey = "elapsedMsSingleRun", Value = totalStopwatch.Elapsed.TotalMilliseconds });
             metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
             metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
             metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
@@ -757,7 +763,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = randomLookupMs });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupAttempts });
             metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
-            metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
+            metrics.Add(new RunMetric
+                { MetricKey = "randomPointLookupMisses", Value = Math.Max(0L, lookupAttempts - lookupHits) });
             metrics.Add(new RunMetric { MetricKey = "appendMs", Value = appendMs });
             metrics.Add(new RunMetric { MetricKey = "appendBatchCount", Value = appendCycleShape.BatchCount });
             metrics.Add(new RunMetric { MetricKey = "appendBatchSize", Value = appendCycleShape.BatchSize });
@@ -796,7 +803,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             diagnostics["reopenAfterEachBatch"] = reopenAfterEachBatch.ToString();
             diagnostics["randomLookupAfterEachBatch"] = randomLookupAfterEachBatch.ToString();
             diagnostics["sequenceCountAfterRefresh"] = sequenceCountAfterRefresh.ToString(CultureInfo.InvariantCulture);
-            diagnostics["sequenceAppendOffsetAfterRefresh"] = appendOffsetAfterRefresh.ToString(CultureInfo.InvariantCulture);
+            diagnostics["sequenceAppendOffsetAfterRefresh"] =
+                appendOffsetAfterRefresh.ToString(CultureInfo.InvariantCulture);
             diagnostics["semanticSuccess"] = semanticSuccess?.ToString() ?? "not-evaluated";
 
             if (rowCountMismatches.Count > 0)
@@ -822,7 +830,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             }
 
             notes.Add("Stage4 real adapter run for Polar.DB.");
-            notes.Add("Experiment flow: initial reverse load/build, optional reopen, direct lookup, random lookups, append batches, optional reopen per batch.");
+            notes.Add(
+                "Experiment flow: initial reverse load/build, optional reopen, direct lookup, random lookups, append batches, optional reopen per batch.");
 
             return Task.FromResult(new RunResult
             {
@@ -863,17 +872,21 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
         {
             if (spec.Dataset.RecordCount <= 0 || spec.Dataset.RecordCount > int.MaxValue - 1)
             {
-                throw new NotSupportedException("Polar.DB stage4 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
+                throw new NotSupportedException(
+                    "Polar.DB stage4 adapter supports dataset sizes in range [1, Int32.MaxValue-1].");
             }
 
-            var isLoadBuildExperiment = spec.ExperimentKey.Equals(LoadBuildExperimentKey, StringComparison.OrdinalIgnoreCase) &&
-                                        spec.Workload.WorkloadKey.Equals(LoadBuildWorkloadKey, StringComparison.OrdinalIgnoreCase);
+            var isLoadBuildExperiment =
+                spec.ExperimentKey.Equals(LoadBuildExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                spec.Workload.WorkloadKey.Equals(LoadBuildWorkloadKey, StringComparison.OrdinalIgnoreCase);
 
-            var isAppendCyclesExperiment = spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase) &&
-                                           spec.Workload.WorkloadKey.Equals(AppendCyclesWorkloadKey, StringComparison.OrdinalIgnoreCase);
+            var isAppendCyclesExperiment =
+                spec.ExperimentKey.Equals(AppendCyclesExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                spec.Workload.WorkloadKey.Equals(AppendCyclesWorkloadKey, StringComparison.OrdinalIgnoreCase);
 
-            var isFullCoverageExperiment = spec.ExperimentKey.Equals(FullCoverageExperimentKey, StringComparison.OrdinalIgnoreCase) &&
-                                           spec.Workload.WorkloadKey.Equals(FullCoverageWorkloadKey, StringComparison.OrdinalIgnoreCase);
+            var isFullCoverageExperiment =
+                spec.ExperimentKey.Equals(FullCoverageExperimentKey, StringComparison.OrdinalIgnoreCase) &&
+                spec.Workload.WorkloadKey.Equals(FullCoverageWorkloadKey, StringComparison.OrdinalIgnoreCase);
 
             if (!isLoadBuildExperiment && !isAppendCyclesExperiment && !isFullCoverageExperiment)
             {
@@ -889,7 +902,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 return workload.LookupCount.Value;
             }
 
-            if (workload.BatchCount.HasValue && workload.BatchSize.HasValue && workload.BatchCount.Value > 0 && workload.BatchSize.Value > 0)
+            if (workload.BatchCount.HasValue && workload.BatchSize.HasValue && workload.BatchCount.Value > 0 &&
+                workload.BatchSize.Value > 0)
             {
                 var expanded = (long)workload.BatchCount.Value * workload.BatchSize.Value;
                 return (int)Math.Min(expanded, int.MaxValue);
@@ -951,7 +965,8 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 return fallback;
             }
 
-            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= minValue)
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) &&
+                parsed >= minValue)
             {
                 return parsed;
             }
@@ -1163,7 +1178,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
         private static ArtifactLayout CreateArtifactLayout(RunWorkspace workspace, string runId)
         {
             var artifactsRoot = workspace.ArtifactsDirectory
-                ?? Path.Combine(workspace.WorkingDirectory, "artifacts");
+                                ?? Path.Combine(workspace.WorkingDirectory, "artifacts");
 
             return new ArtifactLayout(
                 Path.Combine(artifactsRoot, "polar-db", runId),
@@ -1299,5 +1314,23 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             long IndexBytes,
             long StateBytes,
             long TotalBytes);
+
+        private static IEnumerable<object> GeneratePersonAppendBatch(
+            int firstId,
+            int count,
+            Random random,
+            CancellationToken cancellationToken)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                if ((i & 0x3FF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                var id = checked(firstId + i);
+                yield return CreatePersonRecord(id, random);
+            }
+        }
     }
 }

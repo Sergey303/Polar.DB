@@ -69,7 +69,8 @@ namespace Polar.DB
             _ = isEmpty ?? throw new ArgumentNullException(nameof(isEmpty));
             _ = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
             _ = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
-            Sequence = new UniversalSequenceBase(tp_el, streamGen());
+
+            sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
             this.keyFunc = keyFunc;
             this.optimise = optimise;
@@ -295,6 +296,35 @@ namespace Polar.DB
             primaryKeyIndex.OnAppendElement(element, off);
             foreach (var uind in Uindexes) uind.OnAppendElement(element, off);
             return off;
+        }
+
+        /// <summary>
+        /// Appends a batch of elements to the dynamic tail using a sequential write path, then updates dynamic indexes.
+        /// </summary>
+        /// <param name="flow">Elements to append in order.</param>
+        /// <remarks>
+        /// This method intentionally does not advance the sidecar state file. The sidecar state describes the last
+        /// persisted index synchronization point, not merely the last data byte. Call <see cref="Build"/> when the
+        /// dynamic tail must be persisted into indexes and synchronized state.
+        /// </remarks>
+        public void AppendElements(IEnumerable<object> flow)
+        {
+            _ = flow ?? throw new ArgumentNullException(nameof(flow));
+
+            long startOffset = sequence.AppendOffset;
+            long startCount = sequence.Count();
+
+            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
+
+            long appendedCount = sequence.Count() - startCount;
+            if (appendedCount <= 0L) return;
+
+            foreach (var pair in sequence.ElementOffsetValuePairs(startOffset, appendedCount))
+            {
+                primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+                foreach (var uind in uindexes)
+                    uind.OnAppendElement(pair.Item2, pair.Item1);
+            }
         }
 
         /// <summary>

@@ -704,7 +704,7 @@ public class UniversalSequenceBase
             throw;
         }
     }
-    
+
 
     /// <summary>
     ///     Добавляет поток элементов в логический конец последовательности
@@ -714,6 +714,7 @@ public class UniversalSequenceBase
     /// <param name="flow">
     ///     Последовательность элементов, которые нужно добавить.
     /// </param>
+    /// <param name="apply"></param>
     /// <remarks>
     ///     Метод предназначен для массовой загрузки.
     ///     В отличие от многократных вызовов <see cref="AppendElement(object)" />,
@@ -723,7 +724,7 @@ public class UniversalSequenceBase
     ///     При ошибке длина файла, логический конец и количество элементов
     ///     откатываются к исходному состоянию до начала bulk-записи.
     /// </remarks>
-    public void AppendElements(IEnumerable<object> flow)
+    public void AppendElements(IEnumerable<object> flow, Action<(object element, long off)>? apply = null)
     {
         _ = flow ?? throw new ArgumentNullException(nameof(flow));
 
@@ -744,6 +745,9 @@ public class UniversalSequenceBase
                 _ = element ?? throw new ArgumentNullException(nameof(flow), "Sequence flow contains a null element.");
                 ByteFlow.Serialize(bw, element, tp_elem);
                 nelements += 1;
+                if (apply == null)
+                    continue;
+                apply(new ValueTuple<object, long>(element, savedPosition));
             }
 
             AppendOffset = fs.Length;
