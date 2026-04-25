@@ -34,14 +34,16 @@ namespace Polar.DB
         private readonly UKeyIndex primaryKeyIndex;
         private readonly bool optimise;
         
-        public long Count  => sequence.Count();
+        // Не уверен, что Count что-то полезное означает
+        //public long Count  => sequence.Count();
+        
         /// <summary>
         /// Gets or sets secondary indexes attached to this sequence.
         /// </summary>
         /// <remarks>
         /// Index order is used by lookup helpers that accept an integer index parameter.
         /// </remarks>
-        public IUIndex[] uindexes { get; set; } = Array.Empty<IUIndex>();
+        public IUIndex[] Uindexes { get; set; } = Array.Empty<IUIndex>();
 
         /// <summary>
         /// Creates a keyed append-oriented sequence.
@@ -111,16 +113,16 @@ namespace Polar.DB
         {
             sequence.Refresh();
             primaryKeyIndex.Refresh();
-            foreach (var ui in uindexes) ui.Refresh();
+            foreach (var ui in Uindexes) ui.Refresh();
         }
 
         private void ReplayDynamicTailFromState(bool applyToPrimary, bool applyToSecondary, bool updateStateFile)
         {
             if (stateFileName == null) return;
 
-            var state = ReadStateOrDefault();
-            long synchronizedCount = state.Count;
-            long synchronizedAppendOffset = state.AppendOffset;
+            var (Count, AppendOffset) = ReadStateOrDefault();
+            long synchronizedCount = Count;
+            long synchronizedAppendOffset = AppendOffset;
 
             long currentCount = sequence.Count();
             if (currentCount <= synchronizedCount)
@@ -138,7 +140,7 @@ namespace Polar.DB
 
                 if (applyToSecondary)
                 {
-                    foreach (var uind in uindexes)
+                    foreach (var uind in Uindexes)
                         uind.OnAppendElement(pair.Item2, pair.Item1);
                 }
             }
@@ -162,9 +164,8 @@ namespace Polar.DB
             }
 
             RefreshStaticState();
-
-            var state = ReadStateOrDefault();
-            bool hasUnsynchronizedTail = sequence.Count() > state.Count;
+            var (Count, _) = ReadStateOrDefault();
+            bool hasUnsynchronizedTail = sequence.Count() > Count;
             if (!hasUnsynchronizedTail)
             {
                 SaveState();
@@ -182,7 +183,7 @@ namespace Polar.DB
         {
             sequence.Clear();
             primaryKeyIndex.Clear();
-            foreach (var ui in uindexes) ui.Clear();
+            foreach (var ui in Uindexes) ui.Clear();
             SaveState();
         }
 
@@ -193,7 +194,7 @@ namespace Polar.DB
         {
             sequence.Flush();
             primaryKeyIndex.Flush();
-            foreach (var ui in uindexes) ui.Flush();
+            foreach (var ui in Uindexes) ui.Flush();
         }
 
         /// <summary>
@@ -203,7 +204,7 @@ namespace Polar.DB
         {
             sequence.Close();
             primaryKeyIndex.Close();
-            foreach (var ui in uindexes) ui.Close();
+            foreach (var ui in Uindexes) ui.Close();
         }
 
         /// <summary>
@@ -253,14 +254,14 @@ namespace Polar.DB
         /// <param name="handler">Callback returning <see langword="true"/> to continue or <see langword="false"/> to stop.</param>
         public void Scan(Func<long, object, bool> handler)
         {
-            sequence.Scan((off, ob) => IsOriginalAndNotEmpty(ob, off) ? handler(off, ob) : true);
+            sequence.Scan((off, ob) => !IsOriginalAndNotEmpty(ob, off) || handler(off, ob));
         }
 
         internal LogicalBuildEntry[] CreateLogicalBuildSnapshot()
         {
-            long count = Count;
+            long count = sequence.Count();
             int capacity = count > int.MaxValue ? int.MaxValue : (int)count;
-            List<LogicalBuildEntry> snapshot = new List<LogicalBuildEntry>(capacity);
+            List<LogicalBuildEntry> snapshot = new(capacity);
 
             Scan((off, obj) =>
             {
@@ -280,7 +281,7 @@ namespace Polar.DB
         {
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
-            foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+            foreach (var uind in Uindexes) uind.OnAppendElement(element, off);
             return off;
         }
 
@@ -292,7 +293,7 @@ namespace Polar.DB
         {
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
-            foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+            foreach (var uind in Uindexes) uind.OnAppendElement(element, off);
         }
 
         /// <summary>
@@ -300,20 +301,22 @@ namespace Polar.DB
         /// </summary>
         /// <param name="keysample">Primary key sample.</param>
         /// <returns>Matching logical record, or <see langword="null"/> when no match exists.</returns>
-        public object GetByKey(IComparable keysample)
+        public object? GetByKey(IComparable keysample)
         {
-            return primaryKeyIndex.GetByKey(keysample)!;
+            object? vv = primaryKeyIndex.GetByKey(keysample);
+            return vv == null || isEmpty(vv) ? null : vv;
         }
 
         internal object? GetByOffset(long off)
         {
-            return sequence.GetElement(off);
+            object? vv = sequence.GetElement(off);
+            return vv == null || isEmpty(vv) ? null : vv;
         }
 
         /// <summary>
         /// Retrieves candidates by one secondary index and returns logical non-empty originals.
         /// </summary>
-        /// <param name="nom">Secondary index position in <see cref="uindexes"/>.</param>
+        /// <param name="nom">Secondary index position in <see cref="Uindexes"/>.</param>
         /// <param name="value">Lookup sample.</param>
         /// <param name="keysFunc">Exact key extractor used to filter hash-only indexes.</param>
         /// <param name="ignorecase">Whether to normalize string comparison to uppercase.</param>
@@ -324,21 +327,21 @@ namespace Polar.DB
             Func<object, IEnumerable<IComparable>> keysFunc,
             bool ignorecase = false)
         {
-            if (uindexes[nom] is SVectorIndex sind)
+            if (Uindexes[nom] is SVectorIndex sind)
             {
                 return sind.GetAllByValue((string)value)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
                     .Select(obof => obof.obj!);
             }
 
-            if (uindexes[nom] is UVectorIndex uind)
+            if (Uindexes[nom] is UVectorIndex uind)
             {
                 return uind.GetAllByValue(value)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
                     .Select(obof => obof.obj!);
             }
 
-            if (uindexes[nom] is UVecIndex uvind)
+            if (Uindexes[nom] is UVecIndex uvind)
             {
                 IComparable normalizedValue = value;
                 if (ignorecase && value is string s)
@@ -362,12 +365,12 @@ namespace Polar.DB
         /// <summary>
         /// Retrieves candidates by a sample object using <see cref="UIndex"/> at the selected slot.
         /// </summary>
-        /// <param name="nom">Secondary index position in <see cref="uindexes"/>.</param>
+        /// <param name="nom">Secondary index position in <see cref="Uindexes"/>.</param>
         /// <param name="osample">Sample object for value comparer.</param>
         /// <returns>Logical records that match the sample.</returns>
         public IEnumerable<object> GetAllBySample(int nom, object osample)
         {
-            if (uindexes[nom] is UIndex uind)
+            if (Uindexes[nom] is UIndex uind)
             {
                 return uind.GetAllBySample(osample)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj!, obof.off))
@@ -380,12 +383,12 @@ namespace Polar.DB
         /// <summary>
         /// Retrieves string-prefix matches using <see cref="SVectorIndex"/> at the selected slot.
         /// </summary>
-        /// <param name="nom">Secondary index position in <see cref="uindexes"/>.</param>
+        /// <param name="nom">Secondary index position in <see cref="Uindexes"/>.</param>
         /// <param name="sample">Prefix sample string.</param>
         /// <returns>Logical records that match the prefix.</returns>
         public IEnumerable<object> GetAllByLike(int nom, object sample)
         {
-            var uind = uindexes[nom];
+            var uind = Uindexes[nom];
             if (uind is SVectorIndex sindex)
             {
                 return sindex.GetAllByLike((string)sample)
@@ -406,7 +409,7 @@ namespace Polar.DB
             LogicalBuildEntry[] snapshot = CreateLogicalBuildSnapshot();
 
             primaryKeyIndex.BuildFromSnapshot(snapshot);
-            foreach (var ind in uindexes)
+            foreach (var ind in Uindexes)
             {
                 switch (ind)
                 {
@@ -429,7 +432,7 @@ namespace Polar.DB
             }
 
             primaryKeyIndex.Flush();
-            foreach (var ind in uindexes) ind.Flush();
+            foreach (var ind in Uindexes) ind.Flush();
 
             SaveState();
         }

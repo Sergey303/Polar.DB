@@ -121,7 +121,10 @@ namespace Polar.DB
         public object? GetByKey(IComparable keysample)
         {
             if (keyoff_dic.TryGetValue(keysample, out long off))
-                return sequence.GetByOffset(off);
+            {
+                object? vv = sequence.GetByOffset(off);
+                return vv;
+            }
 
             int hkey = hashOfKey(keysample);
 
