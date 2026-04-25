@@ -207,6 +207,16 @@ public static class ExecApplication
             ?? ResolveRepositoryRoot(Environment.CurrentDirectory)
             ?? Path.GetFullPath(Path.Combine(options.WorkingDirectory!, ".."));
 
+        if (ShouldRunExternalPolarDbNuget(engineFamily, runtime))
+        {
+            return await RunExternalPolarDbNugetTargetAsync(
+                options,
+                spec,
+                runtime,
+                rawResultsDirectory,
+                repositoryRoot);
+        }
+
         var workspace = new RunWorkspace
         {
             RootDirectory = repositoryRoot,
@@ -257,6 +267,79 @@ public static class ExecApplication
         }
 
         return measuredResults.All(x => x.TechnicalSuccess) ? 0 : 1;
+    }
+
+    private static bool ShouldRunExternalPolarDbNuget(string engineFamily, EngineRuntimeDescriptor runtime)
+    {
+        return engineFamily.Equals("polar-db", StringComparison.OrdinalIgnoreCase)
+               && runtime.Source.Equals("nuget-pinned", StringComparison.OrdinalIgnoreCase)
+               && !string.IsNullOrWhiteSpace(runtime.Nuget);
+    }
+
+    private static async Task<int> RunExternalPolarDbNugetTargetAsync(
+        ExecOptions options,
+        ExperimentSpec spec,
+        EngineRuntimeDescriptor runtime,
+        string rawResultsDirectory,
+        string repositoryRoot)
+    {
+        if (string.IsNullOrWhiteSpace(runtime.Nuget))
+        {
+            throw new InvalidOperationException(
+                $"Target '{spec.TargetKey}' resolved to NuGet runtime without a NuGet version.");
+        }
+
+        var nugetRunnerProjectPath = Path.Combine(
+            repositoryRoot,
+            "benchmarks",
+            "src",
+            "Polar.DB.Bench.Exec.PolarDbNuget",
+            "Polar.DB.Bench.Exec.PolarDbNuget.csproj");
+
+        if (!File.Exists(nugetRunnerProjectPath))
+        {
+            throw new InvalidOperationException(
+                $"Polar.DB NuGet runner project not found: '{nugetRunnerProjectPath}'.");
+        }
+
+        Console.WriteLine(
+            $"==> Running target '{spec.TargetKey}' through external Polar.DB NuGet runner ({runtime.Nuget})");
+
+        var arguments = new List<string>
+        {
+            "--spec", options.SpecPath!,
+            "--engine", spec.TargetKey,
+            "--work", options.WorkingDirectory!,
+            "--raw-out", rawResultsDirectory,
+            "--env", options.EnvironmentClass
+        };
+
+        if (!string.IsNullOrWhiteSpace(options.ComparisonSetId))
+        {
+            arguments.Add("--comparison-set");
+            arguments.Add(options.ComparisonSetId);
+        }
+
+        if (options.WarmupCount.HasValue)
+        {
+            arguments.Add("--warmup-count");
+            arguments.Add(options.WarmupCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        if (options.MeasuredCount.HasValue)
+        {
+            arguments.Add("--measured-count");
+            arguments.Add(options.MeasuredCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        return await RunDotNetProjectWithPropertiesAsync(
+            repositoryRoot,
+            nugetRunnerProjectPath,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["PolarDbPackageVersion"] = runtime.Nuget
+            },
+            arguments);
     }
 
     private static IStorageEngineAdapter CreateAdapter(string engineKey)
@@ -336,6 +419,47 @@ public static class ExecApplication
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(projectPath);
+        startInfo.ArgumentList.Add("--");
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo)
+                            ?? throw new InvalidOperationException(
+                                $"Failed to start dotnet process for '{projectPath}'.");
+
+        await process.WaitForExitAsync();
+        return process.ExitCode;
+    }
+
+    private static async Task<int> RunDotNetProjectWithPropertiesAsync(
+        string workingDirectory,
+        string projectPath,
+        IReadOnlyDictionary<string, string> msbuildProperties,
+        IReadOnlyList<string> arguments)
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false
+        };
+
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add("--project");
+        startInfo.ArgumentList.Add(projectPath);
+
+        foreach (var (name, value) in msbuildProperties)
+        {
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            startInfo.ArgumentList.Add($"-p:{name}={value}");
+        }
+
         startInfo.ArgumentList.Add("--");
 
         foreach (var argument in arguments)
