@@ -1,0 +1,45 @@
+{
+  "experiment": "polar-db-u-sequence-reverse-load-build-random-lookup-1m",
+  "title": "Polar.DB USequence reverse load + build + random GetByKey, 1M persons",
+  "research": "rq-polar-db-version-regression-u-sequence-lookup",
+  "hypothesis": "h-current-should-not-regress-against-2-1-0-and-2-1-1",
+  "description": "Creates a Polar.DB USequence person dataset, loads 1,000,000 records in reverse id order, builds the sequence/index state, reopens through Refresh, performs a direct point lookup, then performs a deterministic random point lookup batch. Compares only current Polar.DB source, Polar.DB 2.1.0, and Polar.DB 2.1.1.",
+  "dataset": {
+    "profile": "persons-1m-reverse-id",
+    "count": 1000000,
+    "seed": 123456789,
+    "notes": "Reference scenario from uploaded Program.cs: npersons = 1_000_000, reverse id load, Build, GetByKey, then 10000 random GetByKey calls."
+  },
+  "workload": {
+    "type": "load-build-reopen-random-point-lookup",
+    "lookup": 10000,
+    "notes": "Load records, Build, close/reopen with Refresh, direct lookup, then random point lookup batch.",
+    "options": {
+      "loadOrder": "reverse-id",
+      "directLookup": "true",
+      "reopenAfterBuild": "true",
+      "optimise": "false"
+    }
+  },
+  "fairness": {
+    "type": "polar-db-same-api-defaults",
+    "notes": "All targets use the same Polar.DB adapter scenario and the same dataset/workload parameters. SQLite is intentionally excluded."
+  },
+  "targets": {
+    "polar-db-current": {
+      "engine": "polar-db"
+    },
+    "polar-db-2.1.0": {
+      "engine": "polar-db",
+      "nuget": "2.1.0"
+    },
+    "polar-db-2.1.1": {
+      "engine": "polar-db",
+      "nuget": "2.1.1"
+    }
+  },
+  "compare": {
+    "history": true,
+    "otherExperiments": true
+  }
+}

@@ -126,7 +126,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 reopenRefreshMs = reopenWatch.Elapsed.TotalMilliseconds;
 
                 sequenceCountAfterRefresh = reopened.sequence.Count();
-                appendOffsetAfterRefresh = reopened.sequence.AppendOffset;
+                appendOffsetAfterRefresh = reopened.sequence.ElementOffset();
 
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -691,7 +691,7 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                     }
 
                     sequenceCountAfterRefresh = actualCount;
-                    appendOffsetAfterRefresh = active.sequence.AppendOffset;
+                    appendOffsetAfterRefresh = active.sequence.ElementOffset();
 
                     if (randomLookupAfterEachBatch)
                     {
