@@ -119,7 +119,7 @@ namespace Polar.DB
             offsets.AppendElements(offsets_arr.Select(static x => (object)x));
             offsets.Flush();
         }
-
+        
         public object? GetByKey(IComparable keysample)
         {
             _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
@@ -169,26 +169,35 @@ namespace Polar.DB
             return null;
         }
 
+        /// <summary>
+        /// Метод находит номер первого элемента в таблице хеш-значений, имеющего заданный хеш
+        /// </summary>
+        /// <param name="hkey"></param>
+        /// <returns></returns>
         private long GetFirstNom(int hkey)
         {
-            long count = hkeys.Count();
-            if (count == 0) return -1;
-
-            long left = 0;
-            long right = count;
-            while (left < right)
+            long start = 0, end = hkeys.Count() - 1, right_equal = -1;
+            // Сжимаем диапазон
+            while (end - start > 1)
             {
-                long middle = left + (right - left) / 2;
-                int middleValue = (int)hkeys.GetByIndex(middle);
-
-                if (middleValue < hkey)
-                    left = middle + 1;
+                // Находим середину
+                long middle = (start + end) / 2;
+                int middle_value = (int)hkeys.GetByIndex(middle);
+                if (middle_value < hkey)
+                {  // Займемся правым интервалом
+                    start = middle;
+                }
+                else if (middle_value > hkey)
+                {  // Займемся левым интервалом
+                    end = middle;
+                }
                 else
-                    right = middle;
+                {  // Середина дает РАВНО
+                    end = middle;
+                    right_equal = middle;
+                }
             }
-
-            if (left >= count) return -1;
-            return (int)hkeys.GetByIndex(left) == hkey ? left : -1;
+            return right_equal;
         }
 
         public bool IsOriginal(IComparable key, long offset)
