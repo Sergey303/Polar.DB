@@ -168,7 +168,7 @@ namespace Polar.DB
         {
             _ = record ?? throw new ArgumentNullException(nameof(record));
             _ = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
-            value = PType.NoneValue;
+            value = null;
 
             if (record is not object[] arr) return false;
             if (!_fieldIndexes.TryGetValue(fieldName, out int index)) return false;
@@ -186,9 +186,9 @@ namespace Polar.DB
         /// <param name="fieldName">Field name.</param>
         /// <param name="value">Typed value on success; default value of <typeparamref name="T"/> otherwise.</param>
         /// <returns><see langword="true"/> when value exists and can be cast; otherwise <see langword="false"/>.</returns>
-        public bool TryGet<T>(object record, string fieldName, out T value)
+        public bool TryGet<T>(object record, string fieldName, out T? value)
         {
-            value = (T)PType.NoneValue ;
+            value = default;
             if (!TryGet(record, fieldName, out object raw)) return false;
             if (raw is T typed)
             {

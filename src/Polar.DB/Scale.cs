@@ -1,35 +1,22 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using Polar.DB;
+
 namespace Polar.DB
 {
-    /// <summary>
-    /// Stores a coarse key distribution scale and provides fast candidate-range estimation.
-    /// </summary>
-    /// <remarks>
-    /// The scale is persisted as integers: key count, minimum key, maximum key and bucket start positions.
-    /// It is intended as a pre-filter before exact matching in sorted key collections.
-    /// </remarks>
     public class Scale
     {
-        private int keysLength;
-        private int n_scale;
-        private int min;
-        private int max;
+        private int keysLength, n_scale, min, max;
+        public Func<int, Diapason> GetDia = null;
+        private int[] starts = null;
+        private Func<int, int> ToPosition = null;
+        private UniversalSequenceBase keylengthminmaxstarts;
 
-        /// <summary>
-        /// Gets a function that maps a key sample to an approximate candidate diapason.
-        /// </summary>
-        public Func<int, Diapason> GetDia = _ => Diapason.Empty;
-
-        private int[] starts = Array.Empty<int>();
-        private Func<int, int> ToPosition = _ => 0;
-        private readonly UniversalSequenceBase keylengthminmaxstarts;
-
-        /// <summary>
-        /// Opens a persisted scale from the provided stream.
-        /// </summary>
-        /// <param name="stream">Stream containing scale metadata.</param>
         public Scale(Stream stream)
         {
-            _ = stream ?? throw new ArgumentNullException(nameof(stream));
             keylengthminmaxstarts = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
             int nvalues = (int)keylengthminmaxstarts.Count();
             if (nvalues > 0)
@@ -39,38 +26,24 @@ namespace Polar.DB
                 max = (int)keylengthminmaxstarts.GetByIndex(2);
                 n_scale = nvalues - 3;
                 starts = new int[n_scale];
-                for (int i = 3; i < nvalues; i++)
-                {
-                    starts[i - 3] = (int)keylengthminmaxstarts.GetByIndex(i);
-                }
-
+                for (int i = 3; i < nvalues; i++) starts[i - 3] = (int)keylengthminmaxstarts.GetByIndex(i);
                 SetToPosition();
                 SetGetDia();
             }
         }
-
-        /// <summary>
-        /// Closes the scale metadata stream.
-        /// </summary>
         public void Close()
         {
             keylengthminmaxstarts.Close();
         }
-
-        /// <summary>
-        /// Rebuilds the scale from a sorted key array and persists it.
-        /// </summary>
-        /// <param name="keys">Sorted key values used to build bucket boundaries.</param>
         public void Load(int[] keys)
         {
-            _ = keys ?? throw new ArgumentNullException(nameof(keys));
             keysLength = keys.Length;
             if (keysLength == 0) return;
-
             n_scale = keysLength / 16;
             min = keys[0];
             max = keys[keysLength - 1];
 
+            // Особый случай, когда n_scale < 1 или V_min == V_max. Тогда делается массив из одного элемента и особая функция
             if (n_scale < 1 || min == max)
             {
                 n_scale = 1;
@@ -81,16 +54,16 @@ namespace Polar.DB
             {
                 starts = new int[n_scale];
             }
-
             SetToPosition();
-
+            // Заполнение количеств элементов в диапазонах
             for (int i = 0; i < keys.Length; i++)
             {
                 int key = keys[i];
                 int position = ToPosition(key);
+                // Предполагаю, что начальная разметка массива - нули
                 starts[position] += 1;
             }
-
+            // Заполнение начал диапазонов
             int sum = 0;
             for (int i = 0; i < n_scale; i++)
             {
@@ -98,80 +71,105 @@ namespace Polar.DB
                 starts[i] = sum;
                 sum += num_els;
             }
-
             SetGetDia();
-
+            // Запись наработанного в стрим
             keylengthminmaxstarts.Clear();
             keylengthminmaxstarts.AppendElement(keysLength);
             keylengthminmaxstarts.AppendElement(min);
             keylengthminmaxstarts.AppendElement(max);
-            for (int i = 0; i < starts.Length; i++)
+            for (int i=0; i<starts.Length; i++)
             {
                 keylengthminmaxstarts.AppendElement(starts[i]);
             }
-
             keylengthminmaxstarts.Flush();
         }
 
         private void SetToPosition()
         {
             if (starts.Length == 1)
-                ToPosition = _ => 0;
+                ToPosition = (int key) => 0;
             else
-                ToPosition = key => (int)(((long)key - min) * (n_scale - 1L) / (max - (long)min));
+                ToPosition = (int key) => (int)(((long)key - (long)min) * (long)(n_scale - 1) / (long)((long)max - (long)min));
         }
-
         private void SetGetDia()
         {
             GetDia = key =>
             {
+
+                if (key > max - 16)
+                {
+                    // ???
+                }
                 int ind = ToPosition(key);
                 if (ind < 0 || ind >= n_scale)
                 {
                     return Diapason.Empty;
                 }
-
-                int sta = starts[ind];
-                int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keysLength - sta;
-                return new Diapason { start = sta, numb = num };
+                else
+                {
+                    int sta = starts[ind];
+                    int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keysLength - sta;
+                    return new Diapason() { start = sta, numb = num };
+                }
             };
         }
 
-        /// <summary>
-        /// Builds a 32-bit key-to-diapason estimator from an enumerable key sequence.
-        /// </summary>
-        /// <param name="keys">Sorted key flow.</param>
-        /// <param name="min">Minimum key value in the flow.</param>
-        /// <param name="max">Maximum key value in the flow.</param>
-        /// <param name="n_scale">Requested bucket count, usually keyCount / 16.</param>
-        /// <returns>Function that maps key samples to approximate candidate ranges.</returns>
-        public static Func<int, Diapason> GetDiaFunc32(IEnumerable<int> keys, int min, int max, int n_scale)
-        {
-            _ = keys ?? throw new ArgumentNullException(nameof(keys));
-            int[] starts;
-            Func<int, int> toPosition;
 
+
+
+
+    // ============ Работа со шкалой - базовый вариант ==============
+    /// <summary>
+    /// Формирование шкалы в виде функции, вычисляющей по образцу ключа диапазон в последовательности 
+    /// где он может находиться. Есть рекомендованные значения параметров.
+    /// </summary>
+    /// <param name="keys"></param>
+    /// <param name="min">min = keys[0]</param>
+    /// <param name="max">max = keys[N - 1]</param>
+    /// <param name="n_scale">n_scale = N / 16</param>
+    /// <returns></returns>
+    public static Func<int, Diapason> GetDiaFunc32(IEnumerable<int> keys, int min, int max, int n_scale)
+        {
+            //if (keys == null || keys.Length == 0) return null;
+            //// Построение шкалы
+            //int N = keys.Length;
+            //int min = keys[0];
+            //int max = keys[N - 1];
+            //int n_scale = N / 16; // + (N % 16 != 0 ? 1 : 0);
+
+            int[] starts;
+            Func<int, int> ToPosition;
+
+            // Особый случай, когда n_scale < 1 или V_min == V_max. Тогда делается массив из одного элемента и особая функция
             if (n_scale < 1 || min == max)
             {
                 n_scale = 1;
                 starts = new int[1];
                 starts[0] = 0;
-                toPosition = _ => 0;
+                ToPosition = (int key) => 0;
             }
             else
             {
                 starts = new int[n_scale];
-                toPosition = key => (int)(((long)key - min) * (n_scale - 1L) / (max - (long)min));
+                ToPosition = (int key) => (int)(((long)key - (long)min) * (long)(n_scale - 1) / (long)((long)max - (long)min));
             }
-
-            int keyCount = 0;
+            // Заполнение количеств элементов в диапазонах
+            //for (int i = 0; i < keys.Length; i++)
+            //{
+            //    int key = keys[i];
+            //    int position = ToPosition(key);
+            //    // Предполагаю, что начальная разметка массива - нули
+            //    starts[position] += 1;
+            //}
+            int keysLength = 0;
             foreach (var key in keys)
             {
-                int position = toPosition(key);
+                int position = ToPosition(key);
+                // Предполагаю, что начальная разметка массива - нули
                 starts[position] += 1;
-                keyCount++;
+                keysLength++;
             }
-
+            // Заполнение начал диапазонов
             int sum = 0;
             for (int i = 0; i < n_scale; i++)
             {
@@ -180,59 +178,59 @@ namespace Polar.DB
                 sum += num_els;
             }
 
-            return key =>
+            Func<int, Diapason> GetDia = key =>
             {
-                int ind = toPosition(key);
+                if (key > max - 16)
+                { //???
+                }
+                int ind = ToPosition(key);
                 if (ind < 0 || ind >= n_scale)
                 {
                     return Diapason.Empty;
                 }
-
-                int sta = starts[ind];
-                int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keyCount - sta;
-                return new Diapason { start = sta, numb = num };
+                else
+                {
+                    int sta = starts[ind];
+                    int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keysLength - sta;
+                    return new Diapason() { start = sta, numb = num };
+                }
             };
+            return GetDia;
         }
-
-        public static readonly Func<int, Diapason> EmptyDiapasonResolverByInt = _ => Diapason.Empty;
-        public static readonly Func<long, Diapason> EmptyDiapasonResolverByInt64 = _ => Diapason.Empty;
-        /// <summary>
-        /// Builds a 32-bit key-to-diapason estimator from an in-memory key array.
-        /// </summary>
-        /// <param name="keys">Sorted key array.</param>
-        /// <returns>Estimator function, or EmptyDiapasonResolver when the source is empty.</returns>
+        // ============ Работа со шкалой ==============
         public static Func<int, Diapason> GetDiaFunc32(int[] keys)
         {
-            _ = keys ?? throw new ArgumentNullException(nameof(keys));
-            if (keys.Length == 0) return EmptyDiapasonResolverByInt;
-
-            int n = keys.Length;
+            if (keys == null || keys.Length == 0) return null;
+            // Построение шкалы
+            int N = keys.Length;
             int min = keys[0];
-            int max = keys[n - 1];
-            int n_scale = n / 16;
+            int max = keys[N - 1];
+            int n_scale = N / 16; // + (N % 16 != 0 ? 1 : 0);
             int[] starts;
-            Func<int, int> toPosition;
+            Func<int, int> ToPosition;
 
+            // Особый случай, когда n_scale < 1 или V_min == V_max. Тогда делается массив из одного элемента и особая функция
             if (n_scale < 1 || min == max)
             {
                 n_scale = 1;
                 starts = new int[1];
                 starts[0] = 0;
-                toPosition = _ => 0;
+                ToPosition = (int key) => 0;
             }
             else
             {
                 starts = new int[n_scale];
-                toPosition = key => (int)(((long)key - min) * (n_scale - 1L) / (max - (long)min));
+                ToPosition = (int key) => (int)(((long)key - (long)min) * (long)(n_scale - 1) / (long)((long)max - (long)min));
             }
-
+            // Заполнение количеств элементов в диапазонах
             for (int i = 0; i < keys.Length; i++)
             {
                 int key = keys[i];
-                int position = toPosition(key);
+                int position = ToPosition(key);
+                // Предполагаю, что начальная разметка массива - нули
                 starts[position] += 1;
             }
-
+            // Заполнение начал диапазонов
             int sum = 0;
             for (int i = 0; i < n_scale; i++)
             {
@@ -241,57 +239,60 @@ namespace Polar.DB
                 sum += num_els;
             }
 
-            return key =>
+            Func<int, Diapason> GetDia = key =>
             {
-                int ind = toPosition(key);
+
+                if (key > max - 16)
+                {
+
+                }
+                int ind = ToPosition(key);
                 if (ind < 0 || ind >= n_scale)
                 {
                     return Diapason.Empty;
                 }
-
-                int sta = starts[ind];
-                int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keys.Length - sta;
-                return new Diapason { start = sta, numb = num };
+                else
+                {
+                    int sta = starts[ind];
+                    int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keys.Length - sta;
+                    return new Diapason() { start = sta, numb = num };
+                }
             };
+            return GetDia;
         }
-
-        /// <summary>
-        /// Builds a 64-bit key-to-diapason estimator from an in-memory key array.
-        /// </summary>
-        /// <param name="keys">Sorted key array.</param>
-        /// <returns>Estimator function, or <see langword="null"/> when the source is empty.</returns>
         public static Func<long, Diapason> GetDiaFunc64(long[] keys)
         {
-            keys = keys ?? throw new ArgumentNullException(nameof(keys));
-            if (keys.Length == 0) return Scale.EmptyDiapasonResolverByInt64;
-
-            int n = keys.Length;
+            if (keys == null || keys.Length == 0) return null;
+            // Построение шкалы
+            int N = keys.Length;
             long min = keys[0];
-            long max = keys[n - 1];
-            int n_scale = n / 16;
+            long max = keys[N - 1];
+            int n_scale = N / 16; // + (N % 16 != 0 ? 1 : 0);
             int[] starts;
-            Func<long, int> toPosition;
+            Func<long, int> ToPosition;
 
+            // Особый случай, когда n_scale < 1 или V_min == V_max. Тогда делается массив из одного элемента и особая функция
             if (n_scale < 1 || min == max)
             {
                 n_scale = 1;
                 starts = new int[1];
                 starts[0] = 0;
-                toPosition = _ => 0;
+                ToPosition = (long key) => 0;
             }
             else
             {
                 starts = new int[n_scale];
-                toPosition = key => (int)((key - min) * (n_scale - 1L) / (max - min));
+                ToPosition = (long key) => (int)(((long)key - (long)min) * (long)(n_scale - 1) / (long)((long)max - (long)min));
             }
-
+            // Заполнение количеств элементов в диапазонах
             for (int i = 0; i < keys.Length; i++)
             {
                 long key = keys[i];
-                int position = toPosition(key);
+                int position = ToPosition(key);
+                // Предполагаю, что начальная разметка массива - нули
                 starts[position] += 1;
             }
-
+            // Заполнение начал диапазонов
             int sum = 0;
             for (int i = 0; i < n_scale; i++)
             {
@@ -300,18 +301,86 @@ namespace Polar.DB
                 sum += num_els;
             }
 
-            return key =>
+            Func<long, Diapason> GetDia = key =>
             {
-                int ind = toPosition(key);
+                if (key > max - 16)
+                {
+
+                }
+                int ind = ToPosition(key);
                 if (ind < 0 || ind >= n_scale)
                 {
                     return Diapason.Empty;
                 }
-
-                int sta = starts[ind];
-                int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keys.Length - sta;
-                return new Diapason { start = sta, numb = num };
+                else
+                {
+                    int sta = starts[ind];
+                    int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keys.Length - sta;
+                    return new Diapason() { start = sta, numb = num };
+                }
             };
+            return GetDia;
         }
+        //public static Func<object, Diapason> GetDiaFunc(object[] keys)
+        //{
+        //    if (keys == null || keys.Length == 0) return null;
+        //    // Построение шкалы
+        //    int N = keys.Length;
+        //    int min = (int)keys[0];
+        //    int max = (int)keys[N - 1];
+        //    int n_scale = N / 16; // + (N % 16 != 0 ? 1 : 0);
+        //    int[] starts;
+        //    Func<int, int> ToPosition;
+
+        //    // Особый случай, когда n_scale < 1 или V_min == V_max. Тогда делается массив из одного элемента и особая функция
+        //    if (n_scale < 1 || min == max)
+        //    {
+        //        n_scale = 1;
+        //        starts = new int[1];
+        //        starts[0] = 0;
+        //        ToPosition = (int key) => 0;
+        //    }
+        //    else
+        //    {
+        //        starts = new int[n_scale];
+        //        ToPosition = (int key) => (int)(((long)key - (long)min) * (long)(n_scale - 1) / (long)((long)max - (long)min));
+        //    }
+        //    // Заполнение количеств элементов в диапазонах
+        //    for (int i = 0; i < keys.Length; i++)
+        //    {
+        //        int key = (int)keys[i];
+        //        int position = ToPosition(key);
+        //        // Предполагаю, что начальная разметка массива - нули
+        //        starts[position] += 1;
+        //    }
+        //    // Заполнение начал диапазонов
+        //    int sum = 0;
+        //    for (int i = 0; i < n_scale; i++)
+        //    {
+        //        int num_els = starts[i];
+        //        starts[i] = sum;
+        //        sum += num_els;
+        //    }
+        //    Func<object, Diapason> GetDia = k =>
+        //    {
+        //        int key = (int)k;
+        //        if (key > max - 16)
+        //        {
+
+        //        }
+        //        int ind = ToPosition(key);
+        //        if (ind < 0 || ind >= n_scale)
+        //        {
+        //            return Diapason.Empty;
+        //        }
+        //        else
+        //        {
+        //            int sta = starts[ind];
+        //            int num = ind < n_scale - 1 ? starts[ind + 1] - sta : keys.Length - sta;
+        //            return new Diapason() { start = sta, numb = num };
+        //        }
+        //    };
+        //    return GetDia;
+        //}
     }
 }

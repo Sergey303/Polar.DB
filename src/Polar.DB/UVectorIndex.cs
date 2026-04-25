@@ -1,182 +1,124 @@
-namespace Polar.DB
+﻿namespace Polar.DB
 {
-    /// <summary>
-    /// Secondary index for multi-valued comparable keys extracted from sequence elements.
-    /// </summary>
-    /// <remarks>
-    /// The index stores a sorted static part in two aligned sequences (<c>values</c> and <c>element_offsets</c>) and
-    /// a dynamic in-memory dictionary for values appended after the last build/refresh cycle.
-    /// </remarks>
     public class UVectorIndex : IUIndex
     {
         private readonly USequence sequence;
-        private readonly Func<object, IEnumerable<IComparable>> valuesFunc;
-        private readonly UniversalSequenceBase values;
-        private readonly UniversalSequenceBase element_offsets;
+        // Ключом является объект, порождаемый ключевой функцией. Ключи можно сравнивать!
+        Func<object, IEnumerable<IComparable>> valuesFunc;
+        // Статическая часть индекса
+        private UniversalSequenceBase values;
+        private UniversalSequenceBase element_offsets;
+        // Динамическая часть индекса
         private Dictionary<IComparable, long[]> valueoffs_dic;
 
         /// <summary>
-        /// Creates a vector index.
+        /// На каждом элементе опорной последовательности sequence вычисляется вектораная функция valuesFunc.
+        /// Полученные величины складируется в последовательность values. Параллельно, офсеты элементов 
+        /// складируются в element_offsets. Последовательности values,
+        /// и element_offsets согласованы между собой (i-ый элемент относится к одному). В рабочем состоянии
+        /// предполагается отсортированность пары по values
         /// </summary>
-        /// <param name="streamGen">Factory for streams used by persisted index parts.</param>
-        /// <param name="sequence">Owner sequence whose elements are indexed.</param>
-        /// <param name="tp_value">Schema type of extracted values.</param>
-        /// <param name="valuesFunc">Extractor returning one or many comparable values for each sequence element.</param>
-        public UVectorIndex(
-            Func<Stream> streamGen,
-            USequence sequence,
-            PType tp_value,
+        /// <param name="streamGen"></param>
+        /// <param name="sequence"></param>
+        /// <param name="tp_value">Тип value</param>
+        /// <param name="valuesFunc"></param>
+        public UVectorIndex(Func<Stream> streamGen, USequence sequence, PType tp_value,
             Func<object, IEnumerable<IComparable>> valuesFunc)
         {
-            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
-            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
-            _ = tp_value ?? throw new ArgumentNullException(nameof(tp_value));
-            this.valuesFunc = valuesFunc ?? throw new ArgumentNullException(nameof(valuesFunc));
+            this.sequence = sequence;
+            this.valuesFunc = valuesFunc;
 
             values = new UniversalSequenceBase(tp_value, streamGen());
             element_offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+
             valueoffs_dic = new Dictionary<IComparable, long[]>();
         }
-
-        /// <summary>
-        /// Appends extracted values of one newly appended element to the dynamic in-memory state.
-        /// </summary>
-        /// <param name="element">Appended sequence element.</param>
-        /// <param name="offset">Physical stream offset of the appended element.</param>
+        
         public void OnAppendElement(object element, long offset)
         {
-            _ = element ?? throw new ArgumentNullException(nameof(element));
             var vals = valuesFunc(element);
             foreach (var value in vals)
             {
                 IComparable key = value;
-                if (valueoffs_dic.TryGetValue(key, out var offsets))
+                if (valueoffs_dic.TryGetValue(key, out long[] offsets))
                 {
-                    valueoffs_dic[key] = offsets.Append(offset).ToArray();
+                    offsets.Append(offset).ToArray();
                 }
-                else
-                {
-                    valueoffs_dic.Add(key, new[] { offset });
-                }
+                else valueoffs_dic.Add(key, new long[] { offset });
             }
         }
 
-        private IComparable[]? values_arr;
+        // Массив оптимизации поиска по значению value
+        private IComparable[] values_arr = null;
 
-        /// <summary>
-        /// Clears static and dynamic index state.
-        /// </summary>
-        public void Clear()
-        {
-            values.Clear();
-            element_offsets.Clear();
-            values_arr = Array.Empty<IComparable>();
-            valueoffs_dic = new Dictionary<IComparable, long[]>();
-        }
-
-        /// <summary>
-        /// Flushes persisted static index sequences.
-        /// </summary>
-        public void Flush()
-        {
-            values.Flush();
-            element_offsets.Flush();
-        }
-
-        /// <summary>
-        /// Flushes and closes persisted static index sequences.
-        /// </summary>
-        public void Close()
-        {
-            values.Close();
-            element_offsets.Close();
-        }
-
-        /// <summary>
-        /// Reloads persisted static values into memory and refreshes aligned offsets.
-        /// </summary>
+        public void Clear() { values.Clear(); element_offsets.Clear(); values_arr = new IComparable[0]; valueoffs_dic = new Dictionary<IComparable, long[]>(); }
+        public void Flush() { values.Flush(); element_offsets.Flush(); }
+        public void Close() { values.Close(); element_offsets.Close(); }
         public void Refresh()
         {
             values_arr = values.ElementValues().Cast<IComparable>().ToArray();
             element_offsets.Refresh();
         }
 
-        /// <summary>
-        /// Rebuilds static index state from the owner sequence logical view.
-        /// </summary>
         public void Build()
         {
-            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
-        }
-
-        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
-        {
+            // сканируем опорную последовательность, формируем массивы
             List<IComparable> values_list = new List<IComparable>();
             List<long> offsets_list = new List<long>();
-            for (int i = 0; i < snapshot.Count; i++)
+            sequence.Scan((off, obj) =>
             {
-                var entry = snapshot[i];
-                var vals = valuesFunc(entry.Element);
+                var vals = valuesFunc(obj);
                 foreach (var v in vals)
                 {
-                    offsets_list.Add(entry.Offset);
+                    offsets_list.Add(off);
                     values_list.Add(v);
                 }
-            }
-
+                return true;
+            });
             values_arr = values_list.ToArray();
+            values_list = null;
             long[] offsets_arr = offsets_list.ToArray();
+            offsets_list = null;
+            GC.Collect();
 
             Array.Sort(values_arr, offsets_arr);
 
             values.Clear();
-            values.AppendElements(values_arr.Select(static x => (object)x));
+            foreach (var v in values_arr) { values.AppendElement(v); }
             values.Flush();
 
             element_offsets.Clear();
-            element_offsets.AppendElements(offsets_arr.Select(static x => (object)x));
+            foreach (var off in offsets_arr) { element_offsets.AppendElement(off); }
             element_offsets.Flush();
+            offsets_arr = null;
+            GC.Collect();
         }
 
         internal IEnumerable<ObjOff> GetAllByValue(IComparable valuesample)
         {
-            _ = valuesample ?? throw new ArgumentNullException(nameof(valuesample));
-            EnsureValuesArrayLoaded();
-
-            if (values_arr is null || values_arr.Length == 0)
-                yield break;
-
-            if (valueoffs_dic.TryGetValue(valuesample, out var offs))
+            if (valueoffs_dic.TryGetValue(valuesample, out long[] offs))
             {
                 foreach (var oo in offs.Select(o => new ObjOff(sequence.GetByOffset(o), o)))
                 {
                     yield return oo;
                 }
             }
-
-            int pos = Array.BinarySearch(values_arr, valuesample);
-            if (pos >= 0)
+            int pos = Array.BinarySearch<IComparable>(values_arr, valuesample);
+            if (pos >= 0) 
             {
+                // ищем самую левую позицию 
                 int p = pos;
-                while (p >= 0 && values_arr[p].CompareTo(valuesample) == 0)
-                {
-                    pos = p;
-                    p--;
-                }
-
+                while (p >= 0 && values_arr[p].CompareTo(valuesample) == 0) { pos = p; p--; }
+                // движемся вправо
                 while (pos < values_arr.Length && values_arr[pos].CompareTo(valuesample) == 0)
                 {
                     long offset = (long)element_offsets.GetByIndex(pos);
-                    yield return new ObjOff(sequence.GetByOffset(offset), offset);
+                    object ob = sequence.GetByOffset(offset);
+                    yield return new ObjOff(ob, offset);
                     pos++;
                 }
             }
         }
-
-        private void EnsureValuesArrayLoaded()
-        {
-            if (values_arr != null) return;
-            values_arr = values.ElementValues().Cast<IComparable>().ToArray();
-        }
     }
+
 }

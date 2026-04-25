@@ -1,234 +1,137 @@
-// UKeyIndex.cs
-
-namespace Polar.DB
+﻿namespace Polar.DB
 {
-    /// <summary>
-    /// Primary-key index used by <see cref="USequence"/>.
-    /// </summary>
-    /// <remarks>
-    /// The index combines a persisted static hash/offset part with a dynamic in-memory map from key to latest offset.
-    /// Originality checks use only dynamic state: if a key exists in the map, only that offset is considered current.
-    /// </remarks>
     public class UKeyIndex
     {
         private readonly USequence sequence;
-        private readonly Func<object, IComparable> keyFunc;
-        private readonly Func<IComparable, int> hashOfKey;
-        private readonly UniversalSequenceBase hkeys;
-        private readonly UniversalSequenceBase offsets;
-        private readonly Dictionary<IComparable, long> keyoff_dic;
-        private readonly bool keysinmemory;
-        private int[]? hkeys_arr;
-        private long[]? offsets_arr;
+        // Ключом является объект, порождаемый ключевой функцией. Ключи можно сравнивать!
+        private Func<object, IComparable> keyFunc;
+        private Func<IComparable, int> hashOfKey;
+        // Статическая часть индекса
+        private UniversalSequenceBase hkeys;
+        private UniversalSequenceBase offsets;
+        // Динамическая часть индекса
+        private Dictionary<IComparable, long> keyoff_dic;
+        private bool keysinmemory;
 
-        public UKeyIndex(
-            Func<Stream> streamGen,
-            USequence sequence,
-            Func<object, IComparable> keyFunc,
-            Func<IComparable, int> hashOfKey,
-            bool keysinmemory = true)
+        public UKeyIndex(Func<Stream> streamGen, USequence sequence,
+            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)
         {
-            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
-            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
-            this.keyFunc = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
-            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
+            this.sequence = sequence;
+            this.keyFunc = keyFunc;
+            this.hashOfKey = hashOfKey;
             this.keysinmemory = keysinmemory;
 
             hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
             offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+
             keyoff_dic = new Dictionary<IComparable, long>();
         }
-
         public void OnAppendElement(object element, long offset)
         {
-            _ = element ?? throw new ArgumentNullException(nameof(element));
             var key = keyFunc(element);
-            keyoff_dic[key] = offset;
-        }
-
-        public void Clear()
-        {
-            hkeys.Clear();
-            hkeys_arr = null;
-            offsets_arr = null;
-            offsets.Clear();
-            keyoff_dic.Clear();
-        }
-
-        public void Flush()
-        {
-            hkeys.Flush();
-            offsets.Flush();
-        }
-
-        public void Close()
-        {
-            hkeys.Close();
-            offsets.Close();
-        }
-
-        /// <summary>
-        /// Reloads persisted static state.
-        /// </summary>
-        /// <remarks>
-        /// Dynamic key map is intentionally preserved because it tracks the append tail above the synchronized state point.
-        /// </remarks>
-        public void Refresh()
-        {
-            if (keysinmemory)
+            if (keyoff_dic.ContainsKey(key))
             {
-                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-                offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
+                keyoff_dic.Remove(key);
             }
-            else
-            {
-                hkeys_arr = null;
-                offsets_arr = null;
-                hkeys.Refresh();
-            }
-
-            offsets.Refresh();
+            keyoff_dic.Add(key, offset);
         }
 
-        public void Build()
+        // Массив оптимизации поиска по значению хеша
+        private int[] hkeys_arr = null;
+
+        public void Clear() { hkeys.Clear(); hkeys_arr = null; offsets.Clear(); keyoff_dic.Clear(); }
+        public void Flush() { hkeys.Flush(); offsets.Flush();  }
+        public void Close() { hkeys.Close(); offsets.Close();  }
+        public void Refresh() 
         {
-            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
+            if (keysinmemory) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+            else hkeys.Refresh();
+            offsets.Refresh(); 
         }
 
-        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        public void Build() 
         {
-            int count = snapshot.Count;
-            int[] localHkeys = new int[count];
-            long[] localOffsets = new long[count];
-
-            for (int i = 0; i < count; i++)
+            // сканируем опорную последовательность, формируем массивы
+            List<int> hkeys_list = new List<int>();
+            List<long> offsets_list = new List<long>();
+            sequence.Scan((off, obj) =>
             {
-                var entry = snapshot[i];
-                localOffsets[i] = entry.Offset;
-                localHkeys[i] = hashOfKey(keyFunc(entry.Element));
-            }
+                offsets_list.Add(off);
+                hkeys_list.Add(hashOfKey(keyFunc(obj)));
+                return true;
+            });
+            hkeys_arr = hkeys_list.ToArray();
+            hkeys_list = null;
+            long[] offsets_arr = offsets_list.ToArray();
+            offsets_list = null;
+            GC.Collect();
 
-            hkeys_arr = localHkeys;
-            Array.Sort(hkeys_arr, localOffsets);
-
-            offsets_arr = keysinmemory ? localOffsets : null;
+            Array.Sort(hkeys_arr, offsets_arr);
 
             hkeys.Clear();
-            hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
+            foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
             hkeys.Flush();
-
             if (!keysinmemory)
             {
                 hkeys_arr = null;
-                offsets_arr = null;
+                GC.Collect();
             }
+
 
             offsets.Clear();
-            offsets.AppendElements(localOffsets.Select(static x => (object)x));
+            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
             offsets.Flush();
+            offsets_arr = null;
+            GC.Collect();
         }
 
-public object? GetByKey(IComparable keysample)
-{
-    _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
-
-    if (keyoff_dic.TryGetValue(keysample, out long off))
-        return sequence.GetByOffset(off);
-
-    int hkey = hashOfKey(keysample);
-
-    if (hkeys_arr != null)
-    {
-        int pos = Array.BinarySearch(hkeys_arr, hkey);
-        if (pos < 0) return null;
-
-        long[]? localOffsets = offsets_arr;
-
-        long ReadOffset(int index)
+        public object GetByKey(IComparable keysample)
         {
-            return localOffsets != null
-                ? localOffsets[index]
-                : (long)offsets.GetByIndex(index);
-        }
-
-        object? ReadValueAt(int index)
-        {
-            long offset = ReadOffset(index);
-            return sequence.GetByOffset(offset);
-        }
-
-        object? val = ReadValueAt(pos);
-        if (val == null) return null;
-
-        var key = keyFunc(val);
-        if (key.CompareTo(keysample) == 0) return val;
-
-        int left = pos - 1;
-        int right = pos + 1;
-
-        while (left >= 0 || right < hkeys_arr.Length)
-        {
-            bool checkedAny = false;
-
-            if (left >= 0 && hkeys_arr[left] == hkey)
+            if (keyoff_dic.TryGetValue(keysample, out long off))
             {
-                checkedAny = true;
+                return sequence.GetByOffset(off);
+            }
+            int hkey = hashOfKey(keysample);
 
-                val = ReadValueAt(left);
-                if (val == null) return null;
-
-                key = keyFunc(val);
-                if (key.CompareTo(keysample) == 0) return val;
-
-                left--;
+            if (hkeys_arr != null)
+            {
+                int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
+                if (pos < 0) return null;
+                // ищем самую левую позицию 
+                int p = pos;
+                while (p >= 0 && hkeys_arr[p] == hkey) { pos = p; p--; }
+                // движемся вправо
+                while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
+                {
+                    long offset = (long)offsets.GetByIndex(pos);
+                    object val = sequence.GetByOffset(offset);
+                    if (val == null) return null; // Непонятно, нужно ли?
+                    var k = keyFunc(val);
+                    if (k.CompareTo(keysample) == 0) return val;
+                    pos++;
+                }
+                return null;
             }
             else
             {
-                left = -1;
+                long first = GetFirstNom(hkey);
+                if (first == -1) return null;
+                for (long nom = first; nom < hkeys.Count(); nom++)
+                {
+                    long offset = (long)offsets.GetByIndex(nom);
+                    object val = sequence.GetByOffset(offset);
+                    if (val == null) break;
+                    var k = keyFunc(val);
+                    if (hashOfKey(k) != hkey) break;
+                    if (k.CompareTo(keysample) == 0) return val;
+                }
             }
-
-            if (right < hkeys_arr.Length && hkeys_arr[right] == hkey)
-            {
-                checkedAny = true;
-
-                val = ReadValueAt(right);
-                if (val == null) return null;
-
-                key = keyFunc(val);
-                if (key.CompareTo(keysample) == 0) return val;
-
-                right++;
-            }
-            else
-            {
-                right = hkeys_arr.Length;
-            }
-
-            if (!checkedAny) break;
+            return null;
         }
-
-        return null;
-    }
-
-    long first = GetFirstNom(hkey);
-    if (first == -1) return null;
-
-    for (long nom = first; nom < hkeys.Count(); nom++)
-    {
-        long offset = (long)offsets.GetByIndex(nom);
-        object? val = sequence.GetByOffset(offset);
-        if (val == null) break;
-
-        var key = keyFunc(val);
-        if (hashOfKey(key) != hkey) break;
-        if (key.CompareTo(keysample) == 0) return val;
-    }
-
-    return null;
-}
 
         /// <summary>
-        /// Метод находит номер первого элемента в таблице хеш-значений, имеющего заданный хеш
+        /// Определение номера первого индекса последовательности hkeys, с которого значения РАВНЫ hkey (хешу от ключа)
+        /// Если нет таких, то -1L
         /// </summary>
         /// <param name="hkey"></param>
         /// <returns></returns>
@@ -258,13 +161,23 @@ public object? GetByKey(IComparable keysample)
             return right_equal;
         }
 
+        /// <summary>
+        /// Определяет является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал
+        /// Если есть, то надо проверить офсет
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="offset"></param>
+        /// <returns></returns>
         public bool IsOriginal(IComparable key, long offset)
         {
-            _ = key ?? throw new ArgumentNullException(nameof(key));
             if (keyoff_dic.TryGetValue(key, out long off))
-                return off == offset;
-
-            return true;
+            {
+                if (off == offset) return true;
+                return false;
+            }
+            return true; //TODO: здесь предполагается, что в основном индексе есть такое значение
         }
+
     }
+
 }

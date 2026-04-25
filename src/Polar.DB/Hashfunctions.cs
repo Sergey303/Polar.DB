@@ -1,43 +1,28 @@
+﻿using System;
+using System.Linq;
+
+
 namespace Polar.DB
 {
-    /// <summary>
-    /// Legacy hash helpers used by older indexing flows and samples.
-    /// </summary>
-    public static class Hashfunctions
+    public class Hashfunctions
     {
-        /// <summary>
-        /// Computes a 32-bit rolling hash that mixes low 8 bits of each character.
-        /// </summary>
-        /// <param name="str">Input string.</param>
-        /// <returns>Deterministic hash value for the input string.</returns>
-        /// <remarks>
-        /// This function is preserved for compatibility and is not intended as a cryptographic hash.
-        /// </remarks>
+        // Процедура похоже не приспособлена к работе с юникодом и национальными алфавитами.
         public static int HashRot13(string str)
         {
-            _ = str ?? throw new ArgumentNullException(nameof(str));
-            uint hash = 0;
+            UInt32 hash = 0;
             foreach (char c in str)
             {
-                hash += Convert.ToUInt32(c) & 255;
+                //hash += Convert.ToByte(c);
+                hash += Convert.ToUInt32(c) & 255; // Это я сделал из-за русского и др. языков
                 hash -= (hash << 13) | (hash >> 19);
             }
-
             return (int)hash;
         }
-
-        /// <summary>
-        /// Encodes up to four leading characters into a compact sortable integer key.
-        /// </summary>
-        /// <param name="s">Input text.</param>
-        /// <returns>7-bit packed key derived from the first four mapped characters.</returns>
-        /// <remarks>
-        /// Characters are mapped through a fixed alphabet that includes Latin symbols and an uppercase Russian subset.
-        /// Unknown characters are mapped to the first symbol.
-        /// </remarks>
         public static int First4charsRu(string s)
         {
-            _ = s ?? throw new ArgumentNullException(nameof(s));
+            // Специальное кодирование. В принципе, все расположено почти по естественному порядку. Исключение - группа [\\]^_`
+            // Сомнение вызывает наличие в таблице Ё. Кодирование оставляет неиспользованными 4 старших разряда кода.
+            //string selected_chars = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHJKLMNOPQRSTUWXYZ[\\]^_`{|}~АБВГДЕЖЗИЙКЛМНОПРСТУФКЦЧШЩЪЫЬЭЮЯЁ";
             const string schars = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHJKLMNOPQRSTUWXYZ[\\]^_`{|}~АБВГДЕЖЗИЙКЛМНОПРСТУФКЦЧШЩЪЫЬЭЮЯЁ";
             int len = s.Length;
             var chs = s.ToCharArray()
@@ -46,12 +31,11 @@ namespace Polar.DB
                 .Select(ch =>
                 {
                     int ind = schars.IndexOf(char.ToUpper(ch));
-                    if (ind == -1) ind = 0;
+                    if (ind == -1) ind = 0; // неизвестный символ помечается как '!'
                     return ind;
-                })
-                .ToArray();
-
+                }).ToArray();
             return ((((((chs[0] << 7) | chs[1]) << 7) | chs[2]) << 7) | chs[3]);
         }
+
     }
 }
