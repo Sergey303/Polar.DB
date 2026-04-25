@@ -19,6 +19,7 @@ namespace Polar.DB
         private readonly Dictionary<IComparable, long> keyoff_dic;
         private readonly bool keysinmemory;
         private int[]? hkeys_arr;
+        private long[]? offsets_arr;
 
         public UKeyIndex(
             Func<Stream> streamGen,
@@ -49,6 +50,7 @@ namespace Polar.DB
         {
             hkeys.Clear();
             hkeys_arr = null;
+            offsets_arr = null;
             offsets.Clear();
             keyoff_dic.Clear();
         }
@@ -76,10 +78,12 @@ namespace Polar.DB
             if (keysinmemory)
             {
                 hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+                offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
             }
             else
             {
                 hkeys_arr = null;
+                offsets_arr = null;
                 hkeys.Refresh();
             }
 
@@ -95,16 +99,19 @@ namespace Polar.DB
         {
             int count = snapshot.Count;
             int[] localHkeys = new int[count];
-            long[] offsets_arr = new long[count];
+            long[] localOffsets = new long[count];
+
             for (int i = 0; i < count; i++)
             {
                 var entry = snapshot[i];
-                offsets_arr[i] = entry.Offset;
+                localOffsets[i] = entry.Offset;
                 localHkeys[i] = hashOfKey(keyFunc(entry.Element));
             }
 
             hkeys_arr = localHkeys;
-            Array.Sort(hkeys_arr, offsets_arr);
+            Array.Sort(hkeys_arr, localOffsets);
+
+            offsets_arr = keysinmemory ? localOffsets : null;
 
             hkeys.Clear();
             hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
@@ -113,61 +120,112 @@ namespace Polar.DB
             if (!keysinmemory)
             {
                 hkeys_arr = null;
+                offsets_arr = null;
             }
 
             offsets.Clear();
-            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
+            offsets.AppendElements(localOffsets.Select(static x => (object)x));
             offsets.Flush();
         }
-        
-        public object? GetByKey(IComparable keysample)
+
+public object? GetByKey(IComparable keysample)
+{
+    _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
+
+    if (keyoff_dic.TryGetValue(keysample, out long off))
+        return sequence.GetByOffset(off);
+
+    int hkey = hashOfKey(keysample);
+
+    if (hkeys_arr != null)
+    {
+        int pos = Array.BinarySearch(hkeys_arr, hkey);
+        if (pos < 0) return null;
+
+        long[]? localOffsets = offsets_arr;
+
+        long ReadOffset(int index)
         {
-            _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
-            if (keyoff_dic.TryGetValue(keysample, out long off))
-                return sequence.GetByOffset(off);
-
-            int hkey = hashOfKey(keysample);
-
-            if (hkeys_arr != null)
-            {
-                int pos = Array.BinarySearch(hkeys_arr, hkey);
-                if (pos < 0) return null;
-
-                int p = pos;
-                while (p >= 0 && hkeys_arr[p] == hkey)
-                {
-                    pos = p;
-                    p--;
-                }
-
-                while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
-                {
-                    long offset = (long)offsets.GetByIndex(pos);
-                    object? val = sequence.GetByOffset(offset);
-                    if (val == null) return null;
-                    var k = keyFunc(val);
-                    if (k.CompareTo(keysample) == 0) return val;
-                    pos++;
-                }
-
-                return null;
-            }
-
-            long first = GetFirstNom(hkey);
-            if (first == -1) return null;
-
-            for (long nom = first; nom < hkeys.Count(); nom++)
-            {
-                long offset = (long)offsets.GetByIndex(nom);
-                object? val = sequence.GetByOffset(offset);
-                if (val == null) break;
-                var k = keyFunc(val);
-                if (hashOfKey(k) != hkey) break;
-                if (k.CompareTo(keysample) == 0) return val;
-            }
-
-            return null;
+            return localOffsets != null
+                ? localOffsets[index]
+                : (long)offsets.GetByIndex(index);
         }
+
+        object? ReadValueAt(int index)
+        {
+            long offset = ReadOffset(index);
+            return sequence.GetByOffset(offset);
+        }
+
+        object? val = ReadValueAt(pos);
+        if (val == null) return null;
+
+        var key = keyFunc(val);
+        if (key.CompareTo(keysample) == 0) return val;
+
+        int left = pos - 1;
+        int right = pos + 1;
+
+        while (left >= 0 || right < hkeys_arr.Length)
+        {
+            bool checkedAny = false;
+
+            if (left >= 0 && hkeys_arr[left] == hkey)
+            {
+                checkedAny = true;
+
+                val = ReadValueAt(left);
+                if (val == null) return null;
+
+                key = keyFunc(val);
+                if (key.CompareTo(keysample) == 0) return val;
+
+                left--;
+            }
+            else
+            {
+                left = -1;
+            }
+
+            if (right < hkeys_arr.Length && hkeys_arr[right] == hkey)
+            {
+                checkedAny = true;
+
+                val = ReadValueAt(right);
+                if (val == null) return null;
+
+                key = keyFunc(val);
+                if (key.CompareTo(keysample) == 0) return val;
+
+                right++;
+            }
+            else
+            {
+                right = hkeys_arr.Length;
+            }
+
+            if (!checkedAny) break;
+        }
+
+        return null;
+    }
+
+    long first = GetFirstNom(hkey);
+    if (first == -1) return null;
+
+    for (long nom = first; nom < hkeys.Count(); nom++)
+    {
+        long offset = (long)offsets.GetByIndex(nom);
+        object? val = sequence.GetByOffset(offset);
+        if (val == null) break;
+
+        var key = keyFunc(val);
+        if (hashOfKey(key) != hkey) break;
+        if (key.CompareTo(keysample) == 0) return val;
+    }
+
+    return null;
+}
 
         /// <summary>
         /// Метод находит номер первого элемента в таблице хеш-значений, имеющего заданный хеш

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using Polar.DB.Bench.Core.Models;
 
 namespace Polar.DB.Bench.Charts.Runtime;
@@ -15,31 +16,75 @@ internal static class ChartRenderer
 {
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
+    private static readonly string[] Palette =
+    {
+        "#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2",
+        "#be123c", "#4f46e5", "#65a30d", "#c026d3", "#0d9488", "#ca8a04",
+        "#7c3aed", "#0284c7", "#db2777", "#059669", "#b45309", "#475569",
+        "#ef4444", "#14b8a6", "#8b5cf6", "#f97316", "#22c55e", "#3b82f6"
+    };
+
     /// <summary>
-    /// Renders a history chart: elapsed median over time, one line per engine.
+    /// Builds a stable, report-local color map for the actual target list.
+    /// The colors are intentionally not tied to engine families or package versions.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> BuildEngineColorMap(IEnumerable<string> engineKeys)
+    {
+        var keys = engineKeys
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var shuffled = Palette.ToArray();
+        Shuffle(shuffled, string.Join("|", keys));
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < keys.Length; i++)
+        {
+            map[keys[i]] = i < shuffled.Length
+                ? shuffled[i]
+                : BuildFallbackHslColor(keys[i], i);
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// Returns a stable fallback color for a single target key.
+    /// Prefer BuildEngineColorMap when the full target list is available.
+    /// </summary>
+    public static string EngineColor(string engineKey)
+    {
+        return BuildFallbackHslColor(engineKey, 0);
+    }
+
+    /// <summary>
+    /// Renders a history chart: elapsed p50 over time, one line per target.
     /// </summary>
     public static string RenderHistoryChart(
         IReadOnlyList<ComparisonSnapshot> snapshots,
         IReadOnlyList<string> engineKeys)
     {
         var chartWidth = 940.0;
-        var chartHeight = 340.0;
+        var chartHeight = 332.0;
         var marginLeft = 72.0;
         var marginRight = 24.0;
-        var marginTop = 24.0;
+        var marginTop = 28.0;
         var marginBottom = 78.0;
         var plotWidth = chartWidth - marginLeft - marginRight;
         var plotHeight = chartHeight - marginTop - marginBottom;
+        var colorMap = BuildEngineColorMap(engineKeys);
 
         var values = snapshots
-            .SelectMany(snapshot => snapshot.EngineSeries.Select(series => series.ElapsedMs.Median))
+            .SelectMany(snapshot => snapshot.EngineSeries.Select(series => GetMetricP50(series, "ElapsedMs")))
             .Where(value => value.HasValue)
             .Select(value => value!.Value)
             .ToArray();
 
         if (values.Length == 0)
         {
-            return "<p class=\"muted\">History chart: no elapsed median values.</p>";
+            return "<p class=\"muted\">History chart: no elapsed p50 values.</p>";
         }
 
         var min = values.Min();
@@ -58,9 +103,9 @@ internal static class ChartRenderer
 
         var xStep = snapshots.Count > 1 ? plotWidth / (snapshots.Count - 1) : 0.0;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"<svg class=\"chart\" viewBox=\"0 0 {chartWidth.ToString("0.###", Invariant)} {chartHeight.ToString("0.###", Invariant)}\" role=\"img\" aria-label=\"History elapsed median chart\">");
+        sb.AppendLine("<div class=\"chart-title\">History: elapsed p50 (ms) by series</div>");
+        sb.AppendLine($"<svg class=\"chart\" viewBox=\"0 0 {chartWidth.ToString("0.###", Invariant)} {chartHeight.ToString("0.###", Invariant)}\" role=\"img\" aria-label=\"History elapsed p50 chart\">");
         sb.AppendLine("  <rect x=\"0\" y=\"0\" width=\"100%\" height=\"100%\" fill=\"#ffffff\" />");
-        sb.AppendLine("  <text x=\"18\" y=\"20\" font-size=\"14\" fill=\"#20252b\" font-weight=\"650\">History: elapsed median (ms) by series</text>");
 
         const int ticks = 5;
         for (var i = 0; i <= ticks; i++)
@@ -77,14 +122,16 @@ internal static class ChartRenderer
 
         foreach (var engineKey in engineKeys)
         {
-            var color = EngineColor(engineKey);
+            var color = colorMap.TryGetValue(engineKey, out var resolvedColor)
+                ? resolvedColor
+                : EngineColor(engineKey);
             var points = new List<(double X, double Y, ComparisonSnapshot Snapshot, double Value)>();
             for (var i = 0; i < snapshots.Count; i++)
             {
                 var snapshot = snapshots[i];
                 var entry = snapshot.EngineSeries.FirstOrDefault(item =>
                     item.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase));
-                if (entry?.ElapsedMs.Median is not double median)
+                if (GetMetricP50(entry, "ElapsedMs") is not double median)
                 {
                     continue;
                 }
@@ -104,7 +151,7 @@ internal static class ChartRenderer
             sb.AppendLine($"  <polyline points=\"{polyline}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />");
             foreach (var point in points)
             {
-                var tooltip = $"{engineKey} | {point.Snapshot.ComparisonSetId ?? "legacy"} | {point.Snapshot.SnapshotTimestampUtc:yyyy-MM-dd HH:mm:ss} UTC | median: {point.Value.ToString("0.###############", Invariant)} ms";
+                var tooltip = $"{engineKey} | {point.Snapshot.ComparisonSetId ?? "legacy"} | {point.Snapshot.SnapshotTimestampUtc:yyyy-MM-dd HH:mm:ss} UTC | p50: {point.Value.ToString("0.###############", Invariant)} ms";
                 sb.AppendLine($"  <circle cx=\"{point.X.ToString("0.###", Invariant)}\" cy=\"{point.Y.ToString("0.###", Invariant)}\" r=\"3.8\" fill=\"{color}\" stroke=\"#ffffff\" stroke-width=\"1\">");
                 sb.AppendLine($"    <title>{NumberFormatter.HtmlEncode(tooltip)}</title>");
                 sb.AppendLine("  </circle>");
@@ -124,7 +171,10 @@ internal static class ChartRenderer
         var legendY = chartHeight - 24.0;
         foreach (var engine in engineKeys)
         {
-            sb.AppendLine($"  <rect x=\"{legendX.ToString("0.###", Invariant)}\" y=\"{(legendY - 9).ToString("0.###", Invariant)}\" width=\"12\" height=\"12\" fill=\"{EngineColor(engine)}\" rx=\"2\" />");
+            var color = colorMap.TryGetValue(engine, out var resolvedColor)
+                ? resolvedColor
+                : EngineColor(engine);
+            sb.AppendLine($"  <rect x=\"{legendX.ToString("0.###", Invariant)}\" y=\"{(legendY - 9).ToString("0.###", Invariant)}\" width=\"12\" height=\"12\" fill=\"{color}\" rx=\"2\" />");
             sb.AppendLine($"  <text x=\"{(legendX + 16).ToString("0.###", Invariant)}\" y=\"{legendY.ToString("0.###", Invariant)}\" font-size=\"11\" fill=\"#4e5a68\">{NumberFormatter.HtmlEncode(engine)}</text>");
             legendX += 130;
         }
@@ -154,10 +204,10 @@ internal static class ChartRenderer
         }
 
         var chartWidth = 940.0;
-        var chartHeight = 340.0;
+        var chartHeight = 332.0;
         var marginLeft = 72.0;
         var marginRight = 20.0;
-        var marginTop = 24.0;
+        var marginTop = 28.0;
         var marginBottom = 74.0;
         var plotWidth = chartWidth - marginLeft - marginRight;
         var plotHeight = chartHeight - marginTop - marginBottom;
@@ -175,9 +225,9 @@ internal static class ChartRenderer
         var leftPadInCluster = (clusterWidth - perSeriesWidth * series.Count) * 0.5;
 
         var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"<div class=\"chart-title\">{NumberFormatter.HtmlEncode(title)}</div>");
         sb.AppendLine($"<svg class=\"chart\" viewBox=\"0 0 {chartWidth.ToString("0.###", Invariant)} {chartHeight.ToString("0.###", Invariant)}\" role=\"img\" aria-label=\"{NumberFormatter.HtmlEncode(title)}\">");
         sb.AppendLine("  <rect x=\"0\" y=\"0\" width=\"100%\" height=\"100%\" fill=\"#ffffff\" />");
-        sb.AppendLine($"  <text x=\"18\" y=\"20\" font-size=\"14\" fill=\"#20252b\" font-weight=\"650\">{NumberFormatter.HtmlEncode(title)}</text>");
 
         const int ticks = 5;
         for (var i = 0; i <= ticks; i++)
@@ -230,25 +280,88 @@ internal static class ChartRenderer
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Returns a stable color for a given target key.
-    /// Target keys like "polar-db-current", "polar-db-2.1.1" map to the polar-db color.
-    /// </summary>
-    public static string EngineColor(string engineKey)
+    private static double? GetMetricP50(object? source, string metricName)
     {
-        var normalized = engineKey.ToLowerInvariant();
-        // Map target keys to engine family colors.
-        if (normalized.StartsWith("polar-db", StringComparison.OrdinalIgnoreCase))
+        var stats = GetMemberValue(source, metricName);
+        return GetOptionalMetricValue(
+            stats,
+            "Median",
+            "P50",
+            "P50Value",
+            "Percentile50",
+            "FiftiethPercentile",
+            "P50Ms",
+            "MedianMs",
+            "ValueP50");
+    }
+
+    private static double? GetOptionalMetricValue(object? source, params string[] memberNames)
+    {
+        if (source is null)
         {
-            return "#0f6f9f";
+            return null;
         }
 
-        return normalized switch
+        var sourceType = source.GetType();
+        foreach (var memberName in memberNames)
         {
-            "sqlite" => "#a04f15",
-            "synthetic" => "#5c3ea6",
-            _ => "#2d7b63"
-        };
+            var property = sourceType.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+            if (property is not null)
+            {
+                return ConvertToNullableDouble(property.GetValue(source));
+            }
+
+            var field = sourceType.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+            if (field is not null)
+            {
+                return ConvertToNullableDouble(field.GetValue(source));
+            }
+        }
+
+        return null;
+    }
+
+    private static object? GetMemberValue(object? source, string memberName)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        var sourceType = source.GetType();
+        var property = sourceType.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+        if (property is not null)
+        {
+            return property.GetValue(source);
+        }
+
+        var field = sourceType.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+        if (field is not null)
+        {
+            return field.GetValue(source);
+        }
+
+        return null;
+    }
+
+    private static double? ConvertToNullableDouble(object? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is double d)
+        {
+            return d;
+        }
+
+        if (value is IConvertible convertible)
+        {
+            return Convert.ToDouble(convertible, Invariant);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -268,6 +381,38 @@ internal static class ChartRenderer
         }
 
         return label[..(maxChars - 3)] + "...";
+    }
+
+    private static void Shuffle(string[] items, string seedText)
+    {
+        var state = Hash32(seedText);
+        for (var i = items.Length - 1; i > 0; i--)
+        {
+            state = unchecked(state * 1664525u + 1013904223u);
+            var j = (int)(state % (uint)(i + 1));
+            (items[i], items[j]) = (items[j], items[i]);
+        }
+    }
+
+    private static string BuildFallbackHslColor(string key, int ordinal)
+    {
+        var hash = Hash32(key + ":" + ordinal.ToString(Invariant));
+        var hue = (hash + (uint)(ordinal * 47)) % 360;
+        return $"hsl({hue.ToString(Invariant)}, 68%, 43%)";
+    }
+
+    private static uint Hash32(string? text)
+    {
+        const uint offset = 2166136261u;
+        const uint prime = 16777619u;
+        var hash = offset;
+        foreach (var ch in text ?? string.Empty)
+        {
+            hash ^= char.ToUpperInvariant(ch);
+            hash *= prime;
+        }
+
+        return hash;
     }
 }
 

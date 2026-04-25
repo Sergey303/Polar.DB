@@ -83,6 +83,12 @@ internal sealed class ExperimentIndexRenderer
         sb.AppendLine("    .status-on { color: var(--good); font-weight: 650; }");
         sb.AppendLine("    .status-off { color: var(--warn); font-weight: 650; }");
         sb.AppendLine("    .chart-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }");
+        sb.AppendLine("    .chart-title { padding: 10px 12px 0; font-weight: 650; color: #20252b; }");
+        sb.AppendLine("    .metric-cell { min-width: 118px; }");
+        sb.AppendLine("    .metric-main { font-weight: 560; }");
+        sb.AppendLine("    .metric-ratio { margin-top: 3px; color: var(--muted); font-size: 0.78rem; font-family: var(--mono); }");
+        sb.AppendLine("    .metric-best { background: #eef9f1; }");
+        sb.AppendLine("    .metric-best .metric-ratio { color: var(--good); font-weight: 700; }");
         sb.AppendLine("    svg.chart { min-width: 720px; width: 100%; height: auto; display: block; }");
         sb.AppendLine("    ul.clean { margin: 8px 0 0; padding-left: 18px; }");
         sb.AppendLine("    ul.clean li { margin: 4px 0; }");
