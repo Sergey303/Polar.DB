@@ -67,13 +67,10 @@ internal static class StorageCorruptionHelpers
     {
         if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-        long savedPosition = stream.Position;
         stream.Position = 0L;
 
         using var reader = new BinaryReader(stream, Encoding.Default, leaveOpen: true);
         long count = reader.ReadInt64();
-
-        stream.Position = Math.Min(savedPosition, stream.Length);
         return count;
     }
 
@@ -84,14 +81,12 @@ internal static class StorageCorruptionHelpers
     {
         if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-        long savedPosition = stream.Position;
         stream.Position = 0L;
 
         using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
         writer.Write(count);
         writer.Flush();
 
-        stream.Position = Math.Min(savedPosition, stream.Length);
     }
 
     /// <summary>

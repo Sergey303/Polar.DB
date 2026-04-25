@@ -269,18 +269,9 @@ public class UniversalSequenceBase
     /// </remarks>
     public void Flush()
     {
-        long savedPosition = fs.Position;
-
-        try
-        {
-            EnsureAppendOffsetInvariant();
-            WriteHeaderElementCount();
-            fs.Flush();
-        }
-        finally
-        {
-            fs.Position = savedPosition;
-        }
+        EnsureAppendOffsetInvariant();
+        WriteHeaderElementCount();
+        fs.Flush();
     }
 
     /// <summary>
@@ -523,7 +514,6 @@ public class UniversalSequenceBase
 
         EnsureAppendOffsetInvariant();
 
-        long savedPosition = fs.Position;
         long originalLength = fs.Length;
         long originalAppendOffset = AppendOffset;
         bool isAppendWrite = off == AppendOffset;
@@ -567,10 +557,6 @@ public class UniversalSequenceBase
 
             AppendOffset = originalAppendOffset;
             throw;
-        }
-        finally
-        {
-            fs.Position = savedPosition;
         }
     }
 
@@ -731,7 +717,6 @@ public class UniversalSequenceBase
 
         EnsureAppendOffsetInvariant();
 
-        long savedPosition = fs.Position;
         long originalLength = fs.Length;
         long originalAppendOffset = AppendOffset;
         long originalCount = nelements;
@@ -763,10 +748,6 @@ public class UniversalSequenceBase
             nelements = originalCount;
             fs.Position = AppendOffset;
             throw;
-        }
-        finally
-        {
-            fs.Position = savedPosition;
         }
     }
 
@@ -802,20 +783,13 @@ public class UniversalSequenceBase
     /// </remarks>
     public object GetElement(long off)
     {
-        if (off < 8L || off >= AppendOffset) throw new ArgumentOutOfRangeException(nameof(off));
+        if (off < 8L || off >= AppendOffset)
+            throw new ArgumentOutOfRangeException(nameof(off));
 
-        long savedPosition = fs.Position;
+        if (off != fs.Position)
+            fs.Position = off;
 
-        try
-        {
-            if (off != fs.Position) fs.Position = off;
-
-            return GetElement();
-        }
-        finally
-        {
-            fs.Position = savedPosition;
-        }
+        return GetElement();
     }
 
     /// <summary>
@@ -841,18 +815,9 @@ public class UniversalSequenceBase
 
         if (off < 8L || off >= AppendOffset) throw new ArgumentOutOfRangeException(nameof(off));
 
-        long savedPosition = fs.Position;
+        if (off != fs.Position) fs.Position = off;
 
-        try
-        {
-            if (off != fs.Position) fs.Position = off;
-
-            return ByteFlow.Deserialize(br, tp);
-        }
-        finally
-        {
-            fs.Position = savedPosition;
-        }
+        return ByteFlow.Deserialize(br, tp);
     }
 
     /// <summary>
@@ -895,19 +860,11 @@ public class UniversalSequenceBase
     /// </remarks>
     public IEnumerable<object> ElementValues()
     {
-        long savedPosition = fs.Position;
         long count = nelements;
 
-        try
-        {
-            fs.Position = 8L;
+        fs.Position = 8L;
 
-            for (long i = 0; i < count; i++) yield return GetElement();
-        }
-        finally
-        {
-            fs.Position = savedPosition;
-        }
+        for (long i = 0; i < count; i++) yield return GetElement();
     }
 
     /// <summary>
@@ -934,18 +891,10 @@ public class UniversalSequenceBase
         if (offset < 8L || offset > AppendOffset) throw new ArgumentOutOfRangeException(nameof(offset));
 
         if (number < 0) throw new ArgumentOutOfRangeException(nameof(number));
-        long savedPosition = fs.Position;
 
-        try
-        {
-            fs.Position = offset;
+        fs.Position = offset;
 
-            for (long i = 0; i < number; i++) yield return GetElement();
-        }
-        finally
-        {
-            fs.Position = savedPosition;
-        }
+        for (long i = 0; i < number; i++) yield return GetElement();
     }
 
     /// <summary>
@@ -972,23 +921,15 @@ public class UniversalSequenceBase
         long count = nelements;
         if (count == 0) return;
 
-        long savedPosition = fs.Position;
-        try
-        {
-            fs.Position = 8L;
+        fs.Position = 8L;
 
-            for (long i = 0; i < count; i++)
-            {
-                long off = fs.Position;
-                object element = GetElement();
-
-                bool shouldContinue = handler(off, element);
-                if (!shouldContinue) break;
-            }
-        }
-        finally
+        for (long i = 0; i < count; i++)
         {
-            fs.Position = savedPosition;
+            long off = fs.Position;
+            object element = GetElement();
+
+            bool shouldContinue = handler(off, element);
+            if (!shouldContinue) break;
         }
     }
 
@@ -1008,24 +949,16 @@ public class UniversalSequenceBase
     /// </remarks>
     public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
     {
-        long savedPosition = fs.Position;
         long count = nelements;
 
-        try
-        {
-            fs.Position = 8L;
+        fs.Position = 8L;
 
-            for (long i = 0; i < count; i++)
-            {
-                long off = fs.Position;
-                object element = GetElement();
-
-                yield return Tuple.Create(off, element);
-            }
-        }
-        finally
+        for (long i = 0; i < count; i++)
         {
-            fs.Position = savedPosition;
+            long off = fs.Position;
+            object element = GetElement();
+
+            yield return Tuple.Create(off, element);
         }
     }
 
@@ -1055,23 +988,14 @@ public class UniversalSequenceBase
 
         if (number < 0) throw new ArgumentOutOfRangeException(nameof(number));
 
-        long savedPosition = fs.Position;
+        fs.Position = offset;
 
-        try
+        for (long i = 0; i < number; i++)
         {
-            fs.Position = offset;
+            long off = fs.Position;
+            object element = GetElement();
 
-            for (long i = 0; i < number; i++)
-            {
-                long off = fs.Position;
-                object element = GetElement();
-
-                yield return Tuple.Create(off, element);
-            }
-        }
-        finally
-        {
-            fs.Position = savedPosition;
+            yield return Tuple.Create(off, element);
         }
     }
 
