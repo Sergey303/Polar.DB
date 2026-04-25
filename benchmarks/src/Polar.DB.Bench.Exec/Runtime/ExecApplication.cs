@@ -302,46 +302,66 @@ public static class ExecApplication
                 $"Polar.DB NuGet runner project not found: '{nugetRunnerProjectPath}'.");
         }
 
+        var experimentJsonPath = ExperimentSpecLoader.ResolveSpecPath(options.SpecPath!);
+        if (!File.Exists(experimentJsonPath))
+        {
+            throw new InvalidOperationException(
+                $"Experiment JSON file not found for external NuGet runner: '{experimentJsonPath}'.");
+        }
+
         Console.WriteLine(
             $"==> Running target '{spec.TargetKey}' through external Polar.DB NuGet runner ({runtime.Nuget})");
 
-        var arguments = new List<string>
-        {
-            "--spec", options.SpecPath!,
-            "--engine", spec.TargetKey,
-            "--work", options.WorkingDirectory!,
-            "--raw-out", rawResultsDirectory,
-            "--env", options.EnvironmentClass
-        };
+        var executionPlan = BuildExecutionPlan(options);
+        var measuredExitCodes = new List<int>(executionPlan.MeasuredCount);
 
-        if (!string.IsNullOrWhiteSpace(options.ComparisonSetId))
+        for (var i = 0; i < executionPlan.TotalCount; i++)
         {
-            arguments.Add("--comparison-set");
-            arguments.Add(options.ComparisonSetId);
-        }
+            var runRole = i < executionPlan.WarmupCount ? WarmupRunRole : MeasuredRunRole;
+            var sequenceNumber = i + 1;
+            var includeSeriesSuffix = executionPlan.TotalCount > 1;
+            var rawPath = BuildExternalRawPath(
+                rawResultsDirectory,
+                spec.TargetKey,
+                runRole,
+                sequenceNumber,
+                includeSeriesSuffix);
 
-        if (options.WarmupCount.HasValue)
-        {
-            arguments.Add("--warmup-count");
-            arguments.Add(options.WarmupCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
+            var runWorkDirectory = includeSeriesSuffix
+                ? Path.Combine(options.WorkingDirectory!, $"{runRole}-{sequenceNumber:D2}")
+                : options.WorkingDirectory!;
 
-        if (options.MeasuredCount.HasValue)
-        {
-            arguments.Add("--measured-count");
-            arguments.Add(options.MeasuredCount.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
-
-        return await RunDotNetProjectWithPropertiesAsync(
-            repositoryRoot,
-            nugetRunnerProjectPath,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            var arguments = new List<string>
             {
-                ["PolarDbPackageVersion"] = runtime.Nuget
-            },
-            arguments);
-    }
+                "--mode", "run",
+                "--engine-key", spec.TargetKey,
+                "--package-version", runtime.Nuget,
+                "--experiment", experimentJsonPath,
+                "--work-dir", runWorkDirectory,
+                "--output", rawPath
+            };
 
+            Console.WriteLine(
+                $"==> External Polar.DB NuGet command args: {string.Join(" ", arguments.Select(QuoteArgument))}");
+
+            var exitCode = await RunDotNetProjectAsync(
+                repositoryRoot,
+                nugetRunnerProjectPath,
+                arguments);
+
+            if (string.Equals(runRole, MeasuredRunRole, StringComparison.OrdinalIgnoreCase))
+            {
+                measuredExitCodes.Add(exitCode);
+            }
+
+            if (exitCode != 0)
+            {
+                return exitCode;
+            }
+        }
+
+        return measuredExitCodes.All(x => x == 0) ? 0 : 1;
+    }
     private static IStorageEngineAdapter CreateAdapter(string engineKey)
     {
         return engineKey switch
@@ -635,6 +655,71 @@ public static class ExecApplication
 
         return value;
     }
+    
+    private static string BuildExternalRawPath(
+        string rawResultsDirectory,
+        string engineKey,
+        string runRole,
+        int sequenceNumber,
+        bool includeSeriesSuffix)
+    {
+        Directory.CreateDirectory(rawResultsDirectory);
+
+        var timestampToken = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
+        var safeEngineKey = SanitizeFileNameSegment(engineKey);
+        var safeRunRole = SanitizeFileNameSegment(runRole);
+        var fileName = includeSeriesSuffix
+            ? $"{timestampToken}__{safeEngineKey}__{safeRunRole}-{sequenceNumber:D2}.run.json"
+            : $"{timestampToken}__{safeEngineKey}.run.json";
+        var rawPath = Path.Combine(rawResultsDirectory, fileName);
+
+        if (!File.Exists(rawPath))
+        {
+            return rawPath;
+        }
+
+        const string ext = ".run.json";
+        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
+            ? rawPath[..^ext.Length]
+            : rawPath;
+        var attempt = 2;
+        var candidate = $"{baseName}.v{attempt}{ext}";
+        while (File.Exists(candidate))
+        {
+            attempt++;
+            candidate = $"{baseName}.v{attempt}{ext}";
+        }
+
+        return candidate;
+    }
+
+    private static string SanitizeFileNameSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "value";
+        }
+
+        var chars = value
+            .Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.' ? ch : '-')
+            .ToArray();
+
+        var sanitized = new string(chars).Trim('-', '.', '_');
+        return string.IsNullOrWhiteSpace(sanitized) ? "value" : sanitized;
+    }
+
+    private static string QuoteArgument(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return "\"\"";
+        }
+
+        return value.Any(char.IsWhiteSpace)
+            ? "\"" + value.Replace("\"", "\\\"") + "\""
+            : value;
+    }
+
 
     private readonly record struct SeriesExecutionPlan(
         string? ComparisonSetId,
