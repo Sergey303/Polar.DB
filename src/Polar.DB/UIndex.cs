@@ -1,4 +1,4 @@
-namespace Polar.DB
+﻿namespace Polar.DB
 {
     internal struct HKeyObjOff
     {
@@ -7,358 +7,247 @@ namespace Polar.DB
         public long off;
     }
 
-    /// <summary>
-    /// Secondary index over full element values with optional hash pre-bucketing.
-    /// </summary>
-    /// <remarks>
-    /// Persisted static state is rebuilt by <see cref="Build()"/>.
-    /// <see cref="OnAppendElement(object,long)"/> updates only the dynamic in-memory set.
-    /// </remarks>
     public class UIndex : IUIndex
     {
         private readonly USequence sequence;
-        private readonly Func<object, bool> applicable;
-        private readonly Func<object, int>? hashFunc;
-        private readonly Comparer<object> comp;
+        
+        // Параметры конструктора
+        private Func<object, bool> applicable;
+        private Func<object, int> hashFunc;
+        private Comparer<object> comp;
 
-        private readonly UniversalSequenceBase? hkeys;
-        private readonly UniversalSequenceBase offsets;
-
+        // Статическая часть индекса
+        private UniversalSequenceBase hkeys;
+        private UniversalSequenceBase offsets;
+        
+        // Динамическая часть индекса: Множество троек и компаратор
         private HKeyObjOff[] dynset;
-        private readonly Comparer<HKeyObjOff> complex_comp;
-        private int[]? hkeys_arr;
-        private readonly struct ValueOffset
-        {
-            internal ValueOffset(object value, long offset)
-            {
-                Value = value;
-                Offset = offset;
-            }
+        private Comparer<HKeyObjOff> complex_comp;
 
-            internal object Value { get; }
-            internal long Offset { get; }
-        }
-
-        /// <summary>
-        /// Creates a value index.
-        /// </summary>
-        /// <param name="streamGen">Factory for streams used by persisted index parts.</param>
-        /// <param name="sequence">Owner sequence whose elements are indexed.</param>
-        /// <param name="applicable">Predicate that selects elements to include in the index.</param>
-        /// <param name="hashFunc">Optional hash selector used to reduce compare range; pass <see langword="null"/> for pure value ordering.</param>
-        /// <param name="comp">Comparer used for exact element ordering and equality checks.</param>
-        public UIndex(
-            Func<Stream> streamGen,
-            USequence sequence,
-            Func<object, bool> applicable,
-            Func<object, int>? hashFunc,
-            Comparer<object> comp)
+        public UIndex(Func<Stream> streamGen, USequence sequence,
+            Func<object, bool> applicable, Func<object, int> hashFunc, Comparer<object> comp)
         {
-            _ = streamGen ?? throw new ArgumentNullException(nameof(streamGen));
-            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
-            this.applicable = applicable ?? throw new ArgumentNullException(nameof(applicable));
+            this.sequence = sequence;
+            this.applicable = applicable;
             this.hashFunc = hashFunc;
-            this.comp = comp ?? throw new ArgumentNullException(nameof(comp));
+            this.comp = comp;
 
-            if (hashFunc != null)
-                hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-
+            if (hashFunc != null) hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
             offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
 
-            complex_comp = Comparer<HKeyObjOff>.Create((h1, h2) =>
+            complex_comp = Comparer<HKeyObjOff>.Create(new Comparison<HKeyObjOff>((HKeyObjOff h1, HKeyObjOff h2) =>
             {
+                int cmp;
                 if (hashFunc != null)
                 {
-                    int cmp = h1.hkey.CompareTo(h2.hkey);
-                    if (cmp != 0) return cmp;
+                    cmp = h1.hkey.CompareTo(h2.hkey);
+                    if (cmp != 0) return cmp; 
                 }
-
                 return comp.Compare(h1.obj, h2.obj);
-            });
-
-            dynset = Array.Empty<HKeyObjOff>();
+            }));
+            dynset = new HKeyObjOff[0]; 
         }
 
-        /// <summary>
-        /// Clears static and dynamic index state.
-        /// </summary>
-        public void Clear()
-        {
-            if (hkeys !=null && hashFunc != null)
-                hkeys.Clear();
+        private int[] hkeys_arr = null;
 
-            hkeys_arr = null;
+        public void Clear() 
+        { 
+            if (hashFunc != null) hkeys.Clear(); 
+            hkeys_arr = null; 
             offsets.Clear();
-            dynset = Array.Empty<HKeyObjOff>();
+            dynset = new HKeyObjOff[0];
         }
-
-        /// <summary>
-        /// Flushes persisted static index sequences.
-        /// </summary>
-        public void Flush()
-        {
-            if (hkeys !=null && hashFunc != null)
-                hkeys.Flush();
-
-            offsets.Flush();
-        }
-
-        /// <summary>
-        /// Flushes and closes persisted static index sequences.
-        /// </summary>
-        public void Close()
-        {
-            if (hkeys !=null && hashFunc != null)
-                hkeys.Close();
-
-            offsets.Close();
-        }
-
-        /// <summary>
-        /// Reloads persisted static index state.
-        /// </summary>
+        public void Flush() { if (hashFunc != null) hkeys.Flush(); offsets.Flush(); }
+        public void Close() { if (hashFunc != null) hkeys.Close(); offsets.Close(); }
         public void Refresh()
         {
-            if (hkeys !=null && hashFunc != null)
-                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-
+            if (hashFunc != null) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
             offsets.Refresh();
         }
 
-        /// <summary>
-        /// Rebuilds static index state from the owner sequence logical view.
-        /// </summary>
         public void Build()
         {
-            BuildFromSnapshot(sequence.CreateLogicalBuildSnapshot());
+            if (hashFunc == null) BuildOffsets();
+            else BuildHkeyOffsets();
         }
 
-        internal void BuildFromSnapshot(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
-        {
-            if (hashFunc == null)
-                BuildOffsets(snapshot);
-            else
-                BuildHkeyOffsets(snapshot);
-        }
+        private Comparer<long> comp_spec_long;
 
-        private void BuildOffsets(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        private void BuildOffsets()
         {
-            int initialCapacity = snapshot.Count;
-            List<ValueOffset> valuesWithOffsets = initialCapacity > 0
-                ? new List<ValueOffset>(initialCapacity)
-                : new List<ValueOffset>();
-            for (int i = 0; i < snapshot.Count; i++)
+            comp_spec_long = Comparer<long>.Create(new Comparison<long>((off1, off2) =>
             {
-                var entry = snapshot[i];
-                if (applicable(entry.Element))
-                    valuesWithOffsets.Add(new ValueOffset(entry.Element, entry.Offset));
-            }
+                object v1 = sequence.GetByOffset(off1);
+                object v2 = sequence.GetByOffset(off2);
+                return comp.Compare(v1, v2);
+            }));
+            // сканируем опорную последовательность, формируем массивы
+            List<long> offsets_list = new List<long>();
+            sequence.Scan((off, obj) =>
+            {
+                if (applicable(obj)) offsets_list.Add(off);
+                return true;
+            });
+            long[] offsets_arr = offsets_list.ToArray();
+            offsets_list = null;
+            GC.Collect();
 
-            ValueOffset[] valuesWithOffsetsArr = valuesWithOffsets.ToArray();
-            Array.Sort(valuesWithOffsetsArr, Comparer<ValueOffset>.Create((v1, v2) => comp.Compare(v1.Value, v2.Value)));
-
-            long[] offsets_arr = new long[valuesWithOffsetsArr.Length];
-            for (int i = 0; i < valuesWithOffsetsArr.Length; i++)
-                offsets_arr[i] = valuesWithOffsetsArr[i].Offset;
+            Array.Sort(offsets_arr, comp_spec_long);
 
             offsets.Clear();
-            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
+            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
             offsets.Flush();
+            offsets_arr = null;
+            GC.Collect();
         }
-
-        private void BuildHkeyOffsets(IReadOnlyList<USequence.LogicalBuildEntry> snapshot)
+        // hashFunc != null
+        private void BuildHkeyOffsets()
         {
-            int initialCapacity = snapshot.Count;
-            List<int> hkeys_list = initialCapacity > 0 ? new List<int>(initialCapacity) : new List<int>();
-            List<long> offsets_list = initialCapacity > 0 ? new List<long>(initialCapacity) : new List<long>();
-            for (int i = 0; i < snapshot.Count; i++)
+            // сканируем опорную последовательность, формируем массивы
+            List<int> hkeys_list = new List<int>();
+            List<long> offsets_list = new List<long>();
+            sequence.Scan((off, obj) =>
             {
-                var entry = snapshot[i];
-                offsets_list.Add(entry.Offset);
-                if(hashFunc!=null)
-                    hkeys_list.Add(hashFunc(entry.Element));
-            }
-
-            hkeys_arr = hkeys_list.ToArray();
+                offsets_list.Add(off);
+                hkeys_list.Add(hashFunc(obj));
+                return true;
+            });
+            if (hashFunc != null) hkeys_arr = hkeys_list.ToArray();
+            hkeys_list = null;
             long[] offsets_arr = offsets_list.ToArray();
+            offsets_list = null;
+            GC.Collect();
 
             Array.Sort(hkeys_arr, offsets_arr);
 
-            if (hkeys != null)
-            {
-                hkeys.Clear();
-
-                
-                    hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
-
-                hkeys.Flush();
-            }
+            hkeys.Clear();
+            foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
+            hkeys.Flush();
+            //hkeys_arr = null;
+            //GC.Collect();
 
             offsets.Clear();
-            offsets.AppendElements(offsets_arr.Select(static x => (object)x));
+            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
             offsets.Flush();
+            offsets_arr = null;
+            GC.Collect();
         }
-
         internal IEnumerable<ObjOff> GetAllBySample(object sample)
         {
-            _ = sample ?? throw new ArgumentNullException(nameof(sample));
-            if (dynset.Length > 0)
+            if (dynset.Count() > 0)
             {
-                HKeyObjOff complex_sample = new HKeyObjOff { obj = sample };
-                if (hashFunc != null)
-                    complex_sample.hkey = hashFunc(sample);
-
+                HKeyObjOff complex_sample = new HKeyObjOff() { obj = sample };
+                if (hashFunc != null) complex_sample.hkey = hashFunc(sample);
                 var query = dynset.Where(hoo => complex_comp.Compare(hoo, complex_sample) == 0)
                     .Select(hoo => new ObjOff(hoo.obj, hoo.off));
                 foreach (var oo in query)
-                    yield return oo;
-            }
-
-            long first = GetFirstNomOffsets(sample, comp);
-            if (first < 0)
-                yield break;
-
-            for (long ii = first; ii < offsets.Count(); ii++)
-            {
-                long off = (long)offsets.GetByIndex(ii);
-                object? value = sequence.GetByOffset(off);
-                if (comp.Compare(value, sample) == 0)
-                    yield return new ObjOff(value, off);
-                else
-                    break;
-            }
-        }
-
-        internal IEnumerable<ObjOff> GetAllByLike(object sample, Comparer<object> comp_like)
-        {
-            _ = sample ?? throw new ArgumentNullException(nameof(sample));
-            _ = comp_like ?? throw new ArgumentNullException(nameof(comp_like));
-            if (dynset.Length > 0)
-            {
-                foreach (var oo in dynset.Select(hoo => new ObjOff(hoo.obj, hoo.off)))
                 {
-                    if (comp_like.Compare(oo.obj, sample) == 0)
-                        yield return oo;
+                    yield return oo;
                 }
             }
-
-            long first = GetFirstNomOffsets(sample, comp_like);
-            if (first < 0)
-                yield break;
-
+            long first = GetFirstNomOffsets(sample, comp);
             for (long ii = first; ii < offsets.Count(); ii++)
             {
                 long off = (long)offsets.GetByIndex(ii);
-                object? value = sequence.GetByOffset(off);
-                if (comp_like.Compare(value, sample) == 0)
-                    yield return new ObjOff(value, off);
-                else
-                    break;
+                object value = sequence.GetByOffset(off);
+                if (comp.Compare(value, sample) == 0) yield return new ObjOff(value, off);
+                else break;
             }
         }
-
-        private int LowerBound(HKeyObjOff[] arr, HKeyObjOff item)
+        internal IEnumerable<ObjOff> GetAllByLike(object sample, Comparer<object> comp_like)
         {
-            int lo = 0;
-            int hi = arr.Length;
-            while (lo < hi)
+            if (dynset.Count() > 0)
             {
-                int mid = lo + ((hi - lo) >> 1);
-                if (complex_comp.Compare(arr[mid], item) < 0)
-                    lo = mid + 1;
-                else
-                    hi = mid;
+                var query = dynset.Select(hoo => new ObjOff(hoo.obj, hoo.off));
+                foreach (var oo in query)
+                {
+                    if( comp_like.Compare(oo.obj, sample) == 0 ) yield return oo;
+                }
             }
-
-            return lo;
+            long first = GetFirstNomOffsets(sample, comp_like);
+            for (long ii = first; ii < offsets.Count(); ii++)
+            {
+                long off = (long)offsets.GetByIndex(ii);
+                object value = sequence.GetByOffset(off);
+                if (comp_like.Compare(value, sample) == 0) yield return new ObjOff(value, off);
+                else break;
+            }
         }
-
-        /// <summary>
-        /// Appends one newly added sequence element into dynamic in-memory index state.
-        /// </summary>
-        /// <param name="element">Appended sequence element.</param>
-        /// <param name="offset">Physical stream offset of the appended element.</param>
         public void OnAppendElement(object element, long offset)
         {
-            _ = element ?? throw new ArgumentNullException(nameof(element));
-            if (!applicable(element)) return;
-
-            var item = new HKeyObjOff
-            {
-                obj = element,
-                off = offset,
-                hkey = hashFunc != null ? hashFunc(element) : 0
-            };
-
-            int pos = LowerBound(dynset, item);
-            var next = new HKeyObjOff[dynset.Length + 1];
-            Array.Copy(dynset, 0, next, 0, pos);
-            next[pos] = item;
-            Array.Copy(dynset, pos, next, pos + 1, dynset.Length - pos);
-            dynset = next;
+            throw new NotImplementedException("21298");
         }
+
 
         private long GetFirstNomOffsets(object sample, Comparer<object> comparer)
         {
-            _ = sample ?? throw new ArgumentNullException(nameof(sample));
-            _ = comparer ?? throw new ArgumentNullException(nameof(comparer));
-            long count = offsets.Count();
-            if (count == 0) return -1;
-
-            long start = 0;
-            long end = offsets.Count() - 1;
-            long right_equal = -1;
+            long start = 0, end = offsets.Count() - 1, right_equal = -1;
+            // Сжимаем диапазон
             int cmp = 0;
-            object? middle_value;
-
+            object middle_value = null;
             while (end - start > 1)
             {
+                // Находим середину
                 long middle = (start + end) / 2;
                 middle_value = sequence.GetByOffset((long)offsets.GetByIndex(middle));
-                cmp = comparer.Compare(middle_value!, sample);
+                cmp = comparer.Compare(middle_value, sample);
                 if (cmp < 0)
+                {  // Займемся правым интервалом
                     start = middle;
+                }
                 else if (cmp > 0)
+                {  // Займемся левым интервалом
                     end = middle;
+                }
                 else
-                {
+                {  // Середина дает РАВНО
                     end = middle;
                     right_equal = middle;
                 }
             }
-
+            // Если нуля не было, проверить другой конец отрезка (start, middle) или (middle, end)
             if (right_equal == -1)
             {
                 long another = cmp < 0 ? end : start;
                 middle_value = sequence.GetByOffset((long)offsets.GetByIndex(another));
-                cmp = comparer.Compare(middle_value!, sample);
+                cmp = comparer.Compare(middle_value, sample);
                 if (cmp == 0) return another;
             }
-
             return right_equal;
         }
 
+        /// <summary>
+        /// Определение номера первого индекса последовательности hkeys, с которого значения РАВНЫ hkey (хешу от ключа)
+        /// Если нет таких, то -1L
+        /// </summary>
+        /// <param name="hkey"></param>
+        /// <returns></returns>
         private long GetFirstNom(int hkey)
         {
-            long start = 0;
-            long end = hkeys!.Count() - 1;
-            long right_equal = -1;
+            long start = 0, end = hkeys.Count() - 1, right_equal = -1;
+            // Сжимаем диапазон
             while (end - start > 1)
             {
+                // Находим середину
                 long middle = (start + end) / 2;
                 int middle_value = (int)hkeys.GetByIndex(middle);
                 if (middle_value < hkey)
+                {  // Займемся правым интервалом
                     start = middle;
+                }
                 else if (middle_value > hkey)
+                {  // Займемся левым интервалом
                     end = middle;
+                }
                 else
-                {
+                {  // Середина дает РАВНО
                     end = middle;
                     right_equal = middle;
                 }
             }
-
             return right_equal;
         }
+
     }
+
 }
