@@ -81,9 +81,10 @@ namespace Polar.DB
         {
             if (stateFileName == null) return;
 
-            string? dir = Path.GetDirectoryName(stateFileName);
-            if (!string.IsNullOrEmpty(dir))
-                Directory.CreateDirectory(dir);
+            //MAG: Странный код, к тому же dir не используется, а появляется и нужна ли директория - непонятно! 
+            //string? dir = Path.GetDirectoryName(stateFileName);
+            //if (!string.IsNullOrEmpty(dir))
+            //    Directory.CreateDirectory(dir);
 
             using var statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
             using var writer = new BinaryWriter(statefile);
