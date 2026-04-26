@@ -110,6 +110,7 @@ public static class ExecApplication
 
         var experimentSlug = Path.GetFileName(
             experimentDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        var targetExitCodes = new List<(string TargetKey, int ExitCode)>();
 
         foreach (var targetKey in manifest.Targets.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
@@ -135,9 +136,12 @@ public static class ExecApplication
                 $"==> Running target '{targetKey}' for experiment '{manifest.ExperimentKey}'");
 
             var exitCode = await RunSingleTargetSafeAsync(options);
+            targetExitCodes.Add((targetKey, exitCode));
+
             if (exitCode != 0)
             {
-                return exitCode;
+                Console.Error.WriteLine(
+                    $"==> Target '{targetKey}' finished with exit code {exitCode}. Continuing with remaining targets so analysis/charts can use produced raw results.");
             }
         }
 
@@ -154,6 +158,7 @@ public static class ExecApplication
 
         if (analysisExitCode != 0)
         {
+            Console.Error.WriteLine($"==> Analysis finished with exit code {analysisExitCode}.");
             return analysisExitCode;
         }
 
@@ -167,7 +172,12 @@ public static class ExecApplication
                 "--reports-out", experimentDirectory
             });
 
-        return chartsExitCode;
+        if (chartsExitCode != 0)
+        {
+            return chartsExitCode;
+        }
+
+        return targetExitCodes.All(x => x.ExitCode == 0) ? 0 : 1;
     }
 
     private static async Task<int> RunSingleTargetSafeAsync(ExecOptions options)
@@ -289,28 +299,16 @@ public static class ExecApplication
                 $"Target '{spec.TargetKey}' resolved to NuGet runtime without a NuGet version.");
         }
 
-        var nugetRunnerProjectPath = Path.Combine(
-            repositoryRoot,
-            "benchmarks",
-            "src",
-            "Polar.DB.Bench.Exec.PolarDbNuget",
-            "Polar.DB.Bench.Exec.PolarDbNuget.csproj");
-
-        if (!File.Exists(nugetRunnerProjectPath))
-        {
-            throw new InvalidOperationException(
-                $"Polar.DB NuGet runner project not found: '{nugetRunnerProjectPath}'.");
-        }
-
+        var runnerProjectPath = ResolveTypedPolarDbRunnerProjectPath(repositoryRoot, runtime.Nuget);
         var experimentJsonPath = ExperimentSpecLoader.ResolveSpecPath(options.SpecPath!);
         if (!File.Exists(experimentJsonPath))
         {
             throw new InvalidOperationException(
-                $"Experiment JSON file not found for external NuGet runner: '{experimentJsonPath}'.");
+                $"Experiment JSON file not found for external Polar.DB runner: '{experimentJsonPath}'.");
         }
 
         Console.WriteLine(
-            $"==> Running target '{spec.TargetKey}' through external Polar.DB NuGet runner ({runtime.Nuget})");
+            $"==> Running target '{spec.TargetKey}' through typed external Polar.DB runner ({runtime.Nuget})");
 
         var executionPlan = BuildExecutionPlan(options);
         var measuredExitCodes = new List<int>(executionPlan.MeasuredCount);
@@ -333,20 +331,29 @@ public static class ExecApplication
 
             var arguments = new List<string>
             {
-                "--mode", "run",
                 "--engine-key", spec.TargetKey,
-                "--package-version", runtime.Nuget,
                 "--experiment", experimentJsonPath,
                 "--work-dir", runWorkDirectory,
-                "--output", rawPath
+                "--output", rawPath,
+                "--env", options.EnvironmentClass,
+                "--run-role", runRole,
+                "--sequence-number", sequenceNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "--warmup-count", executionPlan.WarmupCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "--measured-count", executionPlan.MeasuredCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
             };
 
+            if (!string.IsNullOrWhiteSpace(executionPlan.ComparisonSetId))
+            {
+                arguments.Add("--comparison-set");
+                arguments.Add(executionPlan.ComparisonSetId);
+            }
+
             Console.WriteLine(
-                $"==> External Polar.DB NuGet command args: {string.Join(" ", arguments.Select(QuoteArgument))}");
+                $"==> External Polar.DB typed runner args: {string.Join(" ", arguments.Select(QuoteArgument))}");
 
             var exitCode = await RunDotNetProjectAsync(
                 repositoryRoot,
-                nugetRunnerProjectPath,
+                runnerProjectPath,
                 arguments);
 
             if (string.Equals(runRole, MeasuredRunRole, StringComparison.OrdinalIgnoreCase))
@@ -356,12 +363,41 @@ public static class ExecApplication
 
             if (exitCode != 0)
             {
-                return exitCode;
+                Console.Error.WriteLine(
+                    $"==> External Polar.DB typed runner returned exit code {exitCode}. Raw path: {rawPath}");
             }
         }
 
         return measuredExitCodes.All(x => x == 0) ? 0 : 1;
     }
+
+    private static string ResolveTypedPolarDbRunnerProjectPath(string repositoryRoot, string packageVersion)
+    {
+        var projectName = packageVersion switch
+        {
+            "2.1.0" => "Polar.DB.Bench.Exec.PolarDb210",
+            "2.1.1" => "Polar.DB.Bench.Exec.PolarDb211",
+            _ => throw new NotSupportedException(
+                $"Pinned Polar.DB NuGet version '{packageVersion}' is not supported by typed external runners. " +
+                "Supported versions: 2.1.0, 2.1.1.")
+        };
+
+        var projectPath = Path.Combine(
+            repositoryRoot,
+            "benchmarks",
+            "src",
+            projectName,
+            projectName + ".csproj");
+
+        if (!File.Exists(projectPath))
+        {
+            throw new InvalidOperationException(
+                $"Typed Polar.DB runner project not found: '{projectPath}'.");
+        }
+
+        return projectPath;
+    }
+
     private static IStorageEngineAdapter CreateAdapter(string engineKey)
     {
         return engineKey switch
@@ -439,47 +475,6 @@ public static class ExecApplication
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--project");
         startInfo.ArgumentList.Add(projectPath);
-        startInfo.ArgumentList.Add("--");
-
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = Process.Start(startInfo)
-                            ?? throw new InvalidOperationException(
-                                $"Failed to start dotnet process for '{projectPath}'.");
-
-        await process.WaitForExitAsync();
-        return process.ExitCode;
-    }
-
-    private static async Task<int> RunDotNetProjectWithPropertiesAsync(
-        string workingDirectory,
-        string projectPath,
-        IReadOnlyDictionary<string, string> msbuildProperties,
-        IReadOnlyList<string> arguments)
-    {
-        var startInfo = new ProcessStartInfo("dotnet")
-        {
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false
-        };
-
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add(projectPath);
-
-        foreach (var (name, value) in msbuildProperties)
-        {
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
-            {
-                continue;
-            }
-
-            startInfo.ArgumentList.Add($"-p:{name}={value}");
-        }
-
         startInfo.ArgumentList.Add("--");
 
         foreach (var argument in arguments)
@@ -592,7 +587,46 @@ public static class ExecApplication
         }
 
         var ext = ".run.json";
-        var baseName = rawPath[..^ext.Length];
+        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
+            ? rawPath[..^ext.Length]
+            : rawPath;
+        var attempt = 2;
+        var candidate = $"{baseName}.v{attempt}{ext}";
+        while (File.Exists(candidate))
+        {
+            attempt++;
+            candidate = $"{baseName}.v{attempt}{ext}";
+        }
+
+        return candidate;
+    }
+
+    private static string BuildExternalRawPath(
+        string rawResultsDirectory,
+        string engineKey,
+        string runRole,
+        int sequenceNumber,
+        bool includeSeriesSuffix)
+    {
+        Directory.CreateDirectory(rawResultsDirectory);
+
+        var timestampToken = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
+        var safeEngineKey = SanitizeFileNameSegment(engineKey);
+        var safeRunRole = SanitizeFileNameSegment(runRole);
+        var fileName = includeSeriesSuffix
+            ? $"{timestampToken}__{safeEngineKey}__{safeRunRole}-{sequenceNumber:D2}.run.json"
+            : $"{timestampToken}__{safeEngineKey}.run.json";
+        var rawPath = Path.Combine(rawResultsDirectory, fileName);
+
+        if (!File.Exists(rawPath))
+        {
+            return rawPath;
+        }
+
+        const string ext = ".run.json";
+        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
+            ? rawPath[..^ext.Length]
+            : rawPath;
         var attempt = 2;
         var candidate = $"{baseName}.v{attempt}{ext}";
         while (File.Exists(candidate))
@@ -655,43 +689,6 @@ public static class ExecApplication
 
         return value;
     }
-    
-    private static string BuildExternalRawPath(
-        string rawResultsDirectory,
-        string engineKey,
-        string runRole,
-        int sequenceNumber,
-        bool includeSeriesSuffix)
-    {
-        Directory.CreateDirectory(rawResultsDirectory);
-
-        var timestampToken = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        var safeEngineKey = SanitizeFileNameSegment(engineKey);
-        var safeRunRole = SanitizeFileNameSegment(runRole);
-        var fileName = includeSeriesSuffix
-            ? $"{timestampToken}__{safeEngineKey}__{safeRunRole}-{sequenceNumber:D2}.run.json"
-            : $"{timestampToken}__{safeEngineKey}.run.json";
-        var rawPath = Path.Combine(rawResultsDirectory, fileName);
-
-        if (!File.Exists(rawPath))
-        {
-            return rawPath;
-        }
-
-        const string ext = ".run.json";
-        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
-            ? rawPath[..^ext.Length]
-            : rawPath;
-        var attempt = 2;
-        var candidate = $"{baseName}.v{attempt}{ext}";
-        while (File.Exists(candidate))
-        {
-            attempt++;
-            candidate = $"{baseName}.v{attempt}{ext}";
-        }
-
-        return candidate;
-    }
 
     private static string SanitizeFileNameSegment(string value)
     {
@@ -719,7 +716,6 @@ public static class ExecApplication
             ? "\"" + value.Replace("\"", "\\\"") + "\""
             : value;
     }
-
 
     private readonly record struct SeriesExecutionPlan(
         string? ComparisonSetId,

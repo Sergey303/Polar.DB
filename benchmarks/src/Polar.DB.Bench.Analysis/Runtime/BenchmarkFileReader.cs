@@ -44,22 +44,53 @@ internal sealed class BenchmarkFileReader
     }
 
     /// <summary>
-    /// Loads all immutable raw run artifacts from one raw directory.
+    /// Loads immutable raw run artifacts from one raw directory.
     /// Files are sorted by file path to keep deterministic processing order.
+    ///
+    /// Malformed or obsolete raw artifacts are skipped deliberately. This keeps the report pipeline usable when the
+    /// repository contains old experimental raw files written by earlier runner prototypes with a different JSON shape
+    /// (for example metrics as an object instead of the canonical RunMetric array).
     /// </summary>
     public async Task<IReadOnlyList<RawRunEntry>> LoadRawRunsAsync(string rawResultsDirectory)
     {
+        if (!Directory.Exists(rawResultsDirectory))
+        {
+            return Array.Empty<RawRunEntry>();
+        }
+
         var files = Directory.GetFiles(rawResultsDirectory, "*.run.json", SearchOption.TopDirectoryOnly)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         var runs = new List<RawRunEntry>(files.Length);
+        var skipped = 0;
+
         foreach (var file in files)
         {
-            var run = await ReadAsync<RunResult>(file);
-            runs.Add(new RawRunEntry(run, file));
+            try
+            {
+                var run = await ReadAsync<RunResult>(file);
+                runs.Add(new RawRunEntry(run, file));
+            }
+            catch (Exception ex) when (IsMalformedRawRunException(ex))
+            {
+                skipped++;
+                Console.Error.WriteLine(
+                    $"Skipping malformed raw run artifact '{file}': {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        if (skipped > 0)
+        {
+            Console.Error.WriteLine(
+                $"Skipped malformed raw run artifacts in '{rawResultsDirectory}': {skipped}.");
         }
 
         return runs;
+    }
+
+    private static bool IsMalformedRawRunException(Exception ex)
+    {
+        return ex is JsonException or InvalidOperationException or NotSupportedException;
     }
 }

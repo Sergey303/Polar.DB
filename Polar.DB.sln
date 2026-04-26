@@ -45,12 +45,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Engine.Polar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Engine.Sqlite", "benchmarks\src\Polar.DB.Bench.Engine.Sqlite\Polar.DB.Bench.Engine.Sqlite.csproj", "{4186ACC1-91E6-44A2-B347-515AA440D122}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec", "benchmarks\src\Polar.DB.Bench.Exec\Polar.DB.Bench.Exec.csproj", "{5472A235-3DFE-471F-83A4-9CC013931140}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7406FEE2-CAC6-4561-B00D-A0701EC53696}"
-	ProjectSection(SolutionItems) = preProject
-		benchmarks\src\Polar.DB.Bench.Exec.PolarDbNuget\USequenceNugetCompatExtensions.cs = benchmarks\src\Polar.DB.Bench.Exec.PolarDbNuget\USequenceNugetCompatExtensions.cs
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{74248134-5223-402A-B48D-96F9435DE59E}"
 	ProjectSection(SolutionItems) = preProject
@@ -66,7 +61,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{CA
 		benchmarks\docs\examples\sample-policy.v1.json = benchmarks\docs\examples\sample-policy.v1.json
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec.PolarDbNuget", "benchmarks\src\Polar.DB.Bench.Exec.PolarDbNuget\Polar.DB.Bench.Exec.PolarDbNuget.csproj", "{B999ECAB-30B7-4FA6-AE3E-9F22414D6F32}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec.PolarDb210", "benchmarks\src\Polar.DB.Bench.Exec.PolarDb210\Polar.DB.Bench.Exec.PolarDb210.csproj", "{955687A2-6FC6-4F25-8E8B-EACFA189B4B0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec.PolarDb211", "benchmarks\src\Polar.DB.Bench.Exec.PolarDb211\Polar.DB.Bench.Exec.PolarDb211.csproj", "{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec", "benchmarks\src\Polar.DB.Bench.Exec\Polar.DB.Bench.Exec.csproj", "{599F19CF-04DB-4C09-AF63-22D0ED74DCD3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -114,14 +113,18 @@ Global
 		{4186ACC1-91E6-44A2-B347-515AA440D122}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4186ACC1-91E6-44A2-B347-515AA440D122}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4186ACC1-91E6-44A2-B347-515AA440D122}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5472A235-3DFE-471F-83A4-9CC013931140}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5472A235-3DFE-471F-83A4-9CC013931140}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5472A235-3DFE-471F-83A4-9CC013931140}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5472A235-3DFE-471F-83A4-9CC013931140}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B999ECAB-30B7-4FA6-AE3E-9F22414D6F32}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B999ECAB-30B7-4FA6-AE3E-9F22414D6F32}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B999ECAB-30B7-4FA6-AE3E-9F22414D6F32}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B999ECAB-30B7-4FA6-AE3E-9F22414D6F32}.Release|Any CPU.Build.0 = Release|Any CPU
+		{955687A2-6FC6-4F25-8E8B-EACFA189B4B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{955687A2-6FC6-4F25-8E8B-EACFA189B4B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{955687A2-6FC6-4F25-8E8B-EACFA189B4B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{955687A2-6FC6-4F25-8E8B-EACFA189B4B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A5E282F5-BA91-40AB-9001-62BA60D97875} = {F3F6FE52-C42B-4461-9803-EFBEF6D645DF}
@@ -135,10 +138,11 @@ Global
 		{12A88C62-479D-4910-A051-FABBAE17FCF0} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{F971141C-4390-4F81-ADD1-7E659240A6FB} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{4186ACC1-91E6-44A2-B347-515AA440D122} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
-		{5472A235-3DFE-471F-83A4-9CC013931140} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{74248134-5223-402A-B48D-96F9435DE59E} = {018206B5-A401-4F02-8782-F88082A9E14A}
 		{9008BEF7-0D6F-4568-BA8D-90FA2C914F08} = {018206B5-A401-4F02-8782-F88082A9E14A}
 		{CA1F5AA8-B4A7-44F9-A038-DEEB2019CD23} = {74248134-5223-402A-B48D-96F9435DE59E}
-		{B999ECAB-30B7-4FA6-AE3E-9F22414D6F32} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{955687A2-6FC6-4F25-8E8B-EACFA189B4B0} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 	EndGlobalSection
 EndGlobal
