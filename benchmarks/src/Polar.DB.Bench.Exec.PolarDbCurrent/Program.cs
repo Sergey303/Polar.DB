@@ -7,13 +7,13 @@ using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
 using BenchWorkloadSpec = Polar.DB.Bench.Core.Models.WorkloadSpec;
 
-namespace Polar.DB.Bench.Exec.PolarDb211;
+namespace Polar.DB.Bench.Exec.PolarDbCurrent;
 
 internal static class Program
 {
-    private const string RunnerIdentity = "Polar.DB 2.1.1 NuGet";
-    private const string RuntimeSource = "nuget-pinned";
-    private const string? RuntimeNuget = "2.1.1";
+    private const string RunnerIdentity = "Polar.DB current source";
+    private const string RuntimeSource = "current-source";
+    private const string? RuntimeNuget = null;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -33,7 +33,7 @@ internal static class Program
         RunnerOptions options;
         try
         {
-            options = RunnerOptions.Parse(args, defaultEngineKey: "polar-db-2.1.1");
+            options = RunnerOptions.Parse(args, defaultEngineKey: "polar-db-current");
         }
         catch (Exception ex)
         {

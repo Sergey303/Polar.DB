@@ -1,34 +1,33 @@
 {
   "experiment": "polar-db-u-sequence-reverse-load-build-random-lookup-1m",
-  "title": "Polar.DB USequence reverse load + build + random GetByKey, 1M persons",
+  "title": "Polar.DB USequence exact reference load + build + random GetByKey, 1M persons",
   "research": "rq-polar-db-version-regression-u-sequence-lookup",
   "hypothesis": "h-current-should-not-regress-against-2-1-0-and-2-1-1",
-  "description": "Creates a Polar.DB USequence person dataset, loads 1,000,000 records in reverse id order, builds the sequence/index state, reopens through Refresh, performs a direct point lookup, then performs a deterministic random point lookup batch. Compares only current Polar.DB source, Polar.DB 2.1.0, and Polar.DB 2.1.1.",
+  "description": "Exact benchmark variant of uploaded Program (1).cs: creates USequence, loads 1,000,000 person records in reverse id order, calls Build(), performs GetByKey(npersons*2/3), then performs 10,000 Random().Next(npersons) GetByKey calls. No reopen/Refresh is performed in this experiment.",
   "dataset": {
-    "profile": "persons-1m-reverse-id",
+    "profile": "persons-1m-reverse-id-reference-exact",
     "count": 1000000,
-    "seed": 123456789,
-    "notes": "Reference scenario from uploaded Program.cs: npersons = 1_000_000, reverse id load, Build, GetByKey, then 10000 random GetByKey calls."
+    "seed": null,
+    "notes": "Reference generator: Enumerable.Range(0, npersons).Select(i => new object[] { npersons - i - 1, \"n\" + i, 33.3 }). Age type is PTypeEnumeration.real. Random lookup uses new Random() like the uploaded Program.cs."
   },
   "workload": {
-    "type": "load-build-reopen-random-point-lookup",
+    "type": "load-build-random-point-lookup-reference-exact",
     "lookup": 10000,
-    "notes": "Load records, Build, close/reopen with Refresh, direct lookup, then random point lookup batch.",
+    "notes": "Exact sequence: Load(reverse ids) -> Build() -> GetByKey(npersons*2/3) -> 10000 random GetByKey. The historical experiment key is preserved, but this workload intentionally does not reopen/refresh.",
     "options": {
-      "loadOrder": "reverse-id",
+      "loadOrder": "reverse-id-zero-based",
       "directLookup": "true",
-      "reopenAfterBuild": "true",
-      "optimise": "false"
+      "reopenAfterBuild": "false",
+      "refreshAfterBuild": "false",
+      "optimise": "false",
+      "referenceProgram": "Program (1).cs"
     }
   },
   "fairness": {
-    "type": "polar-db-same-api-defaults",
-    "notes": "All targets use the same Polar.DB adapter scenario and the same dataset/workload parameters. SQLite is intentionally excluded."
+    "type": "polar-db-reference-program-exact",
+    "notes": "All three targets run the same uploaded Program.cs scenario through version-specific typed external runners."
   },
   "targets": {
-    "polar-db-current": {
-      "engine": "polar-db"
-    },
     "polar-db-2.1.0": {
       "engine": "polar-db",
       "nuget": "2.1.0"
@@ -36,10 +35,13 @@
     "polar-db-2.1.1": {
       "engine": "polar-db",
       "nuget": "2.1.1"
+    },
+    "polar-db-current": {
+      "engine": "polar-db"
     }
   },
   "compare": {
     "history": true,
-    "otherExperiments": true
+    "otherExperiments": false
   }
 }

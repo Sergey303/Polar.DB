@@ -94,11 +94,6 @@ internal static class ComparisonSnapshotBuilder
                 return null;
             }
 
-            if (!measuredRuns.Any(item => item.Result.TechnicalSuccess))
-            {
-                return null;
-            }
-
             allMeasuredRuns.AddRange(measuredRuns);
             engineSeries.Add(BuildEngineSeriesEntry(engineKey, measuredRuns, engineRuns.Count(IsWarmupRun)));
         }
@@ -123,7 +118,7 @@ internal static class ComparisonSnapshotBuilder
                 .ToArray();
 
             var measuredRuns = engineRuns.Where(IsMeasuredRun).ToArray();
-            if (measuredRuns.Length == 0 || !measuredRuns.Any(item => item.Result.TechnicalSuccess))
+            if (measuredRuns.Length == 0)
             {
                 continue;
             }
@@ -153,7 +148,6 @@ internal static class ComparisonSnapshotBuilder
                 .Where(item => item.Result.ExperimentKey.Equals(experimentKey, StringComparison.OrdinalIgnoreCase))
                 .Where(item => item.Result.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase))
                 .Where(IsMeasuredRun)
-                .Where(item => item.Result.TechnicalSuccess)
                 .OrderByDescending(item => item.Result.TimestampUtc)
                 .FirstOrDefault();
 
@@ -186,7 +180,6 @@ internal static class ComparisonSnapshotBuilder
                 .Where(item => item.Result.ExperimentKey.Equals(experimentKey, StringComparison.OrdinalIgnoreCase))
                 .Where(item => item.Result.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase))
                 .Where(IsMeasuredRun)
-                .Where(item => item.Result.TechnicalSuccess)
                 .OrderByDescending(item => item.Result.TimestampUtc)
                 .FirstOrDefault();
 
