@@ -217,9 +217,9 @@ public static class ExecApplication
             ?? ResolveRepositoryRoot(Environment.CurrentDirectory)
             ?? Path.GetFullPath(Path.Combine(options.WorkingDirectory!, ".."));
 
-        if (ShouldRunExternalPolarDbNuget(engineFamily, runtime))
+        if (ShouldRunExternalPolarDbTypedRunner(engineFamily, targetKey, runtime))
         {
-            return await RunExternalPolarDbNugetTargetAsync(
+            return await RunExternalPolarDbTypedTargetAsync(
                 options,
                 spec,
                 runtime,
@@ -279,27 +279,34 @@ public static class ExecApplication
         return measuredResults.All(x => x.TechnicalSuccess) ? 0 : 1;
     }
 
-    private static bool ShouldRunExternalPolarDbNuget(string engineFamily, EngineRuntimeDescriptor runtime)
+    private static bool ShouldRunExternalPolarDbTypedRunner(
+        string engineFamily,
+        string targetKey,
+        EngineRuntimeDescriptor runtime)
     {
-        return engineFamily.Equals("polar-db", StringComparison.OrdinalIgnoreCase)
-               && runtime.Source.Equals("nuget-pinned", StringComparison.OrdinalIgnoreCase)
-               && !string.IsNullOrWhiteSpace(runtime.Nuget);
+        if (!engineFamily.Equals("polar-db", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (targetKey.Equals("polar-db-current", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return runtime.Source.Equals("nuget-pinned", StringComparison.OrdinalIgnoreCase)
+               && (string.Equals(runtime.Nuget, "2.1.0", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(runtime.Nuget, "2.1.1", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static async Task<int> RunExternalPolarDbNugetTargetAsync(
+    private static async Task<int> RunExternalPolarDbTypedTargetAsync(
         ExecOptions options,
         ExperimentSpec spec,
         EngineRuntimeDescriptor runtime,
         string rawResultsDirectory,
         string repositoryRoot)
     {
-        if (string.IsNullOrWhiteSpace(runtime.Nuget))
-        {
-            throw new InvalidOperationException(
-                $"Target '{spec.TargetKey}' resolved to NuGet runtime without a NuGet version.");
-        }
-
-        var runnerProjectPath = ResolveTypedPolarDbRunnerProjectPath(repositoryRoot, runtime.Nuget);
+        var runnerProjectPath = ResolveTypedPolarDbRunnerProjectPath(repositoryRoot, spec.TargetKey, runtime);
         var experimentJsonPath = ExperimentSpecLoader.ResolveSpecPath(options.SpecPath!);
         if (!File.Exists(experimentJsonPath))
         {
@@ -308,7 +315,7 @@ public static class ExecApplication
         }
 
         Console.WriteLine(
-            $"==> Running target '{spec.TargetKey}' through typed external Polar.DB runner ({runtime.Nuget})");
+            $"==> Running target '{spec.TargetKey}' through exact external Polar.DB runner ({DescribeRuntime(runtime, spec.TargetKey)})");
 
         var executionPlan = BuildExecutionPlan(options);
         var measuredExitCodes = new List<int>(executionPlan.MeasuredCount);
@@ -371,15 +378,21 @@ public static class ExecApplication
         return measuredExitCodes.All(x => x == 0) ? 0 : 1;
     }
 
-    private static string ResolveTypedPolarDbRunnerProjectPath(string repositoryRoot, string packageVersion)
+    private static string ResolveTypedPolarDbRunnerProjectPath(
+        string repositoryRoot,
+        string targetKey,
+        EngineRuntimeDescriptor runtime)
     {
-        var projectName = packageVersion switch
+        var projectName = targetKey switch
         {
-            "2.1.0" => "Polar.DB.Bench.Exec.PolarDb210",
-            "2.1.1" => "Polar.DB.Bench.Exec.PolarDb211",
+            "polar-db-current" => "Polar.DB.Bench.Exec.PolarDbCurrent",
+            "polar-db-2.1.0" => "Polar.DB.Bench.Exec.PolarDb210",
+            "polar-db-2.1.1" => "Polar.DB.Bench.Exec.PolarDb211",
+            _ when string.Equals(runtime.Nuget, "2.1.0", StringComparison.OrdinalIgnoreCase) => "Polar.DB.Bench.Exec.PolarDb210",
+            _ when string.Equals(runtime.Nuget, "2.1.1", StringComparison.OrdinalIgnoreCase) => "Polar.DB.Bench.Exec.PolarDb211",
             _ => throw new NotSupportedException(
-                $"Pinned Polar.DB NuGet version '{packageVersion}' is not supported by typed external runners. " +
-                "Supported versions: 2.1.0, 2.1.1.")
+                $"Polar.DB target '{targetKey}' is not supported by exact external runners. " +
+                "Supported targets: polar-db-current, polar-db-2.1.0, polar-db-2.1.1.")
         };
 
         var projectPath = Path.Combine(
@@ -396,6 +409,18 @@ public static class ExecApplication
         }
 
         return projectPath;
+    }
+
+    private static string DescribeRuntime(EngineRuntimeDescriptor runtime, string targetKey)
+    {
+        if (!string.IsNullOrWhiteSpace(runtime.Nuget))
+        {
+            return "NuGet " + runtime.Nuget;
+        }
+
+        return targetKey.Equals("polar-db-current", StringComparison.OrdinalIgnoreCase)
+            ? "current source"
+            : runtime.Source;
     }
 
     private static IStorageEngineAdapter CreateAdapter(string engineKey)

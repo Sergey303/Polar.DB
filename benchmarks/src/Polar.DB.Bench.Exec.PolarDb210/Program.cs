@@ -6,14 +6,15 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
-using BenchDatasetSpec = Polar.DB.Bench.Core.Models.DatasetSpec;
 using BenchWorkloadSpec = Polar.DB.Bench.Core.Models.WorkloadSpec;
 
 namespace Polar.DB.Bench.Exec.PolarDb210;
 
 internal static class Program
 {
-    private const string PackageVersion = "2.1.0";
+    private const string RunnerIdentity = "Polar.DB 2.1.0 NuGet";
+    private const string RuntimeSource = "nuget-pinned";
+    private const string? RuntimeNuget = "2.1.0";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -33,7 +34,7 @@ internal static class Program
         RunnerOptions options;
         try
         {
-            options = RunnerOptions.Parse(args, defaultEngineKey: "polar-db-" + PackageVersion);
+            options = RunnerOptions.Parse(args, defaultEngineKey: "polar-db-2.1.0");
         }
         catch (Exception ex)
         {
@@ -47,12 +48,12 @@ internal static class Program
 
         if (!result.TechnicalSuccess)
         {
-            Console.Error.WriteLine("External Polar.DB " + PackageVersion + " typed run failed.");
+            Console.Error.WriteLine($"External Polar.DB typed runner '{RunnerIdentity}' produced technical failure.");
             Console.Error.WriteLine(result.TechnicalFailureReason);
         }
 
-        // Возвращаем 0, если raw-result удалось записать. Ошибка движка должна попадать в RunResult,
-        // а не обрывать всю серию target-ов до Analysis/Charts.
+        // Важно: если raw-result записан, возвращаем 0.
+        // Техническая ошибка библиотеки — это данные benchmark-а, а не причина ломать Analysis/Charts.
         return 0;
     }
 
@@ -64,7 +65,6 @@ internal static class Program
             var manifest = ReadManifest(options.ExperimentPath);
             var spec = BuildSpec(manifest, options.EngineKey);
             PrepareWorkDirectory(options.WorkDirectory);
-
             return Execute(spec, options, started);
         }
         catch (Exception ex)
@@ -78,15 +78,23 @@ internal static class Program
         var metrics = new List<RunMetric>();
         var notes = new List<string>
         {
-            "Typed external Polar.DB NuGet runner.",
-            "Package version: " + PackageVersion
+            "Typed external Polar.DB runner.",
+            "Reference exact scenario from uploaded Program (1).cs.",
+            "Runtime: " + RunnerIdentity
         };
         var diagnostics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["runtimeSource"] = "nuget-pinned",
-            ["runtimeNuget"] = PackageVersion,
-            ["runnerProject"] = typeof(Program).Assembly.GetName().Name ?? "unknown"
+            ["runtimeSource"] = RuntimeSource,
+            ["runnerProject"] = typeof(Program).Assembly.GetName().Name ?? "unknown",
+            ["referenceProgram"] = "Program (1).cs",
+            ["referenceScenario"] = "Load reverse id 0..N-1 -> Build -> GetByKey(N*2/3) -> 10000 Random().Next(N) GetByKey",
+            ["referenceHasRefresh"] = "False",
+            ["referenceHasReopen"] = "False"
         };
+        if (!string.IsNullOrWhiteSpace(RuntimeNuget))
+        {
+            diagnostics["runtimeNuget"] = RuntimeNuget!;
+        }
 
         var totalWatch = Stopwatch.StartNew();
         var technicalSuccess = true;
@@ -99,15 +107,7 @@ internal static class Program
 
         try
         {
-            var workloadKey = spec.Workload.WorkloadKey;
-            if (IsFullCoverage(workloadKey))
-            {
-                ExecuteFullCoverage(spec, artifactLayout, metrics, diagnostics, out semanticSuccess, out semanticFailure);
-            }
-            else
-            {
-                ExecuteLoadBuildReopenLookup(spec, artifactLayout, metrics, diagnostics, out semanticSuccess, out semanticFailure);
-            }
+            ExecuteReferenceExact(spec, artifactLayout, metrics, diagnostics, out semanticSuccess, out semanticFailure);
         }
         catch (Exception ex)
         {
@@ -139,7 +139,7 @@ internal static class Program
             RunSeriesSequenceNumber = options.SequenceNumber,
             RunRole = options.RunRole,
             Environment = CollectEnvironment(options.EnvironmentClass),
-            Runtime = new EngineRuntimeDescriptor { Source = "nuget-pinned", Nuget = PackageVersion },
+            Runtime = new EngineRuntimeDescriptor { Source = RuntimeSource, Nuget = RuntimeNuget },
             TechnicalSuccess = technicalSuccess,
             TechnicalFailureReason = technicalFailure,
             SemanticSuccess = semanticSuccess,
@@ -159,7 +159,7 @@ internal static class Program
         };
     }
 
-    private static void ExecuteLoadBuildReopenLookup(
+    private static void ExecuteReferenceExact(
         ExperimentSpec spec,
         ArtifactLayout layout,
         List<RunMetric> metrics,
@@ -167,8 +167,9 @@ internal static class Program
         out bool? semanticSuccess,
         out string? semanticFailure)
     {
-        // Exact mirror of uploaded Program (1).cs:
-        // Load reverse ids -> Build -> direct GetByKey -> 10000 random GetByKey.
+        // Точная логика загруженного Program (1).cs, только dbpath заменён на --work-dir/artifacts:
+        // USequence(tp, state.bin, GenStream, ob => false, keyFunc, hashOfKey, false)
+        // Load(reverse ids) -> Build() -> GetByKey(kperson) -> 10000 Random().Next(npersons) GetByKey.
         var npersons = checked((int)Math.Max(0, spec.Dataset.RecordCount));
         var lookupCount = Math.Max(0, spec.Workload.LookupCount ?? 10_000);
         var kperson = npersons * 2 / 3;
@@ -185,7 +186,7 @@ internal static class Program
 
         try
         {
-            useq = CreateSequence(layout.DataPath, layout.StatePath, optimise);
+            useq = CreateSequence(layout.Root, layout.StatePath, optimise);
 
             var loadWatch = Stopwatch.StartNew();
             useq.Load(GenerateReferencePersons(npersons));
@@ -239,8 +240,6 @@ internal static class Program
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0, lookupCount - lookupHits) });
 
-        diagnostics["referenceProgram"] = "Program (1).cs";
-        diagnostics["referenceScenario"] = "Load reverse id 0..N-1 -> Build -> GetByKey(N*2/3) -> 10000 Random().Next(N) GetByKey";
         diagnostics["optimise"] = optimise.ToString();
         diagnostics["directLookupKey"] = kperson.ToString(System.Globalization.CultureInfo.InvariantCulture);
         diagnostics["directLookupHit"] = directLookupHit.ToString();
@@ -248,144 +247,23 @@ internal static class Program
         diagnostics["lookupHitCount"] = lookupHits.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static void ExecuteFullCoverage(
-        ExperimentSpec spec,
-        ArtifactLayout layout,
-        List<RunMetric> metrics,
-        Dictionary<string, string> diagnostics,
-        out bool? semanticSuccess,
-        out string? semanticFailure)
+    private static USequence CreateSequence(string root, string statePath, bool optimise)
     {
-        var initialCount = checked((int)Math.Max(0, spec.Dataset.RecordCount));
-        var lookupCount = Math.Max(0, spec.Workload.LookupCount ?? 10_000);
-        var batchCount = Math.Max(0, spec.Workload.BatchCount ?? 0);
-        var batchSize = Math.Max(0, spec.Workload.BatchSize ?? 0);
-        var lookupPerBatch = ResolveInt(spec.Workload, "randomLookupPerBatch", 5_000, min: 0);
-        var seed = spec.Dataset.Seed ?? 1;
-        var reverse = ShouldLoadReverse(spec);
-        var optimise = ResolveBool(spec.Workload, "optimise", fallback: false);
-
-        USequence? active = null;
-        long lookupHits = 0;
-        long lookupAttempts = 0;
-        var expectedCount = initialCount;
-        var rowCountMismatches = new List<string>();
-
-        var loadMs = 0.0;
-        var buildMs = 0.0;
-        var reopenMs = 0.0;
-        var directLookupMs = 0.0;
-        var randomLookupMs = 0.0;
-        var appendMs = 0.0;
-        var directLookupKey = Math.Max(1, initialCount / 2);
-        var directLookupHit = false;
-
-        try
-        {
-            active = CreateSequence(layout.DataPath, layout.StatePath, optimise);
-            var loadWatch = Stopwatch.StartNew();
-            LoadPersons(active, GeneratePersons(initialCount, seed, reverse));
-            loadWatch.Stop();
-            loadMs = loadWatch.Elapsed.TotalMilliseconds;
-
-            var buildWatch = Stopwatch.StartNew();
-            active.Build();
-            buildWatch.Stop();
-            buildMs = buildWatch.Elapsed.TotalMilliseconds;
-
-            Close(active);
-            var reopenWatch = Stopwatch.StartNew();
-            active = CreateSequence(layout.DataPath, layout.StatePath, optimise);
-            active.Refresh();
-            reopenWatch.Stop();
-            reopenMs += reopenWatch.Elapsed.TotalMilliseconds;
-
-            var directWatch = Stopwatch.StartNew();
-            var directRow = active.GetByKey(directLookupKey);
-            directWatch.Stop();
-            directLookupMs = directWatch.Elapsed.TotalMilliseconds;
-            directLookupHit = TryReadId(directRow, out var directId) && directId == directLookupKey;
-
-            var initialLookup = RunRandomLookups(active, lookupCount, expectedCount, seed ^ 0x5A17_2026);
-            randomLookupMs += initialLookup.ElapsedMs;
-            lookupHits += initialLookup.Hits;
-            lookupAttempts += lookupCount;
-
-            for (var batch = 0; batch < batchCount; batch++)
-            {
-                var appendWatch = Stopwatch.StartNew();
-                var firstId = expectedCount + 1;
-                for (var i = 0; i < batchSize; i++)
-                {
-                    active.AppendElement(CreatePerson(firstId + i, firstId + i));
-                }
-                appendWatch.Stop();
-                appendMs += appendWatch.Elapsed.TotalMilliseconds;
-                expectedCount += batchSize;
-
-                Close(active);
-                reopenWatch.Restart();
-                active = CreateSequence(layout.DataPath, layout.StatePath, optimise);
-                active.Refresh();
-                reopenWatch.Stop();
-                reopenMs += reopenWatch.Elapsed.TotalMilliseconds;
-
-                var cycleLookup = RunRandomLookups(active, lookupPerBatch, expectedCount, seed ^ (0x6e7f0000 + batch));
-                randomLookupMs += cycleLookup.ElapsedMs;
-                lookupHits += cycleLookup.Hits;
-                lookupAttempts += lookupPerBatch;
-            }
-        }
-        finally
-        {
-            Close(active);
-        }
-
-        semanticSuccess = directLookupHit && lookupHits == lookupAttempts && rowCountMismatches.Count == 0;
-        semanticFailure = semanticSuccess.Value
-            ? null
-            : $"directLookupHit={directLookupHit}; lookupHits={lookupHits}; lookupAttempts={lookupAttempts}; rowCountMismatches={string.Join(" | ", rowCountMismatches)}";
-
-        AddCommonMetrics(metrics, initialCount, loadMs, buildMs, reopenMs, directLookupMs, directLookupKey, directLookupHit, randomLookupMs, lookupAttempts, lookupHits);
-        metrics.Add(new RunMetric { MetricKey = "appendMs", Value = appendMs });
-        metrics.Add(new RunMetric { MetricKey = "appendBatchCount", Value = batchCount });
-        metrics.Add(new RunMetric { MetricKey = "appendBatchSize", Value = batchSize });
-        metrics.Add(new RunMetric { MetricKey = "lookupCountPerCycle", Value = lookupPerBatch });
-        diagnostics["expectedCountAfterCycles"] = expectedCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        diagnostics["lookupHitCount"] = lookupHits.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        diagnostics["lookupCount"] = lookupAttempts.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        diagnostics["directLookupHit"] = directLookupHit.ToString();
-    }
-
-    private static USequence CreateSequence(string dataPath, string statePath, bool optimise)
-    {
-        var root = Path.GetDirectoryName(Path.GetFullPath(statePath)) ?? ".";
         Directory.CreateDirectory(root);
-
         var cnt = 0;
-        Func<Stream> streamGen = () => new FileStream(
+        Func<Stream> genStream = () => new FileStream(
             Path.Combine(root, "f" + (cnt++) + ".bin"),
             FileMode.OpenOrCreate,
-            FileAccess.ReadWrite,
-            FileShare.ReadWrite);
-
-        Func<object, bool> isEmpty = ob => false;
-        Func<object, IComparable> keyFunc = ob => (int)((object[])ob)[0];
-        Func<IComparable, int> hashOfKey = ic => (int)ic;
+            FileAccess.ReadWrite);
 
         return new USequence(
             PersonRecordType,
             statePath,
-            streamGen,
-            isEmpty,
-            keyFunc,
-            hashOfKey,
+            genStream,
+            ob => false,
+            ob => (int)((object[])ob)[0],
+            ic => (int)ic,
             optimise);
-    }
-
-    private static void LoadPersons(USequence sequence, IEnumerable<object> persons)
-    {
-        sequence.Load(persons);
     }
 
     private static IEnumerable<object> GenerateReferencePersons(int npersons)
@@ -394,47 +272,6 @@ internal static class Program
         {
             yield return new object[] { npersons - i - 1, "n" + i, 33.3 };
         }
-    }
-
-    private static IEnumerable<object> GeneratePersons(int count, int seed, bool reverse)
-    {
-        if (reverse)
-        {
-            for (var id = count; id >= 1; id--)
-            {
-                yield return CreatePerson(id, count - id + 1);
-            }
-
-            yield break;
-        }
-
-        for (var id = 1; id <= count; id++)
-        {
-            yield return CreatePerson(id, id);
-        }
-    }
-
-    private static object[] CreatePerson(int id, int ordinal)
-    {
-        return new object[] { id, "n" + ordinal, 33.3 };
-    }
-
-    private static (long Hits, double ElapsedMs) RunRandomLookups(USequence sequence, int lookupCount, int maxKeyInclusive, int seed)
-    {
-        var random = new Random(seed);
-        long hits = 0;
-        var watch = Stopwatch.StartNew();
-        for (var i = 0; i < lookupCount; i++)
-        {
-            var key = random.Next(1, maxKeyInclusive + 1);
-            var row = sequence.GetByKey(key);
-            if (TryReadId(row, out var id) && id == key)
-            {
-                hits++;
-            }
-        }
-        watch.Stop();
-        return (hits, watch.Elapsed.TotalMilliseconds);
     }
 
     private static bool TryReadId(object? row, out int id)
@@ -457,34 +294,8 @@ internal static class Program
         }
         catch
         {
-            // Best-effort close in benchmark cleanup path.
+            // Best-effort cleanup path. Technical failure has already been captured if execution failed.
         }
-    }
-
-    private static void AddCommonMetrics(
-        List<RunMetric> metrics,
-        long recordCount,
-        double loadMs,
-        double buildMs,
-        double reopenMs,
-        double directLookupMs,
-        long directLookupKey,
-        bool directLookupHit,
-        double randomLookupMs,
-        long lookupCount,
-        long lookupHits)
-    {
-        metrics.Add(new RunMetric { MetricKey = "recordCount", Value = recordCount });
-        metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
-        metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
-        metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenMs });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupKey", Value = directLookupKey });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = randomLookupMs });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupCount });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0, lookupCount - lookupHits) });
     }
 
     private static IEnumerable<ArtifactDescriptor> CollectArtifacts(string workDirectory)
@@ -509,7 +320,7 @@ internal static class Program
         var lower = fileName.ToLowerInvariant();
         if (lower.Contains("state")) return ArtifactRole.State;
         if (lower.Contains("index")) return ArtifactRole.SecondaryIndex;
-        if (lower.EndsWith(".db", StringComparison.Ordinal) || lower.Contains("polar")) return ArtifactRole.PrimaryData;
+        if (lower.EndsWith(".db", StringComparison.Ordinal) || lower.Contains("polar") || lower.StartsWith("f")) return ArtifactRole.PrimaryData;
         return ArtifactRole.Unknown;
     }
 
@@ -531,49 +342,13 @@ internal static class Program
             Description = manifest.Description,
             TargetKey = engineKey,
             Engine = target?.Engine ?? "polar-db",
-            Nuget = target?.Nuget ?? PackageVersion,
+            Nuget = target?.Nuget ?? RuntimeNuget,
             Dataset = manifest.Dataset,
             Workload = manifest.Workload,
             FaultProfile = manifest.FaultProfile,
             FairnessProfile = manifest.FairnessProfile,
             RequiredCapabilities = manifest.RequiredCapabilities
         };
-    }
-
-    private static bool ShouldLoadReverse(ExperimentSpec spec)
-    {
-        if (spec.Dataset.ProfileKey.Contains("reverse", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return spec.Workload.Parameters?.TryGetValue("loadOrder", out var loadOrder) == true &&
-               loadOrder.Contains("reverse", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsFullCoverage(string workloadKey)
-    {
-        return workloadKey.Contains("full-adapter-coverage", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static int ResolveInt(BenchWorkloadSpec workload, string key, int fallback, int min)
-    {
-        if (workload.Parameters?.TryGetValue(key, out var text) == true && int.TryParse(text, out var value))
-        {
-            return Math.Max(min, value);
-        }
-
-        return Math.Max(min, fallback);
-    }
-
-    private static bool ResolveBool(BenchWorkloadSpec workload, string key, bool fallback)
-    {
-        if (workload.Parameters?.TryGetValue(key, out var text) == true && bool.TryParse(text, out var value))
-        {
-            return value;
-        }
-
-        return fallback;
     }
 
     private static EnvironmentManifest CollectEnvironment(string environmentClass)
@@ -608,7 +383,7 @@ internal static class Program
             RunSeriesSequenceNumber = options.SequenceNumber,
             RunRole = options.RunRole,
             Environment = CollectEnvironment(options.EnvironmentClass),
-            Runtime = new EngineRuntimeDescriptor { Source = "nuget-pinned", Nuget = PackageVersion },
+            Runtime = new EngineRuntimeDescriptor { Source = RuntimeSource, Nuget = RuntimeNuget },
             TechnicalSuccess = false,
             TechnicalFailureReason = error,
             SemanticSuccess = null,
@@ -652,15 +427,12 @@ internal static class Program
         Directory.CreateDirectory(full);
     }
 
-    private sealed record ArtifactLayout(string Root, string DataPath, string StatePath)
+    private sealed record ArtifactLayout(string Root, string StatePath)
     {
         public static ArtifactLayout Create(string workDirectory)
         {
             var root = Path.Combine(workDirectory, "artifacts");
-            return new ArtifactLayout(
-                root,
-                Path.Combine(root, "f0.bin"),
-                Path.Combine(root, "state.bin"));
+            return new ArtifactLayout(root, Path.Combine(root, "state.bin"));
         }
     }
 

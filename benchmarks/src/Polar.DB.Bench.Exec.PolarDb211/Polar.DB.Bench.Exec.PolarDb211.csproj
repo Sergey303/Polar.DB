@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>11</LangVersion>
     <AssemblyName>Polar.DB.Bench.Exec.PolarDb211</AssemblyName>
     <RootNamespace>Polar.DB.Bench.Exec.PolarDb211</RootNamespace>
   </PropertyGroup>

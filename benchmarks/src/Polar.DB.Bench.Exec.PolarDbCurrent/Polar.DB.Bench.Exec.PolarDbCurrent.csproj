@@ -5,12 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>11</LangVersion>
-    <AssemblyName>Polar.DB.Bench.Exec.PolarDb210</AssemblyName>
-    <RootNamespace>Polar.DB.Bench.Exec.PolarDb210</RootNamespace>
+    <AssemblyName>Polar.DB.Bench.Exec.PolarDbCurrent</AssemblyName>
+    <RootNamespace>Polar.DB.Bench.Exec.PolarDbCurrent</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Polar.DB.Bench.Core\Polar.DB.Bench.Core.csproj" />
-    <PackageReference Include="Polar.DB" Version="2.1.0" />
+    <ProjectReference Include="..\..\..\src\Polar.DB\Polar.DB.csproj" />
   </ItemGroup>
 </Project>
