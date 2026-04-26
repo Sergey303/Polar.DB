@@ -21,7 +21,14 @@ internal static class ComparisonSnapshotBuilder
             return fromSets[^1];
         }
 
-        return BuildLegacyLatestSnapshot(experimentKey, runs, engineKeys);
+        var partialFromSets = BuildAvailableMeasuredSnapshots(experimentKey, runs, engineKeys);
+        if (partialFromSets.Count > 0)
+        {
+            return partialFromSets[^1];
+        }
+
+        return BuildLegacyLatestSnapshot(experimentKey, runs, engineKeys)
+               ?? BuildPartialLegacyLatestSnapshot(experimentKey, runs, engineKeys);
     }
 
     public static IReadOnlyList<ComparisonSnapshot> BuildSuccessfulMeasuredSnapshots(
@@ -44,6 +51,26 @@ internal static class ComparisonSnapshotBuilder
             .ToArray();
 
         return snapshots;
+    }
+
+    private static IReadOnlyList<ComparisonSnapshot> BuildAvailableMeasuredSnapshots(
+        string experimentKey,
+        IReadOnlyList<RawRunEntry> runs,
+        IReadOnlyList<string> engineKeys)
+    {
+        var experimentRuns = runs
+            .Where(item => item.Result.ExperimentKey.Equals(experimentKey, StringComparison.OrdinalIgnoreCase))
+            .Where(item => engineKeys.Any(engine => engine.Equals(item.Result.EngineKey, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        return experimentRuns
+            .Where(item => !string.IsNullOrWhiteSpace(item.Result.ComparisonSetId))
+            .GroupBy(item => item.Result.ComparisonSetId!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => TryBuildAvailableSetSnapshot(experimentKey, group.Key, group.ToArray(), engineKeys))
+            .Where(snapshot => snapshot is not null)
+            .Select(snapshot => snapshot!)
+            .OrderBy(snapshot => snapshot.SnapshotTimestampUtc)
+            .ToArray();
     }
 
     private static ComparisonSnapshot? TryBuildSetSnapshot(
@@ -76,17 +103,42 @@ internal static class ComparisonSnapshotBuilder
             engineSeries.Add(BuildEngineSeriesEntry(engineKey, measuredRuns, engineRuns.Count(IsWarmupRun)));
         }
 
-        return new ComparisonSnapshot
+        return CreateSnapshot(experimentKey, comparisonSetId, engineKeys, engineSeries, allMeasuredRuns);
+    }
+
+    private static ComparisonSnapshot? TryBuildAvailableSetSnapshot(
+        string experimentKey,
+        string comparisonSetId,
+        IReadOnlyList<RawRunEntry> setRuns,
+        IReadOnlyList<string> engineKeys)
+    {
+        var availableEngineKeys = new List<string>();
+        var engineSeries = new List<CrossEngineSeriesEngineEntry>();
+        var allMeasuredRuns = new List<RawRunEntry>();
+
+        foreach (var engineKey in engineKeys)
         {
-            ExperimentKey = experimentKey,
-            ComparisonSetId = comparisonSetId,
-            SnapshotTimestampUtc = allMeasuredRuns.Max(item => item.Result.TimestampUtc),
-            DatasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(allMeasuredRuns.Select(item => item.Result.DatasetProfileKey)),
-            FairnessProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(allMeasuredRuns.Select(item => item.Result.FairnessProfileKey)),
-            EnvironmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(allMeasuredRuns.Select(item => item.Result.Environment.EnvironmentClass)),
-            Engines = engineKeys.ToArray(),
-            EngineSeries = engineSeries
-        };
+            var engineRuns = setRuns
+                .Where(item => item.Result.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            var measuredRuns = engineRuns.Where(IsMeasuredRun).ToArray();
+            if (measuredRuns.Length == 0 || !measuredRuns.Any(item => item.Result.TechnicalSuccess))
+            {
+                continue;
+            }
+
+            availableEngineKeys.Add(engineKey);
+            allMeasuredRuns.AddRange(measuredRuns);
+            engineSeries.Add(BuildEngineSeriesEntry(engineKey, measuredRuns, engineRuns.Count(IsWarmupRun)));
+        }
+
+        if (availableEngineKeys.Count < 2)
+        {
+            return null;
+        }
+
+        return CreateSnapshot(experimentKey, comparisonSetId, availableEngineKeys, engineSeries, allMeasuredRuns);
     }
 
     private static ComparisonSnapshot? BuildLegacyLatestSnapshot(
@@ -117,16 +169,65 @@ internal static class ComparisonSnapshotBuilder
             .Select(item => BuildEngineSeriesEntry(item.Result.EngineKey, new[] { item }, warmupCount: 0))
             .ToArray();
 
+        return CreateSnapshot(experimentKey, null, engineKeys, engineSeries, selectedRuns);
+    }
+
+    private static ComparisonSnapshot? BuildPartialLegacyLatestSnapshot(
+        string experimentKey,
+        IReadOnlyList<RawRunEntry> runs,
+        IReadOnlyList<string> engineKeys)
+    {
+        var selectedRuns = new List<RawRunEntry>();
+        var selectedEngineKeys = new List<string>();
+
+        foreach (var engineKey in engineKeys)
+        {
+            var latestRun = runs
+                .Where(item => item.Result.ExperimentKey.Equals(experimentKey, StringComparison.OrdinalIgnoreCase))
+                .Where(item => item.Result.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase))
+                .Where(IsMeasuredRun)
+                .Where(item => item.Result.TechnicalSuccess)
+                .OrderByDescending(item => item.Result.TimestampUtc)
+                .FirstOrDefault();
+
+            if (latestRun is null)
+            {
+                continue;
+            }
+
+            selectedEngineKeys.Add(engineKey);
+            selectedRuns.Add(latestRun);
+        }
+
+        if (selectedRuns.Count < 2)
+        {
+            return null;
+        }
+
+        var engineSeries = selectedRuns
+            .Select(item => BuildEngineSeriesEntry(item.Result.EngineKey, new[] { item }, warmupCount: 0))
+            .ToArray();
+
+        return CreateSnapshot(experimentKey, null, selectedEngineKeys, engineSeries, selectedRuns);
+    }
+
+    private static ComparisonSnapshot CreateSnapshot(
+        string experimentKey,
+        string? comparisonSetId,
+        IReadOnlyList<string> engineKeys,
+        IReadOnlyList<CrossEngineSeriesEngineEntry> engineSeries,
+        IReadOnlyList<RawRunEntry> measuredRuns)
+    {
         return new ComparisonSnapshot
         {
             ExperimentKey = experimentKey,
-            ComparisonSetId = null,
-            SnapshotTimestampUtc = selectedRuns.Max(item => item.Result.TimestampUtc),
-            DatasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(selectedRuns.Select(item => item.Result.DatasetProfileKey)),
-            FairnessProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(selectedRuns.Select(item => item.Result.FairnessProfileKey)),
-            EnvironmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(selectedRuns.Select(item => item.Result.Environment.EnvironmentClass)),
+            ComparisonSetId = comparisonSetId,
+            SnapshotTimestampUtc = measuredRuns.Max(item => item.Result.TimestampUtc),
+            DatasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(measuredRuns.Select(item => item.Result.DatasetProfileKey)),
+            FairnessProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(measuredRuns.Select(item => item.Result.FairnessProfileKey)),
+            EnvironmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(measuredRuns.Select(item => item.Result.Environment.EnvironmentClass)),
             Engines = engineKeys.ToArray(),
-            EngineSeries = engineSeries
+            EngineSeries = engineSeries.ToList()
         };
     }
 
