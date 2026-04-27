@@ -91,7 +91,10 @@ internal sealed record MetricDescriptor
 internal static class MetricReportCatalog
 {
     /// <summary>
-    /// All known metric descriptors, keyed by metric key (case-insensitive).
+    /// Canonical descriptors keyed by metric key (case-insensitive).
+    /// A metric can intentionally appear in several report sections, so this map keeps
+    /// one stable descriptor for key-based lookup while <see cref="DescriptorsBySection"/>
+    /// keeps all section-specific appearances.
     /// </summary>
     private static readonly IReadOnlyDictionary<string, MetricDescriptor> DescriptorsByKey;
 
@@ -108,8 +111,13 @@ internal static class MetricReportCatalog
     static MetricReportCatalog()
     {
         var descriptors = BuildDescriptors();
-        DescriptorsByKey = new Dictionary<string, MetricDescriptor>(
-            descriptors.ToDictionary(d => d.Key, StringComparer.OrdinalIgnoreCase));
+
+        DescriptorsByKey = descriptors
+            .GroupBy(d => d.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(d => d.Priority).First(),
+                StringComparer.OrdinalIgnoreCase);
 
         DescriptorsBySection = descriptors
             .GroupBy(d => d.Section)
@@ -210,7 +218,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.LowerIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 10,
-                Description = "Total wall-clock time for the entire benchmark run (load + build + reopen + lookup)."
+                Description = "Total wall-clock time for the entire benchmark run."
             },
             new()
             {
@@ -368,7 +376,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.LowerIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 10,
-                Description = "Total elapsed milliseconds for all point queries."
+                Description = "Total elapsed milliseconds for all existing-key point queries."
             },
             new()
             {
@@ -379,7 +387,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.Neutral,
                 PreferredStat = PreferredStat.Average,
                 Priority = 20,
-                Description = "Number of point queries executed."
+                Description = "Number of existing-key point queries executed."
             },
             new()
             {
@@ -390,7 +398,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.HigherIsBetter,
                 PreferredStat = PreferredStat.Average,
                 Priority = 30,
-                Description = "Number of queries that found a matching record."
+                Description = "Number of existing-key queries that found a matching record."
             },
             new()
             {
@@ -401,7 +409,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.ZeroIsBest,
                 PreferredStat = PreferredStat.Average,
                 Priority = 40,
-                Description = "Number of queries that found no matching record."
+                Description = "Number of existing-key point queries that found no matching record."
             },
             new()
             {
@@ -412,7 +420,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.OneIsBest,
                 PreferredStat = PreferredStat.Average,
                 Priority = 50,
-                Description = "Fraction of point queries that found a match (hits / queries)."
+                Description = "Fraction of existing-key point queries that found a match."
             },
             new()
             {
@@ -423,7 +431,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.ZeroIsBest,
                 PreferredStat = PreferredStat.Average,
                 Priority = 60,
-                Description = "Fraction of point queries that found no match (misses / queries)."
+                Description = "Fraction of existing-key point queries that found no match."
             },
             new()
             {
@@ -434,7 +442,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.LowerIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 70,
-                Description = "Average milliseconds per point query (totalMs / queryCount)."
+                Description = "Average milliseconds per existing-key point query."
             },
             new()
             {
@@ -445,31 +453,97 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.HigherIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 80,
-                Description = "Point query throughput (queryCount / (totalMs / 1000))."
+                Description = "Existing-key point query throughput."
             },
 
             // ===== Search: Missing Point Lookup =====
             new()
             {
-                Key = "search.point.misses",
-                Label = "Missing key lookups",
+                Key = "search.point.missing.ms",
+                Label = "Missing lookup time",
                 Section = "Search: Missing Point Lookup",
-                Unit = MetricUnit.Count,
-                Direction = MetricDirection.ZeroIsBest,
-                PreferredStat = PreferredStat.Average,
+                Unit = MetricUnit.Milliseconds,
+                Direction = MetricDirection.LowerIsBetter,
+                PreferredStat = PreferredStat.P50,
                 Priority = 10,
-                Description = "Number of point lookups for non-existent keys."
+                Description = "Total elapsed milliseconds for point lookups against non-existent keys."
             },
             new()
             {
-                Key = "search.point.emptyRate",
-                Label = "Missing key empty rate",
+                Key = "search.point.missing.queries",
+                Label = "Missing key queries",
+                Section = "Search: Missing Point Lookup",
+                Unit = MetricUnit.Count,
+                Direction = MetricDirection.Neutral,
+                PreferredStat = PreferredStat.Average,
+                Priority = 20,
+                Description = "Number of point queries executed against non-existent keys."
+            },
+            new()
+            {
+                Key = "search.point.missing.hits",
+                Label = "Unexpected missing-key hits",
+                Section = "Search: Missing Point Lookup",
+                Unit = MetricUnit.Count,
+                Direction = MetricDirection.ZeroIsBest,
+                PreferredStat = PreferredStat.Max,
+                Priority = 30,
+                Description = "Number of missing-key point lookups that unexpectedly returned a row."
+            },
+            new()
+            {
+                Key = "search.point.missing.misses",
+                Label = "Missing key misses",
+                Section = "Search: Missing Point Lookup",
+                Unit = MetricUnit.Count,
+                Direction = MetricDirection.HigherIsBetter,
+                PreferredStat = PreferredStat.Average,
+                Priority = 40,
+                Description = "Number of missing-key point lookups that correctly returned no row."
+            },
+            new()
+            {
+                Key = "search.point.missing.hitRate",
+                Label = "Missing key hit rate",
                 Section = "Search: Missing Point Lookup",
                 Unit = MetricUnit.Ratio,
                 Direction = MetricDirection.ZeroIsBest,
                 PreferredStat = PreferredStat.Average,
-                Priority = 20,
+                Priority = 50,
+                Description = "Fraction of missing-key lookups that unexpectedly returned a row."
+            },
+            new()
+            {
+                Key = "search.point.missing.emptyRate",
+                Label = "Missing key empty rate",
+                Section = "Search: Missing Point Lookup",
+                Unit = MetricUnit.Ratio,
+                Direction = MetricDirection.OneIsBest,
+                PreferredStat = PreferredStat.Average,
+                Priority = 60,
                 Description = "Fraction of missing-key lookups that correctly returned empty."
+            },
+            new()
+            {
+                Key = "search.point.missing.msPerQuery",
+                Label = "Ms per missing query",
+                Section = "Search: Missing Point Lookup",
+                Unit = MetricUnit.MillisecondsPerQuery,
+                Direction = MetricDirection.LowerIsBetter,
+                PreferredStat = PreferredStat.P50,
+                Priority = 70,
+                Description = "Average milliseconds per missing-key query."
+            },
+            new()
+            {
+                Key = "search.point.missing.queriesPerSecond",
+                Label = "Missing queries per second",
+                Section = "Search: Missing Point Lookup",
+                Unit = MetricUnit.QueriesPerSecond,
+                Direction = MetricDirection.HigherIsBetter,
+                PreferredStat = PreferredStat.P50,
+                Priority = 80,
+                Description = "Throughput for missing-key point lookups."
             },
 
             // ===== Search: Scan / Filter =====
@@ -526,7 +600,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.LowerIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 50,
-                Description = "Average milliseconds per scan query (totalMs / queryCount)."
+                Description = "Average milliseconds per scan query."
             },
             new()
             {
@@ -537,7 +611,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.HigherIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 60,
-                Description = "Scan throughput (rowsScanned / (totalMs / 1000))."
+                Description = "Scan throughput."
             },
             new()
             {
@@ -548,7 +622,7 @@ internal static class MetricReportCatalog
                 Direction = MetricDirection.HigherIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 70,
-                Description = "Filter throughput (rowsMatched / (totalMs / 1000))."
+                Description = "Filter throughput."
             },
             new()
             {
