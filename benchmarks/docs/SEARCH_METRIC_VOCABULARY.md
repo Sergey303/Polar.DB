@@ -110,6 +110,23 @@ cacheBenefit = coldMedian / warmMedian
 cachePaybackQueries = cacheBuildCostMs / (coldMsPerQuery - warmMsPerQuery)
 ```
 
+## Report Integration
+
+All search metrics listed above are automatically propagated through the Analysis pipeline
+into the generic `Metrics` dictionary on `CrossEngineSeriesEngineEntry` and `LocalAnalyzedSeriesResult`.
+
+The Charts renderer uses `MetricReportCatalog` (in `Polar.DB.Bench.Charts.Runtime`) to display
+known search metrics in thematic HTML sections:
+
+- **Search: Point Lookup** — point lookup timing, hit rate, throughput
+- **Search: Missing Point Lookup** — missing key lookup statistics
+- **Search: Scan / Filter** — scan timing, rows scanned/matched, throughput
+
+Unknown or uncategorized metrics appear in the **All Metrics Appendix** (collapsed by default).
+
+The MD/CSV report renderers (`SeriesComparisonReportRenderer`) include a **Generic Metrics** section
+that lists all metrics from the `Metrics` dictionary not covered by fixed properties.
+
 ## Rules
 
 1. **Cached and uncached search metrics must not be mixed in one metric.**
@@ -121,3 +138,5 @@ cachePaybackQueries = cacheBuildCostMs / (coldMsPerQuery - warmMsPerQuery)
 
 3. **Query time without result cardinality is not enough for multi-result search.**
    Always report `resultRowsTotal` alongside `ms` for multi-result queries.
+
+

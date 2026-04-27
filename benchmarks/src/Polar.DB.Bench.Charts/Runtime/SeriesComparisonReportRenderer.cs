@@ -47,6 +47,9 @@ internal sealed class SeriesComparisonReportRenderer
         // Stability section
         AppendStabilitySection(sb, comparisons);
 
+        // Generic metrics section
+        AppendGenericMetricsSection(sb, comparisons);
+
         sb.AppendLine("Comparison notes:");
         foreach (var note in comparisons
                      .OrderBy(x => x.TimestampUtc)
@@ -155,7 +158,80 @@ internal sealed class SeriesComparisonReportRenderer
     private static string FormatStatsCsvOptional(MetricSeriesStats? stats)
     {
         return stats is null
-            ? "0,0,,,,"
+            ? "0,0,,,," 
             : ReportFormatting.FormatStatsCsv(stats);
     }
+
+    /// <summary>
+    /// Appends a markdown section listing all generic metrics from the Metrics dictionary
+    /// that are not already covered by the fixed properties above.
+    /// </summary>
+    private static void AppendGenericMetricsSection(
+        StringBuilder sb,
+        IReadOnlyList<CrossEngineComparisonSeriesResult> comparisons)
+    {
+        // Collect all distinct metric keys from Metrics dictionaries across all engines
+        var allMetricKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var comparison in comparisons)
+        {
+            foreach (var engine in comparison.EngineSeries)
+            {
+                if (engine.Metrics is not null)
+                {
+                    foreach (var key in engine.Metrics.Keys)
+                    {
+                        allMetricKeys.Add(key);
+                    }
+                }
+            }
+        }
+
+        if (allMetricKeys.Count == 0)
+        {
+            return;
+        }
+
+        sb.AppendLine("## Generic Metrics");
+        sb.AppendLine();
+        sb.AppendLine("These metrics come from the generic Metrics dictionary and include search, memory, and other derived metrics.");
+        sb.AppendLine("Format: min/avg/median/max. If some runs miss a metric, a suffix like [n=2/3] shows available values.");
+        sb.AppendLine();
+
+        // Build header row
+        var header = "| ComparisonId | Target |";
+        var separator = "| --- | --- |";
+        foreach (var key in allMetricKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+        {
+            header += $" {ReportFormatting.EscapeMarkdownCell(key)} (min/avg/med/max) |";
+            separator += " --- |";
+        }
+
+        sb.AppendLine(header);
+        sb.AppendLine(separator);
+
+        foreach (var comparison in comparisons.OrderBy(x => x.TimestampUtc))
+        {
+            foreach (var engine in comparison.EngineSeries.OrderBy(x => x.EngineKey, StringComparer.OrdinalIgnoreCase))
+            {
+                var row = $"| {ReportFormatting.EscapeMarkdownCell(comparison.ComparisonId)} | {ReportFormatting.EscapeMarkdownCell(engine.EngineKey)} |";
+                foreach (var key in allMetricKeys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (engine.Metrics is not null && engine.Metrics.TryGetValue(key, out var stats))
+                    {
+                        row += $" {ReportFormatting.FormatStats(stats)} |";
+                    }
+                    else
+                    {
+                        row += " n/a |";
+                    }
+                }
+
+                sb.AppendLine(row);
+            }
+        }
+
+        sb.AppendLine();
+    }
 }
+
+

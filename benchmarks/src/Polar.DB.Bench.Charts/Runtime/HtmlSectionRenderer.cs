@@ -703,9 +703,31 @@ internal static class HtmlSectionRenderer
         return Math.Abs(left - right) <= scale * 1e-9;
     }
 
+    /// <summary>
+    /// Gets a metric value from the Metrics dictionary if available,
+    /// otherwise falls back to reflection-based property access.
+    /// </summary>
+    private static MetricSeriesStats? GetMetricStats(object? source, string metricName)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        // Try Metrics dictionary first (generic metrics)
+        var metricsDict = GetMemberValue(source, "Metrics") as IReadOnlyDictionary<string, MetricSeriesStats>;
+        if (metricsDict is not null && metricsDict.TryGetValue(metricName, out var stats))
+        {
+            return stats;
+        }
+
+        // Fall back to reflection-based property access (fixed properties)
+        return GetMemberValue(source, metricName) as MetricSeriesStats;
+    }
+
     private static double? GetMetricP50(object? source, string metricName)
     {
-        var stats = GetMemberValue(source, metricName);
+        var stats = GetMetricStats(source, metricName);
         return GetOptionalMetricValue(
             stats,
             "Median",
@@ -720,7 +742,8 @@ internal static class HtmlSectionRenderer
 
     private static double? GetMetricP95(object? source, string metricName)
     {
-        return GetP95(GetMemberValue(source, metricName));
+        var stats = GetMetricStats(source, metricName);
+        return GetP95(stats);
     }
 
     private static string? GetStringMember(object? source, string memberName)
@@ -941,5 +964,419 @@ internal static class HtmlSectionRenderer
         }
 
         return $"Pinned NuGet version {spec.Nuget}.";
+    }
+
+    // ========================================================================
+    // Thematic Metric Sections (using MetricReportCatalog)
+    // ========================================================================
+
+    /// <summary>
+    /// Renders all thematic metric sections from the MetricReportCatalog.
+    /// Skips sections that have no matching metrics in the data.
+    /// </summary>
+    public static void AppendThematicMetricSections(System.Text.StringBuilder sb, ExperimentIndexModel model)
+    {
+        // Collect all available metric keys from latest engines and local analyzed series
+        var availableKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // From latest engines snapshot
+        if (model.LatestEngines?.Snapshot is not null)
+        {
+            foreach (var engine in model.LatestEngines.Snapshot.EngineSeries)
+            {
+                AddMetricKeys(engine, availableKeys);
+            }
+        }
+
+        // From local analyzed series
+        foreach (var series in model.LocalAnalyzedSeries)
+        {
+            AddMetricKeys(series, availableKeys);
+        }
+
+        if (availableKeys.Count == 0)
+        {
+            return;
+        }
+
+        // Render each known section
+        foreach (var sectionName in MetricReportCatalog.SectionOrder)
+        {
+            if (sectionName == "All Metrics Appendix")
+            {
+                continue; // handled separately
+            }
+
+            var descriptors = MetricReportCatalog.GetDescriptorsForSection(sectionName);
+            if (descriptors.Count == 0)
+            {
+                continue;
+            }
+
+            // Check if any of the section's metrics are available
+            var matchingDescriptors = descriptors
+                .Where(d => availableKeys.Contains(d.Key))
+                .ToArray();
+
+            if (matchingDescriptors.Length == 0)
+            {
+                continue;
+            }
+
+            AppendMetricTableSection(sb, sectionName, matchingDescriptors, model);
+        }
+
+        // Render All Metrics Appendix with unknown/uncategorized metrics
+        AppendAllMetricsAppendix(sb, model, availableKeys);
+    }
+
+    /// <summary>
+    /// Collects all metric keys from an engine entry (both fixed properties and Metrics dictionary).
+    /// </summary>
+    private static void AddMetricKeys(object? source, HashSet<string> keys)
+    {
+        if (source is null)
+        {
+            return;
+        }
+
+        // Add keys from Metrics dictionary
+        var metricsDict = GetMemberValue(source, "Metrics") as IReadOnlyDictionary<string, MetricSeriesStats>;
+        if (metricsDict is not null)
+        {
+            foreach (var key in metricsDict.Keys)
+            {
+                keys.Add(key);
+            }
+        }
+
+        // Add fixed property names that have MetricSeriesStats values
+        var sourceType = source.GetType();
+        foreach (var prop in sourceType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (prop.PropertyType == typeof(MetricSeriesStats))
+            {
+                keys.Add(prop.Name);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Renders one thematic metric table section.
+    /// </summary>
+    private static void AppendMetricTableSection(
+        System.Text.StringBuilder sb,
+        string sectionName,
+        IReadOnlyList<MetricDescriptor> descriptors,
+        ExperimentIndexModel model)
+    {
+        sb.AppendLine($"<section class=\"card wide\">");
+        sb.AppendLine($"  <h2>{NumberFormatter.HtmlEncode(sectionName)}</h2>");
+
+        // Collect engines from latest engines snapshot
+        var engines = model.LatestEngines?.Snapshot?.EngineSeries
+            .OrderBy(item => item.EngineKey, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (engines is null || engines.Length == 0)
+        {
+            sb.AppendLine("  <p class=\"muted\">No engine comparison data available for this section.</p>");
+            sb.AppendLine("</section>");
+            return;
+        }
+
+        // Build table header
+        sb.AppendLine("  <table>");
+        sb.AppendLine("    <thead>");
+        sb.AppendLine("      <tr>");
+        sb.AppendLine("        <th>Metric</th>");
+        foreach (var engine in engines)
+        {
+            var engineKey = GetStringMember(engine, "EngineKey") ?? "unknown";
+            sb.AppendLine($"        <th><code>{NumberFormatter.HtmlEncode(engineKey)}</code></th>");
+        }
+
+        sb.AppendLine("      </tr>");
+        sb.AppendLine("    </thead>");
+        sb.AppendLine("    <tbody>");
+
+        foreach (var descriptor in descriptors)
+        {
+            var statName = descriptor.PreferredStat switch
+            {
+                PreferredStat.P50 => "p50",
+                PreferredStat.P95 => "p95",
+                PreferredStat.Average => "avg",
+                PreferredStat.Max => "max",
+                PreferredStat.Min => "min",
+                _ => "p50"
+            };
+
+            sb.AppendLine("      <tr>");
+            sb.AppendLine($"        <td><span title=\"{NumberFormatter.HtmlEncode(descriptor.Description ?? descriptor.Key)}\">{NumberFormatter.HtmlEncode(descriptor.Label)}</span><br/><span class=\"muted small\">{statName}</span></td>");
+
+            // Compute best value based on direction
+            var values = engines
+                .Select(e => GetPreferredStatValue(e, descriptor))
+                .ToArray();
+
+            var bestValue = FindBestValue(values, descriptor.Direction);
+
+            foreach (var value in values)
+            {
+                sb.AppendLine(FormatCatalogMetricCell(value, bestValue, descriptor));
+            }
+
+            sb.AppendLine("      </tr>");
+        }
+
+        sb.AppendLine("    </tbody>");
+        sb.AppendLine("  </table>");
+        sb.AppendLine("</section>");
+    }
+
+    /// <summary>
+    /// Gets the preferred statistic value for a metric from an engine entry.
+    /// </summary>
+    private static double? GetPreferredStatValue(object? engine, MetricDescriptor descriptor)
+    {
+        var stats = GetMetricStats(engine, descriptor.Key);
+        if (stats is null)
+        {
+            return null;
+        }
+
+        return descriptor.PreferredStat switch
+        {
+            PreferredStat.P50 => stats.P50 ?? stats.Median,
+            PreferredStat.P95 => stats.P95,
+            PreferredStat.Average => stats.Average,
+            PreferredStat.Max => stats.Max,
+            PreferredStat.Min => stats.Min,
+            _ => stats.P50 ?? stats.Median
+        };
+    }
+
+    /// <summary>
+    /// Finds the best value among an array of values based on direction.
+    /// </summary>
+    private static double? FindBestValue(double?[] values, MetricDirection direction)
+    {
+        var valid = values
+            .Where(v => v.HasValue && !double.IsNaN(v.Value) && !double.IsInfinity(v.Value))
+            .Select(v => v!.Value)
+            .ToArray();
+
+        if (valid.Length == 0)
+        {
+            return null;
+        }
+
+        return direction switch
+        {
+            MetricDirection.LowerIsBetter => valid.Min(),
+            MetricDirection.HigherIsBetter => valid.Max(),
+            MetricDirection.ZeroIsBest => 0.0,
+            MetricDirection.OneIsBest => 1.0,
+            MetricDirection.Neutral => null,
+            _ => valid.Min()
+        };
+    }
+
+    /// <summary>
+    /// Formats a metric cell using the catalog descriptor for direction-aware highlighting.
+    /// </summary>
+    private static string FormatCatalogMetricCell(double? value, double? bestValue, MetricDescriptor descriptor)
+    {
+        var formatted = FormatMetricValue(value, descriptor.Unit);
+        if (!value.HasValue)
+        {
+            return "        <td class=\"metric-cell\"><div class=\"metric-main\">" + formatted + "</div></td>";
+        }
+
+        var isBest = IsBestValue(value.Value, bestValue, descriptor.Direction);
+        var css = "metric-cell";
+        if (isBest)
+        {
+            css += " metric-best";
+        }
+        else if (descriptor.Direction == MetricDirection.ZeroIsBest && value.Value != 0.0)
+        {
+            css += " metric-warn";
+        }
+        else if (descriptor.Direction == MetricDirection.OneIsBest && !AreSame(value.Value, 1.0))
+        {
+            css += " metric-warn";
+        }
+
+        var ratio = FormatCatalogRatio(value.Value, bestValue, descriptor);
+        return "        <td class=\"" + css + "\"><div class=\"metric-main\">" + formatted + "</div><div class=\"metric-ratio\">" + NumberFormatter.HtmlEncode(ratio) + "</div></td>";
+    }
+
+    /// <summary>
+    /// Determines if a value is the best according to the metric direction.
+    /// </summary>
+    private static bool IsBestValue(double value, double? bestValue, MetricDirection direction)
+    {
+        if (!bestValue.HasValue)
+        {
+            return false;
+        }
+
+        return direction switch
+        {
+            MetricDirection.LowerIsBetter => AreSame(value, bestValue.Value),
+            MetricDirection.HigherIsBetter => AreSame(value, bestValue.Value),
+            MetricDirection.ZeroIsBest => AreSame(value, 0.0),
+            MetricDirection.OneIsBest => AreSame(value, 1.0),
+            MetricDirection.Neutral => false,
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// Formats a ratio string for catalog metric cells.
+    /// </summary>
+    private static string FormatCatalogRatio(double value, double? bestValue, MetricDescriptor descriptor)
+    {
+        if (!bestValue.HasValue || descriptor.Direction == MetricDirection.Neutral)
+        {
+            return string.Empty;
+        }
+
+        if (descriptor.Direction == MetricDirection.ZeroIsBest)
+        {
+            return AreSame(value, 0.0) ? "ideal" : "non-zero";
+        }
+
+        if (descriptor.Direction == MetricDirection.OneIsBest)
+        {
+            return AreSame(value, 1.0) ? "ideal" : "off";
+        }
+
+        if (AreSame(value, bestValue.Value))
+        {
+            return "best";
+        }
+
+        if (Math.Abs(bestValue.Value) < 1e-12)
+        {
+            return "+" + FormatPlainCatalogMetric(value - bestValue.Value, descriptor.Unit) + " over best";
+        }
+
+        var ratio = descriptor.Direction == MetricDirection.LowerIsBetter
+            ? value / bestValue.Value
+            : bestValue.Value / value;
+
+        return "×" + ratio.ToString("0.##", Invariant);
+    }
+
+    /// <summary>
+    /// Formats a plain metric value for ratio display.
+    /// </summary>
+    private static string FormatPlainCatalogMetric(double value, MetricUnit unit)
+    {
+        return unit switch
+        {
+            MetricUnit.Milliseconds or MetricUnit.MillisecondsPerQuery or MetricUnit.MillisecondsPerRow => FormatPlainMetric(value, MetricKind.Milliseconds),
+            MetricUnit.Bytes => NumberFormatter.FormatBinaryBytes(value),
+            _ => value.ToString("0.###", Invariant)
+        };
+    }
+
+    /// <summary>
+    /// Formats a metric value according to its unit.
+    /// </summary>
+    private static string FormatMetricValue(double? value, MetricUnit unit)
+    {
+        if (!value.HasValue)
+        {
+            return "<span class=\"muted\">n/a</span>";
+        }
+
+        return unit switch
+        {
+            MetricUnit.Milliseconds => NumberFormatter.FormatMilliseconds(value),
+            MetricUnit.Bytes => NumberFormatter.FormatBytes(value),
+            MetricUnit.Percent => $"<span title=\"raw: {value.Value.ToString("0.###############", Invariant)}\">{value.Value.ToString("0.##", Invariant)}%</span>",
+            MetricUnit.Ratio => $"<span title=\"raw: {value.Value.ToString("0.###############", Invariant)}\">{value.Value.ToString("0.###", Invariant)}</span>",
+            MetricUnit.PerSecond or MetricUnit.RowsPerSecond or MetricUnit.QueriesPerSecond => $"<span title=\"raw: {value.Value.ToString("0.###############", Invariant)}\">{NumberFormatter.FormatScientificWithUnit(value.Value, string.Empty, false)}/s</span>",
+            MetricUnit.MillisecondsPerQuery => NumberFormatter.FormatMilliseconds(value),
+            MetricUnit.MillisecondsPerRow => NumberFormatter.FormatMilliseconds(value),
+            MetricUnit.Count => $"<span title=\"raw: {value.Value.ToString("0.###############", Invariant)}\">{value.Value.ToString("0.###", Invariant)}</span>",
+            MetricUnit.None => $"<span title=\"raw: {value.Value.ToString("0.###############", Invariant)}\">{value.Value.ToString("0.###", Invariant)}</span>",
+            _ => $"<span title=\"raw: {value.Value.ToString("0.###############", Invariant)}\">{value.Value.ToString("0.###", Invariant)}</span>"
+        };
+    }
+
+    /// <summary>
+    /// Renders the "All Metrics Appendix" with all metrics not covered by known sections.
+    /// This section is collapsed by default.
+    /// </summary>
+    private static void AppendAllMetricsAppendix(
+        System.Text.StringBuilder sb,
+        ExperimentIndexModel model,
+        HashSet<string> availableKeys)
+    {
+        // Find unknown keys (not in any known section)
+        var unknownKeys = MetricReportCatalog.GetUnknownMetricKeys(availableKeys);
+
+        // Also include known keys that are not in any thematic section
+        // (they are already covered by the thematic sections above)
+
+        if (unknownKeys.Count == 0)
+        {
+            return;
+        }
+
+        sb.AppendLine("<section class=\"card wide\">");
+        sb.AppendLine("  <details>");
+        sb.AppendLine("    <summary><h2 style=\"display:inline\">All Metrics Appendix</h2></summary>");
+        sb.AppendLine("    <p class=\"muted small\">This section lists all metrics that are not covered by the thematic sections above. It includes raw metric keys and their values for completeness.</p>");
+
+        var engines = model.LatestEngines?.Snapshot?.EngineSeries
+            .OrderBy(item => item.EngineKey, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (engines is null || engines.Length == 0)
+        {
+            sb.AppendLine("    <p class=\"muted\">No engine comparison data available.</p>");
+        }
+        else
+        {
+            sb.AppendLine("    <table>");
+            sb.AppendLine("      <thead>");
+            sb.AppendLine("        <tr>");
+            sb.AppendLine("          <th>Metric Key</th>");
+            foreach (var engine in engines)
+            {
+                var engineKey = GetStringMember(engine, "EngineKey") ?? "unknown";
+                sb.AppendLine($"          <th><code>{NumberFormatter.HtmlEncode(engineKey)}</code></th>");
+            }
+
+            sb.AppendLine("        </tr>");
+            sb.AppendLine("      </thead>");
+            sb.AppendLine("      <tbody>");
+
+            foreach (var key in unknownKeys)
+            {
+                sb.AppendLine("        <tr>");
+                sb.AppendLine($"          <td><code>{NumberFormatter.HtmlEncode(key)}</code></td>");
+                foreach (var engine in engines)
+                {
+                    var stats = GetMetricStats(engine, key);
+                    var p50 = stats?.P50 ?? stats?.Median;
+                    sb.AppendLine($"          <td>{NumberFormatter.FormatMilliseconds(p50)}</td>");
+                }
+
+                sb.AppendLine("        </tr>");
+            }
+
+            sb.AppendLine("      </tbody>");
+            sb.AppendLine("    </table>");
+        }
+
+        sb.AppendLine("  </details>");
+        sb.AppendLine("</section>");
     }
 }

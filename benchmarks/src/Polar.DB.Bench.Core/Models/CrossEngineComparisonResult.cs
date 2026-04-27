@@ -333,6 +333,15 @@ public sealed record CrossEngineSeriesEngineEntry
     /// </summary>
     [JsonPropertyName("sideBytes")]
     public required MetricSeriesStats SideArtifactBytes { get; init; }
+
+    /// <summary>
+    /// Generic metrics dictionary containing stats for all raw metric keys
+    /// that Analysis sees for each target series.
+    /// This includes search metrics, memory metrics, and any future metrics
+    /// not exposed as fixed properties.
+    /// </summary>
+    [JsonPropertyName("metrics")]
+    public IReadOnlyDictionary<string, MetricSeriesStats>? Metrics { get; init; }
 }
 
 /// <summary>

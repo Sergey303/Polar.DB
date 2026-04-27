@@ -189,6 +189,39 @@ The platform retains the following derived metrics for analysis and reporting.
 | `speedup vs baseline` | Ratio of baseline time to target time |
 | `slowdown vs baseline` | Ratio of target time to baseline time |
 
+### Generic Metrics Dictionary
+
+All raw metric keys that are not exposed as fixed properties (ElapsedMs, LoadMs, etc.)
+are propagated through the Analysis pipeline into a generic `Metrics` dictionary
+(`IReadOnlyDictionary<string, MetricSeriesStats>`) on both:
+
+- `CrossEngineSeriesEngineEntry` — per-target aggregated stats in comparison artifacts
+- `LocalAnalyzedSeriesResult` — per-target stats in local analyzed artifacts
+
+This dictionary is serialized as `"metrics"` in JSON and is the primary mechanism for
+extending the platform with new metric types (search, memory, cache, etc.) without
+modifying the core model classes.
+
+### Report Integration
+
+The Charts renderer (`Polar.DB.Bench.Charts.Runtime`) uses `MetricReportCatalog` to display
+known metrics in thematic HTML sections:
+
+| Section | Metrics |
+|---------|---------|
+| Executive Summary | ElapsedMs, TotalArtifactBytes, LookupMs |
+| Correctness / Status | technicalSuccessRate, semanticSuccessRate, wrong rows |
+| Timing & Stability | ElapsedMs, LoadMs, BuildMs, ReopenMs, LookupMs |
+| Search: Point Lookup | search.point.* timing, hit rate, throughput |
+| Search: Missing Point Lookup | search.point.misses, search.point.emptyRate |
+| Search: Scan / Filter | search.scan.* timing, rows scanned/matched |
+| Storage Economics | TotalArtifactBytes, PrimaryArtifactBytes, SideArtifactBytes, bytesPerRecord |
+| Memory / Runtime | memory.peakBytes, memory.workingSetBytes, gc*, runtime.* |
+| All Metrics Appendix | All metrics not covered by known sections (collapsed by default) |
+
+The MD/CSV report renderers include a **Generic Metrics** section listing all metrics
+from the `Metrics` dictionary.
+
 ### Future Cache (reserved)
 
 | Metric | Description |
@@ -197,3 +230,5 @@ The platform retains the following derived metrics for analysis and reporting.
 | `cacheBenefit` | coldMedian / warmMedian |
 | `cachePaybackQueries` | cacheBuildCostMs / (coldMsPerQuery - warmMsPerQuery) |
 | `cacheHitRate` | Fraction of cache hits |
+
+

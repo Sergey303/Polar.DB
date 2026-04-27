@@ -209,6 +209,7 @@ public static class AnalysisApplication
                 TotalArtifactBytes = seriesEntry.TotalArtifactBytes,
                 PrimaryArtifactBytes = seriesEntry.PrimaryArtifactBytes,
                 SideArtifactBytes = seriesEntry.SideArtifactBytes,
+                Metrics = seriesEntry.Metrics,
                 Notes = new List<string>
                 {
                     "Local analyzed artifact for one engine.",
