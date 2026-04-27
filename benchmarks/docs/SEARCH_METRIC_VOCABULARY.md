@@ -50,6 +50,33 @@ Full or partial scan with predicate filtering.
 | `search.scan.msPerQuery` | double | totalMs / queryCount |
 | `search.scan.rowsScannedPerSecond` | double | rowsScanned / (totalMs / 1000) |
 | `search.scan.rowsMatchedPerSecond` | double | rowsMatched / (totalMs / 1000) |
+| `search.scan.semanticWrongRows` | int | Number of rows that matched the filter but should not have (semantic validation failures) |
+| `search.scan.emptyResultCount` | int | Number of scan queries that returned zero matching rows |
+
+## Implemented Experiments
+
+### polar-db-search-point-and-category-1m
+
+First implemented search experiment. 1M records with point-lookup and scan/filter category lookup.
+
+**Workload parameters:**
+- `pointExistingQueries` (default 10000) — existing key point lookups
+- `pointMissingQueries` (default 10000) — missing key point lookups
+- `scanQueries` (default 20) — scan/filter queries
+- `categoryModulo` (default 100) — number of categories (category100 = id % categoryModulo)
+- `popularPercent` (default 5) — percentage of records marked as popular (reserved for future use)
+
+**Capabilities:**
+- `scanFilterSupported` = True — scan/filter category lookup is implemented
+- `indexedCategoryLookupSupported` = False — secondary index category lookup is not implemented
+- `semanticScope` = point+scan — both point and scan/filter semantics are validated
+
+**Semantic validation:**
+- Point: all existing key lookups must hit, all missing key lookups must miss
+- Scan: `search.scan.semanticWrongRows` must be 0 (expected count per category = recordCount / categoryModulo, with remainder distribution)
+- Cache: not implemented (cache=false in experiment manifest)
+- `isPopular` field is reserved for future experiments
+
 
 ## Formulas
 
