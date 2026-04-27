@@ -81,7 +81,7 @@ internal static class Program
         var notes = new List<string>
         {
             "Typed external Polar.DB runner.",
-            "Protocol: polar-db-search-point-and-category/v1 (point-lookup only).",
+            "Protocol: polar-db-search-point-and-category/v1 (point-lookup + scan/filter).",
             "Runtime: " + RunnerIdentity
         };
         var diagnostics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -90,8 +90,8 @@ internal static class Program
             ["runnerProject"] = typeof(Program).Assembly.GetName().Name ?? "unknown",
             ["protocol"] = "polar-db-search-point-and-category/v1",
             ["indexedCategoryLookupSupported"] = "False",
-            ["scanFilterSupported"] = "False",
-            ["semanticScope"] = "point"
+            ["scanFilterSupported"] = "True",
+            ["semanticScope"] = "point+scan"
         };
         if (!string.IsNullOrWhiteSpace(RuntimeNuget))
         {
@@ -176,6 +176,7 @@ internal static class Program
         var options = spec.Workload.Parameters ?? new Dictionary<string, string>();
         var pointExistingQueries = ParseIntOption(options, "pointExistingQueries", 10000);
         var pointMissingQueries = ParseIntOption(options, "pointMissingQueries", 10000);
+        var scanQueries = ParseIntOption(options, "scanQueries", 20);
         var categoryModulo = ParseIntOption(options, "categoryModulo", 100);
         var popularPercent = ParseIntOption(options, "popularPercent", 5);
 
@@ -189,6 +190,13 @@ internal static class Program
         var buildMs = 0.0;
         var existingLookupMs = 0.0;
         var missingLookupMs = 0.0;
+
+        // Scan/filter state
+        long scanRowsScanned = 0;
+        long scanRowsMatched = 0;
+        long scanWrongRows = 0;
+        long scanEmptyResultCount = 0;
+        var scanMs = 0.0;
 
         try
         {
@@ -247,6 +255,81 @@ internal static class Program
             }
             missingWatch.Stop();
             missingLookupMs = missingWatch.Elapsed.TotalMilliseconds;
+
+            // D. Scan/filter category lookup
+            // Close and reopen to ensure clean state for scan
+            Close(useq);
+            useq = CreateSequence(layout.Root, layout.StatePath, optimise);
+            useq.Refresh();
+
+            var scanWatch = Stopwatch.StartNew();
+            for (var i = 0; i < scanQueries; i++)
+            {
+                var selectedCategory = (i * 37 + seed) % categoryModulo;
+                long matched = 0;
+                long wrong = 0;
+
+                foreach (var element in useq.ElementValues())
+                {
+                    if (element is object[] fields && fields.Length >= 5)
+                    {
+                        var category = (int)fields[3];
+                        if (category == selectedCategory)
+                        {
+                            matched++;
+                        }
+                    }
+                }
+
+                // Validate: re-scan and verify every matched row has the selected category
+                long validatedMatched = 0;
+                foreach (var element in useq.ElementValues())
+                {
+                    if (element is object[] fields && fields.Length >= 5)
+                    {
+                        var category = (int)fields[3];
+                        if (category == selectedCategory)
+                        {
+                            validatedMatched++;
+                            if (category != selectedCategory)
+                            {
+                                wrong++;
+                            }
+                        }
+                    }
+                }
+
+                if (validatedMatched != matched)
+                {
+                    // Inconsistency detected during validation
+                    wrong += Math.Abs(validatedMatched - matched);
+                }
+
+                // Expected count: recordCount / categoryModulo plus remainder handling
+                var expectedCount = recordCount / categoryModulo;
+                var remainder = recordCount % categoryModulo;
+                // Categories 0..remainder-1 get one extra element
+                if (selectedCategory < remainder)
+                {
+                    expectedCount++;
+                }
+
+                if (matched != expectedCount)
+                {
+                    wrong += Math.Abs(matched - expectedCount);
+                }
+
+                scanRowsScanned += recordCount;
+                scanRowsMatched += matched;
+                scanWrongRows += wrong;
+
+                if (matched == 0)
+                {
+                    scanEmptyResultCount++;
+                }
+            }
+            scanWatch.Stop();
+            scanMs = scanWatch.Elapsed.TotalMilliseconds;
         }
         finally
         {
@@ -278,6 +361,17 @@ internal static class Program
         metrics.Add(new RunMetric { MetricKey = "search.point.missing.msPerQuery", Value = pointMissingQueries > 0 ? missingLookupMs / pointMissingQueries : 0 });
         metrics.Add(new RunMetric { MetricKey = "search.point.missing.queriesPerSecond", Value = missingLookupMs > 0 ? pointMissingQueries / (missingLookupMs / 1000.0) : 0 });
 
+        // Scan/filter category lookup metrics
+        metrics.Add(new RunMetric { MetricKey = "search.scan.ms", Value = scanMs });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.queries", Value = scanQueries });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.rowsScanned", Value = scanRowsScanned });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.rowsMatched", Value = scanRowsMatched });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.msPerQuery", Value = scanQueries > 0 ? scanMs / scanQueries : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.rowsScannedPerSecond", Value = scanMs > 0 ? scanRowsScanned / (scanMs / 1000.0) : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.rowsMatchedPerSecond", Value = scanMs > 0 ? scanRowsMatched / (scanMs / 1000.0) : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.semanticWrongRows", Value = scanWrongRows });
+        metrics.Add(new RunMetric { MetricKey = "search.scan.emptyResultCount", Value = scanEmptyResultCount });
+
         // Standard metrics
         metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = 0 });
 
@@ -286,15 +380,19 @@ internal static class Program
         diagnostics["recordCount"] = recordCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
         diagnostics["pointExistingQueries"] = pointExistingQueries.ToString(System.Globalization.CultureInfo.InvariantCulture);
         diagnostics["pointMissingQueries"] = pointMissingQueries.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["scanQueries"] = scanQueries.ToString(System.Globalization.CultureInfo.InvariantCulture);
         diagnostics["categoryModulo"] = categoryModulo.ToString(System.Globalization.CultureInfo.InvariantCulture);
         diagnostics["popularPercent"] = popularPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
         diagnostics["seed"] = seed.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         // SemanticSuccess: existing hits == pointExistingQueries AND missing misses == pointMissingQueries
-        semanticSuccess = existingHits == pointExistingQueries && missingMisses == pointMissingQueries;
+        // AND scan/filter returns expected row counts AND scan wrong rows == 0
+        var pointOk = existingHits == pointExistingQueries && missingMisses == pointMissingQueries;
+        var scanOk = scanWrongRows == 0;
+        semanticSuccess = pointOk && scanOk;
         semanticFailure = semanticSuccess.Value
             ? null
-            : $"Expected existing hits={pointExistingQueries}, missing misses={pointMissingQueries}. Got existingHits={existingHits}, missingMisses={missingMisses}.";
+            : $"Point: expected existing hits={pointExistingQueries}, missing misses={pointMissingQueries}. Got existingHits={existingHits}, missingMisses={missingMisses}. Scan: wrongRows={scanWrongRows}.";
     }
 
     private static USequence CreateSequence(string root, string statePath, bool optimise)
