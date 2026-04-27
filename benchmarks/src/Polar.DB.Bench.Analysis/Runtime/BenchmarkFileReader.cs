@@ -44,8 +44,57 @@ internal sealed class BenchmarkFileReader
     }
 
     /// <summary>
+    /// Returns true if the directory contains any raw run files (canonical *.run.json or short r.*.json).
+    /// </summary>
+    public static bool HasRawRunFiles(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        return Directory.GetFiles(directory, "*.run.json", SearchOption.TopDirectoryOnly).Length > 0 ||
+               Directory.GetFiles(directory, "r.*.json", SearchOption.TopDirectoryOnly).Length > 0;
+    }
+
+    /// <summary>
+    /// Enumerates raw run file paths from a directory, returning both canonical *.run.json and short r.*.json files.
+    /// Deduplicates paths case-insensitively. Returns paths in deterministic order.
+    /// </summary>
+    public static IReadOnlyList<string> EnumerateRawRunFiles(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return Array.Empty<string>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*.run.json", SearchOption.TopDirectoryOnly))
+        {
+            if (seen.Add(file))
+            {
+                result.Add(file);
+            }
+        }
+
+        foreach (var file in Directory.EnumerateFiles(directory, "r.*.json", SearchOption.TopDirectoryOnly))
+        {
+            if (seen.Add(file))
+            {
+                result.Add(file);
+            }
+        }
+
+        result.Sort(StringComparer.OrdinalIgnoreCase);
+        return result;
+    }
+
+    /// <summary>
     /// Loads immutable raw run artifacts from one raw directory.
-    /// Files are sorted by file path to keep deterministic processing order.
+    /// Discovers both canonical old raw files (*.run.json) and short raw files (r.*.json).
+    /// Deduplicates paths case-insensitively. Files are sorted by file path to keep deterministic processing order.
     ///
     /// Malformed or obsolete raw artifacts are skipped deliberately. This keeps the report pipeline usable when the
     /// repository contains old experimental raw files written by earlier runner prototypes with a different JSON shape
@@ -58,11 +107,9 @@ internal sealed class BenchmarkFileReader
             return Array.Empty<RawRunEntry>();
         }
 
-        var files = Directory.GetFiles(rawResultsDirectory, "*.run.json", SearchOption.TopDirectoryOnly)
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var files = EnumerateRawRunFiles(rawResultsDirectory);
 
-        var runs = new List<RawRunEntry>(files.Length);
+        var runs = new List<RawRunEntry>(files.Count);
         var skipped = 0;
 
         foreach (var file in files)

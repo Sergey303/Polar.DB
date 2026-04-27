@@ -116,7 +116,7 @@ public static class ChartsApplication
             LatestHistory: latestHistory,
             LatestOtherExperiments: latestOtherExperiments,
             LocalAnalyzedSeries: localAnalyzedSeries,
-            RawArtifacts: ListArtifactLinks(experimentDirectory, rawDirectory, "*.run.json"),
+            RawArtifacts: ListRawArtifactLinks(experimentDirectory, rawDirectory),
             AnalyzedArtifacts: ListArtifactLinks(experimentDirectory, analyzedDirectory, "*.json"),
             ComparisonArtifacts: ListArtifactLinks(experimentDirectory, comparisonsDirectory, "*.json"),
             GeneratedAtUtc: DateTimeOffset.UtcNow);
@@ -177,6 +177,50 @@ public static class ChartsApplication
         }
 
         return Directory.GetFiles(artifactDirectory, pattern, SearchOption.TopDirectoryOnly)
+            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path =>
+            {
+                var relative = Path.GetRelativePath(experimentDirectory, path).Replace('\\', '/');
+                var updatedUtc = File.GetLastWriteTimeUtc(path);
+                return new ArtifactFileLink(relative, new DateTimeOffset(updatedUtc, TimeSpan.Zero));
+            })
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Lists raw artifact links from the raw directory, matching both canonical *.run.json and short r.*.json files.
+    /// Deduplicates paths case-insensitively.
+    /// </summary>
+    private static IReadOnlyList<ArtifactFileLink> ListRawArtifactLinks(
+        string experimentDirectory,
+        string rawDirectory)
+    {
+        if (!Directory.Exists(rawDirectory))
+        {
+            return Array.Empty<ArtifactFileLink>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var files = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(rawDirectory, "*.run.json", SearchOption.TopDirectoryOnly))
+        {
+            if (seen.Add(file))
+            {
+                files.Add(file);
+            }
+        }
+
+        foreach (var file in Directory.EnumerateFiles(rawDirectory, "r.*.json", SearchOption.TopDirectoryOnly))
+        {
+            if (seen.Add(file))
+            {
+                files.Add(file);
+            }
+        }
+
+        return files
             .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
             .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
             .Select(path =>
