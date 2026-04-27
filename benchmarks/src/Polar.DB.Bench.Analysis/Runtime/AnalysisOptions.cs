@@ -152,7 +152,7 @@ public sealed class AnalysisOptions
         }
 
         var fullPath = Path.GetFullPath(rawDirectoryOrExperimentDirectory);
-        if (Directory.GetFiles(fullPath, "*.run.json", SearchOption.TopDirectoryOnly).Length > 0)
+        if (BenchmarkFileReader.HasRawRunFiles(fullPath))
         {
             return fullPath;
         }
@@ -164,7 +164,7 @@ public sealed class AnalysisOptions
         }
 
         throw new InvalidOperationException(
-            "Invalid --raw-dir: expected experiment folder with raw/ or a directory containing *.run.json files.");
+            "Invalid --raw-dir: expected experiment folder with raw/ or a directory containing *.run.json or r.*.json files.");
     }
 
     public static string ResolveComparisonOutputDirectory(
