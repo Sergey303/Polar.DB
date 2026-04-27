@@ -1236,6 +1236,8 @@ internal static class HtmlSectionRenderer
 
     /// <summary>
     /// Formats a ratio string for catalog metric cells.
+    /// For LowerIsBetter: ratio = value / bestValue (shows how many times worse than best).
+    /// For HigherIsBetter: ratio = bestValue / value (shows how many times better the best is).
     /// </summary>
     private static string FormatCatalogRatio(double value, double? bestValue, MetricDescriptor descriptor)
     {
@@ -1264,12 +1266,15 @@ internal static class HtmlSectionRenderer
             return "+" + FormatPlainCatalogMetric(value - bestValue.Value, descriptor.Unit) + " over best";
         }
 
+        // For LowerIsBetter: value / bestValue shows how many times worse than the best (e.g. ×2.5 best)
+        // For HigherIsBetter: bestValue / value shows how many times better the best is (e.g. ×2.5 best)
         var ratio = descriptor.Direction == MetricDirection.LowerIsBetter
             ? value / bestValue.Value
             : bestValue.Value / value;
 
-        return "×" + ratio.ToString("0.##", Invariant);
+        return "×" + ratio.ToString("0.##", Invariant) + " best";
     }
+
 
     /// <summary>
     /// Formats a plain metric value for ratio display.
@@ -1310,29 +1315,67 @@ internal static class HtmlSectionRenderer
     }
 
     /// <summary>
-    /// Renders the "All Metrics Appendix" with all metrics not covered by known sections.
-    /// This section is collapsed by default.
+    /// Renders the "All Metrics Appendix" with ALL available metrics (both known and unknown).
+    /// This section is collapsed by default and provides a complete reference of every metric
+    /// key and its p50 value across all engines.
     /// </summary>
     private static void AppendAllMetricsAppendix(
         System.Text.StringBuilder sb,
         ExperimentIndexModel model,
         HashSet<string> availableKeys)
     {
-        // Find unknown keys (not in any known section)
-        var unknownKeys = MetricReportCatalog.GetUnknownMetricKeys(availableKeys);
-
-        // Also include known keys that are not in any thematic section
-        // (they are already covered by the thematic sections above)
-
-        if (unknownKeys.Count == 0)
+        if (availableKeys.Count == 0)
         {
             return;
         }
 
+        // Collect ALL keys sorted: known catalog keys first (by section order, then label),
+        // then unknown keys alphabetically
+        var knownKeys = new List<string>();
+        var unknownKeys = new List<string>();
+        foreach (var key in availableKeys)
+        {
+            if (MetricReportCatalog.TryGetDescriptor(key) is not null)
+            {
+                knownKeys.Add(key);
+            }
+            else
+            {
+                unknownKeys.Add(key);
+            }
+        }
+
+        // Sort known keys by section order then priority/label
+        var knownKeyOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var sectionIndex = 0;
+        foreach (var section in MetricReportCatalog.SectionOrder)
+        {
+            if (section == "All Metrics Appendix") continue;
+            var descriptors = MetricReportCatalog.GetDescriptorsForSection(section);
+            foreach (var d in descriptors.OrderBy(d => d.Priority).ThenBy(d => d.Label))
+            {
+                if (!knownKeyOrder.ContainsKey(d.Key))
+                {
+                    knownKeyOrder[d.Key] = sectionIndex++;
+                }
+            }
+        }
+        // Any known key not in section order gets appended at the end of known keys
+        knownKeys.Sort((a, b) =>
+        {
+            var ai = knownKeyOrder.TryGetValue(a, out var ia) ? ia : int.MaxValue;
+            var bi = knownKeyOrder.TryGetValue(b, out var ib) ? ib : int.MaxValue;
+            var cmp = ai.CompareTo(bi);
+            return cmp != 0 ? cmp : string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        });
+        unknownKeys.Sort(StringComparer.OrdinalIgnoreCase);
+
+        var allKeys = knownKeys.Concat(unknownKeys).ToArray();
+
         sb.AppendLine("<section class=\"card wide\">");
         sb.AppendLine("  <details>");
         sb.AppendLine("    <summary><h2 style=\"display:inline\">All Metrics Appendix</h2></summary>");
-        sb.AppendLine("    <p class=\"muted small\">This section lists all metrics that are not covered by the thematic sections above. It includes raw metric keys and their values for completeness.</p>");
+        sb.AppendLine("    <p class=\"muted small\">Complete listing of every available metric key and its p50 value across all engines. Known catalog metrics appear first (grouped by thematic section), followed by unknown/uncategorized metrics.</p>");
 
         var engines = model.LatestEngines?.Snapshot?.EngineSeries
             .OrderBy(item => item.EngineKey, StringComparer.OrdinalIgnoreCase)
@@ -1348,6 +1391,7 @@ internal static class HtmlSectionRenderer
             sb.AppendLine("      <thead>");
             sb.AppendLine("        <tr>");
             sb.AppendLine("          <th>Metric Key</th>");
+            sb.AppendLine("          <th>Section</th>");
             foreach (var engine in engines)
             {
                 var engineKey = GetStringMember(engine, "EngineKey") ?? "unknown";
@@ -1358,15 +1402,37 @@ internal static class HtmlSectionRenderer
             sb.AppendLine("      </thead>");
             sb.AppendLine("      <tbody>");
 
-            foreach (var key in unknownKeys)
+            string? lastSection = null;
+            foreach (var key in allKeys)
             {
+                var descriptor = MetricReportCatalog.TryGetDescriptor(key);
+                var section = descriptor?.Section ?? "Uncategorized";
+
+                // Insert a section header row when section changes
+                if (section != lastSection)
+                {
+                    if (lastSection is not null)
+                    {
+                        // Close previous group visually with a subtle separator
+                    }
+                    sb.AppendLine("        <tr class=\"appendix-section\">");
+                    sb.AppendLine($"          <td colspan=\"{2 + engines.Length}\"><strong>{NumberFormatter.HtmlEncode(section)}</strong></td>");
+                    sb.AppendLine("        </tr>");
+                    lastSection = section;
+                }
+
                 sb.AppendLine("        <tr>");
                 sb.AppendLine($"          <td><code>{NumberFormatter.HtmlEncode(key)}</code></td>");
+                sb.AppendLine($"          <td class=\"muted small\">{NumberFormatter.HtmlEncode(section)}</td>");
                 foreach (var engine in engines)
                 {
                     var stats = GetMetricStats(engine, key);
                     var p50 = stats?.P50 ?? stats?.Median;
-                    sb.AppendLine($"          <td>{NumberFormatter.FormatMilliseconds(p50)}</td>");
+                    // Use safe unit-aware formatting based on catalog descriptor or fallback
+                    var formatted = descriptor is not null
+                        ? FormatMetricValue(p50, descriptor.Unit)
+                        : FormatSafeMetricValue(p50);
+                    sb.AppendLine($"          <td>{formatted}</td>");
                 }
 
                 sb.AppendLine("        </tr>");
@@ -1378,5 +1444,36 @@ internal static class HtmlSectionRenderer
 
         sb.AppendLine("  </details>");
         sb.AppendLine("</section>");
+    }
+
+    /// <summary>
+    /// Safely formats a metric value when the unit is unknown.
+    /// Uses heuristics: large values are formatted as bytes or milliseconds,
+    /// small values as plain numbers.
+    /// </summary>
+    private static string FormatSafeMetricValue(double? value)
+    {
+        if (!value.HasValue)
+        {
+            return "<span class=\"muted\">n/a</span>";
+        }
+
+        var raw = value.Value;
+        var abs = Math.Abs(raw);
+
+        // Heuristic: values >= 1_000_000 are likely bytes
+        if (abs >= 1_000_000)
+        {
+            return NumberFormatter.FormatBytes(value);
+        }
+
+        // Heuristic: values >= 1.0 and < 1_000_000 could be milliseconds or counts
+        if (abs >= 1.0)
+        {
+            return $"<span title=\"raw: {raw.ToString("0.###############", Invariant)}\">{raw.ToString("0.###", Invariant)}</span>";
+        }
+
+        // Small values: could be ratios or milliseconds
+        return $"<span title=\"raw: {raw.ToString("0.###############", Invariant)}\">{raw.ToString("0.###############", Invariant)}</span>";
     }
 }
