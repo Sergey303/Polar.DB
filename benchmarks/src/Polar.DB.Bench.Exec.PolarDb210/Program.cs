@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
+using Polar.DB.Bench.Core.Services;
+using static Polar.DB.Bench.Core.Services.FileWarmup;
 using BenchWorkloadSpec = Polar.DB.Bench.Core.Models.WorkloadSpec;
 
 namespace Polar.DB.Bench.Exec.PolarDb210;
@@ -215,6 +217,13 @@ internal static class Program
             buildWatch.Stop();
             buildMs = buildWatch.Elapsed.TotalMilliseconds;
 
+            // Warm artifact files before measured lookup (unless explicitly disabled)
+            if (IsWarmEnabled(spec.Workload.Parameters))
+            {
+                WarmDirectory(layout.Root,
+                    cancellationToken: CancellationToken.None);
+            }
+
             // B. Existing point lookup
             var existingWatch = Stopwatch.StartNew();
             var existingRng = new Random(unchecked(seed ^ 0x1001));
@@ -266,6 +275,13 @@ internal static class Program
             useq.Refresh();
             reopenRefreshWatch.Stop();
             reopenRefreshMs = reopenRefreshWatch.Elapsed.TotalMilliseconds;
+
+            // Warm artifact files before measured scan (unless explicitly disabled)
+            if (IsWarmEnabled(spec.Workload.Parameters))
+            {
+                WarmDirectory(layout.Root,
+                    cancellationToken: CancellationToken.None);
+            }
 
             var scanWatch = Stopwatch.StartNew();
             for (var i = 0; i < scanQueries; i++)

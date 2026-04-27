@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.Services;
+using static Polar.DB.Bench.Core.Services.FileWarmup;
 
 namespace Polar.DB.Bench.Engine.PolarDb;
 
@@ -129,6 +130,13 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 appendOffsetAfterRefresh = reopened.sequence.ElementOffset();
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                // Warm artifact files before measured lookup (unless explicitly disabled)
+                if (IsWarmEnabled(_spec.Workload.Parameters))
+                {
+                    WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                        cancellationToken: cancellationToken);
+                }
 
                 var directLookupWatch = Stopwatch.StartNew();
                 var directRow = reopened.GetByKey(directLookupKey);
@@ -380,6 +388,13 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                         rowCountMismatches.Add($"cycle{cycle + 1}:count={actualCount},expected={expectedCount}");
                     }
 
+                    // Warm artifact files before measured lookup (unless explicitly disabled)
+                    if (IsWarmEnabled(_spec.Workload.Parameters))
+                    {
+                        WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                            cancellationToken: cancellationToken);
+                    }
+
                     var random = new Random((_spec.Dataset.Seed ?? 1) ^ (0x6e7f0000 + cycle));
                     var maxKeyExclusive = checked((int)expectedCount) + 1;
                     var lookupWatch = Stopwatch.StartNew();
@@ -618,6 +633,13 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // Warm artifact files before measured lookup (unless explicitly disabled)
+                if (IsWarmEnabled(_spec.Workload.Parameters))
+                {
+                    WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                        cancellationToken: cancellationToken);
+                }
+
                 if (directLookupEnabled)
                 {
                     var directLookupWatch = Stopwatch.StartNew();
@@ -692,6 +714,13 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 
                     sequenceCountAfterRefresh = actualCount;
                     appendOffsetAfterRefresh = active.sequence.ElementOffset();
+
+                    // Warm artifact files before measured lookup after reopen (unless explicitly disabled)
+                    if (randomLookupAfterEachBatch && IsWarmEnabled(_spec.Workload.Parameters))
+                    {
+                        WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                            cancellationToken: cancellationToken);
+                    }
 
                     if (randomLookupAfterEachBatch)
                     {

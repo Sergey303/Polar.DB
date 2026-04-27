@@ -79,6 +79,27 @@ Strict performance conclusions may be drawn only between targets inside the same
 
 Cross-experiment comparison is diagnostic context only.
 
+## File warmup
+
+Before each measured lookup or scan operation, the runner reads all physical artifact files sequentially (FileStream + SequentialScan, 1 MiB buffer) to warm the OS page cache. This ensures that cold-cache effects do not distort the measured performance.
+
+Warmup is enabled by default. To disable it, set `"warm": "false"` in the experiment's `workload.options`:
+
+```json
+"workload": {
+  "options": {
+    "warm": "false"
+  }
+}
+```
+
+Only the exact string `"false"` (case-insensitive) disables warmup. Any other value, absence, or empty string leaves warmup enabled.
+
+The warmup helper is implemented in `Polar.DB.Bench.Core.Services.FileWarmup` and is used by:
+- `PolarDbStorageEngineAdapter` (PolarDB adapter — 3 methods)
+- `SqliteStorageEngineAdapter` (SQLite adapter — 3 methods)
+- Typed Polar.DB search runners: `PolarDbCurrent`, `PolarDb210`, `PolarDb211`
+
 ## Why this folder does not contain fake future experiments
 
 Some important dimensions are not included as `experiment.json` yet:
