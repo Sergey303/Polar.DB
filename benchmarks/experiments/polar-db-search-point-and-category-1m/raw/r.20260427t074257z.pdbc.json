@@ -1,0 +1,187 @@
+{
+  "run": "20260427T074302441Z.polar-db-search-point-and-category-1m.polar-db-current.8efac071e6914f62bcd9d45dc372db77",
+  "at": "2026-04-27T07:43:00.400749+00:00",
+  "engine": "polar-db-current",
+  "experiment": "polar-db-search-point-and-category-1m",
+  "dataset": "persons-1m-search-category100",
+  "fairness": "search-no-cache-point-and-scan",
+  "set": "simple-20260427T074213",
+  "seq": 1,
+  "role": "measured",
+  "env": {
+    "env": "local",
+    "machine": "COMP",
+    "os": "Microsoft Windows 10.0.26200",
+    "osArch": "X64",
+    "processArch": "X64",
+    "framework": ".NET 10.0.5",
+    "is64Bit": true,
+    "cpuCount": 12,
+    "cwd": "d:\\projects\\Polar.DB",
+    "user": "LuxVe",
+    "git": null
+  },
+  "runtime": {
+    "source": "current-source",
+    "nuget": null
+  },
+  "technical": true,
+  "technicalError": null,
+  "semantic": true,
+  "semanticError": null,
+  "metrics": [
+    {
+      "metric": "recordCount",
+      "value": 1000000
+    },
+    {
+      "metric": "loadMs",
+      "value": 484.6908
+    },
+    {
+      "metric": "buildMs",
+      "value": 713.5781
+    },
+    {
+      "metric": "search.point.ms",
+      "value": 403.2256
+    },
+    {
+      "metric": "search.point.queries",
+      "value": 10000
+    },
+    {
+      "metric": "search.point.hits",
+      "value": 10000
+    },
+    {
+      "metric": "search.point.misses",
+      "value": 0
+    },
+    {
+      "metric": "search.point.hitRate",
+      "value": 1
+    },
+    {
+      "metric": "search.point.emptyRate",
+      "value": 0
+    },
+    {
+      "metric": "search.point.msPerQuery",
+      "value": 0.04032256
+    },
+    {
+      "metric": "search.point.queriesPerSecond",
+      "value": 24800.012697606504
+    },
+    {
+      "metric": "search.point.missing.ms",
+      "value": 172.2883
+    },
+    {
+      "metric": "search.point.missing.queries",
+      "value": 10000
+    },
+    {
+      "metric": "search.point.missing.hits",
+      "value": 0
+    },
+    {
+      "metric": "search.point.missing.misses",
+      "value": 10000
+    },
+    {
+      "metric": "search.point.missing.hitRate",
+      "value": 0
+    },
+    {
+      "metric": "search.point.missing.emptyRate",
+      "value": 1
+    },
+    {
+      "metric": "search.point.missing.msPerQuery",
+      "value": 0.01722883
+    },
+    {
+      "metric": "search.point.missing.queriesPerSecond",
+      "value": 58042.246629631845
+    },
+    {
+      "metric": "reopenRefreshMs",
+      "value": 0
+    },
+    {
+      "metric": "elapsedMsTotal",
+      "value": 1783.7897
+    },
+    {
+      "metric": "elapsedMsSingleRun",
+      "value": 1783.7897
+    },
+    {
+      "metric": "totalArtifactBytes",
+      "value": 39888930
+    },
+    {
+      "metric": "processPeakWorkingSetBytes",
+      "value": 82771968
+    },
+    {
+      "metric": "managedBytesAfter",
+      "value": 28108400
+    }
+  ],
+  "artifacts": [
+    {
+      "role": "PrimaryData",
+      "path": "artifacts\\f0.bin",
+      "bytes": 27888898,
+      "notes": null
+    },
+    {
+      "role": "PrimaryData",
+      "path": "artifacts\\f1.bin",
+      "bytes": 4000008,
+      "notes": null
+    },
+    {
+      "role": "PrimaryData",
+      "path": "artifacts\\f2.bin",
+      "bytes": 8000008,
+      "notes": null
+    },
+    {
+      "role": "State",
+      "path": "artifacts\\state.bin",
+      "bytes": 16,
+      "notes": null
+    }
+  ],
+  "diagnostics": {
+    "runtimeSource": "current-source",
+    "runnerProject": "Polar.DB.Bench.Exec.PolarDbCurrent",
+    "protocol": "polar-db-search-point-and-category/v1",
+    "indexedCategoryLookupSupported": "False",
+    "scanFilterSupported": "False",
+    "semanticScope": "point",
+    "optimise": "False",
+    "recordCount": "1000000",
+    "pointExistingQueries": "10000",
+    "pointMissingQueries": "10000",
+    "categoryModulo": "100",
+    "popularPercent": "5",
+    "seed": "303"
+  },
+  "tags": {
+    "research": "rq-polar-db-search-workload-matrix",
+    "hypothesis": "h-point-lookup-should-be-fast-and-scan-cost-should-scale-with-rows-scanned",
+    "warmupCount": "0",
+    "measuredCount": "1",
+    "role": "measured"
+  },
+  "notes": [
+    "Typed external Polar.DB runner.",
+    "Protocol: polar-db-search-point-and-category/v1 (point-lookup only).",
+    "Runtime: Polar.DB current source"
+  ]
+}
