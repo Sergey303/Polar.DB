@@ -115,19 +115,33 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 buildWatch.Stop();
                 buildMs = buildWatch.Elapsed.TotalMilliseconds;
 
-                sequence.Close();
-                sequence = null;
+                var reopenAfterBuild = ResolveBooleanOption(_spec.Workload, "reopenAfterBuild", fallback: true);
 
-                cancellationToken.ThrowIfCancellationRequested();
+                if (reopenAfterBuild)
+                {
+                    sequence.Close();
+                    sequence = null;
 
-                var reopenWatch = Stopwatch.StartNew();
-                reopened = CreateSequence(artifactLayout);
-                reopened.Refresh();
-                reopenWatch.Stop();
-                reopenRefreshMs = reopenWatch.Elapsed.TotalMilliseconds;
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                sequenceCountAfterRefresh = reopened.sequence.Count();
-                appendOffsetAfterRefresh = reopened.sequence.ElementOffset();
+                    var reopenWatch = Stopwatch.StartNew();
+                    reopened = CreateSequence(artifactLayout);
+                    reopened.Refresh();
+                    reopenWatch.Stop();
+                    reopenRefreshMs = reopenWatch.Elapsed.TotalMilliseconds;
+
+                    sequenceCountAfterRefresh = reopened.sequence.Count();
+                    appendOffsetAfterRefresh = reopened.sequence.ElementOffset();
+                }
+                else
+                {
+                    reopened = sequence;
+                    sequence = null;
+                    reopenRefreshMs = 0;
+
+                    sequenceCountAfterRefresh = reopened.sequence.Count();
+                    appendOffsetAfterRefresh = reopened.sequence.ElementOffset();
+                }
 
                 cancellationToken.ThrowIfCancellationRequested();
 

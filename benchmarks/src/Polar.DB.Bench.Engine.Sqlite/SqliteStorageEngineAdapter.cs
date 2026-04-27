@@ -33,6 +33,20 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 
     private sealed class SqliteEngineRun : IEngineRun
     {
+        private sealed class SqlitePersonRow
+        {
+            public SqlitePersonRow(int id, string name, int age)
+            {
+                Id = id;
+                Name = name;
+                Age = age;
+            }
+
+            public int Id { get; }
+            public string Name { get; }
+            public int Age { get; }
+        }
+
         private const string EngineKeyValue = "sqlite";
         private const string LoadBuildExperimentKey = "persons-load-build-reopen-random-lookup";
         private const string LoadBuildWorkloadKey = "bulk-load-point-lookup";
@@ -128,19 +142,33 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 buildWatch.Stop();
                 buildMs = buildWatch.Elapsed.TotalMilliseconds;
 
-                connection.Dispose();
-                connection = null;
+                var reopenAfterBuild = ResolveBooleanOption(_spec.Workload, "reopenAfterBuild", fallback: true);
 
-                cancellationToken.ThrowIfCancellationRequested();
+                if (reopenAfterBuild)
+                {
+                    connection.Dispose();
+                    connection = null;
 
-                var reopenWatch = Stopwatch.StartNew();
-                reopened = CreateConnection(artifactLayout.PrimaryDatabasePath);
-                reopened.Open();
-                reopenWatch.Stop();
-                reopenMs = reopenWatch.Elapsed.TotalMilliseconds;
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                rowCountAfterReopen = ReadRowCount(reopened);
-                indexPresentAfterReopen = HasIndex(reopened, IdIndexName);
+                    var reopenWatch = Stopwatch.StartNew();
+                    reopened = CreateConnection(artifactLayout.PrimaryDatabasePath);
+                    reopened.Open();
+                    reopenWatch.Stop();
+                    reopenMs = reopenWatch.Elapsed.TotalMilliseconds;
+
+                    rowCountAfterReopen = ReadRowCount(reopened);
+                    indexPresentAfterReopen = HasIndex(reopened, IdIndexName);
+                }
+                else
+                {
+                    reopened = connection;
+                    connection = null;
+                    reopenMs = 0;
+
+                    rowCountAfterReopen = ReadRowCount(reopened);
+                    indexPresentAfterReopen = HasIndex(reopened, IdIndexName);
+                }
 
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -152,9 +180,10 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 }
 
                 var directLookupWatch = Stopwatch.StartNew();
-                directLookupHit = HasPersonById(reopened, directLookupKey);
+                var directRow = ReadPersonById(reopened, directLookupKey);
                 directLookupWatch.Stop();
                 directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
+                directLookupHit = directRow is not null && directRow.Id == directLookupKey;
 
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -162,7 +191,7 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 var maxKeyExclusive = checked((int)_spec.Dataset.RecordCount) + 1;
                 var lookupWatch = Stopwatch.StartNew();
                 using var lookup = reopened.CreateCommand();
-                lookup.CommandText = $"SELECT id FROM {TableName} WHERE id = $id LIMIT 1;";
+                lookup.CommandText = $"SELECT id, name, age FROM {TableName} WHERE id = $id LIMIT 1;";
                 var parameter = lookup.CreateParameter();
                 parameter.ParameterName = "$id";
                 lookup.Parameters.Add(parameter);
@@ -176,10 +205,18 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 
                     var key = random.Next(1, maxKeyExclusive);
                     parameter.Value = key;
-                    var value = lookup.ExecuteScalar();
-                    if (TryReadInt(value, out var rowKey) && rowKey == key)
+                    using var reader = lookup.ExecuteReader();
+                    if (reader.Read())
                     {
-                        lookupHits++;
+                        var row = new SqlitePersonRow(
+                            reader.GetInt32(0),
+                            reader.GetString(1),
+                            reader.GetInt32(2));
+
+                        if (row.Id == key)
+                        {
+                            lookupHits++;
+                        }
                     }
                 }
 
@@ -436,7 +473,7 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                     var maxKeyExclusive = checked((int)expectedRowCount) + 1;
                     var lookupWatch = Stopwatch.StartNew();
                     using var lookup = reopened.CreateCommand();
-                    lookup.CommandText = $"SELECT id FROM {TableName} WHERE id = $id LIMIT 1;";
+                    lookup.CommandText = $"SELECT id, name, age FROM {TableName} WHERE id = $id LIMIT 1;";
                     var parameter = lookup.CreateParameter();
                     parameter.ParameterName = "$id";
                     lookup.Parameters.Add(parameter);
@@ -450,11 +487,19 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 
                         var key = random.Next(1, maxKeyExclusive);
                         parameter.Value = key;
-                        var value = lookup.ExecuteScalar();
+                        using var reader = lookup.ExecuteReader();
                         lookupAttempts++;
-                        if (TryReadInt(value, out var rowKey) && rowKey == key)
+                        if (reader.Read())
                         {
-                            lookupHits++;
+                            var row = new SqlitePersonRow(
+                                reader.GetInt32(0),
+                                reader.GetString(1),
+                                reader.GetInt32(2));
+
+                            if (row.Id == key)
+                            {
+                                lookupHits++;
+                            }
                         }
                     }
 
@@ -708,9 +753,10 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 if (directLookupEnabled)
                 {
                     var directLookupWatch = Stopwatch.StartNew();
-                    directLookupHit = HasPersonById(active!, directLookupKey);
+                    var directRow = ReadPersonById(active!, directLookupKey);
                     directLookupWatch.Stop();
                     directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
+                    directLookupHit = directRow is not null && directRow.Id == directLookupKey;
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
@@ -1261,17 +1307,25 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             return TryReadInt64(value, out var count) && count > 0;
         }
 
-        private static bool HasPersonById(SqliteConnection connection, int id)
+        private static SqlitePersonRow? ReadPersonById(SqliteConnection connection, int id)
         {
             using var command = connection.CreateCommand();
-            command.CommandText = $"SELECT id FROM {TableName} WHERE id = $id LIMIT 1;";
+            command.CommandText = $"SELECT id, name, age FROM {TableName} WHERE id = $id LIMIT 1;";
             var parameter = command.CreateParameter();
             parameter.ParameterName = "$id";
             parameter.Value = id;
             command.Parameters.Add(parameter);
 
-            var value = command.ExecuteScalar();
-            return TryReadInt(value, out var foundId) && foundId == id;
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
+            {
+                return new SqlitePersonRow(
+                    reader.GetInt32(0),
+                    reader.GetString(1),
+                    reader.GetInt32(2));
+            }
+
+            return null;
         }
 
         private static (long Hits, double ElapsedMs) ExecuteRandomLookups(
@@ -1285,7 +1339,7 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             var random = new Random(seed);
             var lookupWatch = Stopwatch.StartNew();
             using var lookup = connection.CreateCommand();
-            lookup.CommandText = $"SELECT id FROM {TableName} WHERE id = $id LIMIT 1;";
+            lookup.CommandText = $"SELECT id, name, age FROM {TableName} WHERE id = $id LIMIT 1;";
             var parameter = lookup.CreateParameter();
             parameter.ParameterName = "$id";
             lookup.Parameters.Add(parameter);
@@ -1299,10 +1353,18 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 
                 var key = random.Next(1, maxKeyExclusive);
                 parameter.Value = key;
-                var value = lookup.ExecuteScalar();
-                if (TryReadInt(value, out var rowKey) && rowKey == key)
+                using var reader = lookup.ExecuteReader();
+                if (reader.Read())
                 {
-                    hits++;
+                    var row = new SqlitePersonRow(
+                        reader.GetInt32(0),
+                        reader.GetString(1),
+                        reader.GetInt32(2));
+
+                    if (row.Id == key)
+                    {
+                        hits++;
+                    }
                 }
             }
 
