@@ -600,30 +600,15 @@ public static class ExecApplication
         int sequenceNumber,
         bool includeSeriesSuffix)
     {
-        var timestampToken = runResult.TimestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        var fileName = includeSeriesSuffix
-            ? $"{timestampToken}__{runResult.EngineKey}__{runRole}-{sequenceNumber:D2}.run.json"
-            : $"{timestampToken}__{runResult.EngineKey}.run.json";
-        var rawPath = Path.Combine(workspace.RawResultsDirectory, fileName);
+        var timestampToken = runResult.TimestampUtc.ToString("yyyyMMddTHHmmssZ");
+        var rawPath = ResultPathBuilder.BuildRawResultPath(
+            workspace.RawResultsDirectory,
+            timestampToken,
+            runResult.EngineKey,
+            includeSeriesSuffix ? runRole : null,
+            includeSeriesSuffix ? sequenceNumber : null);
 
-        if (!File.Exists(rawPath))
-        {
-            return rawPath;
-        }
-
-        var ext = ".run.json";
-        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
-            ? rawPath[..^ext.Length]
-            : rawPath;
-        var attempt = 2;
-        var candidate = $"{baseName}.v{attempt}{ext}";
-        while (File.Exists(candidate))
-        {
-            attempt++;
-            candidate = $"{baseName}.v{attempt}{ext}";
-        }
-
-        return candidate;
+        return MakeUniqueArtifactPath(rawPath, ".json");
     }
 
     private static string BuildExternalRawPath(
@@ -635,29 +620,34 @@ public static class ExecApplication
     {
         Directory.CreateDirectory(rawResultsDirectory);
 
-        var timestampToken = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        var safeEngineKey = SanitizeFileNameSegment(engineKey);
-        var safeRunRole = SanitizeFileNameSegment(runRole);
-        var fileName = includeSeriesSuffix
-            ? $"{timestampToken}__{safeEngineKey}__{safeRunRole}-{sequenceNumber:D2}.run.json"
-            : $"{timestampToken}__{safeEngineKey}.run.json";
-        var rawPath = Path.Combine(rawResultsDirectory, fileName);
+        var timestampToken = DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssZ");
+        var rawPath = ResultPathBuilder.BuildRawResultPath(
+            rawResultsDirectory,
+            timestampToken,
+            engineKey,
+            includeSeriesSuffix ? runRole : null,
+            includeSeriesSuffix ? sequenceNumber : null);
 
-        if (!File.Exists(rawPath))
+        return MakeUniqueArtifactPath(rawPath, ".json");
+    }
+
+    private static string MakeUniqueArtifactPath(string path, string extension)
+    {
+        if (!File.Exists(path))
         {
-            return rawPath;
+            return path;
         }
 
-        const string ext = ".run.json";
-        var baseName = rawPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
-            ? rawPath[..^ext.Length]
-            : rawPath;
+        var baseName = path.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
+            ? path[..^extension.Length]
+            : path;
+
         var attempt = 2;
-        var candidate = $"{baseName}.v{attempt}{ext}";
+        var candidate = $"{baseName}.v{attempt}{extension}";
         while (File.Exists(candidate))
         {
             attempt++;
-            candidate = $"{baseName}.v{attempt}{ext}";
+            candidate = $"{baseName}.v{attempt}{extension}";
         }
 
         return candidate;
