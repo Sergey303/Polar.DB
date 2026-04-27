@@ -153,7 +153,7 @@ internal static class HtmlSectionRenderer
 
         sb.AppendLine("  <div class=\"chart-wrap\">");
         sb.AppendLine(ChartRenderer.RenderGroupedBarChart(
-            "Phase Breakdown (latest series, p50 ms)",
+            "Phase Breakdown (latest series, tm ms)",
             new[] { "Load", "Build", "Reopen", "Lookup" },
             engines
                 .Select(item => new ChartSeries(
@@ -161,10 +161,10 @@ internal static class HtmlSectionRenderer
                     ResolveColor(colors, item.EngineKey),
                     new double?[]
                     {
-                        GetMetricP50(item, "LoadMs"),
-                        GetMetricP50(item, "BuildMs"),
-                        GetMetricP50(item, "ReopenMs"),
-                        GetMetricP50(item, "LookupMs")
+                        GetMetricTm(item, "LoadMs"),
+                        GetMetricTm(item, "BuildMs"),
+                        GetMetricTm(item, "ReopenMs"),
+                        GetMetricTm(item, "LookupMs")
                     }))
                 .ToArray(),
             "ms",
@@ -269,7 +269,7 @@ internal static class HtmlSectionRenderer
         sb.AppendLine("    <thead><tr><th>#</th><th>Set</th><th>Timestamp</th>");
         foreach (var engine in engines)
         {
-            sb.AppendLine("<th>Elapsed p50: <code>" + NumberFormatter.HtmlEncode(engine) + "</code></th>");
+            sb.AppendLine("<th>Elapsed tm: <code>" + NumberFormatter.HtmlEncode(engine) + "</code></th>");
         }
 
         sb.AppendLine("</tr></thead>");
@@ -285,7 +285,7 @@ internal static class HtmlSectionRenderer
             {
                 var series = snapshot.EngineSeries.FirstOrDefault(item =>
                     item.EngineKey.Equals(engine, StringComparison.OrdinalIgnoreCase));
-                sb.AppendLine("        <td>" + NumberFormatter.FormatMilliseconds(GetMetricP50(series, "ElapsedMs")) + "</td>");
+                sb.AppendLine("        <td>" + NumberFormatter.FormatMilliseconds(GetMetricTm(series, "ElapsedMs")) + "</td>");
             }
 
             sb.AppendLine("      </tr>");
@@ -350,13 +350,13 @@ internal static class HtmlSectionRenderer
         }
 
         sb.AppendLine("  <table>");
-        sb.AppendLine("    <thead><tr><th>Experiment</th><th>Set</th><th>Timestamp</th><th>Dataset</th><th>Fairness</th><th>Elapsed p50 per target</th></tr></thead>");
+        sb.AppendLine("    <thead><tr><th>Experiment</th><th>Set</th><th>Timestamp</th><th>Dataset</th><th>Fairness</th><th>Elapsed tm per target</th></tr></thead>");
         sb.AppendLine("    <tbody>");
         foreach (var snapshot in others)
         {
             var summary = string.Join("; ", snapshot.EngineSeries
                 .OrderBy(item => item.EngineKey, StringComparer.OrdinalIgnoreCase)
-                .Select(item => $"{item.EngineKey}: {NumberFormatter.StripHtml(NumberFormatter.FormatMilliseconds(GetMetricP50(item, "ElapsedMs")))}"));
+                .Select(item => $"{item.EngineKey}: {NumberFormatter.StripHtml(NumberFormatter.FormatMilliseconds(GetMetricTm(item, "ElapsedMs")))}"));
             sb.AppendLine("      <tr>");
             sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(snapshot.ExperimentKey) + "</code></td>");
             sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(snapshot.ComparisonSetId ?? "legacy") + "</code></td>");
@@ -392,14 +392,14 @@ internal static class HtmlSectionRenderer
         {
             sb.AppendLine("  <h3>Local Analyzed Snapshot</h3>");
             sb.AppendLine("  <table>");
-            sb.AppendLine("    <thead><tr><th>Target</th><th>Set</th><th>Elapsed p50</th><th>Total bytes p50</th><th>Measured</th></tr></thead>");
+            sb.AppendLine("    <thead><tr><th>Target</th><th>Set</th><th>Elapsed tm</th><th>Total bytes p50</th><th>Measured</th></tr></thead>");
             sb.AppendLine("    <tbody>");
             foreach (var item in model.LocalAnalyzedSeries.OrderBy(x => x.EngineKey, StringComparer.OrdinalIgnoreCase))
             {
                 sb.AppendLine("      <tr>");
                 sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(item.EngineKey) + "</code></td>");
                 sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(item.ComparisonSetId ?? "legacy/latest") + "</code></td>");
-                sb.AppendLine("        <td>" + NumberFormatter.FormatMilliseconds(GetMetricP50(item, "ElapsedMs")) + "</td>");
+                sb.AppendLine("        <td>" + NumberFormatter.FormatMilliseconds(GetMetricTm(item, "ElapsedMs")) + "</td>");
                 sb.AppendLine("        <td>" + NumberFormatter.FormatBytes(GetMetricP50(item, "TotalArtifactBytes")) + "</td>");
                 sb.AppendLine("        <td>" + item.MeasuredRunCount + "</td>");
                 sb.AppendLine("      </tr>");
@@ -446,23 +446,23 @@ internal static class HtmlSectionRenderer
         var showReopenP95 = engines.Any(item => GetMetricP95(item, "ReopenMs").HasValue);
         var showLookupP95 = engines.Any(item => GetMetricP95(item, "LookupMs").HasValue);
 
-        var elapsedP50Min = MinOrNull(engines.Select(item => GetMetricP50(item, "ElapsedMs")));
+        var elapsedTmMin = MinOrNull(engines.Select(item => GetMetricTm(item, "ElapsedMs")));
         var elapsedP95Min = MinOrNull(engines.Select(item => GetMetricP95(item, "ElapsedMs")));
-        var loadP50Min = MinOrNull(engines.Select(item => GetMetricP50(item, "LoadMs")));
+        var loadTmMin = MinOrNull(engines.Select(item => GetMetricTm(item, "LoadMs")));
         var loadP95Min = MinOrNull(engines.Select(item => GetMetricP95(item, "LoadMs")));
-        var buildP50Min = MinOrNull(engines.Select(item => GetMetricP50(item, "BuildMs")));
+        var buildTmMin = MinOrNull(engines.Select(item => GetMetricTm(item, "BuildMs")));
         var buildP95Min = MinOrNull(engines.Select(item => GetMetricP95(item, "BuildMs")));
-        var reopenP50Min = MinOrNull(engines.Select(item => GetMetricP50(item, "ReopenMs")));
+        var reopenTmMin = MinOrNull(engines.Select(item => GetMetricTm(item, "ReopenMs")));
         var reopenP95Min = MinOrNull(engines.Select(item => GetMetricP95(item, "ReopenMs")));
-        var lookupP50Min = MinOrNull(engines.Select(item => GetMetricP50(item, "LookupMs")));
+        var lookupTmMin = MinOrNull(engines.Select(item => GetMetricTm(item, "LookupMs")));
         var lookupP95Min = MinOrNull(engines.Select(item => GetMetricP95(item, "LookupMs")));
 
         sb.AppendLine("  <h3>Timing</h3>");
-        sb.AppendLine("  <p class=\"muted small\">p50 is median. p95 columns appear when p95 values exist in comparison artifacts. Lower is better.</p>");
+        sb.AppendLine("  <p class=\"muted small\">tm is trimmed mean without outliers. p50 is median and remains a secondary stability/statistical value when shown. Lower is better.</p>");
         sb.AppendLine("  <table>");
         sb.AppendLine("    <thead>");
         sb.AppendLine("      <tr>");
-        sb.AppendLine("        <th>Target</th><th>Elapsed p50</th>" + (showElapsedP95 ? "<th>Elapsed p95</th>" : string.Empty) + "<th>Load p50</th>" + (showLoadP95 ? "<th>Load p95</th>" : string.Empty) + "<th>Build p50</th>" + (showBuildP95 ? "<th>Build p95</th>" : string.Empty) + "<th>Reopen p50</th>" + (showReopenP95 ? "<th>Reopen p95</th>" : string.Empty) + "<th>Lookup p50</th>" + (showLookupP95 ? "<th>Lookup p95</th>" : string.Empty));
+        sb.AppendLine("        <th>Target</th><th>Elapsed tm</th>" + (showElapsedP95 ? "<th>Elapsed p95</th>" : string.Empty) + "<th>Load tm</th>" + (showLoadP95 ? "<th>Load p95</th>" : string.Empty) + "<th>Build tm</th>" + (showBuildP95 ? "<th>Build p95</th>" : string.Empty) + "<th>Reopen tm</th>" + (showReopenP95 ? "<th>Reopen p95</th>" : string.Empty) + "<th>Lookup tm</th>" + (showLookupP95 ? "<th>Lookup p95</th>" : string.Empty));
         sb.AppendLine("      </tr>");
         sb.AppendLine("    </thead>");
         sb.AppendLine("    <tbody>");
@@ -472,15 +472,15 @@ internal static class HtmlSectionRenderer
 
             sb.AppendLine("      <tr>");
             sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(engineKey) + "</code></td>");
-            sb.AppendLine(FormatMetricCell(GetMetricP50(engine, "ElapsedMs"), elapsedP50Min, MetricKind.Milliseconds));
+            sb.AppendLine(FormatMetricCell(GetMetricTm(engine, "ElapsedMs"), elapsedTmMin, MetricKind.Milliseconds));
             if (showElapsedP95) sb.AppendLine(FormatMetricCell(GetMetricP95(engine, "ElapsedMs"), elapsedP95Min, MetricKind.Milliseconds));
-            sb.AppendLine(FormatMetricCell(GetMetricP50(engine, "LoadMs"), loadP50Min, MetricKind.Milliseconds));
+            sb.AppendLine(FormatMetricCell(GetMetricTm(engine, "LoadMs"), loadTmMin, MetricKind.Milliseconds));
             if (showLoadP95) sb.AppendLine(FormatMetricCell(GetMetricP95(engine, "LoadMs"), loadP95Min, MetricKind.Milliseconds));
-            sb.AppendLine(FormatMetricCell(GetMetricP50(engine, "BuildMs"), buildP50Min, MetricKind.Milliseconds));
+            sb.AppendLine(FormatMetricCell(GetMetricTm(engine, "BuildMs"), buildTmMin, MetricKind.Milliseconds));
             if (showBuildP95) sb.AppendLine(FormatMetricCell(GetMetricP95(engine, "BuildMs"), buildP95Min, MetricKind.Milliseconds));
-            sb.AppendLine(FormatMetricCell(GetMetricP50(engine, "ReopenMs"), reopenP50Min, MetricKind.Milliseconds));
+            sb.AppendLine(FormatMetricCell(GetMetricTm(engine, "ReopenMs"), reopenTmMin, MetricKind.Milliseconds));
             if (showReopenP95) sb.AppendLine(FormatMetricCell(GetMetricP95(engine, "ReopenMs"), reopenP95Min, MetricKind.Milliseconds));
-            sb.AppendLine(FormatMetricCell(GetMetricP50(engine, "LookupMs"), lookupP50Min, MetricKind.Milliseconds));
+            sb.AppendLine(FormatMetricCell(GetMetricTm(engine, "LookupMs"), lookupTmMin, MetricKind.Milliseconds));
             if (showLookupP95) sb.AppendLine(FormatMetricCell(GetMetricP95(engine, "LookupMs"), lookupP95Min, MetricKind.Milliseconds));
             sb.AppendLine("      </tr>");
         }
@@ -723,6 +723,42 @@ internal static class HtmlSectionRenderer
 
         // Fall back to reflection-based property access (fixed properties)
         return GetMemberValue(source, metricName) as MetricSeriesStats;
+    }
+
+    /// <summary>
+    /// Gets the primary metric value: trimmed mean (tm) if available, falls back to p50/median.
+    /// This is the main metric used for timing comparisons throughout the report.
+    /// </summary>
+    private static double? GetMetricTm(object? source, string metricName)
+    {
+        var stats = GetMetricStats(source, metricName);
+        // Try trimmed mean first (primary metric)
+        var tm = GetOptionalMetricValue(
+            stats,
+            "TrimmedMean10",
+            "TrimmedMean",
+            "TrimmedMean10Ms",
+            "TrimmedMeanMs",
+            "Tm",
+            "TM",
+            "TmMs",
+            "MeanWithoutOutliers",
+            "MeanNoOutliers");
+        if (tm.HasValue)
+        {
+            return tm;
+        }
+        // Fallback to p50/median for old artifacts that don't have trimmed mean
+        return GetOptionalMetricValue(
+            stats,
+            "Median",
+            "P50",
+            "P50Value",
+            "Percentile50",
+            "FiftiethPercentile",
+            "P50Ms",
+            "MedianMs",
+            "ValueP50");
     }
 
     private static double? GetMetricP50(object? source, string metricName)

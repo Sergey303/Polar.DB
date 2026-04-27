@@ -60,7 +60,7 @@ internal static class ChartRenderer
     }
 
     /// <summary>
-    /// Renders a history chart: elapsed p50 over time, one line per target.
+    /// Renders a history chart: elapsed tm over time, one line per target.
     /// </summary>
     public static string RenderHistoryChart(
         IReadOnlyList<ComparisonSnapshot> snapshots,
@@ -77,14 +77,14 @@ internal static class ChartRenderer
         var colorMap = BuildEngineColorMap(engineKeys);
 
         var values = snapshots
-            .SelectMany(snapshot => snapshot.EngineSeries.Select(series => GetMetricP50(series, "ElapsedMs")))
+            .SelectMany(snapshot => snapshot.EngineSeries.Select(series => GetMetricTm(series, "ElapsedMs")))
             .Where(value => value.HasValue)
             .Select(value => value!.Value)
             .ToArray();
 
         if (values.Length == 0)
         {
-            return "<p class=\"muted\">History chart: no elapsed p50 values.</p>";
+            return "<p class=\"muted\">History chart: no elapsed tm values.</p>";
         }
 
         var min = values.Min();
@@ -103,8 +103,8 @@ internal static class ChartRenderer
 
         var xStep = snapshots.Count > 1 ? plotWidth / (snapshots.Count - 1) : 0.0;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("<div class=\"chart-title\">History: elapsed p50 (ms) by series</div>");
-        sb.AppendLine($"<svg class=\"chart\" viewBox=\"0 0 {chartWidth.ToString("0.###", Invariant)} {chartHeight.ToString("0.###", Invariant)}\" role=\"img\" aria-label=\"History elapsed p50 chart\">");
+        sb.AppendLine("<div class=\"chart-title\">History: elapsed tm (ms) by series</div>");
+        sb.AppendLine($"<svg class=\"chart\" viewBox=\"0 0 {chartWidth.ToString("0.###", Invariant)} {chartHeight.ToString("0.###", Invariant)}\" role=\"img\" aria-label=\"History elapsed tm chart\">");
         sb.AppendLine("  <rect x=\"0\" y=\"0\" width=\"100%\" height=\"100%\" fill=\"#ffffff\" />");
 
         const int ticks = 5;
@@ -131,14 +131,14 @@ internal static class ChartRenderer
                 var snapshot = snapshots[i];
                 var entry = snapshot.EngineSeries.FirstOrDefault(item =>
                     item.EngineKey.Equals(engineKey, StringComparison.OrdinalIgnoreCase));
-                if (GetMetricP50(entry, "ElapsedMs") is not double median)
+                if (GetMetricTm(entry, "ElapsedMs") is not double tm)
                 {
                     continue;
                 }
 
                 var x = marginLeft + (snapshots.Count > 1 ? i * xStep : plotWidth * 0.5);
-                var y = marginTop + plotHeight - (median - min) / (max - min) * plotHeight;
-                points.Add((x, y, snapshot, median));
+                var y = marginTop + plotHeight - (tm - min) / (max - min) * plotHeight;
+                points.Add((x, y, snapshot, tm));
             }
 
             if (points.Count == 0)
@@ -151,7 +151,7 @@ internal static class ChartRenderer
             sb.AppendLine($"  <polyline points=\"{polyline}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />");
             foreach (var point in points)
             {
-                var tooltip = $"{engineKey} | {point.Snapshot.ComparisonSetId ?? "legacy"} | {point.Snapshot.SnapshotTimestampUtc:yyyy-MM-dd HH:mm:ss} UTC | p50: {point.Value.ToString("0.###############", Invariant)} ms";
+                var tooltip = $"{engineKey} | {point.Snapshot.ComparisonSetId ?? "legacy"} | {point.Snapshot.SnapshotTimestampUtc:yyyy-MM-dd HH:mm:ss} UTC | tm: {point.Value.ToString("0.###############", Invariant)} ms";
                 sb.AppendLine($"  <circle cx=\"{point.X.ToString("0.###", Invariant)}\" cy=\"{point.Y.ToString("0.###", Invariant)}\" r=\"3.8\" fill=\"{color}\" stroke=\"#ffffff\" stroke-width=\"1\">");
                 sb.AppendLine($"    <title>{NumberFormatter.HtmlEncode(tooltip)}</title>");
                 sb.AppendLine("  </circle>");
@@ -278,6 +278,41 @@ internal static class ChartRenderer
 
         sb.AppendLine("</svg>");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Gets the primary metric value: trimmed mean (tm) if available, falls back to p50/median.
+    /// </summary>
+    private static double? GetMetricTm(object? source, string metricName)
+    {
+        var stats = GetMemberValue(source, metricName);
+        // Try trimmed mean first (primary metric)
+        var tm = GetOptionalMetricValue(
+            stats,
+            "TrimmedMean10",
+            "TrimmedMean",
+            "TrimmedMean10Ms",
+            "TrimmedMeanMs",
+            "Tm",
+            "TM",
+            "TmMs",
+            "MeanWithoutOutliers",
+            "MeanNoOutliers");
+        if (tm.HasValue)
+        {
+            return tm;
+        }
+        // Fallback to p50/median for old artifacts that don't have trimmed mean
+        return GetOptionalMetricValue(
+            stats,
+            "Median",
+            "P50",
+            "P50Value",
+            "Percentile50",
+            "FiftiethPercentile",
+            "P50Ms",
+            "MedianMs",
+            "ValueP50");
     }
 
     private static double? GetMetricP50(object? source, string metricName)
