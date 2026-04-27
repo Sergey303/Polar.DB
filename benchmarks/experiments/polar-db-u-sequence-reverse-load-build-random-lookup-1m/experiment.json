@@ -1,4 +1,6 @@
 {
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "polar-db-reference-load-build-random-lookup/v1",
   "experiment": "polar-db-u-sequence-reverse-load-build-random-lookup-1m",
   "title": "Polar.DB USequence exact reference load + build + random GetByKey, 1M persons",
   "research": "rq-polar-db-version-regression-u-sequence-lookup",
@@ -26,6 +28,11 @@
   "fairness": {
     "type": "polar-db-reference-program-exact",
     "notes": "All three targets run the same uploaded Program.cs scenario through version-specific typed external runners."
+  },
+  "runs": {
+    "warmup": 5,
+    "measured": 50,
+    "notes": "Default scientific run profile for this exact reference experiment. CLI may override for quick local runs."
   },
   "targets": {
     "polar-db-2.1.0": {

@@ -51,8 +51,65 @@ public sealed record ExperimentManifest
     [JsonPropertyName("targets")]
     public required IReadOnlyDictionary<string, ExperimentTargetSpec> Targets { get; init; }
 
+    /// <summary>
+    /// Schema version identifier for this experiment manifest.
+    /// Example: "polar-bench-experiment/v1".
+    /// Null/absent is allowed for backward compatibility with older experiment.json files.
+    /// </summary>
+    [JsonPropertyName("schema")]
+    public string? SchemaVersion { get; init; }
+
+    /// <summary>
+    /// Protocol identifier describing the benchmark protocol used.
+    /// Example: "polar-db-reference-load-build-random-lookup/v1".
+    /// Null/absent is allowed for backward compatibility.
+    /// </summary>
+    [JsonPropertyName("protocol")]
+    public string? Protocol { get; init; }
+
+    /// <summary>
+    /// Run configuration for this experiment (warmup, measured counts).
+    /// When absent, defaults to ExperimentRunsSpec() with all-null fields,
+    /// which means ExecApplication uses its own defaults.
+    /// </summary>
+    [JsonPropertyName("runs")]
+    public ExperimentRunsSpec Runs { get; init; } = new();
+
     [JsonPropertyName("compare")]
     public ExperimentCompareSpec Compare { get; init; } = new();
+}
+
+/// <summary>
+/// Run configuration for an experiment.
+/// Controls how many warmup and measured iterations are executed.
+/// CLI overrides take precedence over manifest values.
+/// Manifest values take precedence over ExecApplication defaults.
+/// </summary>
+public sealed record ExperimentRunsSpec
+{
+    /// <summary>
+    /// Number of warmup runs before measured runs.
+    /// Warmup runs stabilize runtime state (JIT, cache, etc.) and are stored as facts
+    /// but excluded from aggregate statistics.
+    /// Must be >= 0 when set.
+    /// Null means "use ExecApplication default".
+    /// </summary>
+    [JsonPropertyName("warmup")]
+    public int? Warmup { get; init; }
+
+    /// <summary>
+    /// Number of measured runs for statistical analysis.
+    /// Must be >= 1 when set.
+    /// Null means "use ExecApplication default".
+    /// </summary>
+    [JsonPropertyName("measured")]
+    public int? Measured { get; init; }
+
+    /// <summary>
+    /// Optional notes about the run configuration.
+    /// </summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; init; }
 }
 
 /// <summary>

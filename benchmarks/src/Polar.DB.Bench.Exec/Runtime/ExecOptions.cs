@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Polar.DB.Bench.Core.Models;
 
 namespace Polar.DB.Bench.Exec.Runtime;
 
@@ -17,6 +18,14 @@ public sealed class ExecOptions
     public string? ComparisonSetId { get; init; }
     public int? WarmupCount { get; init; }
     public int? MeasuredCount { get; init; }
+
+    /// <summary>
+    /// Optional manifest-level runs config.
+    /// Set by simple mode when loading the experiment manifest.
+    /// Used by BuildExecutionPlan as fallback when CLI values are not provided.
+    /// </summary>
+    public ExperimentRunsSpec? ManifestRuns { get; init; }
+
 
     public static ExecOptions Parse(string[] args)
     {
