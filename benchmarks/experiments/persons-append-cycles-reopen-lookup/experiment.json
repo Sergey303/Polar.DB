@@ -1,25 +1,47 @@
 {
-  "experiment": "persons-append-cycles-reopen-lookup",
-  "title": "Persons Append Cycles Reopen Lookup",
-  "research": "RQ-COMMON-002",
-  "hypothesis": "H-COMMON-STAGE4-002",
-  "description": "Stage4 common experiment: initial load/build, append batches, reopen after each batch, random point lookup sample, artifact growth tracking.",
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "common/lifecycle-append-cycles-reopen-lookup/v1",
+  "title": "Lifecycle: persons append cycles, reopen, lookup",
+  "research": "rq-02-lifecycle-growth-and-reopen",
+  "hypothesis": "h-02-append-cycles-preserve-lookup-correctness-and-controlled-artifact-growth",
+  "description": "Lifecycle growth experiment. It starts from a clean persons dataset, appends several large batches, reopens after each batch, validates point lookup, and tracks artifact growth.",
   "dataset": {
     "profile": "persons-400k-plus-append-3x200k",
     "count": 400000,
     "seed": 12345,
-    "notes": "Initial persons(id,name,age) dataset. Append cycles grow dataset to one million rows."
+    "notes": "Synthetic persons(id,name,age) dataset for controlled storage-engine measurement."
   },
   "workload": {
     "type": "append-cycles-reopen-lookup",
-    "batches": 3,
-    "batchSize": 200000,
     "lookup": 5000,
-    "notes": "For each cycle: append batch, close/reopen, run random point lookup sample."
+    "notes": "Initial load/build, then for each cycle: append batch, close/reopen or refresh, run deterministic random point lookup sample, and record artifact growth.",
+    "options": {
+      "reopenAfterEachBatch": "true",
+      "artifactGrowthTracking": "true",
+      "randomLookupAfterEachBatch": "true",
+      "randomLookupPerBatch": "5000"
+    },
+    "batches": 3,
+    "batchSize": 200000
+  },
+  "fault": {
+    "type": "none",
+    "notes": "No fault injection in this executable catalog experiment."
   },
   "fairness": {
     "type": "durability-balanced",
-    "notes": "Common stage4 fairness baseline."
+    "notes": "Targets should use equivalent durable persisted semantics."
+  },
+  "requires": [
+    "BulkLoad",
+    "PointLookup",
+    "ReopenRecovery",
+    "PhysicalArtifactInspection"
+  ],
+  "runs": {
+    "warmup": 1,
+    "measured": 5,
+    "notes": "Default local profile. CLI may override."
   },
   "targets": {
     "polar-db-current": {
@@ -32,5 +54,6 @@
   "compare": {
     "history": true,
     "otherExperiments": true
-  }
+  },
+  "experiment": "persons-append-cycles-reopen-lookup"
 }

@@ -1,11 +1,10 @@
 {
   "schema": "polar-bench-experiment/v1",
-  "protocol": "polar-db-search-point-and-category/v1",
-  "experiment": "polar-db-search-point-and-category-1m",
-  "title": "Polar.DB search benchmark: point lookup + category scan, 1M persons",
-  "research": "rq-polar-db-search-workload-matrix",
-  "hypothesis": "h-point-lookup-should-be-fast-and-scan-cost-should-scale-with-rows-scanned",
-  "description": "Search benchmark with 1,000,000 person records. Measures primary-key point lookup for existing and missing keys, plus scan/filter by category. Indexed category lookup is optional and must be reported as unsupported if not implemented cleanly. Cache is intentionally not measured.",
+  "protocol": "polar-db/search-point-missing-and-category-scan/v1",
+  "title": "Diagnostic: Polar.DB point lookup, missing lookup, category scan",
+  "research": "rq-04-polar-db-search-diagnostics",
+  "hypothesis": "h-04-point-lookup-remains-fast-and-scan-cost-scales-with-rows-scanned",
+  "description": "Polar.DB-specific diagnostic experiment. It isolates existing-key point lookup, missing-key point lookup, and scan/filter by category on one million person records. This is where Polar.DB version comparison belongs.",
   "dataset": {
     "profile": "persons-1m-search-category100",
     "count": 1000000,
@@ -25,22 +24,40 @@
       "cache": "false"
     }
   },
-  "fairness": {
-    "type": "search-no-cache-point-and-scan",
-    "notes": "All targets use the same generated data, deterministic point keys, deterministic categories, and no cache."
+  "fault": {
+    "type": "none",
+    "notes": "No fault injection. This experiment isolates search behavior."
   },
+  "fairness": {
+    "type": "polar-db-search-no-cache-point-and-scan",
+    "notes": "All Polar.DB targets use the same generated data, deterministic point keys, deterministic categories, and no cache."
+  },
+  "requires": [
+    "BulkLoad",
+    "PointLookup",
+    "PhysicalArtifactInspection"
+  ],
   "runs": {
     "warmup": 3,
     "measured": 20,
-    "notes": "Default search run profile. CLI may override for quick local runs."
+    "notes": "Search diagnostic profile. CLI may override."
   },
   "targets": {
-    "polar-db-current": { "engine": "polar-db" },
-    "polar-db-2.1.1": { "engine": "polar-db", "nuget": "2.1.1" },
-    "polar-db-2.1.0": { "engine": "polar-db", "nuget": "2.1.0" }
+    "polar-db-current": {
+      "engine": "polar-db"
+    },
+    "polar-db-2.1.1": {
+      "engine": "polar-db",
+      "nuget": "2.1.1"
+    },
+    "polar-db-2.1.0": {
+      "engine": "polar-db",
+      "nuget": "2.1.0"
+    }
   },
   "compare": {
     "history": true,
     "otherExperiments": false
-  }
+  },
+  "experiment": "polar-db-search-point-and-category-1m"
 }

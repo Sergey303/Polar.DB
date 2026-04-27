@@ -1,25 +1,25 @@
 {
   "schema": "polar-bench-experiment/v1",
   "protocol": "common/reference-load-build-reopen-random-lookup/v1",
-  "title": "Reference main: persons load, build, reopen, lookup, 1m",
-  "research": "rq-01b-reference-lifecycle-main",
-  "hypothesis": "h-01b-current-polar-db-and-sqlite-complete-reference-lifecycle-at-1m",
-  "description": "Main reference experiment for the normal persisted storage lifecycle at one million records.",
+  "title": "Reference scale: persons load, build, reopen, lookup, 5m",
+  "research": "rq-01c-reference-lifecycle-scale-pressure",
+  "hypothesis": "h-01c-current-polar-db-and-sqlite-complete-reference-lifecycle-at-5m",
+  "description": "First scale-pressure reference experiment for the normal persisted storage lifecycle at five million records.",
   "dataset": {
-    "profile": "persons-1m-reverse",
-    "count": 1000000,
+    "profile": "persons-5m-reverse",
+    "count": 5000000,
     "seed": 12345,
     "notes": "Synthetic persons(id,name,age) dataset for controlled storage-engine measurement."
   },
   "workload": {
     "type": "bulk-load-point-lookup",
-    "lookup": 10000,
-    "notes": "Reverse bulk load, build/stabilize, reopen/refresh, direct lookup, deterministic random point lookup batch.",
+    "lookup": 20000,
+    "notes": "Reverse bulk load, build/stabilize, reopen/refresh, direct lookup, deterministic random point lookup sample.",
     "options": {
       "loadOrder": "reverse-id-zero-based",
       "directLookup": "true",
       "reopenAfterBuild": "true",
-      "randomLookupQueries": "10000"
+      "randomLookupQueries": "20000"
     }
   },
   "fault": {
@@ -37,9 +37,9 @@
     "PhysicalArtifactInspection"
   ],
   "runs": {
-    "warmup": 1,
-    "measured": 5,
-    "notes": "Default local profile. CLI may override."
+    "warmup": 0,
+    "measured": 3,
+    "notes": "Scale-pressure local profile. Use CLI for longer scientific runs."
   },
   "targets": {
     "polar-db-current": {
@@ -51,7 +51,7 @@
   },
   "compare": {
     "history": true,
-    "otherExperiments": true
+    "otherExperiments": false
   },
-  "experiment": "persons-load-build-reopen-random-lookup"
+  "experiment": "persons-reference-load-build-reopen-lookup-5m"
 }
