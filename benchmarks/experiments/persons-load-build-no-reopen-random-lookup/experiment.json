@@ -1,0 +1,56 @@
+{
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "common/reference-load-build-reopen-random-lookup/v1",
+  "title": "Reference no-reopen: persons load, build, lookup (no close/reopen), 1m",
+  "research": "rq-01c-reference-lifecycle-no-reopen",
+  "hypothesis": "h-01c-no-reopen-eliminates-reopen-cost-for-polar-db-and-sqlite-at-1m",
+  "description": "No-reopen variant of the reference lifecycle experiment. workload.options.reopenAfterBuild=false keeps the connection/sequence live after Build(), eliminating close/reopen/refresh overhead. This isolates the cost of the reopen step in the normal persisted storage lifecycle.",
+  "dataset": {
+    "profile": "persons-1m-reverse",
+    "count": 1000000,
+    "seed": 12345,
+    "notes": "Synthetic persons(id,name,age) dataset for controlled storage-engine measurement."
+  },
+  "workload": {
+    "type": "bulk-load-point-lookup",
+    "lookup": 10000,
+    "notes": "Reverse bulk load, build/stabilize, direct lookup, deterministic random point lookup batch. No close/reopen after build.",
+    "options": {
+      "loadOrder": "reverse-id-zero-based",
+      "directLookup": "true",
+      "reopenAfterBuild": "false",
+      "randomLookupQueries": "10000"
+    }
+  },
+  "fault": {
+    "type": "none",
+    "notes": "No fault injection in this executable catalog experiment."
+  },
+  "fairness": {
+    "type": "durability-balanced",
+    "notes": "Targets should use equivalent durable persisted semantics."
+  },
+  "requires": [
+    "BulkLoad",
+    "PointLookup",
+    "PhysicalArtifactInspection"
+  ],
+  "runs": {
+    "warmup": 1,
+    "measured": 5,
+    "notes": "Default local profile. CLI may override."
+  },
+  "targets": {
+    "polar-db-current": {
+      "engine": "polar-db"
+    },
+    "sqlite": {
+      "engine": "sqlite"
+    }
+  },
+  "compare": {
+    "history": true,
+    "otherExperiments": true
+  },
+  "experiment": "persons-load-build-no-reopen-random-lookup"
+}

@@ -15,22 +15,30 @@ The benchmark platform treats one experiment as one folder with one `experiment.
 
 Can the engine perform the normal persisted storage lifecycle correctly and efficiently?
 
-Lifecycle:
+Lifecycle (reopen variant):
 
 ```text
 bulk load -> build/stabilize -> reopen/refresh -> direct lookup -> random point lookup
+```
+
+Lifecycle (no-reopen variant):
+
+```text
+bulk load -> build/stabilize -> direct lookup -> random point lookup
 ```
 
 Executable experiments:
 
 - `persons-reference-load-build-reopen-lookup-100k`
 - `persons-load-build-reopen-random-lookup`
+- `persons-load-build-no-reopen-random-lookup`
 - `persons-reference-load-build-reopen-lookup-5m`
 
-Why three experiments:
+Why four experiments:
 
 - 100k is a fast smoke/reference run.
-- 1m is the main reference baseline.
+- 1m reopen is the main reference baseline.
+- 1m no-reopen isolates the cost of close/reopen/refresh.
 - 5m is the first scale-pressure point.
 
 ### Q2. Lifecycle growth
