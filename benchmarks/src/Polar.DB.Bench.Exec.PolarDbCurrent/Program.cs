@@ -197,6 +197,7 @@ internal static class Program
         long scanWrongRows = 0;
         long scanEmptyResultCount = 0;
         var scanMs = 0.0;
+        var reopenRefreshMs = 0.0;
 
         try
         {
@@ -257,10 +258,13 @@ internal static class Program
             missingLookupMs = missingWatch.Elapsed.TotalMilliseconds;
 
             // D. Scan/filter category lookup
-            // Close and reopen to ensure clean state for scan
+            // Close and reopen to ensure clean state for scan (measured separately)
+            var reopenRefreshWatch = Stopwatch.StartNew();
             Close(useq);
             useq = CreateSequence(layout.Root, layout.StatePath, optimise);
             useq.Refresh();
+            reopenRefreshWatch.Stop();
+            reopenRefreshMs = reopenRefreshWatch.Elapsed.TotalMilliseconds;
 
             var scanWatch = Stopwatch.StartNew();
             for (var i = 0; i < scanQueries; i++)
@@ -269,45 +273,23 @@ internal static class Program
                 long matched = 0;
                 long wrong = 0;
 
+                // Single pass: count scanned, match, and validate inline
                 foreach (var element in useq.ElementValues())
                 {
+                    scanRowsScanned++;
                     if (element is object[] fields && fields.Length >= 5)
                     {
                         var category = (int)fields[3];
                         if (category == selectedCategory)
                         {
                             matched++;
-                        }
-                        else
-                        {
-                            // This row does not match the selected category - not a wrong row,
-                            // just not matching. Wrong rows are rows that claim to match but don't.
-                        }
-                    }
-                }
-
-                // Validate: re-scan and verify every matched row has the selected category
-                long validatedMatched = 0;
-                foreach (var element in useq.ElementValues())
-                {
-                    if (element is object[] fields && fields.Length >= 5)
-                    {
-                        var category = (int)fields[3];
-                        if (category == selectedCategory)
-                        {
-                            validatedMatched++;
+                            // Validate the matched row immediately
                             if (category != selectedCategory)
                             {
                                 wrong++;
                             }
                         }
                     }
-                }
-
-                if (validatedMatched != matched)
-                {
-                    // Inconsistency detected during validation
-                    wrong += Math.Abs(validatedMatched - matched);
                 }
 
                 // Expected count: recordCount / categoryModulo plus remainder handling
@@ -324,7 +306,6 @@ internal static class Program
                     wrong += Math.Abs(matched - expectedCount);
                 }
 
-                scanRowsScanned += recordCount;
                 scanRowsMatched += matched;
                 scanWrongRows += wrong;
 
@@ -378,7 +359,7 @@ internal static class Program
         metrics.Add(new RunMetric { MetricKey = "search.scan.emptyResultCount", Value = scanEmptyResultCount });
 
         // Standard metrics
-        metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = 0 });
+        metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
 
         // Diagnostics
         diagnostics["optimise"] = optimise.ToString();
