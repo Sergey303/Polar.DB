@@ -342,6 +342,8 @@ public sealed record CrossEngineSeriesEngineEntry
 /// <see cref="Count"/> is the number of expected samples.
 /// <see cref="MissingCount"/> tracks how many runs did not provide this metric.
 /// Min/Max/Average/Median are null when there are no actual values.
+/// New optional fields (P50, P95, P99, TrimmedMean10, Mad, JitterRatio, OutlierCount, OutlierPercent)
+/// are null when there are no valid samples or when the statistic cannot be computed.
 /// </remarks>
 public sealed record MetricSeriesStats
 {
@@ -376,8 +378,58 @@ public sealed record MetricSeriesStats
     public double? Average { get; init; }
 
     /// <summary>
-    /// Median across available samples.
+    /// Median across available samples. Same as P50.
     /// </summary>
     [JsonPropertyName("median")]
     public double? Median { get; init; }
+
+    /// <summary>
+    /// 50th percentile (median). Same value as Median.
+    /// </summary>
+    [JsonPropertyName("p50")]
+    public double? P50 { get; init; }
+
+    /// <summary>
+    /// 95th percentile.
+    /// </summary>
+    [JsonPropertyName("p95")]
+    public double? P95 { get; init; }
+
+    /// <summary>
+    /// 99th percentile.
+    /// </summary>
+    [JsonPropertyName("p99")]
+    public double? P99 { get; init; }
+
+    /// <summary>
+    /// Average after removing lowest 10% and highest 10% of valid samples.
+    /// Falls back to normal average when there are too few values to trim safely.
+    /// </summary>
+    [JsonPropertyName("trimmedMean10")]
+    public double? TrimmedMean10 { get; init; }
+
+    /// <summary>
+    /// Median absolute deviation from the median.
+    /// </summary>
+    [JsonPropertyName("mad")]
+    public double? Mad { get; init; }
+
+    /// <summary>
+    /// Jitter ratio: (P95 - P50) / P50. Null when P50 is null or close to zero.
+    /// </summary>
+    [JsonPropertyName("jitterRatio")]
+    public double? JitterRatio { get; init; }
+
+    /// <summary>
+    /// Number of values where robust z-score is above 3.5 in absolute value.
+    /// Zero when MAD is null or close to zero.
+    /// </summary>
+    [JsonPropertyName("outlierCount")]
+    public int? OutlierCount { get; init; }
+
+    /// <summary>
+    /// OutlierCount / validValueCount * 100. Null when there are no valid values.
+    /// </summary>
+    [JsonPropertyName("outlierPercent")]
+    public double? OutlierPercent { get; init; }
 }

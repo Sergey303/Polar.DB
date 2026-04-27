@@ -131,3 +131,69 @@ Example: quick local smoke test with 0 warmup, 1 measured:
 ```
 dotnet run --project ...\Polar.DB.Bench.Exec.csproj -- --exp ...\experiment-folder --warmup-count 0 --measured-count 1
 ```
+
+## Final Metric Set
+
+The platform retains the following derived metrics for analysis and reporting.
+
+### Reliability
+
+| Metric | Description |
+|--------|-------------|
+| `technicalSuccessRate` | Fraction of runs where infrastructure completed without error |
+| `semanticSuccessRate` | Fraction of runs where workload-level checks passed |
+
+### Timing
+
+| Metric | Description |
+|--------|-------------|
+| `min` | Minimum observed value |
+| `average` | Arithmetic mean |
+| `p50` / `median` | 50th percentile (median) |
+| `p95` | 95th percentile |
+| `p99` | 99th percentile |
+| `trimmedMean10` | Average after removing lowest and highest 10% |
+| `MAD` | Median absolute deviation from the median |
+| `jitterRatio` | (p95 - p50) / p50 |
+| `outlierCount` | Values with robust z-score > 3.5 |
+
+### Throughput
+
+| Metric | Description |
+|--------|-------------|
+| `recordsPerSecond` | Records processed per second |
+| `queriesPerSecond` | Queries executed per second |
+
+### Search
+
+| Metric | Description |
+|--------|-------------|
+| `msPerQuery` | Average milliseconds per query |
+| `resultRowsTotal` | Total rows returned |
+| `msPerReturnedRow` | Milliseconds per returned row |
+| `hitRate` | Fraction of queries that found matches |
+| `emptyRate` | Fraction of queries that returned no results |
+
+### Storage
+
+| Metric | Description |
+|--------|-------------|
+| `totalArtifactBytes` | Total bytes of all recorded artifacts |
+| `bytesPerRecord` | Total bytes divided by record count |
+| `indexBytesPerRecord` | Index/overhead bytes per record |
+
+### Comparison
+
+| Metric | Description |
+|--------|-------------|
+| `speedup vs baseline` | Ratio of baseline time to target time |
+| `slowdown vs baseline` | Ratio of target time to baseline time |
+
+### Future Cache (reserved)
+
+| Metric | Description |
+|--------|-------------|
+| `cold/warm/hot` | Query time under different cache states |
+| `cacheBenefit` | coldMedian / warmMedian |
+| `cachePaybackQueries` | cacheBuildCostMs / (coldMsPerQuery - warmMsPerQuery) |
+| `cacheHitRate` | Fraction of cache hits |

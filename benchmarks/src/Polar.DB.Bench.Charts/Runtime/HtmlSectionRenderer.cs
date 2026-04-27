@@ -148,6 +148,7 @@ internal static class HtmlSectionRenderer
         AppendEngineLegend(sb, colors, engines.Select(item => item.EngineKey));
         AppendLatestStatusTable(sb, engines);
         AppendLatestTimingTable(sb, engines);
+        AppendLatestStabilityTable(sb, engines);
         AppendLatestStorageTable(sb, engines);
 
         sb.AppendLine("  <div class=\"chart-wrap\">");
@@ -513,6 +514,113 @@ internal static class HtmlSectionRenderer
 
         sb.AppendLine("    </tbody>");
         sb.AppendLine("  </table>");
+    }
+
+    private static void AppendLatestStabilityTable<T>(System.Text.StringBuilder sb, IReadOnlyList<T> engines)
+    {
+        var hasStability = engines.Any(item =>
+            GetMetricP95(item, "ElapsedMs").HasValue || GetMetricP99(item, "ElapsedMs").HasValue ||
+            GetMetricMad(item, "ElapsedMs").HasValue || GetMetricJitterRatio(item, "ElapsedMs").HasValue);
+
+        if (!hasStability)
+        {
+            return;
+        }
+
+        sb.AppendLine("  <h3>Stability</h3>");
+        sb.AppendLine("  <p class=\"muted small\">p95/p99/trimmedMean10/MAD/jitter%/outliers. Empty cells mean the statistic could not be computed.</p>");
+        sb.AppendLine("  <table>");
+        sb.AppendLine("    <thead><tr><th>Target</th><th>Elapsed stability</th><th>Load stability</th><th>Build stability</th><th>Reopen stability</th><th>Lookup stability</th></tr></thead>");
+        sb.AppendLine("    <tbody>");
+        foreach (var engine in engines)
+        {
+            var engineKey = GetStringMember(engine, "EngineKey") ?? "unknown";
+            sb.AppendLine("      <tr>");
+            sb.AppendLine("        <td><code>" + NumberFormatter.HtmlEncode(engineKey) + "</code></td>");
+            sb.AppendLine("        <td>" + FormatStabilityCell(engine, "ElapsedMs") + "</td>");
+            sb.AppendLine("        <td>" + FormatStabilityCell(engine, "LoadMs") + "</td>");
+            sb.AppendLine("        <td>" + FormatStabilityCell(engine, "BuildMs") + "</td>");
+            sb.AppendLine("        <td>" + FormatStabilityCell(engine, "ReopenMs") + "</td>");
+            sb.AppendLine("        <td>" + FormatStabilityCell(engine, "LookupMs") + "</td>");
+            sb.AppendLine("      </tr>");
+        }
+
+        sb.AppendLine("    </tbody>");
+        sb.AppendLine("  </table>");
+    }
+
+    private static string FormatStabilityCell<T>(T engine, string metricName)
+    {
+        var p95 = GetMetricP95(engine, metricName);
+        var p99 = GetMetricP99(engine, metricName);
+        var trimmedMean = GetMetricTrimmedMean10(engine, metricName);
+        var mad = GetMetricMad(engine, metricName);
+        var jitter = GetMetricJitterRatio(engine, metricName);
+        var outlierCount = GetMetricOutlierCount(engine, metricName);
+
+        var parts = new List<string>();
+        if (p95.HasValue) parts.Add("p95:" + NumberFormatter.FormatMilliseconds(p95));
+        if (p99.HasValue) parts.Add("p99:" + NumberFormatter.FormatMilliseconds(p99));
+        if (trimmedMean.HasValue) parts.Add("tm:" + NumberFormatter.FormatMilliseconds(trimmedMean));
+        if (mad.HasValue) parts.Add("mad:" + NumberFormatter.FormatMilliseconds(mad));
+        if (jitter.HasValue) parts.Add("jit:" + (jitter.Value * 100).ToString("0.#", Invariant) + "%");
+        if (outlierCount.HasValue) parts.Add("out:" + outlierCount.Value);
+
+        return parts.Count > 0
+            ? "<span class=\"mono small\">" + NumberFormatter.HtmlEncode(string.Join(" ", parts)) + "</span>"
+            : "<span class=\"muted\">n/a</span>";
+    }
+
+    private static double? GetMetricP99(object? source, string metricName)
+    {
+        var stats = GetMemberValue(source, metricName);
+        return GetOptionalMetricValue(stats, "P99", "P99Value", "Percentile99", "NinetyNinthPercentile");
+    }
+
+    private static double? GetMetricTrimmedMean10(object? source, string metricName)
+    {
+        var stats = GetMemberValue(source, metricName);
+        return GetOptionalMetricValue(stats, "TrimmedMean10", "TrimmedMean", "TrimmedMean10Value");
+    }
+
+    private static double? GetMetricMad(object? source, string metricName)
+    {
+        var stats = GetMemberValue(source, metricName);
+        return GetOptionalMetricValue(stats, "Mad", "MAD", "MadValue", "MedianAbsoluteDeviation");
+    }
+
+    private static double? GetMetricJitterRatio(object? source, string metricName)
+    {
+        var stats = GetMemberValue(source, metricName);
+        return GetOptionalMetricValue(stats, "JitterRatio", "Jitter", "JitterRatioValue");
+    }
+
+    private static int? GetMetricOutlierCount(object? source, string metricName)
+    {
+        var stats = GetMemberValue(source, metricName);
+        if (stats is null)
+        {
+            return null;
+        }
+
+        var statsType = stats.GetType();
+        var property = statsType.GetProperty("OutlierCount", BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+        if (property is not null)
+        {
+            var value = property.GetValue(stats);
+            if (value is int i) return i;
+            if (value is IConvertible conv) return Convert.ToInt32(conv, Invariant);
+        }
+
+        var field = statsType.GetField("OutlierCount", BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+        if (field is not null)
+        {
+            var value = field.GetValue(stats);
+            if (value is int i) return i;
+            if (value is IConvertible conv) return Convert.ToInt32(conv, Invariant);
+        }
+
+        return null;
     }
 
     private static void AppendEngineLegend(System.Text.StringBuilder sb, IReadOnlyDictionary<string, string> colors, IEnumerable<string> engineKeys)
