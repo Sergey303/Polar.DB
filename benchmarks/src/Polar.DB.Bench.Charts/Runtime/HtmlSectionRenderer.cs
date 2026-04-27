@@ -567,7 +567,7 @@ internal static class HtmlSectionRenderer
         if (outlierCount.HasValue) parts.Add("out:" + outlierCount.Value);
 
         return parts.Count > 0
-            ? "<span class=\"mono small\">" + NumberFormatter.HtmlEncode(string.Join(" ", parts)) + "</span>"
+            ? "<span class=\"mono small\">" + string.Join(" ", parts) + "</span>"
             : "<span class=\"muted\">n/a</span>";
     }
 
