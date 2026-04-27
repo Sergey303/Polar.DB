@@ -219,7 +219,7 @@ public static class ExecApplication
             ?? ResolveRepositoryRoot(Environment.CurrentDirectory)
             ?? Path.GetFullPath(Path.Combine(options.WorkingDirectory!, ".."));
 
-        if (ShouldRunExternalPolarDbTypedRunner(engineFamily, targetKey, runtime))
+        if (ShouldRunExternalPolarDbTypedRunner(spec, engineFamily, targetKey, runtime))
         {
             return await RunExternalPolarDbTypedTargetAsync(
                 options,
@@ -282,6 +282,7 @@ public static class ExecApplication
     }
 
     private static bool ShouldRunExternalPolarDbTypedRunner(
+        ExperimentSpec spec,
         string engineFamily,
         string targetKey,
         EngineRuntimeDescriptor runtime)
@@ -291,14 +292,43 @@ public static class ExecApplication
             return false;
         }
 
+        var isExactRunnerWorkload = IsPolarDbExactRunnerWorkload(spec);
+
         if (targetKey.Equals("polar-db-current", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            // Current source should use the in-process adapter for common/reference workloads.
+            // The external typed runner is reserved for Polar.DB-specific exact workloads
+            // such as search diagnostics and historical USequence reference scenarios.
+            return isExactRunnerWorkload;
         }
 
-        return runtime.Source.Equals("nuget-pinned", StringComparison.OrdinalIgnoreCase)
-               && (string.Equals(runtime.Nuget, "2.1.0", StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(runtime.Nuget, "2.1.1", StringComparison.OrdinalIgnoreCase));
+        var isPinnedSupportedNuget =
+            runtime.Source.Equals("nuget-pinned", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(runtime.Nuget, "2.1.0", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(runtime.Nuget, "2.1.1", StringComparison.OrdinalIgnoreCase));
+
+        if (!isPinnedSupportedNuget)
+        {
+            return false;
+        }
+
+        if (!isExactRunnerWorkload)
+        {
+            throw new NotSupportedException(
+                $"Polar.DB pinned target '{targetKey}' cannot run common adapter workload '{spec.Workload.WorkloadKey}'. " +
+                "Pinned NuGet targets are supported only for exact Polar.DB workloads that have typed external runners.");
+        }
+
+        return true;
+    }
+
+    private static bool IsPolarDbExactRunnerWorkload(ExperimentSpec spec)
+    {
+        var workloadKey = spec.Workload.WorkloadKey;
+
+        return workloadKey.Equals("search-point-category-scan", StringComparison.OrdinalIgnoreCase) ||
+               workloadKey.Equals("load-build-random-point-lookup-reference-exact", StringComparison.OrdinalIgnoreCase) ||
+               spec.ExperimentKey.StartsWith("polar-db-", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<int> RunExternalPolarDbTypedTargetAsync(

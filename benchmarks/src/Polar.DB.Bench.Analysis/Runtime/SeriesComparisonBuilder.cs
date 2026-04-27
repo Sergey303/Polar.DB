@@ -104,8 +104,13 @@ internal sealed class SeriesComparisonBuilder
         var load = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "loadMs")).ToArray();
         var build = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "buildMs")).ToArray();
         var reopen = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "reopenRefreshMs", "reopenMs")).ToArray();
-        var lookup = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupMs")).ToArray();
-        var lookupCount = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupCount")).ToArray();
+
+        // Keep LookupMs tied to the reference lookup contract. Do not fall back to search.point.*
+        // here: if a reference experiment produced search metrics, the runner routing is wrong and
+        // must be fixed at execution time instead of hiding a protocol mismatch in analysis.
+        var lookup = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupMs", "lookupMs")).ToArray();
+        var lookupCount = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupCount", "lookupCount")).ToArray();
+
         var totalBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadTotalArtifactBytes(x.Result)).ToArray();
         var primaryBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadPrimaryArtifactBytes(x.Result)).ToArray();
         var sideBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadSideArtifactBytes(x.Result)).ToArray();
