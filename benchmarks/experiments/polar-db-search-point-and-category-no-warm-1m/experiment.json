@@ -1,0 +1,64 @@
+{
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "polar-db/search-point-missing-and-category-scan/v1",
+  "title": "Diagnostic: Polar.DB point lookup, missing lookup, category scan",
+  "research": "rq-04-polar-db-search-diagnostics",
+  "hypothesis": "h-04-point-lookup-remains-fast-and-scan-cost-scales-with-rows-scanned",
+  "description": "Polar.DB-specific diagnostic experiment. It isolates existing-key point lookup, missing-key point lookup, and scan/filter by category on one million person records. This is where Polar.DB version comparison belongs.",
+  "dataset": {
+    "profile": "persons-1m-search-category100",
+    "count": 1000000,
+    "seed": 303,
+    "notes": "Records contain id, name, age, category100, isPopular. category100 = id % 100. isPopular is reserved for future cache/popular experiments and is not cached here."
+  },
+  "workload": {
+    "type": "search-point-category-scan",
+    "lookup": 10000,
+    "notes": "Measures existing GetByKey, missing GetByKey, and scan/filter category lookup. Cached and uncached metrics are not mixed.",
+    "options": {
+      "pointExistingQueries": "10000",
+      "pointMissingQueries": "10000",
+      "scanQueries": "20",
+      "categoryModulo": "100",
+      "popularPercent": "5",
+      "cache": "false",
+      "warm": "false"
+    }
+  },
+  "fault": {
+    "type": "none",
+    "notes": "No fault injection. This experiment isolates search behavior."
+  },
+  "fairness": {
+    "type": "polar-db-search-no-cache-point-and-scan",
+    "notes": "All Polar.DB targets use the same generated data, deterministic point keys, deterministic categories, and no cache."
+  },
+  "requires": [
+    "BulkLoad",
+    "PointLookup",
+    "PhysicalArtifactInspection"
+  ],
+  "runs": {
+    "warmup": 3,
+    "measured": 20,
+    "notes": "Search diagnostic profile. CLI may override."
+  },
+  "targets": {
+    "polar-db-current": {
+      "engine": "polar-db"
+    },
+    "polar-db-2.1.1": {
+      "engine": "polar-db",
+      "nuget": "2.1.1"
+    },
+    "polar-db-2.1.0": {
+      "engine": "polar-db",
+      "nuget": "2.1.0"
+    }
+  },
+  "compare": {
+    "history": true,
+    "otherExperiments": false
+  },
+  "experiment": "polar-db-search-point-and-category-1m"
+}

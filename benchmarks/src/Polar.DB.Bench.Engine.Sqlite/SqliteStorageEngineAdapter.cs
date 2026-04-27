@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.Services;
+using static Polar.DB.Bench.Core.Services.FileWarmup;
 
 namespace Polar.DB.Bench.Engine.Sqlite;
 
@@ -142,6 +143,13 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 indexPresentAfterReopen = HasIndex(reopened, IdIndexName);
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                // Warm artifact files before measured lookup (unless explicitly disabled)
+                if (IsWarmEnabled(_spec.Workload.Parameters))
+                {
+                    WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                        cancellationToken: cancellationToken);
+                }
 
                 var directLookupWatch = Stopwatch.StartNew();
                 directLookupHit = HasPersonById(reopened, directLookupKey);
@@ -417,6 +425,13 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                         missingIndexCycles.Add(cycle + 1);
                     }
 
+                    // Warm artifact files before measured lookup (unless explicitly disabled)
+                    if (IsWarmEnabled(_spec.Workload.Parameters))
+                    {
+                        WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                            cancellationToken: cancellationToken);
+                    }
+
                     var random = new Random((_spec.Dataset.Seed ?? 1) ^ (0x7d8e0000 + cycle));
                     var maxKeyExclusive = checked((int)expectedRowCount) + 1;
                     var lookupWatch = Stopwatch.StartNew();
@@ -683,6 +698,13 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 
                 cancellationToken.ThrowIfCancellationRequested();
 
+                // Warm artifact files before measured lookup (unless explicitly disabled)
+                if (IsWarmEnabled(_spec.Workload.Parameters))
+                {
+                    WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                        cancellationToken: cancellationToken);
+                }
+
                 if (directLookupEnabled)
                 {
                     var directLookupWatch = Stopwatch.StartNew();
@@ -759,6 +781,13 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                     if (!indexPresentAfterRefresh)
                     {
                         missingIndexCycles.Add(cycle + 1);
+                    }
+
+                    // Warm artifact files before measured lookup after reopen (unless explicitly disabled)
+                    if (randomLookupAfterEachBatch && IsWarmEnabled(_spec.Workload.Parameters))
+                    {
+                        WarmDirectory(artifactLayout.ArtifactsRootDirectory,
+                            cancellationToken: cancellationToken);
                     }
 
                     if (randomLookupAfterEachBatch)
