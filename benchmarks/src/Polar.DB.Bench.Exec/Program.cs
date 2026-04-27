@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Polar.DB.Bench.Exec;
 using Polar.DB.Bench.Exec.Runtime;
+
 
 if (!CliOptions.TryParse(args, out var options, out var parseError))
 {
@@ -58,7 +60,10 @@ if (!ExperimentFolderResolver.TryResolve(benchmarksRoot, experimentInput!, out v
     return 2;
 }
 
-return ExecApplication.RunAsync(["--exp", experiment.FolderPath]).GetAwaiter().GetResult();
+var execArgs = new List<string> { "--exp", experiment.FolderPath };
+execArgs.AddRange(options.ExtraArgs);
+return ExecApplication.RunAsync(execArgs.ToArray()).GetAwaiter().GetResult();
+
 
 static int RunSmokeCleanup(string benchmarksRoot)
 {

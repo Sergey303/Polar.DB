@@ -129,8 +129,10 @@ public static class ExecApplication
                 EnvironmentClass = environmentClass,
                 ComparisonSetId = comparisonSetId,
                 WarmupCount = warmupCount,
-                MeasuredCount = measuredCount
+                MeasuredCount = measuredCount,
+                ManifestRuns = manifest.Runs
             };
+
 
             Console.WriteLine(
                 $"==> Running target '{targetKey}' for experiment '{manifest.ExperimentKey}'");
@@ -518,8 +520,37 @@ public static class ExecApplication
     private static SeriesExecutionPlan BuildExecutionPlan(ExecOptions options)
     {
         var hasComparisonSet = !string.IsNullOrWhiteSpace(options.ComparisonSetId);
-        var warmupCount = options.WarmupCount ?? (hasComparisonSet ? 1 : 0);
-        var measuredCount = options.MeasuredCount ?? (hasComparisonSet ? 3 : 1);
+
+        // Priority: CLI > manifest > default
+        int warmupCount;
+        int measuredCount;
+
+        if (options.WarmupCount.HasValue)
+        {
+            warmupCount = options.WarmupCount.Value;
+        }
+        else if (options.ManifestRuns?.Warmup.HasValue == true)
+        {
+            warmupCount = options.ManifestRuns.Warmup.Value;
+        }
+        else
+        {
+            warmupCount = hasComparisonSet ? 1 : 0;
+        }
+
+        if (options.MeasuredCount.HasValue)
+        {
+            measuredCount = options.MeasuredCount.Value;
+        }
+        else if (options.ManifestRuns?.Measured.HasValue == true)
+        {
+            measuredCount = options.ManifestRuns.Measured.Value;
+        }
+        else
+        {
+            measuredCount = hasComparisonSet ? 3 : 1;
+        }
+
 
         if (warmupCount < 0)
         {
@@ -543,6 +574,7 @@ public static class ExecApplication
             measuredCount,
             warmupCount + measuredCount);
     }
+
 
     private static RunResult AttachSeriesInfo(
         RunResult result,

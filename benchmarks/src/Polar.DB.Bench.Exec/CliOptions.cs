@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace Polar.DB.Bench.Exec;
@@ -15,6 +16,12 @@ public sealed class CliOptions
 
     public bool ShowHelp { get; private set; }
 
+    /// <summary>
+    /// Extra arguments beyond --exp that are passed through to ExecApplication.
+    /// Supported: --warmup-count, --measured-count, --comparison-set, --env.
+    /// </summary>
+    public IReadOnlyList<string> ExtraArgs { get; private set; } = Array.Empty<string>();
+
     public static string UsageText
     {
         get
@@ -22,10 +29,13 @@ public sealed class CliOptions
             var nl = Environment.NewLine;
             var builder = new StringBuilder();
             builder.Append("Usage:").Append(nl);
-            builder.Append("  Polar.DB.Bench.Exec --exp <experiment-folder-or-name>").Append(nl).Append(nl);
+            builder.Append("  Polar.DB.Bench.Exec --exp <experiment-folder-or-name>").Append(nl);
+            builder.Append("                       [--warmup-count <n>] [--measured-count <n>]").Append(nl);
+            builder.Append("                       [--comparison-set <id>] [--env <class>]").Append(nl).Append(nl);
             builder.Append("Examples:").Append(nl);
             builder.Append("  Polar.DB.Bench.Exec --exp persons-full-adapter-coverage-version-matrix").Append(nl);
-            builder.Append("  Polar.DB.Bench.Exec --exp .\\benchmarks\\experiments\\persons-full-adapter-coverage-version-matrix").Append(nl).Append(nl);
+            builder.Append("  Polar.DB.Bench.Exec --exp .\\benchmarks\\experiments\\persons-full-adapter-coverage-version-matrix").Append(nl);
+            builder.Append("  Polar.DB.Bench.Exec --exp .\\benchmarks\\experiments\\... --warmup-count 0 --measured-count 1").Append(nl).Append(nl);
             builder.Append("Dev mode:").Append(nl);
             builder.Append("  Polar.DB.Bench.Exec --smoke-cleanup");
             return builder.ToString();
@@ -35,6 +45,7 @@ public sealed class CliOptions
     public static bool TryParse(string[] args, out CliOptions options, out string error)
     {
         options = new CliOptions();
+        var extraArgs = new List<string>();
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -85,6 +96,18 @@ public sealed class CliOptions
                     error = "Option --all is not supported. Use --exp or interactive single-experiment selection.";
                     return false;
 
+                case "--warmup-count":
+                case "--measured-count":
+                case "--comparison-set":
+                case "--env":
+                    // Pass through to ExecApplication
+                    extraArgs.Add(argument);
+                    if (index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal))
+                    {
+                        extraArgs.Add(args[++index]);
+                    }
+                    break;
+
                 default:
                     error = $"Unknown argument: '{argument}'.";
                     return false;
@@ -97,7 +120,10 @@ public sealed class CliOptions
             return false;
         }
 
+        options.ExtraArgs = extraArgs.AsReadOnly();
         error = string.Empty;
         return true;
     }
 }
+
+
