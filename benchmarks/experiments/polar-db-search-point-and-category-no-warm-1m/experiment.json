@@ -1,10 +1,10 @@
 {
   "schema": "polar-bench-experiment/v1",
   "protocol": "polar-db/search-point-missing-and-category-scan/v1",
-  "title": "Diagnostic: Polar.DB point lookup, missing lookup, category scan",
-  "research": "rq-04-polar-db-search-diagnostics",
-  "hypothesis": "h-04-point-lookup-remains-fast-and-scan-cost-scales-with-rows-scanned",
-  "description": "Polar.DB-specific diagnostic experiment. It isolates existing-key point lookup, missing-key point lookup, and scan/filter by category on one million person records. This is where Polar.DB version comparison belongs.",
+  "title": "Diagnostic: Polar.DB point lookup, missing lookup, category scan without file warmup",
+  "research": "rq-04b-polar-db-search-no-warm-diagnostics",
+  "hypothesis": "h-04b-no-warm-search-exposes-post-build-or-post-refresh-file-read-cost",
+  "description": "Control no-warm variant of the Polar.DB search diagnostic experiment. workload.options.warm=false disables the sequential file warmup, exposing the raw cost of reading artifact files from cold cache during the first measured lookup after BulkLoad or after close/reopen.",
   "dataset": {
     "profile": "persons-1m-search-category100",
     "count": 1000000,
@@ -60,5 +60,5 @@
     "history": true,
     "otherExperiments": false
   },
-  "experiment": "polar-db-search-point-and-category-1m"
+  "experiment": "polar-db-search-point-and-category-no-warm-1m"
 }

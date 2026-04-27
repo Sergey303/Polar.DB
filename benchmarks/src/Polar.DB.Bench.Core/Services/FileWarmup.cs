@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using Polar.DB.Bench.Core.Models;
 
 namespace Polar.DB.Bench.Core.Services;
 
@@ -38,7 +37,7 @@ public static class FileWarmup
 
         var buffer = new byte[bufferSize];
 
-        foreach (var filePath in Directory.EnumerateFiles(directoryPath))
+        foreach (var filePath in Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
