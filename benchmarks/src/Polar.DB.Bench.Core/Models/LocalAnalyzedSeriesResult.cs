@@ -83,6 +83,15 @@ public sealed record LocalAnalyzedSeriesResult
     [JsonPropertyName("sideBytes")]
     public required MetricSeriesStats SideArtifactBytes { get; init; }
 
+    /// <summary>
+    /// Generic metrics dictionary containing stats for all raw metric keys
+    /// that Analysis sees for this target series.
+    /// This includes search metrics, memory metrics, and any future metrics
+    /// not exposed as fixed properties.
+    /// </summary>
+    [JsonPropertyName("metrics")]
+    public IReadOnlyDictionary<string, MetricSeriesStats>? Metrics { get; init; }
+
     [JsonPropertyName("notes")]
     public List<string>? Notes { get; init; }
 }

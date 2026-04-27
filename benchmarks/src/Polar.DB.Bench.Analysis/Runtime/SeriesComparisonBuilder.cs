@@ -110,6 +110,22 @@ internal sealed class SeriesComparisonBuilder
         var primaryBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadPrimaryArtifactBytes(x.Result)).ToArray();
         var sideBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadSideArtifactBytes(x.Result)).ToArray();
 
+        // Collect all raw metric keys across all measured runs for this engine.
+        var allMetricKeys = measuredRuns
+            .SelectMany(x => x.Result.Metrics.Select(m => m.MetricKey))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var metricsDict = new Dictionary<string, MetricSeriesStats>(StringComparer.OrdinalIgnoreCase);
+        foreach (var metricKey in allMetricKeys)
+        {
+            var values = measuredRuns
+                .Select(x => ComparisonMetricReader.ReadMetric(x.Result, metricKey))
+                .ToArray();
+            metricsDict[metricKey] = MetricSeriesStatsBuilder.Build(values);
+        }
+
         return new CrossEngineSeriesEngineEntry
         {
             EngineKey = engineKey,
@@ -127,7 +143,8 @@ internal sealed class SeriesComparisonBuilder
             LookupBatchCount = MetricSeriesStatsBuilder.Build(lookupCount),
             TotalArtifactBytes = MetricSeriesStatsBuilder.Build(totalBytes),
             PrimaryArtifactBytes = MetricSeriesStatsBuilder.Build(primaryBytes),
-            SideArtifactBytes = MetricSeriesStatsBuilder.Build(sideBytes)
+            SideArtifactBytes = MetricSeriesStatsBuilder.Build(sideBytes),
+            Metrics = metricsDict
         };
     }
 

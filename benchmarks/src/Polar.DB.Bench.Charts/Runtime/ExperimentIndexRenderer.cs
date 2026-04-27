@@ -25,6 +25,7 @@ internal sealed class ExperimentIndexRenderer
         HtmlSectionRenderer.AppendHeader(sb, model);
         HtmlSectionRenderer.AppendIdentitySection(sb, model);
         HtmlSectionRenderer.AppendLatestEnginesSection(sb, model);
+        HtmlSectionRenderer.AppendThematicMetricSections(sb, model);
         HtmlSectionRenderer.AppendHistorySection(sb, model);
         HtmlSectionRenderer.AppendOtherExperimentsSection(sb, model);
         HtmlSectionRenderer.AppendArtifactsSection(sb, model);
