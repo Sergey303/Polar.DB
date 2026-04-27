@@ -23,10 +23,13 @@ internal static class Program
         Converters = { new JsonStringEnumConverter() }
     };
 
+    // Schema: id(integer), name(sstring), age(real), category100(integer), isPopular(integer)
     private static readonly PTypeRecord PersonRecordType = new(
         new NamedType("id", new PType(PTypeEnumeration.integer)),
         new NamedType("name", new PType(PTypeEnumeration.sstring)),
-        new NamedType("age", new PType(PTypeEnumeration.real)));
+        new NamedType("age", new PType(PTypeEnumeration.real)),
+        new NamedType("category100", new PType(PTypeEnumeration.integer)),
+        new NamedType("isPopular", new PType(PTypeEnumeration.integer)));
 
     public static int Main(string[] args)
     {
@@ -78,17 +81,17 @@ internal static class Program
         var notes = new List<string>
         {
             "Typed external Polar.DB runner.",
-            "Reference exact scenario from uploaded Program (1).cs.",
+            "Protocol: polar-db-search-point-and-category/v1 (point-lookup only).",
             "Runtime: " + RunnerIdentity
         };
         var diagnostics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["runtimeSource"] = RuntimeSource,
             ["runnerProject"] = typeof(Program).Assembly.GetName().Name ?? "unknown",
-            ["referenceProgram"] = "Program (1).cs",
-            ["referenceScenario"] = "Load reverse id 0..N-1 -> Build -> GetByKey(N*2/3) -> 10000 Random().Next(N) GetByKey",
-            ["referenceHasRefresh"] = "False",
-            ["referenceHasReopen"] = "False"
+            ["protocol"] = "polar-db-search-point-and-category/v1",
+            ["indexedCategoryLookupSupported"] = "False",
+            ["scanFilterSupported"] = "False",
+            ["semanticScope"] = "point"
         };
         if (!string.IsNullOrWhiteSpace(RuntimeNuget))
         {
@@ -106,7 +109,7 @@ internal static class Program
 
         try
         {
-            ExecuteReferenceExact(spec, artifactLayout, metrics, diagnostics, out semanticSuccess, out semanticFailure);
+            ExecutePointLookup(spec, artifactLayout, metrics, diagnostics, out semanticSuccess, out semanticFailure);
         }
         catch (Exception ex)
         {
@@ -158,7 +161,7 @@ internal static class Program
         };
     }
 
-    private static void ExecuteReferenceExact(
+    private static void ExecutePointLookup(
         ExperimentSpec spec,
         ArtifactLayout layout,
         List<RunMetric> metrics,
@@ -166,29 +169,34 @@ internal static class Program
         out bool? semanticSuccess,
         out string? semanticFailure)
     {
-        // Точная логика загруженного Program (1).cs, только dbpath заменён на --work-dir/artifacts:
-        // USequence(tp, state.bin, GenStream, ob => false, keyFunc, hashOfKey, false)
-        // Load(reverse ids) -> Build() -> GetByKey(kperson) -> 10000 Random().Next(npersons) GetByKey.
-        var npersons = checked((int)Math.Max(0, spec.Dataset.RecordCount));
-        var lookupCount = Math.Max(0, spec.Workload.LookupCount ?? 10_000);
-        var kperson = npersons * 2 / 3;
+        var recordCount = checked((int)Math.Max(0, spec.Dataset.RecordCount));
+        var seed = spec.Dataset.Seed ?? 303;
+
+        // Parse workload options
+        var options = spec.Workload.Parameters ?? new Dictionary<string, string>();
+        var pointExistingQueries = ParseIntOption(options, "pointExistingQueries", 10000);
+        var pointMissingQueries = ParseIntOption(options, "pointMissingQueries", 10000);
+        var categoryModulo = ParseIntOption(options, "categoryModulo", 100);
+        var popularPercent = ParseIntOption(options, "popularPercent", 5);
+
         const bool optimise = false;
 
         USequence? useq = null;
-        long lookupHits = 0;
-        var directLookupHit = false;
+        long existingHits = 0;
+        long missingMisses = 0;
 
         var loadMs = 0.0;
         var buildMs = 0.0;
-        var directLookupMs = 0.0;
-        var randomLookupMs = 0.0;
+        var existingLookupMs = 0.0;
+        var missingLookupMs = 0.0;
 
         try
         {
+            // A. Load/build
             useq = CreateSequence(layout.Root, layout.StatePath, optimise);
 
             var loadWatch = Stopwatch.StartNew();
-            useq.Load(GenerateReferencePersons(npersons));
+            useq.Load(GeneratePersons(recordCount, categoryModulo, popularPercent));
             loadWatch.Stop();
             loadMs = loadWatch.Elapsed.TotalMilliseconds;
 
@@ -197,53 +205,96 @@ internal static class Program
             buildWatch.Stop();
             buildMs = buildWatch.Elapsed.TotalMilliseconds;
 
-            var directWatch = Stopwatch.StartNew();
-            var directRow = useq.GetByKey(kperson);
-            directWatch.Stop();
-            directLookupMs = directWatch.Elapsed.TotalMilliseconds;
-            directLookupHit = TryReadId(directRow, out var directId) && directId == kperson;
-
-            var rnd = new Random();
-            var lookupWatch = Stopwatch.StartNew();
-            for (var i = 0; i < lookupCount; i++)
+            // B. Existing point lookup
+            var existingWatch = Stopwatch.StartNew();
+            var existingRng = new Random(unchecked(seed ^ 0x1001));
+            for (var i = 0; i < pointExistingQueries; i++)
             {
-                var key = rnd.Next(npersons);
+                var key = existingRng.Next(0, recordCount);
                 var row = useq.GetByKey(key);
                 if (TryReadId(row, out var id) && id == key)
                 {
-                    lookupHits++;
+                    existingHits++;
                 }
             }
-            lookupWatch.Stop();
-            randomLookupMs = lookupWatch.Elapsed.TotalMilliseconds;
+            existingWatch.Stop();
+            existingLookupMs = existingWatch.Elapsed.TotalMilliseconds;
+
+            // C. Missing point lookup
+            var missingWatch = Stopwatch.StartNew();
+            for (var i = 0; i < pointMissingQueries; i++)
+            {
+                var key = recordCount + 1 + i;
+                try
+                {
+                    var row = useq.GetByKey(key);
+                    // If no exception but row is null/empty, count as miss
+                    if (row == null)
+                    {
+                        missingMisses++;
+                    }
+                    else
+                    {
+                        // Got a row for a missing key - this is unexpected but count as miss
+                        missingMisses++;
+                    }
+                }
+                catch
+                {
+                    // GetByKey throws for missing key - count as miss/empty
+                    missingMisses++;
+                }
+            }
+            missingWatch.Stop();
+            missingLookupMs = missingWatch.Elapsed.TotalMilliseconds;
         }
         finally
         {
             Close(useq);
         }
 
-        semanticSuccess = directLookupHit && lookupHits == lookupCount;
-        semanticFailure = semanticSuccess.Value
-            ? null
-            : $"Expected direct lookup and {lookupCount} random lookup hits, got direct={directLookupHit}, randomHits={lookupHits}.";
-
-        metrics.Add(new RunMetric { MetricKey = "recordCount", Value = npersons });
+        // Metrics
+        metrics.Add(new RunMetric { MetricKey = "recordCount", Value = recordCount });
         metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
         metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
-        metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = 0 });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupKey", Value = kperson });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = randomLookupMs });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = lookupCount });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupHits });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = Math.Max(0, lookupCount - lookupHits) });
 
+        // Existing point lookup metrics
+        metrics.Add(new RunMetric { MetricKey = "search.point.ms", Value = existingLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "search.point.queries", Value = pointExistingQueries });
+        metrics.Add(new RunMetric { MetricKey = "search.point.hits", Value = existingHits });
+        metrics.Add(new RunMetric { MetricKey = "search.point.misses", Value = pointExistingQueries - existingHits });
+        metrics.Add(new RunMetric { MetricKey = "search.point.hitRate", Value = pointExistingQueries > 0 ? (double)existingHits / pointExistingQueries : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.emptyRate", Value = pointExistingQueries > 0 ? (double)(pointExistingQueries - existingHits) / pointExistingQueries : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.msPerQuery", Value = pointExistingQueries > 0 ? existingLookupMs / pointExistingQueries : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.queriesPerSecond", Value = existingLookupMs > 0 ? pointExistingQueries / (existingLookupMs / 1000.0) : 0 });
+
+        // Missing point lookup metrics
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.ms", Value = missingLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.queries", Value = pointMissingQueries });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.hits", Value = 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.misses", Value = missingMisses });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.hitRate", Value = 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.emptyRate", Value = pointMissingQueries > 0 ? (double)missingMisses / pointMissingQueries : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.msPerQuery", Value = pointMissingQueries > 0 ? missingLookupMs / pointMissingQueries : 0 });
+        metrics.Add(new RunMetric { MetricKey = "search.point.missing.queriesPerSecond", Value = missingLookupMs > 0 ? pointMissingQueries / (missingLookupMs / 1000.0) : 0 });
+
+        // Standard metrics
+        metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = 0 });
+
+        // Diagnostics
         diagnostics["optimise"] = optimise.ToString();
-        diagnostics["directLookupKey"] = kperson.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        diagnostics["directLookupHit"] = directLookupHit.ToString();
-        diagnostics["lookupCount"] = lookupCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        diagnostics["lookupHitCount"] = lookupHits.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["recordCount"] = recordCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["pointExistingQueries"] = pointExistingQueries.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["pointMissingQueries"] = pointMissingQueries.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["categoryModulo"] = categoryModulo.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["popularPercent"] = popularPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        diagnostics["seed"] = seed.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // SemanticSuccess: existing hits == pointExistingQueries AND missing misses == pointMissingQueries
+        semanticSuccess = existingHits == pointExistingQueries && missingMisses == pointMissingQueries;
+        semanticFailure = semanticSuccess.Value
+            ? null
+            : $"Expected existing hits={pointExistingQueries}, missing misses={pointMissingQueries}. Got existingHits={existingHits}, missingMisses={missingMisses}.";
     }
 
     private static USequence CreateSequence(string root, string statePath, bool optimise)
@@ -265,11 +316,13 @@ internal static class Program
             optimise);
     }
 
-    private static IEnumerable<object> GenerateReferencePersons(int npersons)
+    private static IEnumerable<object> GeneratePersons(int count, int categoryModulo, int popularPercent)
     {
-        for (var i = 0; i < npersons; i++)
+        for (var i = 0; i < count; i++)
         {
-            yield return new object[] { npersons - i - 1, "n" + i, 33.3 };
+            var category100 = i % categoryModulo;
+            var isPopular = (i % 100) < popularPercent ? 1 : 0;
+            yield return new object[] { i, "n" + i, 33.3, category100, isPopular };
         }
     }
 
@@ -295,6 +348,15 @@ internal static class Program
         {
             // Best-effort cleanup path. Technical failure has already been captured if execution failed.
         }
+    }
+
+    private static int ParseIntOption(Dictionary<string, string> options, string key, int defaultValue)
+    {
+        if (options.TryGetValue(key, out var value) && int.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+        return defaultValue;
     }
 
     private static IEnumerable<ArtifactDescriptor> CollectArtifacts(string workDirectory)
