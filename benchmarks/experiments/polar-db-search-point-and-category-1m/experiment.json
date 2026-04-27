@@ -1,0 +1,46 @@
+{
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "polar-db-search-point-and-category/v1",
+  "experiment": "polar-db-search-point-and-category-1m",
+  "title": "Polar.DB search benchmark: point lookup + category scan, 1M persons",
+  "research": "rq-polar-db-search-workload-matrix",
+  "hypothesis": "h-point-lookup-should-be-fast-and-scan-cost-should-scale-with-rows-scanned",
+  "description": "Search benchmark with 1,000,000 person records. Measures primary-key point lookup for existing and missing keys, plus scan/filter by category. Indexed category lookup is optional and must be reported as unsupported if not implemented cleanly. Cache is intentionally not measured.",
+  "dataset": {
+    "profile": "persons-1m-search-category100",
+    "count": 1000000,
+    "seed": 303,
+    "notes": "Records contain id, name, age, category100, isPopular. category100 = id % 100. isPopular is reserved for future cache/popular experiments and is not cached here."
+  },
+  "workload": {
+    "type": "search-point-category-scan",
+    "lookup": 10000,
+    "notes": "Measures existing GetByKey, missing GetByKey, and scan/filter category lookup. Cached and uncached metrics are not mixed.",
+    "options": {
+      "pointExistingQueries": "10000",
+      "pointMissingQueries": "10000",
+      "scanQueries": "20",
+      "categoryModulo": "100",
+      "popularPercent": "5",
+      "cache": "false"
+    }
+  },
+  "fairness": {
+    "type": "search-no-cache-point-and-scan",
+    "notes": "All targets use the same generated data, deterministic point keys, deterministic categories, and no cache."
+  },
+  "runs": {
+    "warmup": 3,
+    "measured": 20,
+    "notes": "Default search run profile. CLI may override for quick local runs."
+  },
+  "targets": {
+    "polar-db-current": { "engine": "polar-db" },
+    "polar-db-2.1.1": { "engine": "polar-db", "nuget": "2.1.1" },
+    "polar-db-2.1.0": { "engine": "polar-db", "nuget": "2.1.0" }
+  },
+  "compare": {
+    "history": true,
+    "otherExperiments": false
+  }
+}

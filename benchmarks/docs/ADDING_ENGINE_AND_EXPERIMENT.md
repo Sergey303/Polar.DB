@@ -97,9 +97,35 @@ Optional but recommended:
 - `research`, `hypothesis` — for traceability
 - `description` — detailed intent
 
+## Search Experiment Guidelines
+
+When adding a search experiment, describe the following in `experiment.json`:
+
+- **Query type**: Specify whether the workload is point lookup (single-key GetByKey), multi-key lookup, or scan/filter query.
+- **Expected result cardinality**: Document how many results each query type returns (e.g., 1 for point lookup, N for scan).
+- **Cache**: State whether cache is enabled or disabled. If cache is intentionally not measured, note this explicitly.
+- **Secondary indexes**: Declare whether secondary indexes are required, optional, or unsupported. If optional but not implemented cleanly, the runner must report the feature as unsupported.
+
+Example workload section for a search experiment:
+
+```json
+"workload": {
+  "type": "search-point-category-scan",
+  "lookup": 10000,
+  "notes": "Measures existing GetByKey, missing GetByKey, and scan/filter category lookup.",
+  "options": {
+    "pointExistingQueries": "10000",
+    "pointMissingQueries": "10000",
+    "scanQueries": "20",
+    "cache": "false"
+  }
+}
+```
+
 ## What NOT to Do
 
 ### ❌ Don't change semantics between targets
+
 
 All targets in one experiment must execute the **same workload** with the **same semantics**. If one target does `Build()` and another skips it, the comparison is invalid.
 
