@@ -1,4 +1,4 @@
-﻿namespace Polar.DB
+namespace Polar.DB
 {
     public class UKeyIndex
     {
@@ -87,46 +87,134 @@
 
         public object GetByKey(IComparable keysample)
         {
-            if (keyoff_dic.TryGetValue(keysample, out long off))
+            foreach (var value in GetAllByKey(keysample))
             {
-                return sequence.GetByOffset(off);
+                return value;
             }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Возвращает все актуальные элементы, ключ которых равен keysample.
+        /// Метод идёт от первой позиции с совпавшим hash-key, поэтому корректно работает
+        /// для групп дублей и для сценариев range traversal после binary search.
+        /// </summary>
+        public IEnumerable<object> GetAllByKey(IComparable keysample)
+        {
+            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+
+            if (keyoff_dic.TryGetValue(keysample, out long dynamicOffset))
+            {
+                object dynamicValue = sequence.GetByOffset(dynamicOffset);
+                if (dynamicValue != null)
+                {
+                    var dynamicKey = keyFunc(dynamicValue);
+                    if (dynamicKey.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(dynamicValue, dynamicOffset))
+                    {
+                        yield return dynamicValue;
+                    }
+                }
+            }
+
             int hkey = hashOfKey(keysample);
 
             if (hkeys_arr != null)
             {
-                int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
-                if (pos < 0) return null;
-                // ищем самую левую позицию 
-                int p = pos;
-                while (p >= 0 && hkeys_arr[p] == hkey) { pos = p; p--; }
-                // движемся вправо
+                int pos = GetFirstInMemoryNom(hkey);
+                if (pos < 0) yield break;
+
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
                     long offset = (long)offsets.GetByIndex(pos);
                     object val = sequence.GetByOffset(offset);
-                    if (val == null) return null; // Непонятно, нужно ли?
-                    var k = keyFunc(val);
-                    if (k.CompareTo(keysample) == 0) return val;
+                    if (val == null) yield break;
+
+                    var key = keyFunc(val);
+                    if (key.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(val, offset))
+                    {
+                        yield return val;
+                    }
+
                     pos++;
                 }
-                return null;
+
+                yield break;
             }
-            else
+
+            long first = GetFirstNom(hkey);
+            if (first == -1) yield break;
+
+            for (long nom = first; nom < hkeys.Count(); nom++)
             {
-                long first = GetFirstNom(hkey);
-                if (first == -1) return null;
-                for (long nom = first; nom < hkeys.Count(); nom++)
+                int currentHash = (int)hkeys.GetByIndex(nom);
+                if (currentHash != hkey) yield break;
+
+                long offset = (long)offsets.GetByIndex(nom);
+                object val = sequence.GetByOffset(offset);
+                if (val == null) yield break;
+
+                var key = keyFunc(val);
+                if (key.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(val, offset))
                 {
-                    long offset = (long)offsets.GetByIndex(nom);
-                    object val = sequence.GetByOffset(offset);
-                    if (val == null) break;
-                    var k = keyFunc(val);
-                    if (hashOfKey(k) != hkey) break;
-                    if (k.CompareTo(keysample) == 0) return val;
+                    yield return val;
                 }
             }
-            return null;
+        }
+
+        /// <summary>
+        /// Возвращает ровно один актуальный элемент по ключу.
+        /// Если элементов нет или их больше одного, бросает InvalidOperationException.
+        /// Это намеренно отдельный контракт для таблиц/индексов, где бизнес-инвариант гарантирует уникальность.
+        /// </summary>
+        public object GetExactlyOneByKey(IComparable keysample)
+        {
+            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+
+            object single = null;
+            var count = 0;
+
+            foreach (var value in GetAllByKey(keysample))
+            {
+                count++;
+                if (count == 1)
+                {
+                    single = value;
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"Expected exactly one Polar.DB element for key '{keysample}', but found more than one.");
+            }
+
+            if (count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Expected exactly one Polar.DB element for key '{keysample}', but found none.");
+            }
+
+            return single;
+        }
+
+        private int GetFirstInMemoryNom(int hkey)
+        {
+            int start = 0;
+            int end = hkeys_arr.Length;
+
+            while (start < end)
+            {
+                int middle = start + ((end - start) / 2);
+                if (hkeys_arr[middle] < hkey)
+                {
+                    start = middle + 1;
+                }
+                else
+                {
+                    end = middle;
+                }
+            }
+
+            return start < hkeys_arr.Length && hkeys_arr[start] == hkey ? start : -1;
         }
 
         /// <summary>
@@ -137,28 +225,25 @@
         /// <returns></returns>
         private long GetFirstNom(int hkey)
         {
-            long start = 0, end = hkeys.Count() - 1, right_equal = -1;
-            // Сжимаем диапазон
-            while (end - start > 1)
+            long count = hkeys.Count();
+            long start = 0;
+            long end = count;
+
+            while (start < end)
             {
-                // Находим середину
-                long middle = (start + end) / 2;
-                int middle_value = (int)hkeys.GetByIndex(middle);
-                if (middle_value < hkey)
-                {  // Займемся правым интервалом
-                    start = middle;
-                }
-                else if (middle_value > hkey)
-                {  // Займемся левым интервалом
-                    end = middle;
+                long middle = start + ((end - start) / 2);
+                int middleValue = (int)hkeys.GetByIndex(middle);
+                if (middleValue < hkey)
+                {
+                    start = middle + 1;
                 }
                 else
-                {  // Середина дает РАВНО
+                {
                     end = middle;
-                    right_equal = middle;
                 }
             }
-            return right_equal;
+
+            return start < count && (int)hkeys.GetByIndex(start) == hkey ? start : -1L;
         }
 
         /// <summary>

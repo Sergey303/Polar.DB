@@ -1,4 +1,4 @@
-﻿namespace Polar.DB
+namespace Polar.DB
 {
     public class USequence
     {
@@ -114,6 +114,16 @@
         public object GetByKey(IComparable keysample)
         {
             return primaryKeyIndex.GetByKey(keysample);
+        }
+
+        public IEnumerable<object> GetAllByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetAllByKey(keysample);
+        }
+
+        public object GetExactlyOneByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetExactlyOneByKey(keysample);
         }
 
         internal object GetByOffset(long off)
