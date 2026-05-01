@@ -107,6 +107,28 @@ public static class LookupSeriesWorkload
         };
     }
 
+    public static LookupProbe CreateFirstProbe(
+        LookupKeyKind keyKind,
+        LookupSeriesMode mode,
+        int seed,
+        long recordCount,
+        int duplicateGroupSize)
+    {
+        if (recordCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(recordCount));
+        }
+
+        var expected = mode == LookupSeriesMode.ExactOne
+            ? 1
+            : Math.Min(duplicateGroupSize, checked((int)recordCount));
+
+        return new LookupProbe(
+            CreateKey(keyKind, mode, seed, 1, duplicateGroupSize),
+            expected,
+            1);
+    }
+
     public static LookupProbe CreateRandomProbe(
         LookupKeyKind keyKind,
         LookupSeriesMode mode,

@@ -6,7 +6,8 @@ namespace Polar.DB
         // Ключом является объект, порождаемый ключевой функцией. Ключи можно сравнивать!
         private Func<object, IComparable> keyFunc;
         private Func<IComparable, int> hashOfKey;
-        // Статическая часть индекса
+        // Статическая часть индекса. Persistent формат оставлен прежним:
+        // hkeys хранит int hash(key), offsets хранит offset записи.
         private UniversalSequenceBase hkeys;
         private UniversalSequenceBase offsets;
         // Динамическая часть индекса
@@ -26,6 +27,7 @@ namespace Polar.DB
 
             keyoff_dic = new Dictionary<IComparable, long>();
         }
+
         public void OnAppendElement(object element, long offset)
         {
             var key = keyFunc(element);
@@ -36,56 +38,95 @@ namespace Polar.DB
             keyoff_dic.Add(key, offset);
         }
 
-        // Массив оптимизации поиска по значению хеша
-        private int[] hkeys_arr = null;
+        // Массив оптимизации поиска по значению хеша. Нужен для backward-compatible hash lookup.
+        private int[]? hkeys_arr = null;
+        private long[]? hkey_offsets_arr = null;
 
-        public void Clear() { hkeys.Clear(); hkeys_arr = null; offsets.Clear(); keyoff_dic.Clear(); }
-        public void Flush() { hkeys.Flush(); offsets.Flush();  }
-        public void Close() { hkeys.Close(); offsets.Close();  }
-        public void Refresh() 
+        // Новый in-memory typed lookup слой. Persistent формат не меняется: эти массивы строятся
+        // при Build() и восстанавливаются при Refresh() из существующего offsets + data файла.
+        private TypedKeyKind typedKeyKind = TypedKeyKind.None;
+        private int[]? int_keys_arr = null;
+        private long[]? long_keys_arr = null;
+        private Guid[]? guid_keys_arr = null;
+        private long[]? typed_offsets_arr = null;
+
+        public void Clear()
         {
-            if (keysinmemory) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-            else hkeys.Refresh();
-            offsets.Refresh(); 
+            hkeys.Clear();
+            offsets.Clear();
+            keyoff_dic.Clear();
+            ClearInMemoryIndexes();
         }
 
-        public void Build() 
+        public void Flush() { hkeys.Flush(); offsets.Flush(); }
+        public void Close() { hkeys.Close(); offsets.Close(); }
+
+        public void Refresh()
         {
-            // сканируем опорную последовательность, формируем массивы
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
+            ClearInMemoryIndexes();
+
+            if (keysinmemory)
+            {
+                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+                hkey_offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
+                RebuildTypedIndexFromOffsets(hkey_offsets_arr);
+            }
+            else
+            {
+                hkeys.Refresh();
+            }
+
+            offsets.Refresh();
+        }
+
+        public void Build()
+        {
+            // Сканируем опорную последовательность, формируем массивы.
+            // Важно: persistent hkeys/offsets по-прежнему строятся как hash -> offset,
+            // чтобы не менять файловый формат и не ломать старые сценарии.
+            var hkeys_list = new List<int>();
+            var offsets_list = new List<long>();
+            var typed_keys_list = new List<IComparable>();
+            var typed_offsets_list = new List<long>();
+
             sequence.Scan((off, obj) =>
             {
+                var key = keyFunc(obj);
                 offsets_list.Add(off);
-                hkeys_list.Add(hashOfKey(keyFunc(obj)));
+                hkeys_list.Add(hashOfKey(key));
+
+                typed_keys_list.Add(key);
+                typed_offsets_list.Add(off);
                 return true;
             });
+
             hkeys_arr = hkeys_list.ToArray();
             hkeys_list = null;
-            long[] offsets_arr = offsets_list.ToArray();
+            hkey_offsets_arr = offsets_list.ToArray();
             offsets_list = null;
-            GC.Collect();
 
-            Array.Sort(hkeys_arr, offsets_arr);
+            Array.Sort(hkeys_arr, hkey_offsets_arr);
+
+            BuildTypedInMemoryIndex(typed_keys_list, typed_offsets_list);
+            typed_keys_list = null;
+            typed_offsets_list = null;
 
             hkeys.Clear();
             foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
             hkeys.Flush();
-            if (!keysinmemory)
-            {
-                hkeys_arr = null;
-                GC.Collect();
-            }
-
 
             offsets.Clear();
-            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
+            foreach (var off in hkey_offsets_arr) { offsets.AppendElement(off); }
             offsets.Flush();
-            offsets_arr = null;
-            GC.Collect();
+
+            if (!keysinmemory)
+            {
+                ClearInMemoryIndexes();
+                GC.Collect();
+            }
         }
 
-        public object GetByKey(IComparable keysample)
+        public object? GetByKey(IComparable keysample)
         {
             foreach (var value in GetAllByKey(keysample))
             {
@@ -97,8 +138,9 @@ namespace Polar.DB
 
         /// <summary>
         /// Возвращает все актуальные элементы, ключ которых равен keysample.
-        /// Метод идёт от первой позиции с совпавшим hash-key, поэтому корректно работает
-        /// для групп дублей и для сценариев range traversal после binary search.
+        /// Для int/long/Guid, когда индекс находится в памяти, используется typed lookup по настоящему ключу,
+        /// без предварительного поиска hash bucket и без чтения записей-кандидатов с чужим ключом.
+        /// Если typed lookup недоступен, используется прежний hash-compatible путь.
         /// </summary>
         public IEnumerable<object> GetAllByKey(IComparable keysample)
         {
@@ -117,6 +159,148 @@ namespace Polar.DB
                 }
             }
 
+            if (TryEnumerateTyped(keysample, out var typedValues))
+            {
+                foreach (var value in typedValues)
+                {
+                    yield return value;
+                }
+
+                yield break;
+            }
+
+            foreach (var value in EnumerateByHashCompatiblePath(keysample))
+            {
+                yield return value;
+            }
+        }
+
+        /// <summary>
+        /// Возвращает ровно один актуальный элемент по ключу.
+        /// Если элементов нет или их больше одного, бросает InvalidOperationException.
+        /// Это отдельный контракт для таблиц/индексов, где бизнес-инвариант гарантирует уникальность.
+        /// </summary>
+        public object GetExactlyOneByKey(IComparable keysample)
+        {
+            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+
+            object? single = null;
+            var count = 0;
+
+            foreach (var value in GetAllByKey(keysample))
+            {
+                count++;
+                if (count == 1)
+                {
+                    single = value;
+                    continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"Expected exactly one Polar.DB element for key '{keysample}', but found more than one.");
+            }
+
+            if (count == 0 || single == null)
+            {
+                throw new InvalidOperationException(
+                    $"Expected exactly one Polar.DB element for key '{keysample}', but found none.");
+            }
+
+            return single;
+        }
+
+        private bool TryEnumerateTyped(IComparable keysample, out IEnumerable<object> values)
+        {
+            switch (typedKeyKind)
+            {
+                case TypedKeyKind.Int32:
+                    if (TryConvertToInt32Key(keysample, out var intKey) && int_keys_arr != null && typed_offsets_arr != null)
+                    {
+                        values = EnumerateTypedInt32(intKey);
+                        return true;
+                    }
+                    break;
+
+                case TypedKeyKind.Int64:
+                    if (TryConvertToInt64Key(keysample, out var longKey) && long_keys_arr != null && typed_offsets_arr != null)
+                    {
+                        values = EnumerateTypedInt64(longKey);
+                        return true;
+                    }
+                    break;
+
+                case TypedKeyKind.Guid:
+                    if (TryConvertToGuidKey(keysample, out var guidKey) && guid_keys_arr != null && typed_offsets_arr != null)
+                    {
+                        values = EnumerateTypedGuid(guidKey);
+                        return true;
+                    }
+                    break;
+            }
+
+            values = Enumerable.Empty<object>();
+            return false;
+        }
+
+        private IEnumerable<object> EnumerateTypedInt32(int key)
+        {
+            var keys = int_keys_arr!;
+            var offs = typed_offsets_arr!;
+            var pos = LowerBound(keys, key);
+
+            while (pos < keys.Length && keys[pos] == key)
+            {
+                var offset = offs[pos];
+                var value = sequence.GetByOffset(offset);
+                if (value != null && sequence.IsOriginalAndNotEmpty(value, offset))
+                {
+                    yield return value;
+                }
+
+                pos++;
+            }
+        }
+
+        private IEnumerable<object> EnumerateTypedInt64(long key)
+        {
+            var keys = long_keys_arr!;
+            var offs = typed_offsets_arr!;
+            var pos = LowerBound(keys, key);
+
+            while (pos < keys.Length && keys[pos] == key)
+            {
+                var offset = offs[pos];
+                var value = sequence.GetByOffset(offset);
+                if (value != null && sequence.IsOriginalAndNotEmpty(value, offset))
+                {
+                    yield return value;
+                }
+
+                pos++;
+            }
+        }
+
+        private IEnumerable<object> EnumerateTypedGuid(Guid key)
+        {
+            var keys = guid_keys_arr!;
+            var offs = typed_offsets_arr!;
+            var pos = LowerBound(keys, key);
+
+            while (pos < keys.Length && keys[pos].CompareTo(key) == 0)
+            {
+                var offset = offs[pos];
+                var value = sequence.GetByOffset(offset);
+                if (value != null && sequence.IsOriginalAndNotEmpty(value, offset))
+                {
+                    yield return value;
+                }
+
+                pos++;
+            }
+        }
+
+        private IEnumerable<object> EnumerateByHashCompatiblePath(IComparable keysample)
+        {
             int hkey = hashOfKey(keysample);
 
             if (hkeys_arr != null)
@@ -126,7 +310,10 @@ namespace Polar.DB
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    long offset = (long)offsets.GetByIndex(pos);
+                    long offset = hkey_offsets_arr != null
+                        ? hkey_offsets_arr[pos]
+                        : (long)offsets.GetByIndex(pos);
+
                     object val = sequence.GetByOffset(offset);
                     if (val == null) yield break;
 
@@ -162,42 +349,217 @@ namespace Polar.DB
             }
         }
 
-        /// <summary>
-        /// Возвращает ровно один актуальный элемент по ключу.
-        /// Если элементов нет или их больше одного, бросает InvalidOperationException.
-        /// Это намеренно отдельный контракт для таблиц/индексов, где бизнес-инвариант гарантирует уникальность.
-        /// </summary>
-        public object GetExactlyOneByKey(IComparable keysample)
+        private void ClearInMemoryIndexes()
         {
-            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+            hkeys_arr = null;
+            hkey_offsets_arr = null;
+            typedKeyKind = TypedKeyKind.None;
+            int_keys_arr = null;
+            long_keys_arr = null;
+            guid_keys_arr = null;
+            typed_offsets_arr = null;
+        }
 
-            object single = null;
-            var count = 0;
-
-            foreach (var value in GetAllByKey(keysample))
+        private void RebuildTypedIndexFromOffsets(long[] sourceOffsets)
+        {
+            if (!keysinmemory || sourceOffsets.Length == 0)
             {
-                count++;
-                if (count == 1)
+                return;
+            }
+
+            var keys = new List<IComparable>(sourceOffsets.Length);
+            var typedOffsets = new List<long>(sourceOffsets.Length);
+
+            foreach (var off in sourceOffsets)
+            {
+                var value = sequence.GetByOffset(off);
+                if (value == null || !sequence.IsOriginalAndNotEmpty(value, off))
                 {
-                    single = value;
                     continue;
                 }
 
-                throw new InvalidOperationException(
-                    $"Expected exactly one Polar.DB element for key '{keysample}', but found more than one.");
+                keys.Add(keyFunc(value));
+                typedOffsets.Add(off);
             }
 
-            if (count == 0)
+            BuildTypedInMemoryIndex(keys, typedOffsets);
+        }
+
+        private void BuildTypedInMemoryIndex(IReadOnlyList<IComparable> keys, IReadOnlyList<long> sourceOffsets)
+        {
+            typedKeyKind = TypedKeyKind.None;
+            int_keys_arr = null;
+            long_keys_arr = null;
+            guid_keys_arr = null;
+            typed_offsets_arr = null;
+
+            if (!keysinmemory || keys.Count == 0 || keys.Count != sourceOffsets.Count)
             {
-                throw new InvalidOperationException(
-                    $"Expected exactly one Polar.DB element for key '{keysample}', but found none.");
+                return;
             }
 
-            return single;
+            if (TryBuildInt32Index(keys, sourceOffsets)) return;
+            if (TryBuildInt64Index(keys, sourceOffsets)) return;
+            TryBuildGuidIndex(keys, sourceOffsets);
+        }
+
+        private bool TryBuildInt32Index(IReadOnlyList<IComparable> keys, IReadOnlyList<long> sourceOffsets)
+        {
+            var typedKeys = new int[keys.Count];
+            var typedOffsets = new long[sourceOffsets.Count];
+
+            for (var i = 0; i < keys.Count; i++)
+            {
+                if (!TryConvertToInt32Key(keys[i], out typedKeys[i]))
+                {
+                    return false;
+                }
+
+                typedOffsets[i] = sourceOffsets[i];
+            }
+
+            Array.Sort(typedKeys, typedOffsets);
+            typedKeyKind = TypedKeyKind.Int32;
+            int_keys_arr = typedKeys;
+            typed_offsets_arr = typedOffsets;
+            return true;
+        }
+
+        private bool TryBuildInt64Index(IReadOnlyList<IComparable> keys, IReadOnlyList<long> sourceOffsets)
+        {
+            var typedKeys = new long[keys.Count];
+            var typedOffsets = new long[sourceOffsets.Count];
+
+            for (var i = 0; i < keys.Count; i++)
+            {
+                if (!TryConvertToInt64Key(keys[i], out typedKeys[i]))
+                {
+                    return false;
+                }
+
+                typedOffsets[i] = sourceOffsets[i];
+            }
+
+            Array.Sort(typedKeys, typedOffsets);
+            typedKeyKind = TypedKeyKind.Int64;
+            long_keys_arr = typedKeys;
+            typed_offsets_arr = typedOffsets;
+            return true;
+        }
+
+        private bool TryBuildGuidIndex(IReadOnlyList<IComparable> keys, IReadOnlyList<long> sourceOffsets)
+        {
+            var typedKeys = new Guid[keys.Count];
+            var typedOffsets = new long[sourceOffsets.Count];
+
+            for (var i = 0; i < keys.Count; i++)
+            {
+                if (!TryConvertToGuidKey(keys[i], out typedKeys[i]))
+                {
+                    return false;
+                }
+
+                typedOffsets[i] = sourceOffsets[i];
+            }
+
+            Array.Sort(typedKeys, typedOffsets);
+            typedKeyKind = TypedKeyKind.Guid;
+            guid_keys_arr = typedKeys;
+            typed_offsets_arr = typedOffsets;
+            return true;
+        }
+
+        private static bool TryConvertToInt32Key(IComparable key, out int value)
+        {
+            switch (key)
+            {
+                case int intValue:
+                    value = intValue;
+                    return true;
+                case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
+                    value = (int)longValue;
+                    return true;
+                default:
+                    value = default;
+                    return false;
+            }
+        }
+
+        private static bool TryConvertToInt64Key(IComparable key, out long value)
+        {
+            switch (key)
+            {
+                case long longValue:
+                    value = longValue;
+                    return true;
+                case int intValue:
+                    value = intValue;
+                    return true;
+                default:
+                    value = default;
+                    return false;
+            }
+        }
+
+        private static bool TryConvertToGuidKey(IComparable key, out Guid value)
+        {
+            switch (key)
+            {
+                case Guid guidValue:
+                    value = guidValue;
+                    return true;
+                case string text when Guid.TryParse(text, out var parsed):
+                    value = parsed;
+                    return true;
+                default:
+                    value = default;
+                    return false;
+            }
+        }
+
+        private static int LowerBound(int[] values, int sample)
+        {
+            var start = 0;
+            var end = values.Length;
+            while (start < end)
+            {
+                var middle = start + ((end - start) / 2);
+                if (values[middle] < sample) start = middle + 1;
+                else end = middle;
+            }
+            return start;
+        }
+
+        private static int LowerBound(long[] values, long sample)
+        {
+            var start = 0;
+            var end = values.Length;
+            while (start < end)
+            {
+                var middle = start + ((end - start) / 2);
+                if (values[middle] < sample) start = middle + 1;
+                else end = middle;
+            }
+            return start;
+        }
+
+        private static int LowerBound(Guid[] values, Guid sample)
+        {
+            var start = 0;
+            var end = values.Length;
+            while (start < end)
+            {
+                var middle = start + ((end - start) / 2);
+                if (values[middle].CompareTo(sample) < 0) start = middle + 1;
+                else end = middle;
+            }
+            return start;
         }
 
         private int GetFirstInMemoryNom(int hkey)
         {
+            if (hkeys_arr == null) return -1;
+
             int start = 0;
             int end = hkeys_arr.Length;
 
@@ -218,11 +580,9 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Определение номера первого индекса последовательности hkeys, с которого значения РАВНЫ hkey (хешу от ключа)
-        /// Если нет таких, то -1L
+        /// Определение номера первого индекса последовательности hkeys, с которого значения РАВНЫ hkey (хешу от ключа).
+        /// Если нет таких, то -1L.
         /// </summary>
-        /// <param name="hkey"></param>
-        /// <returns></returns>
         private long GetFirstNom(int hkey)
         {
             long count = hkeys.Count();
@@ -247,22 +607,24 @@ namespace Polar.DB
         }
 
         /// <summary>
-        /// Определяет является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал
-        /// Если есть, то надо проверить офсет
+        /// Определяет является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал.
+        /// Если есть, то надо проверить офсет.
         /// </summary>
-        /// <param name="key"></param>
-        /// <param name="offset"></param>
-        /// <returns></returns>
         public bool IsOriginal(IComparable key, long offset)
         {
             if (keyoff_dic.TryGetValue(key, out long off))
             {
-                if (off == offset) return true;
-                return false;
+                return off == offset;
             }
-            return true; //TODO: здесь предполагается, что в основном индексе есть такое значение
+            return true; // TODO: здесь предполагается, что в основном индексе есть такое значение.
         }
 
+        private enum TypedKeyKind
+        {
+            None,
+            Int32,
+            Int64,
+            Guid
+        }
     }
-
 }

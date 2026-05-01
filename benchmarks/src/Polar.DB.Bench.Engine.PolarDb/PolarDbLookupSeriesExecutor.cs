@@ -55,6 +55,10 @@ public static class PolarDbLookupSeriesExecutor
         var buildMs = 0.0;
         var reopenRefreshMs = 0.0;
         var lookupMs = 0.0;
+        var directLookupMs = 0.0;
+        var directLookupExpectedRows = 0;
+        var directLookupReturnedRows = 0;
+        var directLookupHit = false;
         var lookupProbeHits = 0L;
         var lookupProbeMisses = 0L;
         var lookupReturnedRows = 0L;
@@ -111,6 +115,23 @@ public static class PolarDbLookupSeriesExecutor
                 WarmDirectory(artifactLayout.ArtifactsRootDirectory, cancellationToken: cancellationToken);
             }
 
+            var directProbe = LookupSeriesWorkload.CreateFirstProbe(
+                options.KeyKind,
+                options.Mode,
+                spec.Dataset.Seed ?? 1,
+                spec.Dataset.RecordCount,
+                options.DuplicateGroupSize);
+            directLookupExpectedRows = directProbe.ExpectedCount;
+            var directLookupWatch = Stopwatch.StartNew();
+            var directMatched = ExecuteProbe(active, options, directProbe, out directLookupReturnedRows, out var directMismatchReason);
+            directLookupWatch.Stop();
+            directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
+            directLookupHit = directMatched && directLookupReturnedRows == directLookupExpectedRows;
+            if (!directLookupHit && !string.IsNullOrWhiteSpace(directMismatchReason))
+            {
+                mismatchSamples.Add("direct " + directMismatchReason);
+            }
+
             var random = new Random((spec.Dataset.Seed ?? 1) ^ LookupSeriesWorkload.CommonLookupSeedSalt);
             var lookupWatch = Stopwatch.StartNew();
             for (var i = 0; i < options.LookupCount; i++)
@@ -152,7 +173,9 @@ public static class PolarDbLookupSeriesExecutor
             active.Close();
             active = null;
 
-            semanticSuccess = lookupProbeMisses == 0 && sequenceCountAfterRefresh == spec.Dataset.RecordCount;
+            semanticSuccess = directLookupHit &&
+                              lookupProbeMisses == 0 &&
+                              sequenceCountAfterRefresh == spec.Dataset.RecordCount;
             if (!semanticSuccess.Value)
             {
                 semanticFailureReason = BuildSemanticFailureReason(
@@ -189,15 +212,22 @@ public static class PolarDbLookupSeriesExecutor
         metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
         metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
         metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
+        metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
+        metrics.Add(new RunMetric { MetricKey = "directLookupExpectedRows", Value = directLookupExpectedRows });
+        metrics.Add(new RunMetric { MetricKey = "directLookupReturnedRows", Value = directLookupReturnedRows });
         metrics.Add(new RunMetric { MetricKey = "lookupSeriesMs", Value = lookupMs });
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
         metrics.Add(new RunMetric { MetricKey = "lookupProbeCount", Value = options.LookupCount });
+        metrics.Add(new RunMetric { MetricKey = "lookupCount", Value = options.LookupCount });
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = options.LookupCount });
         metrics.Add(new RunMetric { MetricKey = "lookupProbeHits", Value = lookupProbeHits });
+        metrics.Add(new RunMetric { MetricKey = "lookupHitCount", Value = lookupProbeHits });
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupProbeHits });
         metrics.Add(new RunMetric { MetricKey = "lookupProbeMisses", Value = lookupProbeMisses });
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = lookupProbeMisses });
         metrics.Add(new RunMetric { MetricKey = "lookupReturnedRows", Value = lookupReturnedRows });
+        metrics.Add(new RunMetric { MetricKey = "lookupReturnedRowCount", Value = lookupReturnedRows });
         metrics.Add(new RunMetric { MetricKey = "lookupExpectedRows", Value = lookupExpectedRows });
         metrics.Add(new RunMetric { MetricKey = "duplicateGroupSize", Value = options.DuplicateGroupSize });
         metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
@@ -214,9 +244,15 @@ public static class PolarDbLookupSeriesExecutor
         diagnostics["lookupMode"] = options.Mode.ToString();
         diagnostics["lookupKeyKind"] = options.KeyKind.ToString();
         diagnostics["lookupCount"] = options.LookupCount.ToString(CultureInfo.InvariantCulture);
+        diagnostics["directLookupMs"] = directLookupMs.ToString(CultureInfo.InvariantCulture);
+        diagnostics["directLookupHit"] = directLookupHit.ToString();
+        diagnostics["directLookupExpectedRows"] = directLookupExpectedRows.ToString(CultureInfo.InvariantCulture);
+        diagnostics["directLookupReturnedRows"] = directLookupReturnedRows.ToString(CultureInfo.InvariantCulture);
         diagnostics["lookupProbeHits"] = lookupProbeHits.ToString(CultureInfo.InvariantCulture);
+        diagnostics["lookupHitCount"] = lookupProbeHits.ToString(CultureInfo.InvariantCulture);
         diagnostics["lookupProbeMisses"] = lookupProbeMisses.ToString(CultureInfo.InvariantCulture);
         diagnostics["lookupReturnedRows"] = lookupReturnedRows.ToString(CultureInfo.InvariantCulture);
+        diagnostics["lookupReturnedRowCount"] = lookupReturnedRows.ToString(CultureInfo.InvariantCulture);
         diagnostics["lookupExpectedRows"] = lookupExpectedRows.ToString(CultureInfo.InvariantCulture);
         diagnostics["duplicateGroupSize"] = options.DuplicateGroupSize.ToString(CultureInfo.InvariantCulture);
         diagnostics["reopenAfterBuild"] = options.ReopenAfterBuild.ToString();
