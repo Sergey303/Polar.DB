@@ -146,7 +146,12 @@ public static class ExecApplication
                     $"==> Target '{targetKey}' finished with exit code {exitCode}. Continuing with remaining targets so analysis/charts can use produced raw results.");
             }
         }
-
+        if (targetExitCodes.Count == 0 || targetExitCodes.All(x => x.ExitCode != 0))
+        {
+            Console.Error.WriteLine(
+                "==> No target completed successfully; skipping analysis and charts because no matching raw results can exist.");
+            return 1;
+        }
         Console.WriteLine("==> Running analysis");
         var analysisExitCode = await RunDotNetProjectAsync(
             repositoryRoot,
