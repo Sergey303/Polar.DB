@@ -116,6 +116,26 @@ namespace Polar.DB
             return primaryKeyIndex.GetByKey(keysample);
         }
 
+        public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetOffsetsByKey(keysample);
+        }
+
+        public int CountByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.CountByKey(keysample);
+        }
+
+        public bool TryGetExactlyOneOffsetByKey(IComparable keysample, out long offset)
+        {
+            return primaryKeyIndex.TryGetExactlyOneOffsetByKey(keysample, out offset);
+        }
+
+        public long GetExactlyOneOffsetByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetExactlyOneOffsetByKey(keysample);
+        }
+
         public IEnumerable<object> GetAllByKey(IComparable keysample)
         {
             return primaryKeyIndex.GetAllByKey(keysample);

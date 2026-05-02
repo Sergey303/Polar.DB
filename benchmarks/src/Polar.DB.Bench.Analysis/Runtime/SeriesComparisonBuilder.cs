@@ -20,6 +20,7 @@ internal sealed class SeriesComparisonBuilder
     /// <summary>
     /// Creates one comparison-series artifact for one comparison set id.
     /// Warmup runs remain in raw facts but are excluded from metric aggregation.
+    /// Failed or semantically failed measured runs are not aggregated as zeros.
     /// </summary>
     public CrossEngineComparisonSeriesResult Build(
         IReadOnlyList<RawRunEntry> filteredRuns,
@@ -54,17 +55,26 @@ internal sealed class SeriesComparisonBuilder
                 throw new InvalidOperationException(
                     $"Comparison set '{comparisonSetId}' has no measured runs for target '{group.Key}'.");
             }
+
+            if (!group.Any(item => IsMeasuredRun(item) && IsSuccessfulForAggregation(item)))
+            {
+                throw new InvalidOperationException(
+                    $"Comparison set '{comparisonSetId}' has no successful measured runs for target '{group.Key}'. " +
+                    "Failed/empty targets are intentionally excluded instead of being rendered as 0 ms.");
+            }
         }
 
         var timestampUtc = DateTimeOffset.UtcNow;
         var timestampToken = timestampUtc.ToString("yyyy-MM-ddTHH-mm-ssZ");
-        var datasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(setRuns.Select(item => item.Result.DatasetProfileKey));
-        var fairnessProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(setRuns.Select(item => item.Result.FairnessProfileKey));
-        var environmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(setRuns.Select(item => item.Result.Environment.EnvironmentClass));
+        var successfulSetRuns = setRuns.Where(IsSuccessfulForAggregation).ToArray();
+        var datasetProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(successfulSetRuns.Select(item => item.Result.DatasetProfileKey));
+        var fairnessProfileKey = ComparisonValueHelpers.ResolveSharedOrMixed(successfulSetRuns.Select(item => item.Result.FairnessProfileKey));
+        var environmentClass = ComparisonValueHelpers.ResolveSharedOrMixed(successfulSetRuns.Select(item => item.Result.Environment.EnvironmentClass));
         var notes = new List<string>
         {
             "Comparison set groups related runs and avoids comparing unrelated latest single runs.",
-            "Only measured runs are aggregated into min/max/average/median statistics.",
+            "Only successful measured runs are aggregated into statistics.",
+            "Failed/empty runs are stored as raw facts but are not converted into 0 ms values.",
             "No policy evaluation is included in this artifact."
         };
 
@@ -72,6 +82,11 @@ internal sealed class SeriesComparisonBuilder
         {
             notes.Add("Imported reference workload semantics: reverse bulk load, point-lookup-ready reopen state, one direct lookup, then random lookup batch.");
             notes.Add("Reference-normalized random lookup batch target: 10000 operations.");
+        }
+
+        if (experimentKey.StartsWith("lookup-", StringComparison.OrdinalIgnoreCase))
+        {
+            notes.Add("Lookup-series reports contain split phase metrics in the Metrics dictionary: indexOnlyLookupMs and materializedLookupMs.");
         }
 
         return new CrossEngineComparisonSeriesResult
@@ -93,29 +108,29 @@ internal sealed class SeriesComparisonBuilder
 
     private static CrossEngineSeriesEngineEntry BuildEngineSeriesEntry(string engineKey, IReadOnlyList<RawRunEntry> engineRuns)
     {
-        var measuredRuns = engineRuns.Where(IsMeasuredRun).ToArray();
+        var measuredAll = engineRuns.Where(IsMeasuredRun).ToArray();
+        var measuredRuns = measuredAll.Where(IsSuccessfulForAggregation).ToArray();
         var warmupCount = engineRuns.Count(IsWarmupRun);
         var measuredCount = measuredRuns.Length;
-        var technicalSuccessCount = measuredRuns.Count(x => x.Result.TechnicalSuccess);
-        var semanticEvaluatedCount = measuredRuns.Count(x => x.Result.SemanticSuccess.HasValue);
-        var semanticSuccessCount = measuredRuns.Count(x => x.Result.SemanticSuccess == true);
+        var technicalSuccessCount = measuredAll.Count(x => x.Result.TechnicalSuccess);
+        var semanticEvaluatedCount = measuredAll.Count(x => x.Result.SemanticSuccess.HasValue);
+        var semanticSuccessCount = measuredAll.Count(x => x.Result.SemanticSuccess == true);
 
         var elapsed = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "elapsedMsSingleRun", "elapsedMsTotal")).ToArray();
         var load = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "loadMs")).ToArray();
         var build = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "buildMs")).ToArray();
         var reopen = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "reopenRefreshMs", "reopenMs")).ToArray();
 
-        // Keep LookupMs tied to the reference lookup contract. Do not fall back to search.point.*
-        // here: if a reference experiment produced search metrics, the runner routing is wrong and
-        // must be fixed at execution time instead of hiding a protocol mismatch in analysis.
-        var lookup = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupMs", "lookupMs")).ToArray();
-        var lookupCount = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "randomPointLookupCount", "lookupCount")).ToArray();
+        // Materialized lookup remains the compatibility LookupMs contract.
+        // Split lookup-series metrics are preserved below in Metrics dictionary.
+        var lookup = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "materializedLookupMs", "randomPointLookupMs", "lookupMs")).ToArray();
+        var lookupCount = measuredRuns.Select(x => ComparisonMetricReader.ReadMetric(x.Result, "materializedProbeCount", "randomPointLookupCount", "lookupCount")).ToArray();
 
         var totalBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadTotalArtifactBytes(x.Result)).ToArray();
         var primaryBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadPrimaryArtifactBytes(x.Result)).ToArray();
         var sideBytes = measuredRuns.Select(x => ComparisonMetricReader.ReadSideArtifactBytes(x.Result)).ToArray();
 
-        // Collect all raw metric keys across all measured runs for this engine.
+        // Collect all raw metric keys across all successful measured runs for this engine.
         var allMetricKeys = measuredRuns
             .SelectMany(x => x.Result.Metrics.Select(m => m.MetricKey))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -162,5 +177,10 @@ internal sealed class SeriesComparisonBuilder
     private static bool IsWarmupRun(RawRunEntry entry)
     {
         return entry.Result.RunRole?.Equals(WarmupRunRole, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsSuccessfulForAggregation(RawRunEntry entry)
+    {
+        return entry.Result.TechnicalSuccess && entry.Result.SemanticSuccess != false;
     }
 }

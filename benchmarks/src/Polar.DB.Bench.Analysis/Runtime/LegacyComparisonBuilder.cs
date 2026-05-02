@@ -8,16 +8,18 @@ namespace Polar.DB.Bench.Analysis.Runtime;
 /// <summary>
 /// Builds the legacy single-run comparison artifact.
 /// This path exists for old raw data that does not have comparison-set metadata.
-/// This builder is engine-family agnostic: it does not hardcode Polar.DB or SQLite keys.
+/// Failed runs and runs without the required phase metrics are excluded instead of being rendered as 0 ms.
 /// </summary>
 internal sealed class LegacyComparisonBuilder
 {
-    /// <summary>
-    /// Selects the latest matching run for each distinct engine key and creates one legacy comparison artifact.
-    /// </summary>
     public CrossEngineComparisonResult Build(IReadOnlyList<RawRunEntry> filteredRuns, string experimentKey)
     {
-        var latestByEngine = filteredRuns
+        var eligibleRuns = filteredRuns
+            .Where(item => item.Result.TechnicalSuccess && item.Result.SemanticSuccess != false)
+            .Where(item => HasRequiredTimingMetrics(item.Result))
+            .ToArray();
+
+        var latestByEngine = eligibleRuns
             .GroupBy(item => item.Result.EngineKey, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.OrderByDescending(item => item.Result.TimestampUtc).First())
             .ToDictionary(item => item.Result.EngineKey, item => item, StringComparer.OrdinalIgnoreCase);
@@ -26,7 +28,8 @@ internal sealed class LegacyComparisonBuilder
         {
             var keys = string.Join(", ", latestByEngine.Keys.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
             throw new InvalidOperationException(
-                $"Legacy comparison mode requires at least two distinct engine targets. Found: {latestByEngine.Count} ({keys}).");
+                $"Legacy comparison mode requires at least two distinct successful engine targets with required metrics. Found: {latestByEngine.Count} ({keys}). " +
+                "Failed/empty/missing-metric runs are intentionally excluded instead of being rendered as 0 ms.");
         }
 
         var selected = latestByEngine.Values.ToArray();
@@ -53,19 +56,29 @@ internal sealed class LegacyComparisonBuilder
             Notes = new List<string>
             {
                 "Legacy fallback: no comparison-set metadata found in matching runs.",
-                "Latest matching run per target is selected by timestamp.",
+                "Latest successful matching run per target is selected by timestamp.",
+                "Failed/empty/missing-metric runs are excluded instead of being rendered as 0 ms.",
                 "Use --comparison-set and measured run series for stable stage4 comparison."
             }
         };
     }
 
+    private static bool HasRequiredTimingMetrics(RunResult run)
+    {
+        return ComparisonMetricReader.ReadMetric(run, "elapsedMsSingleRun", "elapsedMsTotal").HasValue &&
+               ComparisonMetricReader.ReadMetric(run, "loadMs").HasValue &&
+               ComparisonMetricReader.ReadMetric(run, "buildMs").HasValue &&
+               ComparisonMetricReader.ReadMetric(run, "reopenRefreshMs", "reopenMs").HasValue &&
+               ComparisonMetricReader.ReadMetric(run, "materializedLookupMs", "randomPointLookupMs", "lookupMs").HasValue;
+    }
+
     private static CrossEngineComparisonEntry BuildEntry(RunResult run, string rawPath)
     {
-        var elapsedMs = ComparisonMetricReader.ReadMetric(run, "elapsedMsSingleRun", "elapsedMsTotal") ?? 0.0;
-        var loadMs = ComparisonMetricReader.ReadMetric(run, "loadMs") ?? 0.0;
-        var buildMs = ComparisonMetricReader.ReadMetric(run, "buildMs") ?? 0.0;
-        var reopenMs = ComparisonMetricReader.ReadMetric(run, "reopenRefreshMs", "reopenMs") ?? 0.0;
-        var lookupMs = ComparisonMetricReader.ReadMetric(run, "randomPointLookupMs") ?? 0.0;
+        var elapsedMs = RequireMetric(run, "elapsedMsSingleRun", "elapsedMsTotal");
+        var loadMs = RequireMetric(run, "loadMs");
+        var buildMs = RequireMetric(run, "buildMs");
+        var reopenMs = RequireMetric(run, "reopenRefreshMs", "reopenMs");
+        var lookupMs = RequireMetric(run, "materializedLookupMs", "randomPointLookupMs", "lookupMs");
         var totalArtifactBytes = ComparisonMetricReader.ReadTotalArtifactBytes(run) ?? 0.0;
         var primaryArtifactBytes = ComparisonMetricReader.ReadPrimaryArtifactBytes(run) ?? 0.0;
         var sideArtifactBytes = Math.Max(0.0, totalArtifactBytes - primaryArtifactBytes);
@@ -87,5 +100,12 @@ internal sealed class LegacyComparisonBuilder
             PrimaryArtifactBytes = primaryArtifactBytes,
             SideArtifactBytes = sideArtifactBytes
         };
+    }
+
+    private static double RequireMetric(RunResult run, params string[] metricKeys)
+    {
+        return ComparisonMetricReader.ReadMetric(run, metricKeys)
+               ?? throw new InvalidOperationException(
+                   $"Run '{run.RunId}' is missing required metric(s): {string.Join(", ", metricKeys)}.");
     }
 }
