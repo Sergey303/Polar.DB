@@ -15,9 +15,11 @@ using static Polar.DB.Bench.Core.Services.FileWarmup;
 namespace Polar.DB.Bench.Engine.PolarDb;
 
 /// <summary>
-/// Current-source Polar.DB executor for the new lookup-series workloads.
-/// Old pinned NuGet adapters are intentionally not used here because these workloads depend on
-/// the new USequence/UKeyIndex lookup methods: GetAllByKey and GetExactlyOneByKey.
+/// Current-source Polar.DB executor for lookup-series workloads.
+///
+/// Each lookup run now measures two separate phases over the same generated probes:
+/// 1) index-only: key -> offset/count, without reading payload records;
+/// 2) materialized: key -> offset(s) -> payload object[] records.
 /// </summary>
 public static class PolarDbLookupSeriesExecutor
 {
@@ -54,15 +56,29 @@ public static class PolarDbLookupSeriesExecutor
         var loadMs = 0.0;
         var buildMs = 0.0;
         var reopenRefreshMs = 0.0;
-        var lookupMs = 0.0;
-        var directLookupMs = 0.0;
-        var directLookupExpectedRows = 0;
-        var directLookupReturnedRows = 0;
-        var directLookupHit = false;
-        var lookupProbeHits = 0L;
-        var lookupProbeMisses = 0L;
-        var lookupReturnedRows = 0L;
-        var lookupExpectedRows = 0L;
+
+        var directIndexOnlyLookupMs = 0.0;
+        var directIndexOnlyExpectedOffsets = 0;
+        var directIndexOnlyReturnedOffsets = 0;
+        var directIndexOnlyHit = false;
+
+        var directMaterializedLookupMs = 0.0;
+        var directMaterializedExpectedRows = 0;
+        var directMaterializedReturnedRows = 0;
+        var directMaterializedHit = false;
+
+        var indexOnlyLookupMs = 0.0;
+        var indexOnlyProbeHits = 0L;
+        var indexOnlyProbeMisses = 0L;
+        var indexOnlyReturnedOffsets = 0L;
+        var indexOnlyExpectedOffsets = 0L;
+
+        var materializedLookupMs = 0.0;
+        var materializedProbeHits = 0L;
+        var materializedProbeMisses = 0L;
+        var materializedReturnedRows = 0L;
+        var materializedExpectedRows = 0L;
+
         var mismatchSamples = new List<string>();
         var sequenceCountAfterRefresh = 0L;
         var appendOffsetAfterRefresh = 0L;
@@ -121,60 +137,94 @@ public static class PolarDbLookupSeriesExecutor
                 spec.Dataset.Seed ?? 1,
                 spec.Dataset.RecordCount,
                 options.DuplicateGroupSize);
-            directLookupExpectedRows = directProbe.ExpectedCount;
-            var directLookupWatch = Stopwatch.StartNew();
-            var directMatched = ExecuteProbe(active, options, directProbe, out directLookupReturnedRows, out var directMismatchReason);
-            directLookupWatch.Stop();
-            directLookupMs = directLookupWatch.Elapsed.TotalMilliseconds;
-            directLookupHit = directMatched && directLookupReturnedRows == directLookupExpectedRows;
-            if (!directLookupHit && !string.IsNullOrWhiteSpace(directMismatchReason))
+
+            directIndexOnlyExpectedOffsets = directProbe.ExpectedCount;
+            var directIndexWatch = Stopwatch.StartNew();
+            directIndexOnlyHit = ExecuteIndexOnlyProbe(active, options, directProbe, out directIndexOnlyReturnedOffsets, out var directIndexMismatchReason);
+            directIndexWatch.Stop();
+            directIndexOnlyLookupMs = directIndexWatch.Elapsed.TotalMilliseconds;
+            if (!directIndexOnlyHit && !string.IsNullOrWhiteSpace(directIndexMismatchReason))
             {
-                mismatchSamples.Add("direct " + directMismatchReason);
+                mismatchSamples.Add("direct index-only " + directIndexMismatchReason);
             }
 
-            var random = new Random((spec.Dataset.Seed ?? 1) ^ LookupSeriesWorkload.CommonLookupSeedSalt);
-            var lookupWatch = Stopwatch.StartNew();
-            for (var i = 0; i < options.LookupCount; i++)
+            directMaterializedExpectedRows = directProbe.ExpectedCount;
+            var directMaterializedWatch = Stopwatch.StartNew();
+            directMaterializedHit = ExecuteMaterializedProbe(active, options, directProbe, out directMaterializedReturnedRows, out var directMaterializedMismatchReason);
+            directMaterializedWatch.Stop();
+            directMaterializedLookupMs = directMaterializedWatch.Elapsed.TotalMilliseconds;
+            if (!directMaterializedHit && !string.IsNullOrWhiteSpace(directMaterializedMismatchReason))
+            {
+                mismatchSamples.Add("direct materialized " + directMaterializedMismatchReason);
+            }
+
+            var probes = CreateProbes(spec, options);
+
+            var indexOnlyWatch = Stopwatch.StartNew();
+            for (var i = 0; i < probes.Length; i++)
             {
                 if ((i & 0x3FF) == 0)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
-                var probe = LookupSeriesWorkload.CreateRandomProbe(
-                    options.KeyKind,
-                    options.Mode,
-                    spec.Dataset.Seed ?? 1,
-                    spec.Dataset.RecordCount,
-                    options.DuplicateGroupSize,
-                    random);
-
-                var matched = ExecuteProbe(active, options, probe, out var returnedRows, out var mismatchReason);
-                lookupReturnedRows += returnedRows;
-                lookupExpectedRows += probe.ExpectedCount;
+                var probe = probes[i];
+                var matched = ExecuteIndexOnlyProbe(active, options, probe, out var returnedOffsets, out var mismatchReason);
+                indexOnlyReturnedOffsets += returnedOffsets;
+                indexOnlyExpectedOffsets += probe.ExpectedCount;
 
                 if (matched)
                 {
-                    lookupProbeHits++;
+                    indexOnlyProbeHits++;
                 }
                 else
                 {
-                    lookupProbeMisses++;
+                    indexOnlyProbeMisses++;
                     if (mismatchSamples.Count < 10 && !string.IsNullOrWhiteSpace(mismatchReason))
                     {
-                        mismatchSamples.Add(mismatchReason);
+                        mismatchSamples.Add("index-only " + mismatchReason);
                     }
                 }
             }
+            indexOnlyWatch.Stop();
+            indexOnlyLookupMs = indexOnlyWatch.Elapsed.TotalMilliseconds;
 
-            lookupWatch.Stop();
-            lookupMs = lookupWatch.Elapsed.TotalMilliseconds;
+            var materializedWatch = Stopwatch.StartNew();
+            for (var i = 0; i < probes.Length; i++)
+            {
+                if ((i & 0x3FF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                var probe = probes[i];
+                var matched = ExecuteMaterializedProbe(active, options, probe, out var returnedRows, out var mismatchReason);
+                materializedReturnedRows += returnedRows;
+                materializedExpectedRows += probe.ExpectedCount;
+
+                if (matched)
+                {
+                    materializedProbeHits++;
+                }
+                else
+                {
+                    materializedProbeMisses++;
+                    if (mismatchSamples.Count < 10 && !string.IsNullOrWhiteSpace(mismatchReason))
+                    {
+                        mismatchSamples.Add("materialized " + mismatchReason);
+                    }
+                }
+            }
+            materializedWatch.Stop();
+            materializedLookupMs = materializedWatch.Elapsed.TotalMilliseconds;
 
             active.Close();
             active = null;
 
-            semanticSuccess = directLookupHit &&
-                              lookupProbeMisses == 0 &&
+            semanticSuccess = directIndexOnlyHit &&
+                              directMaterializedHit &&
+                              indexOnlyProbeMisses == 0 &&
+                              materializedProbeMisses == 0 &&
                               sequenceCountAfterRefresh == spec.Dataset.RecordCount;
             if (!semanticSuccess.Value)
             {
@@ -182,10 +232,14 @@ public static class PolarDbLookupSeriesExecutor
                     spec.Dataset.RecordCount,
                     sequenceCountAfterRefresh,
                     options.LookupCount,
-                    lookupProbeHits,
-                    lookupProbeMisses,
-                    lookupExpectedRows,
-                    lookupReturnedRows,
+                    indexOnlyProbeHits,
+                    indexOnlyProbeMisses,
+                    indexOnlyExpectedOffsets,
+                    indexOnlyReturnedOffsets,
+                    materializedProbeHits,
+                    materializedProbeMisses,
+                    materializedExpectedRows,
+                    materializedReturnedRows,
                     mismatchSamples);
             }
         }
@@ -212,23 +266,50 @@ public static class PolarDbLookupSeriesExecutor
         metrics.Add(new RunMetric { MetricKey = "loadMs", Value = loadMs });
         metrics.Add(new RunMetric { MetricKey = "buildMs", Value = buildMs });
         metrics.Add(new RunMetric { MetricKey = "reopenRefreshMs", Value = reopenRefreshMs });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directLookupMs });
-        metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directLookupHit ? 1 : 0 });
-        metrics.Add(new RunMetric { MetricKey = "directLookupExpectedRows", Value = directLookupExpectedRows });
-        metrics.Add(new RunMetric { MetricKey = "directLookupReturnedRows", Value = directLookupReturnedRows });
-        metrics.Add(new RunMetric { MetricKey = "lookupSeriesMs", Value = lookupMs });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = lookupMs });
+
+        metrics.Add(new RunMetric { MetricKey = "directIndexOnlyLookupMs", Value = directIndexOnlyLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "directIndexOnlyLookupHit", Value = directIndexOnlyHit ? 1 : 0 });
+        metrics.Add(new RunMetric { MetricKey = "directIndexOnlyExpectedOffsets", Value = directIndexOnlyExpectedOffsets });
+        metrics.Add(new RunMetric { MetricKey = "directIndexOnlyReturnedOffsets", Value = directIndexOnlyReturnedOffsets });
+
+        metrics.Add(new RunMetric { MetricKey = "directMaterializedLookupMs", Value = directMaterializedLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "directMaterializedLookupHit", Value = directMaterializedHit ? 1 : 0 });
+        metrics.Add(new RunMetric { MetricKey = "directMaterializedExpectedRows", Value = directMaterializedExpectedRows });
+        metrics.Add(new RunMetric { MetricKey = "directMaterializedReturnedRows", Value = directMaterializedReturnedRows });
+
+        metrics.Add(new RunMetric { MetricKey = "indexOnlyLookupMs", Value = indexOnlyLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "indexOnlyProbeCount", Value = options.LookupCount });
+        metrics.Add(new RunMetric { MetricKey = "indexOnlyProbeHits", Value = indexOnlyProbeHits });
+        metrics.Add(new RunMetric { MetricKey = "indexOnlyProbeMisses", Value = indexOnlyProbeMisses });
+        metrics.Add(new RunMetric { MetricKey = "indexOnlyReturnedOffsets", Value = indexOnlyReturnedOffsets });
+        metrics.Add(new RunMetric { MetricKey = "indexOnlyExpectedOffsets", Value = indexOnlyExpectedOffsets });
+
+        metrics.Add(new RunMetric { MetricKey = "materializedLookupMs", Value = materializedLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "materializedProbeCount", Value = options.LookupCount });
+        metrics.Add(new RunMetric { MetricKey = "materializedProbeHits", Value = materializedProbeHits });
+        metrics.Add(new RunMetric { MetricKey = "materializedProbeMisses", Value = materializedProbeMisses });
+        metrics.Add(new RunMetric { MetricKey = "materializedReturnedRows", Value = materializedReturnedRows });
+        metrics.Add(new RunMetric { MetricKey = "materializedExpectedRows", Value = materializedExpectedRows });
+
+        // Compatibility aliases for existing analysis/charts.
+        metrics.Add(new RunMetric { MetricKey = "directPointLookupMs", Value = directMaterializedLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "directPointLookupHit", Value = directMaterializedHit ? 1 : 0 });
+        metrics.Add(new RunMetric { MetricKey = "directLookupExpectedRows", Value = directMaterializedExpectedRows });
+        metrics.Add(new RunMetric { MetricKey = "directLookupReturnedRows", Value = directMaterializedReturnedRows });
+        metrics.Add(new RunMetric { MetricKey = "lookupSeriesMs", Value = materializedLookupMs });
+        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMs", Value = materializedLookupMs });
         metrics.Add(new RunMetric { MetricKey = "lookupProbeCount", Value = options.LookupCount });
         metrics.Add(new RunMetric { MetricKey = "lookupCount", Value = options.LookupCount });
         metrics.Add(new RunMetric { MetricKey = "randomPointLookupCount", Value = options.LookupCount });
-        metrics.Add(new RunMetric { MetricKey = "lookupProbeHits", Value = lookupProbeHits });
-        metrics.Add(new RunMetric { MetricKey = "lookupHitCount", Value = lookupProbeHits });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = lookupProbeHits });
-        metrics.Add(new RunMetric { MetricKey = "lookupProbeMisses", Value = lookupProbeMisses });
-        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = lookupProbeMisses });
-        metrics.Add(new RunMetric { MetricKey = "lookupReturnedRows", Value = lookupReturnedRows });
-        metrics.Add(new RunMetric { MetricKey = "lookupReturnedRowCount", Value = lookupReturnedRows });
-        metrics.Add(new RunMetric { MetricKey = "lookupExpectedRows", Value = lookupExpectedRows });
+        metrics.Add(new RunMetric { MetricKey = "lookupProbeHits", Value = materializedProbeHits });
+        metrics.Add(new RunMetric { MetricKey = "lookupHitCount", Value = materializedProbeHits });
+        metrics.Add(new RunMetric { MetricKey = "randomPointLookupHits", Value = materializedProbeHits });
+        metrics.Add(new RunMetric { MetricKey = "lookupProbeMisses", Value = materializedProbeMisses });
+        metrics.Add(new RunMetric { MetricKey = "randomPointLookupMisses", Value = materializedProbeMisses });
+        metrics.Add(new RunMetric { MetricKey = "lookupReturnedRows", Value = materializedReturnedRows });
+        metrics.Add(new RunMetric { MetricKey = "lookupReturnedRowCount", Value = materializedReturnedRows });
+        metrics.Add(new RunMetric { MetricKey = "lookupExpectedRows", Value = materializedExpectedRows });
+
         metrics.Add(new RunMetric { MetricKey = "duplicateGroupSize", Value = options.DuplicateGroupSize });
         metrics.Add(new RunMetric { MetricKey = "totalArtifactBytes", Value = collected.TotalBytes });
         metrics.Add(new RunMetric { MetricKey = "primaryDataBytes", Value = collected.PrimaryDataBytes });
@@ -244,16 +325,16 @@ public static class PolarDbLookupSeriesExecutor
         diagnostics["lookupMode"] = options.Mode.ToString();
         diagnostics["lookupKeyKind"] = options.KeyKind.ToString();
         diagnostics["lookupCount"] = options.LookupCount.ToString(CultureInfo.InvariantCulture);
-        diagnostics["directLookupMs"] = directLookupMs.ToString(CultureInfo.InvariantCulture);
-        diagnostics["directLookupHit"] = directLookupHit.ToString();
-        diagnostics["directLookupExpectedRows"] = directLookupExpectedRows.ToString(CultureInfo.InvariantCulture);
-        diagnostics["directLookupReturnedRows"] = directLookupReturnedRows.ToString(CultureInfo.InvariantCulture);
-        diagnostics["lookupProbeHits"] = lookupProbeHits.ToString(CultureInfo.InvariantCulture);
-        diagnostics["lookupHitCount"] = lookupProbeHits.ToString(CultureInfo.InvariantCulture);
-        diagnostics["lookupProbeMisses"] = lookupProbeMisses.ToString(CultureInfo.InvariantCulture);
-        diagnostics["lookupReturnedRows"] = lookupReturnedRows.ToString(CultureInfo.InvariantCulture);
-        diagnostics["lookupReturnedRowCount"] = lookupReturnedRows.ToString(CultureInfo.InvariantCulture);
-        diagnostics["lookupExpectedRows"] = lookupExpectedRows.ToString(CultureInfo.InvariantCulture);
+        diagnostics["indexOnlyLookupMs"] = indexOnlyLookupMs.ToString(CultureInfo.InvariantCulture);
+        diagnostics["indexOnlyProbeHits"] = indexOnlyProbeHits.ToString(CultureInfo.InvariantCulture);
+        diagnostics["indexOnlyProbeMisses"] = indexOnlyProbeMisses.ToString(CultureInfo.InvariantCulture);
+        diagnostics["indexOnlyReturnedOffsets"] = indexOnlyReturnedOffsets.ToString(CultureInfo.InvariantCulture);
+        diagnostics["indexOnlyExpectedOffsets"] = indexOnlyExpectedOffsets.ToString(CultureInfo.InvariantCulture);
+        diagnostics["materializedLookupMs"] = materializedLookupMs.ToString(CultureInfo.InvariantCulture);
+        diagnostics["materializedProbeHits"] = materializedProbeHits.ToString(CultureInfo.InvariantCulture);
+        diagnostics["materializedProbeMisses"] = materializedProbeMisses.ToString(CultureInfo.InvariantCulture);
+        diagnostics["materializedReturnedRows"] = materializedReturnedRows.ToString(CultureInfo.InvariantCulture);
+        diagnostics["materializedExpectedRows"] = materializedExpectedRows.ToString(CultureInfo.InvariantCulture);
         diagnostics["duplicateGroupSize"] = options.DuplicateGroupSize.ToString(CultureInfo.InvariantCulture);
         diagnostics["reopenAfterBuild"] = options.ReopenAfterBuild.ToString();
         diagnostics["sequenceCountAfterRefresh"] = sequenceCountAfterRefresh.ToString(CultureInfo.InvariantCulture);
@@ -280,10 +361,10 @@ public static class PolarDbLookupSeriesExecutor
         }
 
         notes.Add("Lookup-series run for current-source Polar.DB adapter.");
-        notes.Add("Supported ready-file lookup key kinds are intentionally restricted to int, long and Guid.");
+        notes.Add("The run measures index-only lookup separately from materialized payload lookup.");
         notes.Add(options.Mode == LookupSeriesMode.ExactOne
-            ? "The measured operation uses USequence.GetExactlyOneByKey and expects exactly one matching row."
-            : "The measured operation uses USequence.GetAllByKey and validates the full duplicate range.");
+            ? "Exact-one: index-only resolves one offset; materialized resolves and reads one object[]."
+            : "All-matching: index-only resolves offset range/count; materialized resolves offsets and reads all object[] rows.");
 
         return Task.FromResult(new RunResult
         {
@@ -306,10 +387,110 @@ public static class PolarDbLookupSeriesExecutor
                 ["research"] = spec.ResearchQuestionId ?? string.Empty,
                 ["hypothesis"] = spec.HypothesisId ?? string.Empty,
                 ["lookupMode"] = options.Mode.ToString(),
-                ["lookupKeyKind"] = options.KeyKind.ToString()
+                ["lookupKeyKind"] = options.KeyKind.ToString(),
+                ["lookupMeasurement"] = "index-only-and-materialized"
             },
             Notes = notes
         });
+    }
+
+    private static LookupProbe[] CreateProbes(ExperimentSpec spec, LookupSeriesOptions options)
+    {
+        var random = new Random((spec.Dataset.Seed ?? 1) ^ LookupSeriesWorkload.CommonLookupSeedSalt);
+        var probes = new LookupProbe[options.LookupCount];
+        for (var i = 0; i < probes.Length; i++)
+        {
+            probes[i] = LookupSeriesWorkload.CreateRandomProbe(
+                options.KeyKind,
+                options.Mode,
+                spec.Dataset.Seed ?? 1,
+                spec.Dataset.RecordCount,
+                options.DuplicateGroupSize,
+                random);
+        }
+
+        return probes;
+    }
+
+    private static bool ExecuteIndexOnlyProbe(
+        USequence sequence,
+        LookupSeriesOptions options,
+        LookupProbe probe,
+        out int returnedOffsets,
+        out string? mismatchReason)
+    {
+        returnedOffsets = 0;
+        mismatchReason = null;
+
+        if (options.Mode == LookupSeriesMode.ExactOne)
+        {
+            if (sequence.TryGetExactlyOneOffsetByKey(probe.Key, out _))
+            {
+                returnedOffsets = 1;
+                return true;
+            }
+
+            returnedOffsets = sequence.CountByKey(probe.Key);
+            mismatchReason = $"exact-one offset count mismatch for key={probe.Key}: returned={returnedOffsets}, expected=1";
+            return false;
+        }
+
+        returnedOffsets = sequence.GetOffsetsByKey(probe.Key).Count;
+        if (returnedOffsets == probe.ExpectedCount)
+        {
+            return true;
+        }
+
+        mismatchReason = $"all-matching offset count mismatch for key={probe.Key}: returned={returnedOffsets}, expected={probe.ExpectedCount}";
+        return false;
+    }
+
+    private static bool ExecuteMaterializedProbe(
+        USequence sequence,
+        LookupSeriesOptions options,
+        LookupProbe probe,
+        out int returnedRows,
+        out string? mismatchReason)
+    {
+        returnedRows = 0;
+        mismatchReason = null;
+
+        if (options.Mode == LookupSeriesMode.ExactOne)
+        {
+            try
+            {
+                var row = sequence.GetExactlyOneByKey(probe.Key);
+                returnedRows = 1;
+                if (RowHasKey(row, options.KeyKind, probe.Key))
+                {
+                    return true;
+                }
+
+                mismatchReason = $"exact-one returned wrong key. expected={probe.Key}";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                mismatchReason = $"exact-one failed for key={probe.Key}: {ex.GetType().Name}: {ex.Message}";
+                return false;
+            }
+        }
+
+        var rows = sequence.GetAllByKey(probe.Key).ToArray();
+        returnedRows = rows.Length;
+        if (rows.Length != probe.ExpectedCount)
+        {
+            mismatchReason = $"all-matching count mismatch for key={probe.Key}: returned={rows.Length}, expected={probe.ExpectedCount}";
+            return false;
+        }
+
+        if (rows.All(row => RowHasKey(row, options.KeyKind, probe.Key)))
+        {
+            return true;
+        }
+
+        mismatchReason = $"all-matching returned at least one row with wrong key. expected={probe.Key}";
+        return false;
     }
 
     private static USequence CreateSequence(PolarDbLookupArtifactLayout layout, LookupSeriesOptions options)
@@ -387,54 +568,6 @@ public static class PolarDbLookupSeriesExecutor
         }
     }
 
-    private static bool ExecuteProbe(
-        USequence sequence,
-        LookupSeriesOptions options,
-        LookupProbe probe,
-        out int returnedRows,
-        out string? mismatchReason)
-    {
-        returnedRows = 0;
-        mismatchReason = null;
-
-        if (options.Mode == LookupSeriesMode.ExactOne)
-        {
-            try
-            {
-                var row = sequence.GetExactlyOneByKey(probe.Key);
-                returnedRows = 1;
-                if (RowHasKey(row, options.KeyKind, probe.Key))
-                {
-                    return true;
-                }
-
-                mismatchReason = $"exact-one returned wrong key. expected={probe.Key}";
-                return false;
-            }
-            catch (Exception ex)
-            {
-                mismatchReason = $"exact-one failed for key={probe.Key}: {ex.GetType().Name}: {ex.Message}";
-                return false;
-            }
-        }
-
-        var rows = sequence.GetAllByKey(probe.Key).ToArray();
-        returnedRows = rows.Length;
-        if (rows.Length != probe.ExpectedCount)
-        {
-            mismatchReason = $"all-matching count mismatch for key={probe.Key}: returned={rows.Length}, expected={probe.ExpectedCount}";
-            return false;
-        }
-
-        if (rows.All(row => RowHasKey(row, options.KeyKind, probe.Key)))
-        {
-            return true;
-        }
-
-        mismatchReason = $"all-matching returned at least one row with wrong key. expected={probe.Key}";
-        return false;
-    }
-
     private static bool RowHasKey(object row, LookupKeyKind keyKind, IComparable expectedKey)
     {
         return ReadKey(row, keyKind).CompareTo(expectedKey) == 0;
@@ -480,16 +613,22 @@ public static class PolarDbLookupSeriesExecutor
         long expectedCount,
         long actualCount,
         int lookupCount,
-        long hits,
-        long misses,
-        long expectedRows,
-        long returnedRows,
+        long indexOnlyHits,
+        long indexOnlyMisses,
+        long indexOnlyExpectedOffsets,
+        long indexOnlyReturnedOffsets,
+        long materializedHits,
+        long materializedMisses,
+        long materializedExpectedRows,
+        long materializedReturnedRows,
         IReadOnlyList<string> mismatchSamples)
     {
-        return "Lookup-series semantic check failed: " +
-               $"expectedCount={expectedCount}, actualCount={actualCount}, " +
-               $"lookupCount={lookupCount}, hits={hits}, misses={misses}, " +
-               $"expectedRows={expectedRows}, returnedRows={returnedRows}. " +
+        return "Polar.DB lookup-series semantic check failed: " +
+               $"expectedCount={expectedCount}, actualCount={actualCount}, lookupCount={lookupCount}, " +
+               $"indexOnlyHits={indexOnlyHits}, indexOnlyMisses={indexOnlyMisses}, " +
+               $"indexOnlyExpectedOffsets={indexOnlyExpectedOffsets}, indexOnlyReturnedOffsets={indexOnlyReturnedOffsets}, " +
+               $"materializedHits={materializedHits}, materializedMisses={materializedMisses}, " +
+               $"materializedExpectedRows={materializedExpectedRows}, materializedReturnedRows={materializedReturnedRows}. " +
                (mismatchSamples.Count == 0 ? string.Empty : "Samples: " + string.Join(" | ", mismatchSamples));
     }
 

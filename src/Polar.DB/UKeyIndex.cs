@@ -10,7 +10,7 @@ namespace Polar.DB
         // hkeys хранит int hash(key), offsets хранит offset записи.
         private UniversalSequenceBase hkeys;
         private UniversalSequenceBase offsets;
-        // Динамическая часть индекса
+        // Динамическая часть индекса.
         private Dictionary<IComparable, long> keyoff_dic;
         private bool keysinmemory;
 
@@ -42,7 +42,7 @@ namespace Polar.DB
         private int[]? hkeys_arr = null;
         private long[]? hkey_offsets_arr = null;
 
-        // Новый in-memory typed lookup слой. Persistent формат не меняется: эти массивы строятся
+        // In-memory typed lookup слой. Persistent формат не меняется: эти массивы строятся
         // при Build() и восстанавливаются при Refresh() из существующего offsets + data файла.
         private TypedKeyKind typedKeyKind = TypedKeyKind.None;
         private int[]? int_keys_arr = null;
@@ -64,6 +64,8 @@ namespace Polar.DB
         public void Refresh()
         {
             ClearInMemoryIndexes();
+            hkeys.Refresh();
+            offsets.Refresh();
 
             if (keysinmemory)
             {
@@ -71,12 +73,6 @@ namespace Polar.DB
                 hkey_offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
                 RebuildTypedIndexFromOffsets(hkey_offsets_arr);
             }
-            else
-            {
-                hkeys.Refresh();
-            }
-
-            offsets.Refresh();
         }
 
         public void Build()
@@ -137,86 +133,165 @@ namespace Polar.DB
         }
 
         /// <summary>
+        /// Возвращает offset-ы всех актуальных элементов, ключ которых равен keysample.
+        /// Для int/long/Guid, когда индекс находится в памяти, используется typed lookup по настоящему ключу
+        /// без чтения payload-записей. Это основной index-only API для benchmark-ов.
+        /// </summary>
+        public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample)
+        {
+            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+
+            // Динамическая часть UKeyIndex исторически хранит последний актуальный offset для ключа.
+            // Если ключ есть в динамике, старые static offset-ы этого ключа считаются неоригинальными.
+            if (keyoff_dic.TryGetValue(keysample, out long dynamicOffset))
+            {
+                return new[] { dynamicOffset };
+            }
+
+            if (TryGetTypedOffsetRange(keysample, out var start, out var count))
+            {
+                if (count == 0) return Array.Empty<long>();
+
+                var result = new long[count];
+                Array.Copy(typed_offsets_arr!, start, result, 0, count);
+                return result;
+            }
+
+            return GetOffsetsByHashCompatiblePath(keysample);
+        }
+
+        /// <summary>
+        /// Возвращает число offset-ов по ключу без чтения payload, если доступен typed index.
+        /// </summary>
+        public int CountByKey(IComparable keysample)
+        {
+            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+
+            if (keyoff_dic.ContainsKey(keysample))
+            {
+                return 1;
+            }
+
+            if (TryGetTypedOffsetRange(keysample, out _, out var count))
+            {
+                return count;
+            }
+
+            return GetOffsetsByHashCompatiblePath(keysample).Count;
+        }
+
+        /// <summary>
+        /// Пытается получить offset ровно одного элемента по ключу без чтения payload, если typed index доступен.
+        /// Возвращает false, если найдено 0 или больше 1 offset-а.
+        /// </summary>
+        public bool TryGetExactlyOneOffsetByKey(IComparable keysample, out long offset)
+        {
+            if (keysample == null) throw new ArgumentNullException(nameof(keysample));
+
+            if (keyoff_dic.TryGetValue(keysample, out offset))
+            {
+                return true;
+            }
+
+            if (TryGetTypedOffsetRange(keysample, out var start, out var count))
+            {
+                if (count == 1)
+                {
+                    offset = typed_offsets_arr![start];
+                    return true;
+                }
+
+                offset = default;
+                return false;
+            }
+
+            var offsets = GetOffsetsByHashCompatiblePath(keysample);
+            if (offsets.Count == 1)
+            {
+                offset = offsets[0];
+                return true;
+            }
+
+            offset = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Возвращает offset ровно одного элемента по ключу. Если найдено 0 или больше 1, бросает InvalidOperationException.
+        /// </summary>
+        public long GetExactlyOneOffsetByKey(IComparable keysample)
+        {
+            if (TryGetExactlyOneOffsetByKey(keysample, out var offset))
+            {
+                return offset;
+            }
+
+            var count = CountByKey(keysample);
+            throw new InvalidOperationException(
+                $"Expected exactly one Polar.DB element offset for key '{keysample}', but found {count}.");
+        }
+
+        /// <summary>
         /// Возвращает все актуальные элементы, ключ которых равен keysample.
-        /// Для int/long/Guid, когда индекс находится в памяти, используется typed lookup по настоящему ключу,
-        /// без предварительного поиска hash bucket и без чтения записей-кандидатов с чужим ключом.
-        /// Если typed lookup недоступен, используется прежний hash-compatible путь.
+        /// Этот materialized API сначала получает offset-ы, затем читает payload-записи.
         /// </summary>
         public IEnumerable<object> GetAllByKey(IComparable keysample)
         {
             if (keysample == null) throw new ArgumentNullException(nameof(keysample));
 
-            if (keyoff_dic.TryGetValue(keysample, out long dynamicOffset))
+            foreach (var offset in GetOffsetsByKey(keysample))
             {
-                object dynamicValue = sequence.GetByOffset(dynamicOffset);
-                if (dynamicValue != null)
-                {
-                    var dynamicKey = keyFunc(dynamicValue);
-                    if (dynamicKey.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(dynamicValue, dynamicOffset))
-                    {
-                        yield return dynamicValue;
-                    }
-                }
-            }
+                var value = sequence.GetByOffset(offset);
+                if (value == null) continue;
 
-            if (TryEnumerateTyped(keysample, out var typedValues))
-            {
-                foreach (var value in typedValues)
+                var key = keyFunc(value);
+                if (key.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(value, offset))
                 {
                     yield return value;
                 }
-
-                yield break;
-            }
-
-            foreach (var value in EnumerateByHashCompatiblePath(keysample))
-            {
-                yield return value;
             }
         }
 
         /// <summary>
         /// Возвращает ровно один актуальный элемент по ключу.
         /// Если элементов нет или их больше одного, бросает InvalidOperationException.
-        /// Это отдельный контракт для таблиц/индексов, где бизнес-инвариант гарантирует уникальность.
         /// </summary>
         public object GetExactlyOneByKey(IComparable keysample)
         {
             if (keysample == null) throw new ArgumentNullException(nameof(keysample));
 
-            object? single = null;
-            var count = 0;
-
-            foreach (var value in GetAllByKey(keysample))
-            {
-                count++;
-                if (count == 1)
-                {
-                    single = value;
-                    continue;
-                }
-
-                throw new InvalidOperationException(
-                    $"Expected exactly one Polar.DB element for key '{keysample}', but found more than one.");
-            }
-
-            if (count == 0 || single == null)
+            var offset = GetExactlyOneOffsetByKey(keysample);
+            var value = sequence.GetByOffset(offset);
+            if (value == null)
             {
                 throw new InvalidOperationException(
-                    $"Expected exactly one Polar.DB element for key '{keysample}', but found none.");
+                    $"Expected exactly one Polar.DB element for key '{keysample}', but payload at offset {offset} is null.");
             }
 
-            return single;
+            var key = keyFunc(value);
+            if (key.CompareTo(keysample) != 0 || !sequence.IsOriginalAndNotEmpty(value, offset))
+            {
+                throw new InvalidOperationException(
+                    $"Expected exactly one Polar.DB element for key '{keysample}', but payload at offset {offset} did not validate.");
+            }
+
+            return value;
         }
 
-        private bool TryEnumerateTyped(IComparable keysample, out IEnumerable<object> values)
+        private bool TryGetTypedOffsetRange(IComparable keysample, out int start, out int count)
         {
+            start = 0;
+            count = 0;
+
             switch (typedKeyKind)
             {
                 case TypedKeyKind.Int32:
                     if (TryConvertToInt32Key(keysample, out var intKey) && int_keys_arr != null && typed_offsets_arr != null)
                     {
-                        values = EnumerateTypedInt32(intKey);
+                        start = LowerBound(int_keys_arr, intKey);
+                        var end = start;
+                        while (end < int_keys_arr.Length && int_keys_arr[end] == intKey) end++;
+                        count = end - start;
                         return true;
                     }
                     break;
@@ -224,7 +299,10 @@ namespace Polar.DB
                 case TypedKeyKind.Int64:
                     if (TryConvertToInt64Key(keysample, out var longKey) && long_keys_arr != null && typed_offsets_arr != null)
                     {
-                        values = EnumerateTypedInt64(longKey);
+                        start = LowerBound(long_keys_arr, longKey);
+                        var end = start;
+                        while (end < long_keys_arr.Length && long_keys_arr[end] == longKey) end++;
+                        count = end - start;
                         return true;
                     }
                     break;
@@ -232,81 +310,27 @@ namespace Polar.DB
                 case TypedKeyKind.Guid:
                     if (TryConvertToGuidKey(keysample, out var guidKey) && guid_keys_arr != null && typed_offsets_arr != null)
                     {
-                        values = EnumerateTypedGuid(guidKey);
+                        start = LowerBound(guid_keys_arr, guidKey);
+                        var end = start;
+                        while (end < guid_keys_arr.Length && guid_keys_arr[end].CompareTo(guidKey) == 0) end++;
+                        count = end - start;
                         return true;
                     }
                     break;
             }
 
-            values = Enumerable.Empty<object>();
             return false;
         }
 
-        private IEnumerable<object> EnumerateTypedInt32(int key)
+        private IReadOnlyList<long> GetOffsetsByHashCompatiblePath(IComparable keysample)
         {
-            var keys = int_keys_arr!;
-            var offs = typed_offsets_arr!;
-            var pos = LowerBound(keys, key);
-
-            while (pos < keys.Length && keys[pos] == key)
-            {
-                var offset = offs[pos];
-                var value = sequence.GetByOffset(offset);
-                if (value != null && sequence.IsOriginalAndNotEmpty(value, offset))
-                {
-                    yield return value;
-                }
-
-                pos++;
-            }
-        }
-
-        private IEnumerable<object> EnumerateTypedInt64(long key)
-        {
-            var keys = long_keys_arr!;
-            var offs = typed_offsets_arr!;
-            var pos = LowerBound(keys, key);
-
-            while (pos < keys.Length && keys[pos] == key)
-            {
-                var offset = offs[pos];
-                var value = sequence.GetByOffset(offset);
-                if (value != null && sequence.IsOriginalAndNotEmpty(value, offset))
-                {
-                    yield return value;
-                }
-
-                pos++;
-            }
-        }
-
-        private IEnumerable<object> EnumerateTypedGuid(Guid key)
-        {
-            var keys = guid_keys_arr!;
-            var offs = typed_offsets_arr!;
-            var pos = LowerBound(keys, key);
-
-            while (pos < keys.Length && keys[pos].CompareTo(key) == 0)
-            {
-                var offset = offs[pos];
-                var value = sequence.GetByOffset(offset);
-                if (value != null && sequence.IsOriginalAndNotEmpty(value, offset))
-                {
-                    yield return value;
-                }
-
-                pos++;
-            }
-        }
-
-        private IEnumerable<object> EnumerateByHashCompatiblePath(IComparable keysample)
-        {
+            var result = new List<long>();
             int hkey = hashOfKey(keysample);
 
             if (hkeys_arr != null)
             {
                 int pos = GetFirstInMemoryNom(hkey);
-                if (pos < 0) yield break;
+                if (pos < 0) return result;
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
@@ -315,38 +339,40 @@ namespace Polar.DB
                         : (long)offsets.GetByIndex(pos);
 
                     object val = sequence.GetByOffset(offset);
-                    if (val == null) yield break;
+                    if (val == null) break;
 
                     var key = keyFunc(val);
                     if (key.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(val, offset))
                     {
-                        yield return val;
+                        result.Add(offset);
                     }
 
                     pos++;
                 }
 
-                yield break;
+                return result;
             }
 
             long first = GetFirstNom(hkey);
-            if (first == -1) yield break;
+            if (first == -1) return result;
 
             for (long nom = first; nom < hkeys.Count(); nom++)
             {
                 int currentHash = (int)hkeys.GetByIndex(nom);
-                if (currentHash != hkey) yield break;
+                if (currentHash != hkey) break;
 
                 long offset = (long)offsets.GetByIndex(nom);
                 object val = sequence.GetByOffset(offset);
-                if (val == null) yield break;
+                if (val == null) break;
 
                 var key = keyFunc(val);
                 if (key.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(val, offset))
                 {
-                    yield return val;
+                    result.Add(offset);
                 }
             }
+
+            return result;
         }
 
         private void ClearInMemoryIndexes()

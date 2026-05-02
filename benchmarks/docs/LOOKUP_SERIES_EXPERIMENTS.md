@@ -1,54 +1,65 @@
 # Lookup series experiments
 
-This update adds two common lookup workload families for current-source Polar.DB and SQLite.
+The active lookup baseline is intentionally reduced to two Int32 experiments:
 
-## Workload keys
+| Experiment | Meaning |
+|---|---|
+| `lookup-exact-one-int` | Unique key lookup: every key matches exactly one row. |
+| `lookup-all-matching-int` | Duplicate key lookup: every key usually matches `duplicateGroupSize` rows. |
 
-- `lookup-exact-one` — every generated lookup key must match exactly one row. The current Polar.DB adapter uses `USequence.GetExactlyOneByKey`.
-- `lookup-all-matching` — generated keys may have duplicates. The current Polar.DB adapter uses `USequence.GetAllByKey` and validates the full duplicate range.
+Each experiment produces two lookup measurements over the same generated probes.
 
-## Supported ready-file key kinds
+## 1. Index-only phase
 
-The workload intentionally supports only stable ready-file lookup keys:
+The executor resolves key matches without reading payload records.
 
-- `int`
-- `long`
-- `guid`
+For Polar.DB this uses:
 
-For Polar.DB, Guid is stored as `sstring` in the record and converted to `Guid` inside the key function. This avoids requiring a new native Polar Guid PType.
+```csharp
+GetExactlyOneOffsetByKey(key)
+GetOffsetsByKey(key)
+CountByKey(key)
+```
 
-## Experiment folders
+For SQLite this uses `SELECT id ... WHERE lookup_key = $lookupKey`, deliberately not selecting `payload`.
 
-The archive contains six experiment folders:
+Metrics:
 
-- `lookup-exact-one-int`
-- `lookup-all-matching-int`
-- `lookup-exact-one-long`
-- `lookup-all-matching-long`
-- `lookup-exact-one-guid`
-- `lookup-all-matching-guid`
+```text
+indexOnlyLookupMs
+indexOnlyProbeCount
+indexOnlyProbeHits
+indexOnlyProbeMisses
+indexOnlyReturnedOffsets
+indexOnlyExpectedOffsets
+```
 
-Each experiment declares only these targets:
+## 2. Materialized phase
 
-- `polar-db-current`
-- `sqlite`
+The executor resolves the same probes and reads payload records.
 
-Pinned NuGet targets are intentionally not included because the new series depends on the new lookup methods added to current Polar.DB.
+For Polar.DB this uses:
 
-## Metrics
+```csharp
+GetExactlyOneByKey(key)
+GetAllByKey(key)
+```
 
-The executors write both new explicit metrics and compatibility metrics:
+For SQLite this uses `SELECT id, lookup_key, payload ... WHERE lookup_key = $lookupKey`.
 
-- `lookupSeriesMs`
-- `lookupProbeCount`
-- `lookupProbeHits`
-- `lookupProbeMisses`
-- `lookupReturnedRows`
-- `lookupExpectedRows`
-- `duplicateGroupSize`
-- `randomPointLookupMs`
-- `randomPointLookupCount`
-- `randomPointLookupHits`
-- `randomPointLookupMisses`
+Metrics:
 
-The `randomPointLookup*` aliases keep existing analysis/charts useful while the new `lookup*` metrics make the new series explicit.
+```text
+materializedLookupMs
+materializedProbeCount
+materializedProbeHits
+materializedProbeMisses
+materializedReturnedRows
+materializedExpectedRows
+```
+
+## Interpretation
+
+- If SQLite wins mostly in `indexOnlyLookupMs`, Polar.DB needs a better persistent/index layout.
+- If Polar.DB is close in `indexOnlyLookupMs` but loses in `materializedLookupMs`, the main cost is payload materialization/deserialization.
+- Existing compatibility metrics (`randomPointLookupMs`, `lookupHitCount`, `lookupReturnedRows`) are still written and map to the materialized phase.
