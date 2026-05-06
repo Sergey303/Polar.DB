@@ -92,9 +92,9 @@ internal static partial class HtmlSectionRenderer
             new TimingColumn("Load", "LoadMs", false),
             new TimingColumn("Build", "BuildMs", false),
             new TimingColumn("Reopen", "ReopenMs", false),
-            new TimingColumn("Index-only lookup", "indexOnlyLookupMs", true),
-            new TimingColumn("Materialized lookup", "materializedLookupMs", true),
-            new TimingColumn("Lookup", "LookupMs", false)
+            new TimingColumn("Lookup total", "LookupMs", false),
+            new TimingColumn("Lookup search", "lookupIndexSearchMs", true),
+            new TimingColumn("Lookup materialization", "lookupMaterializationMs", true)
         };
 
         var visible = columns

@@ -1,3 +1,15 @@
+## Lookup timing breakdown
+
+Lookup timing must be reported as one measured materialized operation plus a nested breakdown:
+
+- `lookupMs` / report column `Lookup total` вЂ” total time for the lookup workload: key search, offset resolution, payload read and validation.
+- `lookupIndexSearchMs` / report column `Lookup search` вЂ” time inside `lookupMs` spent finding offset(s) by key.
+- `lookupMaterializationMs` / report column `Lookup materialization` вЂ” time inside `lookupMs` spent reading payload row(s) by offset and validating the materialized rows.
+
+Do not compare `indexOnlyLookupMs` with `materializedLookupMs` as two independent benchmark operations. That shape double-runs the lookup workload and makes the old `Materialized lookup` column look like a second alternative scenario. The report should instead answer: how long did lookup take in total, and how was that total split between index search and materialization?
+
+Legacy aliases may remain in raw data for backward compatibility, but new analysis and charts should prefer `lookupMs`, `lookupIndexSearchMs`, and `lookupMaterializationMs`.
+
 # Search Metric Vocabulary
 
 This document defines reserved metric keys for future search experiments.

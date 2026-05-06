@@ -238,8 +238,18 @@ internal static class ComparisonSnapshotBuilder
         var load = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(item.Result, "loadMs")).ToArray();
         var build = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(item.Result, "buildMs")).ToArray();
         var reopen = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(item.Result, "reopenRefreshMs", "reopenMs")).ToArray();
-        var lookup = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(item.Result, "randomPointLookupMs")).ToArray();
-        var lookupCount = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(item.Result, "randomPointLookupCount")).ToArray();
+        var lookup = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(
+            item.Result,
+            "lookupMs",
+            "lookupSeriesMs",
+            "randomPointLookupMs",
+            "search.point.ms")).ToArray();
+        var lookupCount = measuredRuns.Select(item => ComparisonMetricReader.ReadMetric(
+            item.Result,
+            "lookupProbeCount",
+            "lookupCount",
+            "randomPointLookupCount",
+            "search.point.queries")).ToArray();
         var totalBytes = measuredRuns.Select(item => ComparisonMetricReader.ReadTotalArtifactBytes(item.Result)).ToArray();
         var primaryBytes = measuredRuns.Select(item => ComparisonMetricReader.ReadPrimaryArtifactBytes(item.Result)).ToArray();
         var sideBytes = measuredRuns.Select(item => ComparisonMetricReader.ReadSideArtifactBytes(item.Result)).ToArray();
