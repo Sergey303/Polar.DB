@@ -234,13 +234,13 @@ internal static class MetricReportCatalog
             new()
             {
                 Key = "LookupMs",
-                Label = "Lookup phase time",
+                Label = "Lookup total time",
                 Section = "Executive Summary",
                 Unit = MetricUnit.Milliseconds,
                 Direction = MetricDirection.LowerIsBetter,
                 PreferredStat = PreferredStat.P50,
                 Priority = 30,
-                Description = "Time spent executing lookup queries."
+                Description = "Total time spent executing lookup queries, including index search and payload materialization."
             },
 
             // ===== Correctness / Status =====
@@ -358,12 +358,35 @@ internal static class MetricReportCatalog
             new()
             {
                 Key = "LookupMs",
-                Label = "Lookup phase",
+                Label = "Lookup total",
                 Section = "Timing & Stability",
                 Unit = MetricUnit.Milliseconds,
                 Direction = MetricDirection.LowerIsBetter,
                 PreferredStat = PreferredStat.P50,
-                Priority = 50
+                Priority = 50,
+                Description = "Total materialized lookup time."
+            },
+            new()
+            {
+                Key = "lookupIndexSearchMs",
+                Label = "Lookup search part",
+                Section = "Timing & Stability",
+                Unit = MetricUnit.Milliseconds,
+                Direction = MetricDirection.LowerIsBetter,
+                PreferredStat = PreferredStat.P50,
+                Priority = 51,
+                Description = "Part of lookup total spent finding offsets in the index."
+            },
+            new()
+            {
+                Key = "lookupMaterializationMs",
+                Label = "Lookup materialization part",
+                Section = "Timing & Stability",
+                Unit = MetricUnit.Milliseconds,
+                Direction = MetricDirection.LowerIsBetter,
+                PreferredStat = PreferredStat.P50,
+                Priority = 52,
+                Description = "Part of lookup total spent reading and validating payload rows after offsets have been found."
             },
 
             // ===== Search: Point Lookup =====
@@ -377,6 +400,28 @@ internal static class MetricReportCatalog
                 PreferredStat = PreferredStat.P50,
                 Priority = 10,
                 Description = "Total elapsed milliseconds for all existing-key point queries."
+            },
+            new()
+            {
+                Key = "lookupIndexSearchMs",
+                Label = "Point lookup search part",
+                Section = "Search: Point Lookup",
+                Unit = MetricUnit.Milliseconds,
+                Direction = MetricDirection.LowerIsBetter,
+                PreferredStat = PreferredStat.P50,
+                Priority = 11,
+                Description = "Nested index-search time inside materialized point lookup."
+            },
+            new()
+            {
+                Key = "lookupMaterializationMs",
+                Label = "Point lookup materialization part",
+                Section = "Search: Point Lookup",
+                Unit = MetricUnit.Milliseconds,
+                Direction = MetricDirection.LowerIsBetter,
+                PreferredStat = PreferredStat.P50,
+                Priority = 12,
+                Description = "Nested payload materialization time inside materialized point lookup."
             },
             new()
             {
