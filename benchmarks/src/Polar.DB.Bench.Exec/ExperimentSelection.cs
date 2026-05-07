@@ -31,7 +31,7 @@ public static class ExperimentSelection
         var candidates = new DirectoryInfo(experimentsRoot)
             .EnumerateDirectories()
             .OrderByDescending(directory => directory.LastWriteTimeUtc)
-            .Take(5)
+            .Take(15)
             .ToArray();
 
         if (candidates.Length == 0)
