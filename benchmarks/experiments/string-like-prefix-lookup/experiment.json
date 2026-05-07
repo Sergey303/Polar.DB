@@ -1,0 +1,39 @@
+{
+  "experimentKey": "string-like-prefix-lookup",
+  "researchQuestionId": "RQ-LOOKUP-STRING-LIKE-001",
+  "hypothesisId": "H-STRING-PREFIX-RANGE-COMPARATOR",
+  "description": "Compare SQLite LIKE prefix lookup with PolarDB string prefix comparator/range traversal after load/build/reopen lifecycle.",
+  "engines": ["polar-db-current", "sqlite"],
+  "fairnessProfile": "lookup-prefix-balanced",
+  "gitCommit": null,
+  "gitBranch": null,
+  "dataset": {
+    "recordCount": 1000000,
+    "groupCount": 100,
+    "subGroupCount": 100,
+    "payloadBytes": 64,
+    "seed": 20260507
+  },
+  "workload": {
+    "warmupIterations": 5,
+    "measuredIterations": 30,
+    "queries": [
+      { "key": "exact1", "kind": "Exact", "pattern": "grp0042/sub0007/item00000742", "prefix": "grp0042/sub0007/item00000742" },
+      { "key": "prefix1", "kind": "Prefix", "pattern": "grp0042/sub0007/item00000742%", "prefix": "grp0042/sub0007/item00000742" },
+      { "key": "prefixSmall", "kind": "Prefix", "pattern": "grp0042/sub0007/%", "prefix": "grp0042/sub0007/" },
+      { "key": "prefixMedium", "kind": "Prefix", "pattern": "grp0042/%", "prefix": "grp0042/" },
+      { "key": "containsScan", "kind": "Contains", "pattern": "%sub0007%", "prefix": "sub0007" }
+    ]
+  },
+  "metrics": [
+    "loadElapsedMs",
+    "buildElapsedMs",
+    "reopenElapsedMs",
+    "matchedCount",
+    "elapsedTrimmedMeanMs",
+    "elapsedP95Ms",
+    "artifactBytes",
+    "environmentSnapshot",
+    "engineDiagnostics"
+  ]
+}
