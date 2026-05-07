@@ -32,27 +32,24 @@ internal sealed class SqliteLookupCommands : IDisposable
         return rowIds;
     }
 
-    public MaterializedRowsResult MaterializeAndValidateRows(
-        IComparable expectedKey,
-        IReadOnlyList<long> rowIds)
+    public MaterializedRowsResult MaterializeRows(IReadOnlyList<long> rowIds)
     {
-        if (rowIds.Count == 0) return new MaterializedRowsResult(0, 0);
+        if (rowIds.Count == 0) return new MaterializedRowsResult(Array.Empty<SqliteMaterializedRow>());
+
         var command = GetMaterializeCommand(rowIds.Count);
         for (var i = 0; i < rowIds.Count; i++) command.Parameters[i].Value = rowIds[i];
 
         using var reader = command.ExecuteReader();
-        var returnedRows = 0;
-        var wrongRows = 0;
+        var rows = new List<SqliteMaterializedRow>(rowIds.Count);
         while (reader.Read())
         {
-            returnedRows++;
-            var actualKey = SqliteLookupSeriesExecutor.ReadKey(reader, options.KeyKind);
-            _ = reader.GetInt64(1);
-            _ = reader.GetString(2);
-            if (actualKey.CompareTo(expectedKey) != 0) wrongRows++;
+            rows.Add(new SqliteMaterializedRow(
+                SqliteLookupSeriesExecutor.ReadKey(reader, options.KeyKind),
+                reader.GetInt64(1),
+                reader.GetString(2)));
         }
 
-        return new MaterializedRowsResult(returnedRows, wrongRows);
+        return new MaterializedRowsResult(rows);
     }
 
     public void Dispose()
@@ -64,6 +61,7 @@ internal sealed class SqliteLookupCommands : IDisposable
     private SqliteCommand GetMaterializeCommand(int rowIdCount)
     {
         if (materializeCommands.TryGetValue(rowIdCount, out var cached)) return cached;
+
         var command = connection.CreateCommand();
         var names = new string[rowIdCount];
         for (var i = 0; i < rowIdCount; i++)
