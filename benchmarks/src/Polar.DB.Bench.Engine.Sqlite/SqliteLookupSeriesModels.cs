@@ -1,10 +1,19 @@
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Polar.DB.Bench.Core.Models;
 
 namespace Polar.DB.Bench.Engine.Sqlite;
 
-internal sealed record MaterializedRowsResult(int ReturnedRows, int WrongRows);
+internal sealed record SqliteMaterializedRow(
+    System.IComparable LookupKey,
+    long Ordinal,
+    string Payload);
+
+internal sealed record MaterializedRowsResult(
+    IReadOnlyList<SqliteMaterializedRow> Rows)
+{
+    public int ReturnedRows => Rows.Count;
+}
 
 internal sealed record SqliteLookupArtifactLayout(string ArtifactsRootDirectory, string DatabasePath);
 

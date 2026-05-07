@@ -14,7 +14,7 @@ internal static partial class SqliteLookupSeriesExecutor
         indexWatch.Stop();
 
         var materializationWatch = Stopwatch.StartNew();
-        var materialized = lookup.MaterializeAndValidateRows(probe.Key, rowIds);
+        var materialized = lookup.MaterializeRows(rowIds);
         materializationWatch.Stop();
 
         totalWatch.Stop();
@@ -35,14 +35,31 @@ internal static partial class SqliteLookupSeriesExecutor
                 $"materialized row count mismatch for key={probe.Key}: returned={materialized.ReturnedRows}, expected={probe.ExpectedCount}");
         }
 
-        if (materialized.WrongRows != 0)
+        var wrongRows = CountWrongRows(probe.Key, materialized);
+        if (wrongRows != 0)
         {
             return LookupProbeResult.Failed(
                 totalWatch, indexWatch, materializationWatch, rowIds.Count,
                 materialized.ReturnedRows,
-                $"materialized rows with wrong key for key={probe.Key}: wrongRows={materialized.WrongRows}");
+                $"materialized rows with wrong key for key={probe.Key}: wrongRows={wrongRows}");
         }
 
-        return LookupProbeResult.Passed(totalWatch, indexWatch, materializationWatch, rowIds.Count, materialized.ReturnedRows);
+        return LookupProbeResult.Passed(
+            totalWatch,
+            indexWatch,
+            materializationWatch,
+            rowIds.Count,
+            materialized.ReturnedRows);
+    }
+
+    private static int CountWrongRows(System.IComparable expectedKey, MaterializedRowsResult materialized)
+    {
+        var wrongRows = 0;
+        foreach (var row in materialized.Rows)
+        {
+            if (row.LookupKey.CompareTo(expectedKey) != 0) wrongRows++;
+        }
+
+        return wrongRows;
     }
 }
