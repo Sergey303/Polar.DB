@@ -58,7 +58,7 @@ internal sealed class ExperimentIndexRenderer
         sb.AppendLine("    }");
         sb.AppendLine("    * { box-sizing: border-box; }");
         sb.AppendLine("    body { margin: 0; background: linear-gradient(170deg, #eef2f5 0%, var(--bg) 50%, #f4f7fb 100%); color: var(--ink); font-family: var(--ui); }");
-        sb.AppendLine("    .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 32px; }");
+        sb.AppendLine("    .wrap { width: calc(100vw - 24px); max-width: none; margin: 0 auto; padding: 16px 12px 32px; }");
         sb.AppendLine("    .header { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.03); }");
         sb.AppendLine("    h1 { margin: 0 0 8px; font-size: clamp(1.35rem, 2vw, 2.05rem); line-height: 1.2; }");
         sb.AppendLine("    h2 { margin: 0 0 10px; font-size: 1.15rem; }");
@@ -66,7 +66,8 @@ internal sealed class ExperimentIndexRenderer
         sb.AppendLine("    .meta { color: var(--muted); font-size: 0.92rem; }");
         sb.AppendLine("    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-top: 12px; }");
         sb.AppendLine("    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.025); }");
-        sb.AppendLine("    .card.wide { margin-top: 12px; }");
+        sb.AppendLine("    .card.wide { margin-top: 12px; overflow-x: auto; }");
+        sb.AppendLine("    .card.wide table { min-width: max-content; }");
         sb.AppendLine("    .muted { color: var(--muted); }");
         sb.AppendLine("    .mono { font-family: var(--mono); }");
         sb.AppendLine("    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin-top: 8px; }");
