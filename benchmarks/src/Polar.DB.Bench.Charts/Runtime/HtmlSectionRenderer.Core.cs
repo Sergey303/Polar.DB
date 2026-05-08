@@ -178,12 +178,23 @@ internal static partial class HtmlSectionRenderer
                Math.Abs(value - min.Value) < 1e-9;
     }
 
-    private static string RatioText(double value, double? min)
+    private static string RatioText(double value, double? min, MetricKind kind)
     {
         if (!min.HasValue || double.IsNaN(value) || double.IsInfinity(value)) return string.Empty;
         if (IsBestMetricValue(value, min)) return " <span class=\"badge best\">best</span>";
-        if (Math.Abs(min.Value) < 1e-12) return " <span class=\"badge metric-ratio\">+" + FormatNumber(value) + " over min</span>";
-        return " <span class=\"badge metric-ratio\">×" + (value / min.Value).ToString("0.##", Invariant) + " min</span>";
+
+        if (Math.Abs(min.Value) < 1e-12)
+            return " <span class=\"badge metric-ratio\">+" + FormatNumber(value) + " over best</span>";
+
+        var ratio = (value / min.Value).ToString("0.##", Invariant);
+        var label = kind switch
+        {
+            MetricKind.Milliseconds => "slower",
+            MetricKind.Bytes => "larger",
+            _ => "vs best"
+        };
+
+        return " <span class=\"badge metric-ratio\">" + ratio + "× " + label + "</span>";
     }
 
     private static string FormatMetricCell(double? value, double? min, MetricKind kind)
@@ -199,6 +210,6 @@ internal static partial class HtmlSectionRenderer
             : min.HasValue ? "metric-cell metric-compared" : "metric-cell";
         var formatted = FormatValue(value, kind);
         var raw = H(value.Value.ToString("R", Invariant));
-        return "        <td class=\"" + cssClass + "\" title=\"" + raw + "\">" + formatted + RatioText(value.Value, min) + "</td>";
+        return "        <td class=\"" + cssClass + "\" title=\"" + raw + "\">" + formatted + RatioText(value.Value, min, kind) + "</td>";
     }
 }
