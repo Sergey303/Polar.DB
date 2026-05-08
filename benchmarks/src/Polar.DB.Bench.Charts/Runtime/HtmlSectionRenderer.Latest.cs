@@ -46,6 +46,7 @@ internal static partial class HtmlSectionRenderer
 
         AppendLatestStatusTable(sb, engines);
         AppendLatestTimingTable(sb, engines);
+        AppendLatestSearchCasesTable(sb, engines);
         AppendLatestStabilityTable(sb, engines);
         AppendLatestStorageTable(sb, engines);
         AppendNotes(sb, ReadPath(latestEngines, "Notes"));
@@ -137,6 +138,114 @@ internal static partial class HtmlSectionRenderer
 
         sb.AppendLine("    </tbody>");
         sb.AppendLine("  </table>");
+    }
+
+    private static void AppendLatestSearchCasesTable(StringBuilder sb, object[] engines)
+    {
+        var cases = GetStringLikeCaseKeys(engines);
+        if (cases.Length == 0) return;
+
+        sb.AppendLine("  <h3>LIKE search cases</h3>");
+        sb.AppendLine("  <p class=\"muted small\">Per-query search comparison. tm is based on <code>stringLike.*.trimmedMeanMs</code>; p95 is based on <code>stringLike.*.p95Ms</code>. Lower timing is better.</p>");
+        sb.AppendLine("  <table>");
+        sb.AppendLine("    <thead>");
+        sb.AppendLine("      <tr>");
+        sb.AppendLine("        <th>Target</th>");
+        sb.AppendLine("        <th>Query</th>");
+        sb.AppendLine("        <th>Matched / expected</th>");
+        sb.AppendLine("        <th>Rows visited</th>");
+        sb.AppendLine("        <th>Success</th>");
+        sb.AppendLine("        <th>Search tm</th>");
+        sb.AppendLine("        <th>Search p95</th>");
+        sb.AppendLine("      </tr>");
+        sb.AppendLine("    </thead>");
+        sb.AppendLine("    <tbody>");
+
+        foreach (var caseKey in cases)
+        {
+            var tmMetric = StringLikeMetric(caseKey, "trimmedMeanMs");
+            var p95Metric = StringLikeMetric(caseKey, "p95Ms");
+
+            var tmMin = MinOrNull(engines.Select(e => GetMetricTm(e, tmMetric, fromMetricsDictionary: true)));
+            var p95Min = MinOrNull(engines.Select(e => GetMetricTm(e, p95Metric, fromMetricsDictionary: true)));
+
+            foreach (var engine in engines)
+            {
+                var engineKey = ReadString(engine, "EngineKey") ?? "unknown";
+
+                var matched = GetMetricP50(engine, StringLikeMetric(caseKey, "matchedCount"), fromMetricsDictionary: true);
+                var expected = GetMetricP50(engine, StringLikeMetric(caseKey, "expectedCount"), fromMetricsDictionary: true);
+                var rowsVisited = GetMetricP50(engine, StringLikeMetric(caseKey, "rowsVisited"), fromMetricsDictionary: true);
+                var success = GetMetricP50(engine, StringLikeMetric(caseKey, "success"), fromMetricsDictionary: true);
+                var tm = GetMetricTm(engine, tmMetric, fromMetricsDictionary: true);
+                var p95 = GetMetricTm(engine, p95Metric, fromMetricsDictionary: true);
+
+                sb.AppendLine("      <tr>");
+                sb.AppendLine("        <td>" + Code(engineKey) + "</td>");
+                sb.AppendLine("        <td>" + Code(caseKey) + "</td>");
+                sb.AppendLine("        <td>" + FormatSearchCount(matched) + " / " + FormatSearchCount(expected) + "</td>");
+                sb.AppendLine("        <td>" + FormatSearchCount(rowsVisited) + "</td>");
+                sb.AppendLine("        <td>" + FormatSearchSuccess(success) + "</td>");
+                sb.AppendLine(FormatMetricCell(tm, tmMin, MetricKind.Milliseconds));
+                sb.AppendLine(FormatMetricCell(p95, p95Min, MetricKind.Milliseconds));
+                sb.AppendLine("      </tr>");
+            }
+        }
+
+        sb.AppendLine("    </tbody>");
+        sb.AppendLine("  </table>");
+    }
+
+    private static string[] GetStringLikeCaseKeys(object[] engines)
+    {
+        const string prefix = "stringLike.";
+        const string suffix = ".trimmedMeanMs";
+
+        return engines
+            .SelectMany(engine => Enumerate(GetProperty(engine, "Metrics")))
+            .Select(entry => ReadString(entry, "Key"))
+            .Where(key => key is not null &&
+                          key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                          key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            .Select(key => key![prefix.Length..^suffix.Length])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(StringLikeCaseOrder)
+            .ThenBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static int StringLikeCaseOrder(string caseKey)
+    {
+        return caseKey switch
+        {
+            "exact1" => 10,
+            "prefix1" => 20,
+            "prefixSmall" => 30,
+            "prefixMedium" => 40,
+            "containsScan" => 50,
+            _ => 100
+        };
+    }
+
+    private static string StringLikeMetric(string caseKey, string metric) =>
+        "stringLike." + caseKey + "." + metric;
+
+    private static string FormatSearchCount(double? value)
+    {
+        if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+            return "N/A";
+
+        return Math.Round(value.Value).ToString("N0", Invariant);
+    }
+
+    private static string FormatSearchSuccess(double? value)
+    {
+        if (!value.HasValue)
+            return "<span class=\"muted\">N/A</span>";
+
+        return value.Value >= 0.5
+            ? "<span class=\"status-on\">yes</span>"
+            : "<span class=\"status-off\">no</span>";
     }
 
     private readonly struct TimingColumn
