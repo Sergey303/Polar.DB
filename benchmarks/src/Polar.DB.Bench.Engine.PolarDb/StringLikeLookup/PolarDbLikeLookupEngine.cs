@@ -49,7 +49,7 @@ public sealed class PolarDbLikeLookupEngine : ILikeLookupEngine
         StringLikeQueryCase query,
         CancellationToken cancellationToken)
     {
-        var store = ReqireStore();
+        var store = RequireStore();
         return query.Kind switch
         {
             StringLikeQueryKind.Exact => store.CountByPrefixAsync(query.Prefix, cancellationToken),
