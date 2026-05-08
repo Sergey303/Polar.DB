@@ -5,14 +5,13 @@ using System.Threading.Tasks;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.LookupSeries;
 using Polar.DB.Bench.Core.Models;
+using Polar.DB.Bench.Core.StringLikeLookup;
 
 namespace Polar.DB.Bench.Engine.PolarDb;
 
 /// <summary>
-/// Polar.DB current-source adapter for lookup-series experiments.
-///
-/// This file intentionally routes lookup-series workloads before any legacy stage4 validation.
-/// It is meant for the current source adapter only; pinned NuGet runners remain separate.
+/// Polar.DB current-source adapter for common lookup experiments.
+/// Pinned NuGet runners remain separate; this adapter is for current source only.
 /// </summary>
 public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 {
@@ -22,38 +21,37 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
     {
         EngineCapability.BulkLoad,
         EngineCapability.PointLookup,
+        EngineCapability.RangeLookup,
         EngineCapability.ReopenRecovery,
         EngineCapability.PhysicalArtifactInspection
     };
 
-    public IEngineRun CreateRun(ExperimentSpec spec, RunWorkspace workspace)
-    {
-        return new PolarDbEngineRun(spec, workspace);
-    }
+    public IEngineRun CreateRun(ExperimentSpec spec, RunWorkspace workspace) =>
+        new PolarDbEngineRun(spec, workspace);
 
     private sealed class PolarDbEngineRun : IEngineRun
     {
-        private readonly ExperimentSpec _spec;
-        private readonly RunWorkspace _workspace;
+        private readonly ExperimentSpec spec;
+        private readonly RunWorkspace workspace;
 
         public PolarDbEngineRun(ExperimentSpec spec, RunWorkspace workspace)
         {
-            _spec = spec;
-            _workspace = workspace;
+            this.spec = spec;
+            this.workspace = workspace;
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task<RunResult> ExecuteAsync(CancellationToken cancellationToken = default)
         {
-            if (LookupSeriesWorkload.IsLookupSeries(_spec.Workload.WorkloadKey))
-            {
-                return PolarDbLookupSeriesExecutor.ExecuteAsync(_spec, _workspace, cancellationToken);
-            }
+            if (StringLikeLookupWorkload.IsStringLike(spec.Workload.WorkloadKey))
+                return PolarDbStringLikeLookupExecutor.ExecuteAsync(spec, workspace, cancellationToken);
+
+            if (LookupSeriesWorkload.IsLookupSeries(spec.Workload.WorkloadKey))
+                return PolarDbLookupSeriesExecutor.ExecuteAsync(spec, workspace, cancellationToken);
 
             throw new NotSupportedException(
-                $"Experiment/workload '{_spec.ExperimentKey}'/'{_spec.Workload.WorkloadKey}' is not implemented in this lookup-series Polar.DB adapter file. " +
-                "Use the previous full adapter file for older non-lookup benchmark workloads.");
+                $"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in Polar.DB adapter.");
         }
     }
 }

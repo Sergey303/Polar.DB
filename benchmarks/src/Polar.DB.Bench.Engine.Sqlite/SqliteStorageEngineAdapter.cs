@@ -5,13 +5,12 @@ using System.Threading.Tasks;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.LookupSeries;
 using Polar.DB.Bench.Core.Models;
+using Polar.DB.Bench.Core.StringLikeLookup;
 
 namespace Polar.DB.Bench.Engine.Sqlite;
 
 /// <summary>
-/// SQLite adapter for lookup-series experiments.
-///
-/// This file intentionally routes lookup-series workloads before any legacy stage4 validation.
+/// SQLite adapter for common lookup experiments.
 /// </summary>
 public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 {
@@ -21,38 +20,37 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
     {
         EngineCapability.BulkLoad,
         EngineCapability.PointLookup,
+        EngineCapability.RangeLookup,
         EngineCapability.ReopenRecovery,
         EngineCapability.PhysicalArtifactInspection
     };
 
-    public IEngineRun CreateRun(ExperimentSpec spec, RunWorkspace workspace)
-    {
-        return new SqliteEngineRun(spec, workspace);
-    }
+    public IEngineRun CreateRun(ExperimentSpec spec, RunWorkspace workspace) =>
+        new SqliteEngineRun(spec, workspace);
 
     private sealed class SqliteEngineRun : IEngineRun
     {
-        private readonly ExperimentSpec _spec;
-        private readonly RunWorkspace _workspace;
+        private readonly ExperimentSpec spec;
+        private readonly RunWorkspace workspace;
 
         public SqliteEngineRun(ExperimentSpec spec, RunWorkspace workspace)
         {
-            _spec = spec;
-            _workspace = workspace;
+            this.spec = spec;
+            this.workspace = workspace;
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task<RunResult> ExecuteAsync(CancellationToken cancellationToken = default)
         {
-            if (LookupSeriesWorkload.IsLookupSeries(_spec.Workload.WorkloadKey))
-            {
-                return SqliteLookupSeriesExecutor.ExecuteAsync(_spec, _workspace, cancellationToken);
-            }
+            if (StringLikeLookupWorkload.IsStringLike(spec.Workload.WorkloadKey))
+                return SqliteStringLikeLookupExecutor.ExecuteAsync(spec, workspace, cancellationToken);
+
+            if (LookupSeriesWorkload.IsLookupSeries(spec.Workload.WorkloadKey))
+                return SqliteLookupSeriesExecutor.ExecuteAsync(spec, workspace, cancellationToken);
 
             throw new NotSupportedException(
-                $"Experiment/workload '{_spec.ExperimentKey}'/'{_spec.Workload.WorkloadKey}' is not implemented in this lookup-series SQLite adapter file. " +
-                "Use the previous full adapter file for older non-lookup benchmark workloads.");
+                $"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in SQLite adapter.");
         }
     }
 }

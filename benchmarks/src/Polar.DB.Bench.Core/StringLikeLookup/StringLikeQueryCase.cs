@@ -6,7 +6,8 @@ public sealed record StringLikeQueryCase(
     string Key,
     StringLikeQueryKind Kind,
     string Pattern,
-    string Prefix)
+    string Prefix,
+    long ExpectedCount)
 {
     public void Validate()
     {

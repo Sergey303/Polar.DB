@@ -15,11 +15,11 @@ public static class StringLikeQueryPlanner
 
         return new[]
         {
-            new StringLikeQueryCase("exact1", StringLikeQueryKind.Exact, full, full),
-            new StringLikeQueryCase("prefix1", StringLikeQueryKind.Prefix, full + "%", full),
-            new StringLikeQueryCase("prefixSmall", StringLikeQueryKind.Prefix, groupSub + "%", groupSub),
-            new StringLikeQueryCase("prefixMedium", StringLikeQueryKind.Prefix, groupOnly + "%", groupOnly),
-            new StringLikeQueryCase("containsScan", StringLikeQueryKind.Contains, "%" + subOnly + "%", subOnly)
+            new StringLikeQueryCase("exact1", StringLikeQueryKind.Exact, full, full, 1),
+            new StringLikeQueryCase("prefix1", StringLikeQueryKind.Prefix, full + "%", full, 1),
+            new StringLikeQueryCase("prefixSmall", StringLikeQueryKind.Prefix, groupSub + "%", groupSub, 0),
+            new StringLikeQueryCase("prefixMedium", StringLikeQueryKind.Prefix, groupOnly + "%", groupOnly, 0),
+            new StringLikeQueryCase("containsScan", StringLikeQueryKind.Contains, "%" + subOnly + "%", subOnly, 0)
         };
     }
 }
