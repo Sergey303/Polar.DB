@@ -1,0 +1,3 @@
+<ItemGroup>
+  <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+</ItemGroup>
