@@ -1,0 +1,51 @@
+{
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "string-like-prefix-lookup/v1",
+  "experiment": "string-like-prefix-lookup-scan",
+  "title": "String LIKE prefix lookup - scan",
+  "research": "RQ-LOOKUP-STRING-LIKE-001",
+  "hypothesis": "H-STRING-PREFIX-SCAN-BASELINE",
+  "description": "Compare the same exact/prefix query cases with name indexes disabled, so the experiment acts as an explicit scan baseline.",
+  "dataset": {
+    "profile": "string-like-names-1m",
+    "count": 1000000,
+    "seed": 20260507
+  },
+  "workload": {
+    "type": "string-like-prefix-lookup",
+    "lookup": 30,
+    "options": {
+      "groupCount": "100",
+      "subGroupCount": "100",
+      "payloadBytes": "64",
+      "warmupIterations": "5",
+      "measuredIterations": "30",
+      "includeContainsScan": "false",
+      "searchMode": "prefix-scan",
+      "useNameIndex": "false",
+      "pivotId": "742"
+    }
+  },
+  "fairness": {
+    "type": "lookup-prefix-scan-baseline",
+    "notes": "Prefix cases only, but name indexes are disabled. Polar.DB uses sequence scan; SQLite does not create ix_records_name and should report SCAN in EXPLAIN QUERY PLAN."
+  },
+  "requires": [
+    "BulkLoad",
+    "ReopenRecovery",
+    "PhysicalArtifactInspection"
+  ],
+  "targets": {
+    "polar-db-current": { "engine": "polar-db" },
+    "sqlite": { "engine": "sqlite" }
+  },
+  "runs": {
+    "warmup": 1,
+    "measured": 3,
+    "notes": "Outer runs are process-level benchmark repetitions; workload.options controls inner LIKE query sampling."
+  },
+  "compare": {
+    "history": true,
+    "otherExperiments": true
+  }
+}

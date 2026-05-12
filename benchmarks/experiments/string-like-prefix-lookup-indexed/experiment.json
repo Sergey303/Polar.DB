@@ -1,0 +1,52 @@
+{
+  "schema": "polar-bench-experiment/v1",
+  "protocol": "string-like-prefix-lookup/v1",
+  "experiment": "string-like-prefix-lookup-indexed",
+  "title": "String LIKE prefix lookup - indexed",
+  "research": "RQ-LOOKUP-STRING-LIKE-001",
+  "hypothesis": "H-STRING-PREFIX-RANGE-COMPARATOR",
+  "description": "Compare prefix-compatible string LIKE lookup where both engines may use their name indexes: SQLite ix_records_name and Polar.DB SVectorIndex.GetAllByLike.",
+  "dataset": {
+    "profile": "string-like-names-1m",
+    "count": 1000000,
+    "seed": 20260507
+  },
+  "workload": {
+    "type": "string-like-prefix-lookup",
+    "lookup": 30,
+    "options": {
+      "groupCount": "100",
+      "subGroupCount": "100",
+      "payloadBytes": "64",
+      "warmupIterations": "5",
+      "measuredIterations": "30",
+      "includeContainsScan": "false",
+      "searchMode": "indexed-prefix",
+      "useNameIndex": "true",
+      "pivotId": "742"
+    }
+  },
+  "fairness": {
+    "type": "lookup-prefix-indexed-balanced",
+    "notes": "Prefix-only experiment. SQLite creates ix_records_name and uses LIKE prefix-compatible patterns; Polar.DB creates SVectorIndex and uses GetAllByLike. Contains scan is intentionally excluded."
+  },
+  "requires": [
+    "BulkLoad",
+    "RangeLookup",
+    "ReopenRecovery",
+    "PhysicalArtifactInspection"
+  ],
+  "targets": {
+    "polar-db-current": { "engine": "polar-db" },
+    "sqlite": { "engine": "sqlite" }
+  },
+  "runs": {
+    "warmup": 1,
+    "measured": 3,
+    "notes": "Outer runs are process-level benchmark repetitions; workload.options controls inner LIKE query sampling."
+  },
+  "compare": {
+    "history": true,
+    "otherExperiments": true
+  }
+}

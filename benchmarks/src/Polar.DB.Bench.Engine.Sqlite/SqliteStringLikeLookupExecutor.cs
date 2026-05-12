@@ -46,7 +46,9 @@ internal static partial class SqliteStringLikeLookupExecutor
             connection = Open(layout.DatabasePath);
             CreateSchema(connection);
             loadMs = Measure(() => Load(connection, options, cancellationToken));
-            buildMs = Measure(() => Execute(connection, "CREATE INDEX IF NOT EXISTS ix_records_name ON records(name);"));
+            buildMs = options.UseNameIndex
+                ? Measure(() => Execute(connection, "CREATE INDEX IF NOT EXISTS ix_records_name ON records(name);"))
+                : 0.0;
             connection.Dispose();
             connection = null;
             reopenMs = Measure(() =>
@@ -83,7 +85,9 @@ internal static partial class SqliteStringLikeLookupExecutor
 
         var artifacts = CollectArtifacts(layout.Root, workspace.WorkingDirectory);
         StringLikeLookupResultMetrics.AddCommon(metrics, total.Elapsed.TotalMilliseconds, loadMs, buildMs, reopenMs, rowCountAfterReopen, artifacts);
-        diagnostics["querySemantics"] = "SQL LIKE with case_sensitive_like=ON";
+        diagnostics["querySemantics"] = DescribeQuerySemantics(options);
+        diagnostics["searchMode"] = options.SearchMode;
+        diagnostics["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture);
         diagnostics["rowCountAfterReopen"] = rowCountAfterReopen.ToString(CultureInfo.InvariantCulture);
 
         return Task.FromResult(new RunResult
@@ -102,8 +106,13 @@ internal static partial class SqliteStringLikeLookupExecutor
             Metrics = metrics,
             Artifacts = artifacts,
             EngineDiagnostics = diagnostics,
-            Tags = new Dictionary<string, string> { ["workload"] = StringLikeLookupWorkload.WorkloadKey },
-            Notes = new List<string> { "SQLite string LIKE prefix lookup benchmark." }
+            Tags = new Dictionary<string, string>
+            {
+                ["workload"] = StringLikeLookupWorkload.WorkloadKey,
+                ["searchMode"] = options.SearchMode,
+                ["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture)
+            },
+            Notes = new List<string> { "SQLite string LIKE benchmark with explicit scan/index mode." }
         });
     }
 
@@ -116,6 +125,7 @@ internal static partial class SqliteStringLikeLookupExecutor
         for (var i = 0; i < options.WarmupIterations; i++) _ = Count(command, query.Pattern);
         var samples = new List<double>(options.MeasuredIterations);
         long matched = 0;
+        var rowsVisited = EstimateRowsVisited(query, options);
         for (var i = 0; i < options.MeasuredIterations; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -124,7 +134,23 @@ internal static partial class SqliteStringLikeLookupExecutor
             watch.Stop();
             samples.Add(watch.Elapsed.TotalMilliseconds);
         }
-        return StringLikeCaseMeasurement.From(query, matched, rowsVisited: matched, samples);
+        return StringLikeCaseMeasurement.From(query, matched, rowsVisited(matched), samples);
+    }
+
+    private static Func<long, long> EstimateRowsVisited(StringLikeQueryCase query, StringLikeLookupOptions options)
+    {
+        if (query.Kind == StringLikeQueryKind.Contains || !options.UseNameIndex)
+            return _ => options.RecordCount;
+        return matched => matched;
+    }
+
+    private static string DescribeQuerySemantics(StringLikeLookupOptions options)
+    {
+        if (!options.UseNameIndex)
+            return "SQL LIKE with case_sensitive_like=ON and no ix_records_name index; expected plan is table scan.";
+        if (string.Equals(options.SearchMode, StringLikeLookupWorkload.SearchModeContainsScan, StringComparison.OrdinalIgnoreCase))
+            return "SQL LIKE contains pattern with case_sensitive_like=ON; leading wildcard is expected to scan even if an index exists.";
+        return "SQL LIKE with case_sensitive_like=ON and ix_records_name index for prefix-compatible patterns.";
     }
 
     private sealed record SqliteLayout(string Root, string DatabasePath);
