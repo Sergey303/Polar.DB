@@ -87,7 +87,7 @@ internal static partial class SqliteStringLikeLookupExecutor
         StringLikeLookupResultMetrics.AddCommon(metrics, total.Elapsed.TotalMilliseconds, loadMs, buildMs, reopenMs, rowCountAfterReopen, artifacts);
         diagnostics["querySemantics"] = DescribeQuerySemantics(options);
         diagnostics["searchMode"] = options.SearchMode;
-        diagnostics["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture);
+        diagnostics["useNameIndex"] = options.UseNameIndex ? "true" : "false";
         diagnostics["rowCountAfterReopen"] = rowCountAfterReopen.ToString(CultureInfo.InvariantCulture);
 
         return Task.FromResult(new RunResult
@@ -110,7 +110,7 @@ internal static partial class SqliteStringLikeLookupExecutor
             {
                 ["workload"] = StringLikeLookupWorkload.WorkloadKey,
                 ["searchMode"] = options.SearchMode,
-                ["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture)
+                ["useNameIndex"] = options.UseNameIndex ? "true" : "false"
             },
             Notes = new List<string> { "SQLite string LIKE benchmark with explicit scan/index mode." }
         });
