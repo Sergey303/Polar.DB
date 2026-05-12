@@ -22,13 +22,6 @@ public static class StringLikeLookupWorkload
     public const string SearchModeIndexedPrefix = "indexed-prefix";
     public const string SearchModePrefixScan = "prefix-scan";
     public const string SearchModeContainsScan = "contains-scan";
-    public const string SearchModeOption = "searchMode";
-    public const string UseNameIndexOption = "useNameIndex";
-
-    public const string SearchModeMixed = "mixed";
-    public const string SearchModeIndexedPrefix = "indexed-prefix";
-    public const string SearchModePrefixScan = "prefix-scan";
-    public const string SearchModeContainsScan = "contains-scan";
 
     public static bool IsStringLike(string? workloadKey) =>
         string.Equals(workloadKey, WorkloadKey, StringComparison.OrdinalIgnoreCase);
@@ -84,8 +77,6 @@ public static class StringLikeLookupWorkload
         var subToken = $"sub{sub:D4}";
 
         var prefixCases = new List<StringLikeQueryCase>
-
-        var prefixCases = new List<StringLikeQueryCase>
         {
             new("exact1", StringLikeQueryKind.Exact, full, full, 1),
             new("prefix1", StringLikeQueryKind.Prefix, full + "%", full, 1),
@@ -100,7 +91,7 @@ public static class StringLikeLookupWorkload
         {
             SearchModeIndexedPrefix => prefixCases,
             SearchModePrefixScan => prefixCases,
-            SearchModeContainsScan => new[] { containsCase },
+            SearchModeContainsScan => new List<StringLikeQueryCase> { containsCase },
             _ when options.IncludeContainsScan => Append(prefixCases, containsCase),
             _ => prefixCases
         };
