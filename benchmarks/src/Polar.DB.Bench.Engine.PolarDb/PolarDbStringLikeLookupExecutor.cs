@@ -88,7 +88,7 @@ internal static partial class PolarDbStringLikeLookupExecutor
         StringLikeLookupResultMetrics.AddCommon(metrics, total.Elapsed.TotalMilliseconds, loadMs, buildMs, reopenMs, rowCountAfterReopen, artifacts);
         diagnostics["querySemantics"] = DescribeQuerySemantics(options);
         diagnostics["searchMode"] = options.SearchMode;
-        diagnostics["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture);
+        diagnostics["useNameIndex"] = options.UseNameIndex ? "true" : "false";
         diagnostics["rowCountAfterReopen"] = rowCountAfterReopen.ToString(CultureInfo.InvariantCulture);
         diagnostics["appendOffsetAfterReopen"] = appendOffsetAfterReopen.ToString(CultureInfo.InvariantCulture);
 
@@ -112,7 +112,7 @@ internal static partial class PolarDbStringLikeLookupExecutor
             {
                 ["workload"] = StringLikeLookupWorkload.WorkloadKey,
                 ["searchMode"] = options.SearchMode,
-                ["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture)
+                ["useNameIndex"] = options.UseNameIndex ? "true" : "false"
             },
             Notes = new List<string> { "Polar.DB string-like lookup benchmark with explicit scan/index mode." }
         });
