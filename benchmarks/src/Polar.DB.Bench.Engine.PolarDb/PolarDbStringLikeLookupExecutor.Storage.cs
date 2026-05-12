@@ -11,7 +11,7 @@ namespace Polar.DB.Bench.Engine.PolarDb;
 
 internal static partial class PolarDbStringLikeLookupExecutor
 {
-    private static USequence CreateSequence(PolarDbStringLayout layout)
+    private static USequence CreateSequence(PolarDbStringLayout layout, StringLikeLookupOptions options)
     {
         var streamIndex = 0;
         var streamPaths = new[]
@@ -39,10 +39,13 @@ internal static partial class PolarDbStringLikeLookupExecutor
             key => (int)key,
             optimise: true);
 
-        sequence.uindexes = new IUIndex[]
-        {
-            new SVectorIndex(StreamGen, sequence, row => new[] { ReadName(row) }, ignorecase: false)
-        };
+        sequence.uindexes = options.UseNameIndex
+            ? new IUIndex[]
+            {
+                new SVectorIndex(StreamGen, sequence, row => new[] { ReadName(row) }, ignorecase: false)
+            }
+            : Array.Empty<IUIndex>();
+
         return sequence;
     }
 
@@ -52,23 +55,42 @@ internal static partial class PolarDbStringLikeLookupExecutor
             yield return new object[] { record.Id, record.Name, record.Payload };
     }
 
-    private static long Count(USequence sequence, StringLikeQueryCase query)
+    private static (long Matched, long RowsVisited) Count(
+        USequence sequence,
+        StringLikeQueryCase query,
+        StringLikeLookupOptions options)
     {
-        if (query.Kind == StringLikeQueryKind.Contains)
+        if (query.Kind == StringLikeQueryKind.Contains ||
+            string.Equals(options.SearchMode, StringLikeLookupWorkload.SearchModePrefixScan, StringComparison.OrdinalIgnoreCase))
         {
             var count = 0L;
             sequence.Scan((_, row) =>
             {
-                if (ReadName(row).Contains(query.Prefix, StringComparison.Ordinal)) count++;
+                var name = ReadName(row);
+                if (query.Kind == StringLikeQueryKind.Contains)
+                {
+                    if (name.Contains(query.Prefix, StringComparison.Ordinal)) count++;
+                }
+                else if (query.Kind == StringLikeQueryKind.Exact)
+                {
+                    if (string.Equals(name, query.Prefix, StringComparison.Ordinal)) count++;
+                }
+                else if (name.StartsWith(query.Prefix, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+
                 return true;
             });
-            return count;
+            return (count, options.RecordCount);
         }
 
         var rows = sequence.GetAllByLike(0, query.Prefix);
-        return query.Kind == StringLikeQueryKind.Exact
+        var matched = query.Kind == StringLikeQueryKind.Exact
             ? rows.LongCount(row => string.Equals(ReadName(row), query.Prefix, StringComparison.Ordinal))
             : rows.LongCount();
+
+        return (matched, matched);
     }
 
     private static PTypeRecord CreateRecordType() => new(

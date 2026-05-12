@@ -22,6 +22,13 @@ public static class StringLikeLookupWorkload
     public const string SearchModeIndexedPrefix = "indexed-prefix";
     public const string SearchModePrefixScan = "prefix-scan";
     public const string SearchModeContainsScan = "contains-scan";
+    public const string SearchModeOption = "searchMode";
+    public const string UseNameIndexOption = "useNameIndex";
+
+    public const string SearchModeMixed = "mixed";
+    public const string SearchModeIndexedPrefix = "indexed-prefix";
+    public const string SearchModePrefixScan = "prefix-scan";
+    public const string SearchModeContainsScan = "contains-scan";
 
     public static bool IsStringLike(string? workloadKey) =>
         string.Equals(workloadKey, WorkloadKey, StringComparison.OrdinalIgnoreCase);
@@ -36,7 +43,9 @@ public static class StringLikeLookupWorkload
             throw new InvalidOperationException("string-like-prefix-lookup currently supports dataset.count <= int.MaxValue.");
 
         var searchMode = NormalizeSearchMode(StringValue(spec.Workload, SearchModeOption, SearchModeMixed));
-        var defaultUseNameIndex = searchMode is SearchModeMixed or SearchModeIndexedPrefix;
+        var defaultUseNameIndex =
+            string.Equals(searchMode, SearchModeMixed, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(searchMode, SearchModeIndexedPrefix, StringComparison.OrdinalIgnoreCase);
         var useNameIndex = Boolean(spec.Workload, UseNameIndexOption, defaultUseNameIndex);
         var groupCount = Positive(spec.Workload, GroupCountOption, 100);
         var subGroupCount = Positive(spec.Workload, SubGroupCountOption, 100);
@@ -73,6 +82,8 @@ public static class StringLikeLookupWorkload
         var groupPrefix = $"grp{group:D4}/";
         var subPrefix = $"grp{group:D4}/sub{sub:D4}/";
         var subToken = $"sub{sub:D4}";
+
+        var prefixCases = new List<StringLikeQueryCase>
 
         var prefixCases = new List<StringLikeQueryCase>
         {

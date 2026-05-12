@@ -43,7 +43,7 @@ internal static partial class PolarDbStringLikeLookupExecutor
         try
         {
             Directory.CreateDirectory(layout.Root);
-            sequence = CreateSequence(layout);
+            sequence = CreateSequence(layout, options);
             loadMs = Measure(() => sequence.Load(GenerateRows(options)));
             buildMs = Measure(sequence.Build);
             sequence.Close();
@@ -51,7 +51,7 @@ internal static partial class PolarDbStringLikeLookupExecutor
 
             reopenMs = Measure(() =>
             {
-                active = CreateSequence(layout);
+                active = CreateSequence(layout, options);
                 active.Refresh();
                 rowCountAfterReopen = active.sequence.Count();
                 appendOffsetAfterReopen = active.sequence.ElementOffset();
@@ -86,7 +86,9 @@ internal static partial class PolarDbStringLikeLookupExecutor
 
         var artifacts = CollectArtifacts(layout.Root, workspace.WorkingDirectory);
         StringLikeLookupResultMetrics.AddCommon(metrics, total.Elapsed.TotalMilliseconds, loadMs, buildMs, reopenMs, rowCountAfterReopen, artifacts);
-        diagnostics["querySemantics"] = "SVectorIndex.GetAllByLike prefix comparator; containsScan uses sequence scan";
+        diagnostics["querySemantics"] = DescribeQuerySemantics(options);
+        diagnostics["searchMode"] = options.SearchMode;
+        diagnostics["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture);
         diagnostics["rowCountAfterReopen"] = rowCountAfterReopen.ToString(CultureInfo.InvariantCulture);
         diagnostics["appendOffsetAfterReopen"] = appendOffsetAfterReopen.ToString(CultureInfo.InvariantCulture);
 
@@ -106,8 +108,13 @@ internal static partial class PolarDbStringLikeLookupExecutor
             Metrics = metrics,
             Artifacts = artifacts,
             EngineDiagnostics = diagnostics,
-            Tags = new Dictionary<string, string> { ["workload"] = StringLikeLookupWorkload.WorkloadKey },
-            Notes = new List<string> { "Polar.DB string prefix comparator/range traversal benchmark." }
+            Tags = new Dictionary<string, string>
+            {
+                ["workload"] = StringLikeLookupWorkload.WorkloadKey,
+                ["searchMode"] = options.SearchMode,
+                ["useNameIndex"] = options.UseNameIndex.ToString(CultureInfo.InvariantCulture)
+            },
+            Notes = new List<string> { "Polar.DB string-like lookup benchmark with explicit scan/index mode." }
         });
     }
 
@@ -117,17 +124,29 @@ internal static partial class PolarDbStringLikeLookupExecutor
         StringLikeLookupOptions options,
         CancellationToken cancellationToken)
     {
-        for (var i = 0; i < options.WarmupIterations; i++) _ = Count(sequence, query);
+        for (var i = 0; i < options.WarmupIterations; i++) _ = Count(sequence, query, options);
         var samples = new List<double>(options.MeasuredIterations);
         long matched = 0;
+        long rowsVisited = 0;
         for (var i = 0; i < options.MeasuredIterations; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var watch = Stopwatch.StartNew();
-            matched = Count(sequence, query);
+            (matched, rowsVisited) = Count(sequence, query, options);
             watch.Stop();
             samples.Add(watch.Elapsed.TotalMilliseconds);
         }
-        return StringLikeCaseMeasurement.From(query, matched, rowsVisited: matched, samples);
+        return StringLikeCaseMeasurement.From(query, matched, rowsVisited, samples);
+    }
+
+    private static string DescribeQuerySemantics(StringLikeLookupOptions options)
+    {
+        if (string.Equals(options.SearchMode, StringLikeLookupWorkload.SearchModePrefixScan, StringComparison.OrdinalIgnoreCase))
+            return "Polar.DB sequence scan with exact/prefix string predicates; name index is disabled by experiment option.";
+        if (string.Equals(options.SearchMode, StringLikeLookupWorkload.SearchModeContainsScan, StringComparison.OrdinalIgnoreCase))
+            return "Polar.DB sequence scan with contains predicate; contains LIKE is intentionally not treated as prefix-indexable.";
+        if (options.UseNameIndex)
+            return "Polar.DB SVectorIndex.GetAllByLike prefix comparator/range traversal for exact/prefix cases.";
+        return "Polar.DB string-like lookup without name index; expected to use sequence scan for scan-mode cases.";
     }
 }
