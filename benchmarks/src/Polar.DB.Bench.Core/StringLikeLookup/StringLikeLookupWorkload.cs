@@ -15,6 +15,13 @@ public static class StringLikeLookupWorkload
     public const string MeasuredIterationsOption = "measuredIterations";
     public const string IncludeContainsScanOption = "includeContainsScan";
     public const string PivotIdOption = "pivotId";
+    public const string SearchModeOption = "searchMode";
+    public const string UseNameIndexOption = "useNameIndex";
+
+    public const string SearchModeMixed = "mixed";
+    public const string SearchModeIndexedPrefix = "indexed-prefix";
+    public const string SearchModePrefixScan = "prefix-scan";
+    public const string SearchModeContainsScan = "contains-scan";
 
     public static bool IsStringLike(string? workloadKey) =>
         string.Equals(workloadKey, WorkloadKey, StringComparison.OrdinalIgnoreCase);
@@ -28,6 +35,9 @@ public static class StringLikeLookupWorkload
         if (spec.Dataset.RecordCount > int.MaxValue)
             throw new InvalidOperationException("string-like-prefix-lookup currently supports dataset.count <= int.MaxValue.");
 
+        var searchMode = NormalizeSearchMode(StringValue(spec.Workload, SearchModeOption, SearchModeMixed));
+        var defaultUseNameIndex = searchMode is SearchModeMixed or SearchModeIndexedPrefix;
+        var useNameIndex = Boolean(spec.Workload, UseNameIndexOption, defaultUseNameIndex);
         var groupCount = Positive(spec.Workload, GroupCountOption, 100);
         var subGroupCount = Positive(spec.Workload, SubGroupCountOption, 100);
         var payloadBytes = NonNegative(spec.Workload, PayloadBytesOption, 64);
@@ -39,7 +49,8 @@ public static class StringLikeLookupWorkload
 
         var options = new StringLikeLookupOptions(
             checked((int)spec.Dataset.RecordCount), groupCount, subGroupCount,
-            payloadBytes, seed, warmup, measured, includeContains, pivot);
+            payloadBytes, seed, warmup, measured, includeContains, pivot,
+            searchMode, useNameIndex);
 
         return options with { Queries = CreateCases(options) };
     }
@@ -62,16 +73,34 @@ public static class StringLikeLookupWorkload
         var groupPrefix = $"grp{group:D4}/";
         var subPrefix = $"grp{group:D4}/sub{sub:D4}/";
         var subToken = $"sub{sub:D4}";
-        var result = new List<StringLikeQueryCase>
+
+        var prefixCases = new List<StringLikeQueryCase>
         {
             new("exact1", StringLikeQueryKind.Exact, full, full, 1),
             new("prefix1", StringLikeQueryKind.Prefix, full + "%", full, 1),
             new("prefixSmall", StringLikeQueryKind.Prefix, subPrefix + "%", subPrefix, CountGroupSub(options, group, sub)),
             new("prefixMedium", StringLikeQueryKind.Prefix, groupPrefix + "%", groupPrefix, CountGroup(options, group))
         };
-        if (options.IncludeContainsScan)
-            result.Add(new StringLikeQueryCase("containsScan", StringLikeQueryKind.Contains, "%" + subToken + "%", subToken, CountSub(options, sub)));
-        return result;
+
+        var containsCase = new StringLikeQueryCase(
+            "containsScan", StringLikeQueryKind.Contains, "%" + subToken + "%", subToken, CountSub(options, sub));
+
+        return options.SearchMode switch
+        {
+            SearchModeIndexedPrefix => prefixCases,
+            SearchModePrefixScan => prefixCases,
+            SearchModeContainsScan => new[] { containsCase },
+            _ when options.IncludeContainsScan => Append(prefixCases, containsCase),
+            _ => prefixCases
+        };
+    }
+
+    private static IReadOnlyList<StringLikeQueryCase> Append(
+        List<StringLikeQueryCase> prefixCases,
+        StringLikeQueryCase containsCase)
+    {
+        prefixCases.Add(containsCase);
+        return prefixCases;
     }
 
     private static string CreateName(int id, int groupCount, int subGroupCount) =>
@@ -94,18 +123,38 @@ public static class StringLikeLookupWorkload
         return total;
     }
 
+    private static string NormalizeSearchMode(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            SearchModeMixed => SearchModeMixed,
+            SearchModeIndexedPrefix => SearchModeIndexedPrefix,
+            SearchModePrefixScan => SearchModePrefixScan,
+            SearchModeContainsScan => SearchModeContainsScan,
+            _ => throw new InvalidOperationException(
+                $"Unsupported string-like searchMode '{value}'. Supported: " +
+                $"{SearchModeMixed}, {SearchModeIndexedPrefix}, {SearchModePrefixScan}, {SearchModeContainsScan}.")
+        };
+    }
+
     private static int Positive(WorkloadSpec w, string key, int fallback) => Math.Max(1, Int(w, key, fallback));
     private static int NonNegative(WorkloadSpec w, string key, int fallback) => Math.Max(0, Int(w, key, fallback));
     private static int Int(WorkloadSpec w, string key, int fallback) =>
         w.Parameters is not null && w.Parameters.TryGetValue(key, out var value) &&
         int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+    private static string StringValue(WorkloadSpec w, string key, string fallback) =>
+        w.Parameters is not null && w.Parameters.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : fallback;
     private static bool Boolean(WorkloadSpec w, string key, bool fallback) =>
         w.Parameters is not null && w.Parameters.TryGetValue(key, out var value) && bool.TryParse(value, out var parsed) ? parsed : fallback;
 }
 
 public sealed record StringLikeLookupOptions(
     int RecordCount, int GroupCount, int SubGroupCount, int PayloadBytes,
-    int Seed, int WarmupIterations, int MeasuredIterations, bool IncludeContainsScan, int PivotId)
+    int Seed, int WarmupIterations, int MeasuredIterations, bool IncludeContainsScan, int PivotId,
+    string SearchMode, bool UseNameIndex)
 {
     public IReadOnlyList<StringLikeQueryCase> Queries { get; init; } = Array.Empty<StringLikeQueryCase>();
 }
