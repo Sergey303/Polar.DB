@@ -50,15 +50,6 @@ dist/
 publish/
 
 
-# benchmark working files
-benchmarks/work/
-benchmarks/tmp/
-benchmarks/scratch/
-benchmarks/runs/*/work/
-benchmarks/runs/*/tmp/
-benchmarks/runs/*/data/
-benchmarks/runs/*/artifacts/
-
 # engine files generated during runs
 benchmarks/**/*.db
 benchmarks/**/*.db-wal

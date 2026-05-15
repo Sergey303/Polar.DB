@@ -1,4 +1,4 @@
-﻿namespace Polar.DB
+namespace Polar.DB
 {
     internal struct HKeyObjOff
     {
