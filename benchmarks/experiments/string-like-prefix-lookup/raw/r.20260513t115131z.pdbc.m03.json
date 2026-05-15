@@ -1,0 +1,273 @@
+{
+  "run": "2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local",
+  "at": "2026-05-13T11:51:31.7362098+00:00",
+  "engine": "polar-db-current",
+  "experiment": "string-like-prefix-lookup",
+  "dataset": "string-like-names-1m",
+  "fairness": "lookup-prefix-balanced",
+  "set": "simple-20260513T115041",
+  "seq": 3,
+  "role": "measured",
+  "env": {
+    "env": "local",
+    "machine": "COMP",
+    "os": "Microsoft Windows 10.0.26200",
+    "osArch": "X64",
+    "processArch": "X64",
+    "framework": ".NET 10.0.7",
+    "is64Bit": true,
+    "cpuCount": 12,
+    "cwd": "D:\\projects\\Polar.DB",
+    "user": "LuxVe",
+    "git": {
+      "commit": "c7999a49f6f5a1a114b1dd7f0fe27f80c4fb90b0",
+      "branch": "dev_benchmarks"
+    }
+  },
+  "runtime": {
+    "source": "source-current"
+  },
+  "technical": true,
+  "semantic": true,
+  "metrics": [
+    {
+      "metric": "stringLike.exact1.matchedCount",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.exact1.expectedCount",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.exact1.rowsVisited",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.exact1.trimmedMeanMs",
+      "value": 0.0010083333333333333
+    },
+    {
+      "metric": "stringLike.exact1.p95Ms",
+      "value": 0.0036549999999999994
+    },
+    {
+      "metric": "stringLike.exact1.minMs",
+      "value": 0.0008
+    },
+    {
+      "metric": "stringLike.exact1.maxMs",
+      "value": 0.0074
+    },
+    {
+      "metric": "stringLike.exact1.success",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.prefix1.matchedCount",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.prefix1.expectedCount",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.prefix1.rowsVisited",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.prefix1.trimmedMeanMs",
+      "value": 0.0025041666666666667
+    },
+    {
+      "metric": "stringLike.prefix1.p95Ms",
+      "value": 0.016734999999999986
+    },
+    {
+      "metric": "stringLike.prefix1.minMs",
+      "value": 0.0008
+    },
+    {
+      "metric": "stringLike.prefix1.maxMs",
+      "value": 9.0427
+    },
+    {
+      "metric": "stringLike.prefix1.success",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.prefixSmall.matchedCount",
+      "value": 100
+    },
+    {
+      "metric": "stringLike.prefixSmall.expectedCount",
+      "value": 100
+    },
+    {
+      "metric": "stringLike.prefixSmall.rowsVisited",
+      "value": 100
+    },
+    {
+      "metric": "stringLike.prefixSmall.trimmedMeanMs",
+      "value": 0.36484999999999995
+    },
+    {
+      "metric": "stringLike.prefixSmall.p95Ms",
+      "value": 0.536225
+    },
+    {
+      "metric": "stringLike.prefixSmall.minMs",
+      "value": 0.3034
+    },
+    {
+      "metric": "stringLike.prefixSmall.maxMs",
+      "value": 4.3235
+    },
+    {
+      "metric": "stringLike.prefixSmall.success",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.prefixMedium.matchedCount",
+      "value": 10000
+    },
+    {
+      "metric": "stringLike.prefixMedium.expectedCount",
+      "value": 10000
+    },
+    {
+      "metric": "stringLike.prefixMedium.rowsVisited",
+      "value": 10000
+    },
+    {
+      "metric": "stringLike.prefixMedium.trimmedMeanMs",
+      "value": 45.8549875
+    },
+    {
+      "metric": "stringLike.prefixMedium.p95Ms",
+      "value": 49.74887999999999
+    },
+    {
+      "metric": "stringLike.prefixMedium.minMs",
+      "value": 43.0323
+    },
+    {
+      "metric": "stringLike.prefixMedium.maxMs",
+      "value": 63.3011
+    },
+    {
+      "metric": "stringLike.prefixMedium.success",
+      "value": 1
+    },
+    {
+      "metric": "stringLike.containsScan.matchedCount",
+      "value": 10000
+    },
+    {
+      "metric": "stringLike.containsScan.expectedCount",
+      "value": 10000
+    },
+    {
+      "metric": "stringLike.containsScan.rowsVisited",
+      "value": 1000000
+    },
+    {
+      "metric": "stringLike.containsScan.trimmedMeanMs",
+      "value": 292.32804166666665
+    },
+    {
+      "metric": "stringLike.containsScan.p95Ms",
+      "value": 302.49362499999995
+    },
+    {
+      "metric": "stringLike.containsScan.minMs",
+      "value": 286.5122
+    },
+    {
+      "metric": "stringLike.containsScan.maxMs",
+      "value": 309.6742
+    },
+    {
+      "metric": "stringLike.containsScan.success",
+      "value": 1
+    },
+    {
+      "metric": "elapsedMsTotal",
+      "value": 15516.8421
+    },
+    {
+      "metric": "elapsedMsSingleRun",
+      "value": 15516.8421
+    },
+    {
+      "metric": "loadMs",
+      "value": 433.6762
+    },
+    {
+      "metric": "buildMs",
+      "value": 2110.8525
+    },
+    {
+      "metric": "reopenRefreshMs",
+      "value": 1056.9492
+    },
+    {
+      "metric": "rowCountAfterReopen",
+      "value": 1000000
+    },
+    {
+      "metric": "totalArtifactBytes",
+      "value": 147000056
+    }
+  ],
+  "artifacts": [
+    {
+      "role": "SecondaryIndex",
+      "path": "artifacts\\2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local\\polar-db-string-like\\name.offsets.index",
+      "bytes": 8000008
+    },
+    {
+      "role": "SecondaryIndex",
+      "path": "artifacts\\2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local\\polar-db-string-like\\name.values.index",
+      "bytes": 29000008
+    },
+    {
+      "role": "SecondaryIndex",
+      "path": "artifacts\\2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local\\polar-db-string-like\\primary.hkeys.index",
+      "bytes": 4000008
+    },
+    {
+      "role": "SecondaryIndex",
+      "path": "artifacts\\2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local\\polar-db-string-like\\primary.offsets.index",
+      "bytes": 8000008
+    },
+    {
+      "role": "PrimaryData",
+      "path": "artifacts\\2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local\\polar-db-string-like\\sequence.polar.db",
+      "bytes": 98000008
+    },
+    {
+      "role": "State",
+      "path": "artifacts\\2026-05-13T11-51-16Z__string-like-pref-1874fbca39f1__string-like-name-3c994253406e__polar-db__local\\polar-db-string-like\\sequence.state",
+      "bytes": 16
+    }
+  ],
+  "diagnostics": {
+    "querySemantics": "Polar.DB SVectorIndex.GetAllByLike prefix comparator/range traversal for exact/prefix cases.",
+    "searchMode": "mixed",
+    "useNameIndex": "true",
+    "rowCountAfterReopen": "1000000",
+    "appendOffsetAfterReopen": "98000008",
+    "runtimeSource": "source-current"
+  },
+  "tags": {
+    "workload": "string-like-prefix-lookup",
+    "searchMode": "mixed",
+    "useNameIndex": "true",
+    "warmupCount": "1",
+    "measuredCount": "3",
+    "role": "measured"
+  },
+  "notes": [
+    "Polar.DB string-like lookup benchmark with explicit scan/index mode."
+  ]
+}
