@@ -1,0 +1,526 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>String LIKE prefix lookup - Benchmark Experiment</title>
+  <style>
+    :root {
+      --bg: #f7f8f9;
+      --panel: #ffffff;
+      --ink: #111315;
+      --muted: #5b636e;
+      --line: #d9dde3;
+      --accent: #0f6f9f;
+      --accent-2: #a04f15;
+      --good: #1f7a3f;
+      --warn: #9a6a05;
+      --bad: #9f1f2a;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --ui: "Segoe UI", "Noto Sans", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: linear-gradient(170deg, #eef2f5 0%, var(--bg) 50%, #f4f7fb 100%); color: var(--ink); font-family: var(--ui); }
+    .wrap { width: calc(100vw - 24px); max-width: none; margin: 0 auto; padding: 16px 12px 32px; }
+    .header { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.03); }
+    h1 { margin: 0 0 8px; font-size: clamp(1.35rem, 2vw, 2.05rem); line-height: 1.2; }
+    h2 { margin: 0 0 10px; font-size: 1.15rem; }
+    p { margin: 8px 0; line-height: 1.5; }
+    .meta { color: var(--muted); font-size: 0.92rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-top: 12px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.025); }
+    .card.wide { margin-top: 12px; overflow-x: auto; }
+    .card.wide table { min-width: max-content; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin-top: 8px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 7px 8px; vertical-align: top; text-align: left; }
+    th { font-weight: 650; background: #f3f6f9; }
+    tr:last-child td { border-bottom: none; }
+    code { font-family: var(--mono); font-size: 0.87em; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
+    .kpi { border: 1px solid var(--line); border-radius: 10px; background: #fafbfd; padding: 8px; }
+    .kpi .label { display: block; color: var(--muted); font-size: 0.82rem; margin-bottom: 2px; }
+    .kpi .val { font-size: 0.93rem; font-weight: 650; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; color: var(--muted); }
+    .swatch { width: 11px; height: 11px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.15); }
+    .status-on { color: var(--good); font-weight: 650; }
+    .status-off { color: var(--warn); font-weight: 650; }
+    .chart-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .chart-title { padding: 10px 12px 0; font-weight: 650; color: #20252b; }
+    .metric-cell { min-width: 118px; }
+    .metric-main { font-weight: 560; }
+    .metric-ratio { margin-top: 3px; color: var(--muted); font-size: 0.78rem; font-family: var(--mono); }
+    .metric-best { background: #eef9f1; }
+    .metric-best .metric-ratio { color: var(--good); font-weight: 700; }
+    svg.chart { min-width: 720px; width: 100%; height: auto; display: block; }
+    ul.clean { margin: 8px 0 0; padding-left: 18px; }
+    ul.clean li { margin: 4px 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .small { font-size: 0.84rem; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+<section class="header">
+  <h1>String LIKE prefix lookup</h1>
+  <p class="muted">Experiment: <code>string-like-prefix-lookup</code></p>
+  <p>Compare SQLite SQL LIKE with Polar.DB string prefix comparator/range traversal after load/build/reopen lifecycle.</p>
+  <p class="meta">
+    Generated: <span class="mono">2026-05-13 11:52:19 UTC</span>.
+    Missing metric values are rendered as <code>N/A</code>, never as zero.
+  </p>
+</section>
+<section class="grid">
+  <article class="card">
+    <h2>Dataset</h2>
+    <table>
+      <tr><th>Profile</th><td><code>string-like-names-1m</code></td></tr>
+      <tr><th>Count</th><td>1,000,000</td></tr>
+      <tr><th>Seed</th><td>20260507</td></tr>
+      <tr><th>Notes</th><td></td></tr>
+    </table>
+  </article>
+  <article class="card">
+    <h2>Workload</h2>
+    <table>
+      <tr><th>Type</th><td><code>string-like-prefix-lookup</code></td></tr>
+      <tr><th>Lookup</th><td>30</td></tr>
+      <tr><th>Batches</th><td>n/a</td></tr>
+      <tr><th>Batch size</th><td>n/a</td></tr>
+      <tr><th>Notes</th><td></td></tr>
+    </table>
+  </article>
+  <article class="card">
+    <h2>Fairness</h2>
+    <table>
+      <tr><th>Profile</th><td><code>lookup-prefix-balanced</code></td></tr>
+      <tr><th>Notes</th><td>SQLite uses LIKE with case_sensitive_like=ON; Polar.DB uses SVectorIndex.GetAllByLike for prefix cases and scan only for containsScan.</td></tr>
+      <tr><th>Research</th><td>RQ-LOOKUP-STRING-LIKE-001</td></tr>
+      <tr><th>Hypothesis</th><td>H-STRING-PREFIX-RANGE-COMPARATOR</td></tr>
+    </table>
+  </article>
+</section>
+<section class="card wide">
+  <h2>Targets</h2>
+  <table>
+    <thead><tr><th>Target</th><th>Engine family</th><th>NuGet</th><th>Runtime semantics</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>polar-db</code></td>
+        <td><code>current/source</code></td>
+        <td>polar-db current source</td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>sqlite</code></td>
+        <td><code>current/source</code></td>
+        <td>SQLite runtime used by the benchmark adapter</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+<section class="card wide">
+  <h2>Latest Target Comparison</h2>
+  <p>Status: <span class="status-on">enabled</span></p>
+  <div class="kpis">
+    <div class="kpi"><span class="label">Comparison set</span><span class="val mono">simple-20260513T115041</span></div>
+    <div class="kpi"><span class="label">Timestamp</span><span class="val mono">2026-05-13 11:52:09 UTC</span></div>
+    <div class="kpi"><span class="label">Dataset</span><span class="val mono">string-like-names-1m</span></div>
+    <div class="kpi"><span class="label">Fairness</span><span class="val mono">lookup-prefix-balanced</span></div>
+  </div>
+  <h3>Run status</h3>
+  <table>
+    <thead><tr><th>Target</th><th>Measured</th><th>Technical</th><th>Semantic</th></tr></thead>
+    <tbody>
+      <tr class="">
+        <td><code>polar-db-current</code></td>
+        <td>3</td>
+        <td>3/3</td>
+        <td>3/3</td>
+      </tr>
+      <tr class="">
+        <td><code>sqlite</code></td>
+        <td>3</td>
+        <td>3/3</td>
+        <td>3/3</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Timing</h3>
+  <p class="muted small">tm is trimmed mean without outliers. Missing metrics render as <code>N/A</code>, not as zero. Lower is better.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Target</th>
+        <th>Elapsed tm</th>
+        <th>Elapsed p95</th>
+        <th>Load tm</th>
+        <th>Load p95</th>
+        <th>Build tm</th>
+        <th>Build p95</th>
+        <th>Reopen tm</th>
+        <th>Reopen p95</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td class="metric-cell metric-compared" title="15304.662966666665">15.305 s <span class="badge metric-ratio">2.75× slower</span></td>
+        <td class="metric-cell metric-compared" title="15499.23992">15.499 s <span class="badge metric-ratio">2.77× slower</span></td>
+        <td class="metric-cell metric-best best" title="426.5795">426.58 ms <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="446.90935">446.909 ms <span class="badge best">best</span></td>
+        <td class="metric-cell metric-compared" title="2014.9369333333334">2.015 s <span class="badge metric-ratio">2.61× slower</span></td>
+        <td class="metric-cell metric-compared" title="2098.53606">2.099 s <span class="badge metric-ratio">2.7× slower</span></td>
+        <td class="metric-cell metric-compared" title="987.3681333333334">987.368 ms <span class="badge metric-ratio">48.98× slower</span></td>
+        <td class="metric-cell metric-compared" title="1050.20162">1.05 s <span class="badge metric-ratio">49.53× slower</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td class="metric-cell metric-best best" title="5573.688966666666">5.574 s <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="5598.6261700000005">5.599 s <span class="badge best">best</span></td>
+        <td class="metric-cell metric-compared" title="1878.0798000000002">1.878 s <span class="badge metric-ratio">4.4× slower</span></td>
+        <td class="metric-cell metric-compared" title="1902.4986000000001">1.902 s <span class="badge metric-ratio">4.26× slower</span></td>
+        <td class="metric-cell metric-best best" title="770.5940333333333">770.594 ms <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="777.93998">777.94 ms <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="20.159833333333335">20.16 ms <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="21.20344">21.203 ms <span class="badge best">best</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>LIKE search cases</h3>
+  <p class="muted small">Per-query search comparison. tm is based on <code>stringLike.*.trimmedMeanMs</code>; p95 is based on <code>stringLike.*.p95Ms</code>. Lower timing is better.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Target</th>
+        <th>Query</th>
+        <th>Matched / expected</th>
+        <th>Rows visited</th>
+        <th>Success</th>
+        <th>Search tm</th>
+        <th>Search p95</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>exact1</code></td>
+        <td>1 / 1</td>
+        <td>1</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-best best" title="0.00105">1.05 us <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="0.005911666666666662">5.912 us <span class="badge best">best</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>exact1</code></td>
+        <td>1 / 1</td>
+        <td>1</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-compared" title="0.004843055555555555">4.843 us <span class="badge metric-ratio">4.61× slower</span></td>
+        <td class="metric-cell metric-compared" title="0.008236666666666668">8.237 us <span class="badge metric-ratio">1.39× slower</span></td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>prefix1</code></td>
+        <td>1 / 1</td>
+        <td>1</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-best best" title="0.0014263888888888891">1.426 us <span class="badge best">best</span></td>
+        <td class="metric-cell metric-compared" title="0.007701666666666659">7.702 us <span class="badge metric-ratio">1.49× slower</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>prefix1</code></td>
+        <td>1 / 1</td>
+        <td>1</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-compared" title="0.00448611111111111">4.486 us <span class="badge metric-ratio">3.15× slower</span></td>
+        <td class="metric-cell metric-best best" title="0.005173333333333333">5.173 us <span class="badge best">best</span></td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>prefixSmall</code></td>
+        <td>100 / 100</td>
+        <td>100</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-compared" title="0.3623513888888889">362.351 us <span class="badge metric-ratio">52.36× slower</span></td>
+        <td class="metric-cell metric-compared" title="0.6719533333333331">671.953 us <span class="badge metric-ratio">87.67× slower</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>prefixSmall</code></td>
+        <td>100 / 100</td>
+        <td>100</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-best best" title="0.006920833333333334">6.921 us <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="0.007664999999999999">7.665 us <span class="badge best">best</span></td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>prefixMedium</code></td>
+        <td>10,000 / 10,000</td>
+        <td>10,000</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-compared" title="45.18706805555556">45.187 ms <span class="badge metric-ratio">199.12× slower</span></td>
+        <td class="metric-cell metric-compared" title="48.87370666666666">48.874 ms <span class="badge metric-ratio">128.93× slower</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>prefixMedium</code></td>
+        <td>10,000 / 10,000</td>
+        <td>10,000</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-best best" title="0.22692916666666663">226.929 us <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="0.37907166666666664">379.072 us <span class="badge best">best</span></td>
+      </tr>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>containsScan</code></td>
+        <td>10,000 / 10,000</td>
+        <td>1,000,000</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-compared" title="291.71887083333337">291.719 ms <span class="badge metric-ratio">3.56× slower</span></td>
+        <td class="metric-cell metric-compared" title="300.73937166666667">300.739 ms <span class="badge metric-ratio">3.53× slower</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>containsScan</code></td>
+        <td>10,000 / 10,000</td>
+        <td>1,000,000</td>
+        <td><span class="status-on">yes</span></td>
+        <td class="metric-cell metric-best best" title="81.91300416666667">81.913 ms <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="85.30490666666667">85.305 ms <span class="badge best">best</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Stability</h3>
+  <p class="muted small">p95/p99/tm/MAD/jitter%/outliers. Empty cells mean the statistic could not be computed.</p>
+  <table>
+    <thead><tr><th>Target</th>
+<th>Elapsed stability</th>
+<th>Load stability</th>
+<th>Build stability</th>
+<th>Reopen stability</th>
+</tr></thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td>p95:15.499 s p99:15.513 s tm:15.305 s mad:176.022 ms jit:1% out:0</td>
+        <td>p95:446.909 ms p99:448.086 ms tm:426.58 ms mad:14.704 ms jit:3.1% out:0</td>
+        <td>p95:2.099 s p99:2.108 s tm:2.015 s mad:41.418 ms jit:5.6% out:0</td>
+        <td>p95:1.05 s p99:1.056 s tm:987.368 ms mad:67.476 ms jit:6.1% out:0</td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td>p95:5.599 s p99:5.601 s tm:5.574 s mad:16.408 ms jit:0.6% out:0</td>
+        <td>p95:1.902 s p99:1.906 s tm:1.878 s mad:7.745 ms jit:1.9% out:0</td>
+        <td>p95:777.94 ms p99:778.48 ms tm:770.594 ms mad:6.744 ms jit:0.8% out:0</td>
+        <td>p95:21.203 ms p99:21.307 ms tm:20.16 ms mad:933.4 us jit:5.8% out:0</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Storage footprint</h3>
+  <p class="muted small">Storage uses p50 by default. Missing values render as <code>N/A</code>.</p>
+  <table>
+    <thead><tr><th>Target</th><th>Total bytes p50</th><th>Primary bytes p50</th><th>Side bytes p50</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td class="metric-cell metric-best best" title="147000056">140.19 MiB <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="98000008">93.46 MiB <span class="badge best">best</span></td>
+        <td class="metric-cell metric-best best" title="49000048">46.73 MiB <span class="badge best">best</span></td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td class="metric-cell metric-compared" title="248645992">237.127 MiB <span class="badge metric-ratio">1.69× larger</span></td>
+        <td class="metric-cell metric-compared" title="142536704">135.934 MiB <span class="badge metric-ratio">1.45× larger</span></td>
+        <td class="metric-cell metric-compared" title="106109288">101.194 MiB <span class="badge metric-ratio">2.17× larger</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Notes</h3>
+  <ul>
+    <li>Compares latest successful measured series per target inside this experiment.</li>
+    <li>Generated automatically when experiment manifest contains multiple targets.</li>
+  </ul>
+  <h3>Derived expectations</h3>
+  <ul>
+    <li>Expected measured elapsed for &#39;polar-db-current&#39; near 15304.663 ms under the same fairness profile.</li>
+    <li>Expected measured elapsed for &#39;sqlite&#39; near 5573.689 ms under the same fairness profile.</li>
+    <li>In this snapshot &#39;sqlite&#39; is faster than &#39;polar-db-current&#39; by elapsed average context.</li>
+  </ul>
+</section>
+<section class="card wide">
+  <h2>History</h2>
+  <table>
+    <thead><tr><th>#</th><th>Set</th><th>Timestamp</th>
+<th>Elapsed tm: <code>polar-db-current</code></th>
+<th>Elapsed tm: <code>sqlite</code></th>
+</tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><code>simple-20260513T115041</code></td>
+        <td class="mono">2026-05-13 11:52:09 UTC</td>
+        <td>15.305 s</td>
+        <td>5.574 s</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Notes</h3>
+  <ul>
+    <li>Compares successful measured series of the same experiment over time.</li>
+  </ul>
+  <h3>Derived expectations</h3>
+  <ul>
+    <li>History has one snapshot only; trend expectations require at least two measured series.</li>
+  </ul>
+</section>
+<section class="card wide">
+  <h2>Context With Other Experiments</h2>
+  <p class="muted">This section is context-only and does not claim strict apples-to-apples equivalence.</p>
+  <p class="muted">No resolved external snapshots were found for auto-discovered experiments.</p>
+  <h3>Notes</h3>
+  <ul>
+    <li>Cross-experiment comparison is context only; workloads may be semantically different.</li>
+    <li>No workload similarity or apples-to-apples scoring is inferred in this artifact.</li>
+    <li>Skipped &#39;lookup-all-matching-guid&#39;: raw directory not found.</li>
+    <li>Skipped &#39;lookup-all-matching-int&#39;: raw directory not found.</li>
+    <li>Skipped &#39;lookup-all-matching-long&#39;: raw directory not found.</li>
+    <li>Skipped &#39;lookup-exact-one-guid&#39;: raw directory not found.</li>
+    <li>Skipped &#39;lookup-exact-one-int&#39;: raw directory not found.</li>
+    <li>Skipped &#39;lookup-exact-one-long&#39;: raw directory not found.</li>
+    <li>Skipped &#39;persons-append-cycles-reopen-lookup&#39;: raw directory not found.</li>
+    <li>Skipped &#39;persons-full-adapter-coverage-version-matrix&#39;: raw directory not found.</li>
+    <li>Skipped &#39;persons-load-build-no-reopen-random-lookup&#39;: raw directory not found.</li>
+    <li>Skipped &#39;persons-load-build-reopen-random-lookup&#39;: raw directory not found.</li>
+    <li>Skipped &#39;persons-reference-load-build-reopen-lookup-100k&#39;: raw directory not found.</li>
+    <li>Skipped &#39;persons-reference-load-build-reopen-lookup-5m&#39;: raw directory not found.</li>
+    <li>Skipped &#39;polar-db-search-point-and-category-1m&#39;: raw directory not found.</li>
+    <li>Skipped &#39;polar-db-search-point-and-category-no-warm-1m&#39;: raw directory not found.</li>
+    <li>Skipped &#39;polar-db-u-sequence-reverse-load-build-random-lookup-1m&#39;: raw directory not found.</li>
+    <li>Skipped &#39;string-like-contains-scan&#39;: no complete successful measured series.</li>
+    <li>Skipped &#39;string-like-prefix-lookup-indexed&#39;: no complete successful measured series.</li>
+    <li>Skipped &#39;string-like-prefix-lookup-scan&#39;: no complete successful measured series.</li>
+  </ul>
+</section>
+<section class="card wide">
+  <h2>Machine-Readable Artifacts</h2>
+  <p class="muted small">These links point to raw facts and derived JSON artifacts inside this experiment folder.</p>
+  <h3>Latest Raw Files</h3>
+  <table>
+    <thead><tr><th>Path</th><th>Bytes</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>raw/r.20260513t115209z.sqlite.m04.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115203z.sqlite.m03.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115158z.sqlite.m02.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115152z.sqlite.w01.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115146z.pdbc.m04.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115131z.pdbc.m03.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115116z.pdbc.m02.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>raw/r.20260513t115100z.pdbc.w01.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Analyzed Files</h3>
+  <table>
+    <thead><tr><th>Path</th><th>Bytes</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>analyzed/latest-series.sqlite.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>analyzed/latest-series.polar-db-current.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Comparison Files</h3>
+  <table>
+    <thead><tr><th>Path</th><th>Bytes</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>comparisons/latest-other-experiments.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>comparisons/latest-history.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>comparisons/latest-engines.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><code>comparisons/cs.20260513t115214z.simple-202-8c77971c.57e60c6097.json</code></td>
+        <td>N/A</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Local Analyzed Snapshot</h3>
+  <table>
+    <thead><tr><th>Target</th><th>Set</th><th>Elapsed tm</th><th>Total bytes p50</th><th>Measured</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>polar-db-current</code></td>
+        <td><code>simple-20260513T115041</code></td>
+        <td>15.305 s</td>
+        <td>140.19 MiB</td>
+        <td>3</td>
+      </tr>
+      <tr>
+        <td><code>sqlite</code></td>
+        <td><code>simple-20260513T115041</code></td>
+        <td>5.574 s</td>
+        <td>237.127 MiB</td>
+        <td>3</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+</div>
+</body>
+</html>

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,26 +13,23 @@ public static class RunIdFactory
         string engineKey,
         string environmentClass)
     {
-        var timestamp = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH-mm-ssZ");
+        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssZ");
+        var engineToken = ResultPathBuilder.CompactEngineKey(engineKey);
 
-        return $"{timestamp}__" +
-               $"{CompactToken(experimentKey, 16)}__" +
-               $"{CompactToken(datasetProfileKey, 16)}__" +
-               $"{CompactToken(engineKey, 12)}__" +
-               $"{CompactToken(environmentClass, 8)}";
+        var identityHash = ComputeShortHash(
+            JoinIdentity(experimentKey, datasetProfileKey, engineKey, environmentClass),
+            byteCount: 5);
+
+        var nonce = Convert
+            .ToHexString(RandomNumberGenerator.GetBytes(3))
+            .ToLowerInvariant();
+
+        return $"r-{timestamp}-{engineToken}-{identityHash}-{nonce}";
     }
 
-    private static string CompactToken(string value, int prefixLength)
+    private static string JoinIdentity(params string[] values)
     {
-        var normalized = NormalizeFileToken(value);
-        if (normalized.Length <= prefixLength)
-        {
-            return normalized;
-        }
-
-        var prefix = normalized[..prefixLength];
-        var hash = ComputeShortHash(normalized);
-        return $"{prefix}-{hash}";
+        return string.Join("|", values.Select(NormalizeFileToken));
     }
 
     private static string NormalizeFileToken(string value)
@@ -46,14 +44,7 @@ public static class RunIdFactory
 
         foreach (var ch in trimmed)
         {
-            if (char.IsLetterOrDigit(ch))
-            {
-                buffer.Append(ch);
-            }
-            else
-            {
-                buffer.Append('-');
-            }
+            buffer.Append(char.IsLetterOrDigit(ch) ? ch : '-');
         }
 
         var normalized = buffer.ToString();
@@ -66,9 +57,9 @@ public static class RunIdFactory
         return string.IsNullOrWhiteSpace(normalized) ? "empty" : normalized;
     }
 
-    private static string ComputeShortHash(string value)
+    private static string ComputeShortHash(string value, int byteCount)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return Convert.ToHexString(bytes[..6]).ToLowerInvariant();
+        return Convert.ToHexString(bytes[..byteCount]).ToLowerInvariant();
     }
 }

@@ -50,29 +50,6 @@ dist/
 publish/
 
 
-# engine files generated during runs
-benchmarks/**/*.db
-benchmarks/**/*.db-wal
-benchmarks/**/*.db-shm
-benchmarks/**/*.sqlite
-benchmarks/**/*.sqlite-wal
-benchmarks/**/*.sqlite-shm
-benchmarks/**/*.journal
-benchmarks/**/*.state
-benchmarks/**/*.index
-benchmarks/**/*.pdbbin
-benchmarks/**/*.pdbstate
-
-# generated analysis/reports
-benchmarks/results/analyzed/
-benchmarks/reports/
-
-# generated benchmark experiment outputs
-benchmarks/experiments/*/raw/
-benchmarks/experiments/*/analyzed/
-benchmarks/experiments/*/comparisons/
-benchmarks/experiments/*/index.html
-benchmarks/.work/
 
 # patch files
 *.patch
