@@ -1,10 +1,18 @@
-namespace Polar.DB
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Polar.DB;
+
+namespace Polar.Universal
 {
     public class USequence
     {
         // У универсальной последовательности нет динамической части. Все элементы доступны через методы.
         // Однако элемент может быть пустым. 
-        public UniversalSequenceBase sequence;
+        private UniversalSequenceBase sequence;
         private Func<object, bool> isEmpty;
         private Func<object, IComparable> keyFunc;
         private UKeyIndex primaryKeyIndex;
@@ -22,165 +30,45 @@ namespace Polar.DB
             primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
         }
 
-        /// <summary>
-        /// Optional sidecar state file storing the last synchronized count and append offset.
-        /// </summary>
-        private readonly string? stateFileName;
-
-        private void SaveState()
-        {
-            if (stateFileName == null) return;
-
-            string? dir = Path.GetDirectoryName(stateFileName);
-            if (!string.IsNullOrEmpty(dir))
-                Directory.CreateDirectory(dir);
-
-            using var statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
-            using var writer = new BinaryWriter(statefile);
-            writer.Write(sequence.Count());
-            writer.Write(sequence.ElementOffset());
-        }
-
-        private (long Count, long AppendOffset) ReadStateOrDefault()
-        {
-            if (stateFileName == null) return (0L, 8L);
-            if (!File.Exists(stateFileName)) return (0L, 8L);
-
-            var info = new FileInfo(stateFileName);
-            if (info.Length < sizeof(long) * 2) return (0L, 8L);
-
-            using var statefile = new FileStream(stateFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new BinaryReader(statefile);
-
-            long statenelements = reader.ReadInt64();
-            long elementoffset = reader.ReadInt64();
-            if (statenelements < 0L || elementoffset < 8L) return (0L, 8L);
-
-            return (statenelements, elementoffset);
-        }
-
-        private void RefreshStaticState()
-        {
-            sequence.Refresh();
-            primaryKeyIndex.Refresh();
-            foreach (var ui in uindexes) ui.Refresh();
-        }
-
-        private void ReplayDynamicTailFromState(bool applyToPrimary, bool applyToSecondary, bool updateStateFile)
-        {
-            if (stateFileName == null) return;
-
-            var state = ReadStateOrDefault();
-            long synchronizedCount = state.Count;
-            long synchronizedAppendOffset = state.AppendOffset;
-
-            long currentCount = sequence.Count();
-            if (currentCount <= synchronizedCount)
-            {
-                if (updateStateFile) SaveState();
-                return;
-            }
-
-            long additionalCount = currentCount - synchronizedCount;
-            var additional = sequence.ElementOffsetValuePairs(synchronizedAppendOffset, additionalCount);
-            foreach (var pair in additional)
-            {
-                if (applyToPrimary)
-                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
-
-                if (applyToSecondary)
-                {
-                    foreach (var uind in uindexes)
-                        uind.OnAppendElement(pair.Item2, pair.Item1);
-                }
-            }
-
-            if (updateStateFile) SaveState();
-        }
-
-        /// <summary>
-        /// Restores reopened-instance consistency from sidecar state.
-        /// </summary>
-        /// <remarks>
-        /// The method refreshes static state, replays unsynchronized primary-key dynamics, rebuilds persisted indexes and
-        /// only then advances sidecar state. This keeps restart behavior stable across repeated crashes/restarts.
-        /// </remarks>
+        // Файл для сохранения параметров состояния. Команда сохранения выполняется в конце Load()
+        // Имя файла может быть null, тогда это означает, что состояние не фиксируется и не восстанавливается
+        private string? stateFileName;
+        
+        // Следующий метод актуален только если statefile != null
         public void RestoreDynamic()
         {
-            if (stateFileName == null)
+            FileStream statefile = new FileStream(stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
+            BinaryReader reader = new BinaryReader(statefile);
+            long statenelements = reader.ReadInt64(); //old sequence.Count();
+            long elementoffset = reader.ReadInt64(); // sequence.ElementOffset();
+            statefile.Close();
+            // А текущий размер:
+            long nelements = sequence.Count();
+            // Динамику надо воспроизводить только если размер увеличился
+            Console.WriteLine($"{nelements - statenelements} elements added");
+            if (nelements > statenelements)
             {
-                RefreshStaticState();
-                return;
+                var additional = sequence.ElementOffsetValuePairs(elementoffset, nelements - statenelements);
+                foreach (var pair in additional)
+                {
+                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
+                }
             }
-
-            RefreshStaticState();
-
-            var state = ReadStateOrDefault();
-            bool hasUnsynchronizedTail = sequence.Count() > state.Count;
-            if (!hasUnsynchronizedTail)
-            {
-                SaveState();
-                return;
-            }
-
-            ReplayDynamicTailFromState(applyToPrimary: true, applyToSecondary: false, updateStateFile: false);
-            Build();
         }
 
-        /// <summary>
-        /// Clears sequence storage, primary index and all secondary indexes.
-        /// </summary>
-        public void Clear()
-        {
-            sequence.Clear();
-            primaryKeyIndex.Clear();
-            foreach (var ui in uindexes) ui.Clear();
-            SaveState();
-        }
+        public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
+        public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
+        public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
+        public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
 
-        /// <summary>
-        /// Flushes sequence and index streams.
-        /// </summary>
-        public void Flush()
-        {
-            sequence.Flush();
-            primaryKeyIndex.Flush();
-            foreach (var ui in uindexes) ui.Flush();
-        }
-
-        /// <summary>
-        /// Flushes and closes sequence and index streams.
-        /// </summary>
-        public void Close()
-        {
-            sequence.Close();
-            primaryKeyIndex.Close();
-            foreach (var ui in uindexes) ui.Close();
-        }
-
-        /// <summary>
-        /// Reloads static state and replays unsynchronized dynamic tail into the primary-key index.
-        /// </summary>
-        /// <remarks>
-        /// Secondary index dynamic replay is intentionally omitted here to avoid duplicate in-memory entries.
-        /// Use <see cref="RestoreDynamic"/> when full recovery plus persisted synchronization is required.
-        /// </remarks>
-        public void Refresh()
-        {
-            RefreshStaticState();
-            ReplayDynamicTailFromState(applyToPrimary: true, applyToSecondary: false, updateStateFile: false);
-        }
-
-        /// <summary>
-        /// Replaces sequence contents with provided flow while skipping logically empty elements.
-        /// </summary>
-        /// <param name="flow">Elements to append in order.</param>
         public void Load(IEnumerable<object> flow)
         {
             Clear();
-
-            sequence.AppendElements(flow.Where(element => !isEmpty(element)));
-
+            foreach (var element in flow)
+            {
+                if (!isEmpty(element)) sequence.AppendElement(element);
+            }
             Flush();
 
             if (stateFileName != null)
@@ -200,137 +88,49 @@ namespace Polar.DB
         public IEnumerable<object> ElementValues()
         {
             return sequence.ElementOffsetValuePairs()
+                // Оставляем оригиналы и непустые
                 .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
                 .Select(pair => pair.Item2);
         }
         public void Scan(Func<long, object, bool> handler)
         {
-            _ = handler ?? throw new ArgumentNullException(nameof(handler));
-            sequence.Scan((off, ob) => IsOriginalAndNotEmpty(ob, off) ? handler(off, ob) : true);
-        }
-
-        internal LogicalBuildEntry[] CreateLogicalBuildSnapshot()
-        {
-            long count = Count;
-            int capacity = count > int.MaxValue ? int.MaxValue : (int)count;
-            List<LogicalBuildEntry> snapshot = new List<LogicalBuildEntry>(capacity);
-
-            Scan((off, obj) =>
+            sequence.Scan((off, ob) => 
             {
-                snapshot.Add(new LogicalBuildEntry(off, obj));
-                return true;
-            });
-
-            return snapshot.ToArray();
-        }
-
-        /// <summary>
-        /// Appends one element to sequence and updates primary/secondary dynamic indexes.
-        /// </summary>
-        /// <param name="element">Element to append.</param>
-        /// <returns>Physical stream offset where the element was written.</returns>
-        public long AppendElement(object element)
-        {
-            _ = element ?? throw new ArgumentNullException(nameof(element));
-            long off = sequence.AppendElement(element);
-            primaryKeyIndex.OnAppendElement(element, off);
-            foreach (var uind in uindexes) uind.OnAppendElement(element, off);
-            return off;
-        }
-
-        /// <summary>
-        /// Appends a batch of elements to the dynamic tail using a sequential write path, then updates dynamic indexes.
-        /// </summary>
-        /// <param name="flow">Elements to append in order.</param>
-        /// <remarks>
-        /// This method intentionally does not advance the sidecar state file. The sidecar state describes the last
-        /// persisted index synchronization point, not merely the last data byte. Call <see cref="Build"/> when the
-        /// dynamic tail must be persisted into indexes and synchronized state.
-        /// </remarks>
-        public void AppendElements(IEnumerable<object> flow)
-        {
-            _ = flow ?? throw new ArgumentNullException(nameof(flow));
-
-            sequence.AppendElements(
-                flow.Where(element => !isEmpty(element)),
-                (element, off) =>
+                if (IsOriginalAndNotEmpty(ob, off)) 
                 {
-                    primaryKeyIndex.OnAppendElement(element, off);
-                    foreach (var uind in uindexes)
-                        uind.OnAppendElement(element, off);
-                });
+                    bool ok = handler(off, ob);
+                    return ok;
+                } 
+                return true; // Реакция на не оригинал или пустой
+            });
         }
-        /// <summary>
-        /// Replays one already-written element into dynamic index state.
-        /// </summary>
-        /// <param name="off">Physical stream offset of the element to replay.</param>
+        public void AppendElement(object element)
+        {
+            long off = sequence.AppendElement(element);
+            // Корректировка индексов
+            primaryKeyIndex.OnAppendElement(element, off);
+            if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+        }
         public void CorrectOnAppendElement(long off)
         {
             object element = sequence.GetElement(off);
+            // Корректировка индексов
             primaryKeyIndex.OnAppendElement(element, off);
-            foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+            if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
 
-        /// <summary>
-        /// Gets the latest logical record for a primary key sample.
-        /// </summary>
-        /// <param name="keysample">Primary key sample.</param>
-        /// <returns>Matching logical record, or <see langword="null"/> when no match exists.</returns>
         public object GetByKey(IComparable keysample)
         {
-            _ = keysample ?? throw new ArgumentNullException(nameof(keysample));
             return primaryKeyIndex.GetByKey(keysample);
-        }
-
-        public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample)
-        {
-            return primaryKeyIndex.GetOffsetsByKey(keysample);
-        }
-
-        public int CountByKey(IComparable keysample)
-        {
-            return primaryKeyIndex.CountByKey(keysample);
-        }
-
-        public bool TryGetExactlyOneOffsetByKey(IComparable keysample, out long offset)
-        {
-            return primaryKeyIndex.TryGetExactlyOneOffsetByKey(keysample, out offset);
-        }
-
-        public long GetExactlyOneOffsetByKey(IComparable keysample)
-        {
-            return primaryKeyIndex.GetExactlyOneOffsetByKey(keysample);
-        }
-
-        public IEnumerable<object> GetAllByKey(IComparable keysample)
-        {
-            return primaryKeyIndex.GetAllByKey(keysample);
-        }
-
-        public object GetExactlyOneByKey(IComparable keysample)
-        {
-            return primaryKeyIndex.GetExactlyOneByKey(keysample);
         }
 
         internal object GetByOffset(long off)
         {
-            object? vv = Sequence.GetElement(off);
-            return vv == null || isEmpty(vv) ? null : vv;
+            return sequence.GetElement(off);
         }
 
-        /// <summary>
-        /// Retrieves candidates by one secondary index and returns logical non-empty originals.
-        /// </summary>
-        /// <param name="nom">Secondary index position in <see cref="uindexes"/>.</param>
-        /// <param name="value">Lookup sample.</param>
-        /// <param name="keysFunc">Exact key extractor used to filter hash-only indexes.</param>
-        /// <param name="ignorecase">Whether to normalize string comparison to uppercase.</param>
-        /// <returns>Logical records that match the sample for the selected secondary index.</returns>
-        public IEnumerable<object> GetAllByValue(
-            int nom,
-            IComparable value,
-            Func<object, IEnumerable<IComparable>> keysFunc,
-            bool ignorecase = false)
+        public IEnumerable<object> GetAllByValue(int nom, IComparable value,
+            Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)
         {
             if (uindexes[nom] is SVectorIndex)
             {
@@ -342,8 +142,7 @@ namespace Polar.DB
                     ;
                 return query;
             }
-
-            if (uindexes[nom] is UVectorIndex uind)
+            if (uindexes[nom] is UVectorIndex)
             {
                 var uind = (UVectorIndex)uindexes[nom];
                 IEnumerable<object> query = uind.GetAllByValue((IComparable)value)
@@ -352,8 +151,7 @@ namespace Polar.DB
                     ;
                 return query;
             }
-
-            if (uindexes[nom] is UVecIndex uvind)
+            if (uindexes[nom] is UVecIndex)
             {
                 var uvind = (UVecIndex)uindexes[nom];
 
@@ -368,13 +166,6 @@ namespace Polar.DB
             }
             else throw new Exception("93394");
         }
-
-        /// <summary>
-        /// Retrieves candidates by a sample object using <see cref="UIndex"/> at the selected slot.
-        /// </summary>
-        /// <param name="nom">Secondary index position in <see cref="uindexes"/>.</param>
-        /// <param name="osample">Sample object for value comparer.</param>
-        /// <returns>Logical records that match the sample.</returns>
         public IEnumerable<object> GetAllBySample(int nom, object osample)
         {
             if (uindexes[nom] is UIndex)
@@ -382,18 +173,13 @@ namespace Polar.DB
                 var uind = (UIndex)uindexes[nom];
                 IEnumerable<object> query = uind.GetAllBySample(osample)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
+                    .Select(obof => obof.obj)
+                    //.Select(ob => ConvertNaming(ob))
+                    ;
+                return query;
             }
-
-            throw new Exception("93394");
+            else throw new Exception("93394");
         }
-
-        /// <summary>
-        /// Retrieves string-prefix matches using <see cref="SVectorIndex"/> at the selected slot.
-        /// </summary>
-        /// <param name="nom">Secondary index position in <see cref="uindexes"/>.</param>
-        /// <param name="sample">Prefix sample string.</param>
-        /// <returns>Logical records that match the prefix.</returns>
         public IEnumerable<object> GetAllByLike(int nom, object sample)
         {
             var uind = uindexes[nom];
@@ -411,37 +197,8 @@ namespace Polar.DB
 
         public void Build()
         {
-            sequence.Flush();
-
-            LogicalBuildEntry[] snapshot = CreateLogicalBuildSnapshot();
-
-            primaryKeyIndex.BuildFromSnapshot(snapshot);
-            foreach (var ind in uindexes)
-            {
-                switch (ind)
-                {
-                    case UVectorIndex uVectorIndex:
-                        uVectorIndex.BuildFromSnapshot(snapshot);
-                        break;
-                    case UVecIndex uVecIndex:
-                        uVecIndex.BuildFromSnapshot(snapshot);
-                        break;
-                    case SVectorIndex sVectorIndex:
-                        sVectorIndex.BuildFromSnapshot(snapshot);
-                        break;
-                    case UIndex uIndex:
-                        uIndex.BuildFromSnapshot(snapshot);
-                        break;
-                    default:
-                        ind.Build();
-                        break;
-                }
-            }
-
-            primaryKeyIndex.Flush();
-            foreach (var ind in uindexes) ind.Flush();
-
-            SaveState();
+            this.primaryKeyIndex.Build();
+            foreach (var ind in uindexes) ind.Build();
         }
     }
 }

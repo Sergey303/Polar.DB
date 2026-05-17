@@ -1,4 +1,12 @@
-﻿namespace Polar.DB
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Polar.DB;
+
+namespace Polar.Universal
 {
     public class SVectorIndex : IUIndex
     {
@@ -232,9 +240,5 @@
             }
         }
 
-        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
-        {
-           this.Build();
-        }
     }
 }

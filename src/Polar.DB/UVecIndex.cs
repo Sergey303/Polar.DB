@@ -1,4 +1,13 @@
-﻿namespace Polar.DB
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Polar.DB;
+
+namespace Polar.Universal
 {
     /// <summary>
     /// </summary>
@@ -268,11 +277,6 @@
                 }
             }
             return right_equal;
-        }
-
-        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
-        {
-                      this.Build();
         }
 
         ///// <summary>

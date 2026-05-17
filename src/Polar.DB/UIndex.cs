@@ -1,4 +1,12 @@
-namespace Polar.DB
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Polar.DB;
+
+namespace Polar.Universal
 {
     internal struct HKeyObjOff
     {
@@ -120,9 +128,11 @@ namespace Polar.DB
 
             Array.Sort(hkeys_arr, offsets_arr);
 
-            hkeys!.Clear();
-            hkeys.AppendElements(hkeys_arr.Select(static x => (object)x));
+            hkeys.Clear();
+            foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
             hkeys.Flush();
+            //hkeys_arr = null;
+            //GC.Collect();
 
             offsets.Clear();
             foreach (var off in offsets_arr) { offsets.AppendElement(off); }
@@ -246,10 +256,6 @@ namespace Polar.DB
             return right_equal;
         }
 
-        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
-        {
-           this.Build();
-        }
     }
 
 }
