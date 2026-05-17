@@ -38,7 +38,7 @@ namespace Polar.DB
             using var statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
             using var writer = new BinaryWriter(statefile);
             writer.Write(sequence.Count());
-            writer.Write(sequence.AppendOffset);
+            writer.Write(sequence.ElementOffset());
         }
 
         private (long Count, long AppendOffset) ReadStateOrDefault()

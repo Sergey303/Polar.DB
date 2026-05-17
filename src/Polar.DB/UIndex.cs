@@ -246,6 +246,10 @@ namespace Polar.DB
             return right_equal;
         }
 
+        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
+        {
+           this.Build();
+        }
     }
 
 }

@@ -270,6 +270,11 @@
             return right_equal;
         }
 
+        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
+        {
+                      this.Build();
+        }
+
         ///// <summary>
         ///// Определяет является ли пара (key, offset) оригиналом или нет. Если такого ключа нет в дин. индексе, то это оригинал
         ///// Если есть, то надо проверить офсет

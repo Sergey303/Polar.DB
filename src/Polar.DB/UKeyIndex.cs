@@ -645,6 +645,11 @@ namespace Polar.DB
             return true; // TODO: здесь предполагается, что в основном индексе есть такое значение.
         }
 
+        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
+        {
+           this.Build();
+        }
+
         private enum TypedKeyKind
         {
             None,

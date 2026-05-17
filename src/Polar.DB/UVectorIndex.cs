@@ -119,6 +119,11 @@
                 }
             }
         }
+
+        internal void BuildFromSnapshot(USequence.LogicalBuildEntry[] snapshot)
+        {
+            this.Build();
+        }
     }
 
 }
