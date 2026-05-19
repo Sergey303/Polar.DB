@@ -203,10 +203,111 @@ Console.WriteLine(tp_pers.Interpret(valu));
 
 Собрав в единой программе два предложенных фрагмента, мы получаем простое key-value хранилище, заполняем его данными, вычисляем индекс, проверяем что хранилище выдает правильное значение. Программа без комментариев содержит 16 (!) строк. При этом можете сами проверить хранилище может хранить и обслуживать миллионы (на моем компьютере до 300 млн.) записей.  
 
-Данное хранилище имеет существенный недостаток: оно заполняется единажды и далее добавлять, убавлять, изменять элементы нельзя. Это легко изменить. И USequense позволяет это сделать. Надо в структуру записи добавить булевское поле closed. Начнем новый эксперимент, в нем мы сделаем только одно изменение и поэксприментируем с тем, что получится. 
-```
+Данное хранилище имеет существенный недостаток: оно заполняется единажды и далее добавлять, убавлять, изменять элементы нельзя. Это легко изменить. И USequense позволяет это сделать. Начнем новый эксперимент, в нем мы сделаем только одно изменение и поэксприментируем с тем, что получится. 
 
+Начнем с теории. Универсальная последовательность позволяет загрузить и испольовать набор однотипных элементов, причем в элементе предполагается наличие уникального ключа, что позволяет делать выборки по значению ключа. Так вот, кроме загрузки "больших" данных через Load, в классе USequence определено еще добавление одиночного элемента. Но не только. Логика построения и ключевой индексации такова, что добавлять элемент можно не только с новым ключом, но и с уже существующим. Элемент, добавленный с новым ключом становится равноправным элементом. А вот элемент, добавленный с уже существующим ключом замещает имеющийся элемент или элементы. Таким образом, добавление дает нам не только добавление, но и изменение. Для полноты редактирующих воздействий, остается реализовать уничтожение элемента. Это делаетс специальным образом. При конструировании универсальной последовательности, мы также задаем 4-м параметром IsEmpty функцию, которая вычисляет является ли элемент нормальным или пустым. После добавления такого элемента база данных на запрос по данному ключу будет выдавать null как и во всех других случаев отсутствия данных. 
+
+В примере, мы будем формировать близкую к уже ранее сформированной среду для экспериментов. Начальная стадия - задание типа элементов, выполнение загрузки и построения Build. 
+```
+// Тип элемента последовательности
+PType tp_pers = new PTypeRecord(
+    new NamedType("id", new PType(PTypeEnumeration.integer)),
+    new NamedType("empty", new PType(PTypeEnumeration.boolean)),
+    new NamedType("name", new PType(PTypeEnumeration.sstring)),
+    new NamedType("age", new PType(PTypeEnumeration.integer)));
+
+// Указываем директорию для файлов базы данных, формируем генератор потоков
+string dbpath = "C:\\Home\\data\\getstarted\\";
+int cnt = 0;
+Func<Stream> GenStream = () => new System.IO.FileStream(dbpath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
+
+// Создаем универсальную последовательность
+USequence useq = new(tp_pers, dbpath + "state.bin", GenStream, ob => (bool)((object[])ob)[1],
+    ob => (int)((object[])ob)[0], ic => (int)ic, false);
+useq.Clear();
+
+// Загрузка данными
+int npersons = 10;
+useq.Load(Enumerable.Range(0, npersons)
+    .Select(i => new object[] { npersons - i - 1, false, i.ToString(), 33 }));
+// Построение индекса
+useq.Build();
+// Испытание 
+int key = npersons * 2 / 3;
+object? valu = useq.GetByKey(key);
+if (valu != null) Console.WriteLine($"Проверка выборки по ключу {key} " + tp_pers.Interpret(valu));
 ```  
+Обратим внимание на три изменения в коде. Первое изменение - добавление в тип записи поля empty, которое означает что все значение пустое. Второе изменение - при генерации универсальной последовательности useq, 4-м праметром мы задаем функцию (bool)((object[])ob)[1] дающую вычисление пустоты элемента, т.е. того, что второе поле истино. Третье изменение содержится в загрузочный строке, в той его части, когда выписывается объектное представление значений, там добавляется в 2-й позиции признак отсутствия пустоты false.
+
+Определенная таким образом последовательность будет себя вести точно также как последовательность в предыдущем примере. Можете проверить. Нас более интересуют новые свойства. Чтобы их видеть, сначала выдадим все элементы последовательности чере ElementValues(), добавим пустой элемент с ключом 0, как можно догадаться число элементов умеьшится, потом еще будем добавлять пустые и непустые элементы с различными ключами и распечатывать некоторые результаты. 
+```
+Console.WriteLine($"В последовательность записано {npersons} элементов:");
+foreach (var v in useq.ElementValues()) Console.WriteLine(tp_pers.Interpret(v));
+Console.WriteLine();
+
+Console.WriteLine($"Добавлю пуcтой элемент под существующим индексом 0"); 
+useq.AppendElement(new object[] { 0, true, "Пупкин", 22 });
+
+Console.WriteLine($"Осталось nelementvalues={useq.ElementValues().Count()}");
+
+key = 0; valu = useq.GetByKey(key);
+Console.Write($"Запрашиваем запись с ключом 0 ... ");
+if (valu != null) Console.WriteLine(tp_pers.Interpret(valu));
+else Console.WriteLine("null");
+
+Console.WriteLine($"Добавлю непуcтой элемент под существующим индексом 2");
+useq.AppendElement(new object[] { 2, false, "Пупкин2", 22 });
+
+nelementvalues = useq.ElementValues().Count();
+Console.WriteLine($"Осталось nelementvalues={nelementvalues}");
+
+key = 2; valu = useq.GetByKey(key);
+Console.Write($"Запрашиваем запись с ключом 2 ... ");
+if (valu != null) Console.WriteLine(tp_pers.Interpret(valu));
+else Console.WriteLine("null");
+
+Console.WriteLine($"Добавлю три непуcтых элемента один под существующим 7, другие под не существующим ключом 2023334444+1");
+useq.AppendElement(new object[] { 7, false, "Пупкин Старый", 44 });
+useq.AppendElement(new object[] { 2023334444, false, "Пупкин Новый", 55 });
+useq.AppendElement(new object[] { 2023334445, false, "Пупкин Новый 2", 66 });
+useq.Flush();
+
+nelementvalues = useq.ElementValues().Count();
+Console.WriteLine($"Осталось nelementvalues={nelementvalues}");
+
+Console.WriteLine("Все  элементы последовательности:");
+foreach (var v in useq.ElementValues()) Console.WriteLine(tp_pers.Interpret(v));
+Console.WriteLine(); useq.Close();
+```
+### Реляционная база данных
+Наиболее "классический" вариант базы данных - система связанных таблиц. Как создавать таблицу, мы уже знаем. Рассмотрим как создавать несколько связанных таблиц и организовывать их функционирование. Для того, чтобы создавать подобные построения и проводить с ними эксперименты, я обычно использую тест, который называется "Фототека". Формируемая база данных состоит из трех таблиц: таблицы персон, таблицы фотографий и таблицы отражений (персона x отражена в фотодокументе y). Причем, для сопоставимости экспериментов, предполагается, что число персон npersons, число фотографий npeprsons * 4, число отражений npersons * 8. Отношения персон с фотографиями задается случайным образом. Задача отдельной выборки состоит в том, чтобы по указанному персонажу перечислить фотографии, на которых он отражен.  
+
+В данном примере мы ограничимся статической ситуацией, т.е. когда после загрузки и построения таблицы уже не изменяются. Сначала объявим три типа элементов раблиц, это позволит определить три последовательности (таблицы). 
+```
+// Типы персоны, фотографии, отражения
+PType tp_pers = new PTypeRecord(
+    new NamedType("id", new PType(PTypeEnumeration.integer)),
+    new NamedType("name", new PType(PTypeEnumeration.sstring)),
+    new NamedType("age", new PType(PTypeEnumeration.integer)));
+PType tp_phot = new PTypeRecord(
+    new NamedType("id", new PType(PTypeEnumeration.integer)),
+    new NamedType("filename", new PType(PTypeEnumeration.sstring)),
+    new NamedType("description", new PType(PTypeEnumeration.sstring)));
+PType tp_refl = new PTypeRecord(
+    new NamedType("id", new PType(PTypeEnumeration.integer)),
+    new NamedType("person", new PType(PTypeEnumeration.integer)),
+    new NamedType("photo", new PType(PTypeEnumeration.integer)));
+USequence persons = new USequence(tp_pers, null, GenStream, ob => false,
+    ob => (int)((object[])ob)[0], ic => (int)ic, true);    
+USequence photos = new USequence(tp_phot, null, GenStream, ob => false,
+    ob => (int)((object[])ob)[0], ic => (int)ic, true);    
+USequence reflections = new USequence(tp_refl, null, GenStream, ob => false,
+    ob => (int)((object[])ob)[0], ic => (int)ic, true);
+// Генерация таблиц базы данных    
+int npersons = 1000; int nphotos = npersons * 4; int nreflections = npersons * 8;
+
+
+```
 
 
 
