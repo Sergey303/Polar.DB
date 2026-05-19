@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,7 +25,6 @@ namespace Polar.Universal
         // Динамическая часть индекса
         private Dictionary<IComparable, long> keyoff_dic;
         private bool keysinmemory;
-        private long[]? typed_offsets_arr = null;
         private long[]? hkey_offsets_arr = null;
 
         public UKeyIndex(Func<Stream> streamGen, USequence sequence,
@@ -60,6 +59,7 @@ namespace Polar.Universal
         {
             hkeys.Clear();
             hkeys_arr = null;
+            hkey_offsets_arr = null;
             offsets.Clear();
             keyoff_dic.Clear();
         }
@@ -78,7 +78,6 @@ namespace Polar.Universal
 
         public void Refresh()
         {
-            ClearInMemoryIndexes();
             hkeys.Refresh();
             offsets.Refresh();
 
@@ -86,11 +85,12 @@ namespace Polar.Universal
             {
                 hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
                 hkey_offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
-                RebuildTypedIndexFromOffsets(hkey_offsets_arr);
             }
-            if (keysinmemory) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-            else hkeys.Refresh();
-            offsets.Refresh();
+            else
+            {
+                hkeys_arr = null;
+                hkey_offsets_arr = null;
+            }
         }
 
         public void Build()
@@ -133,7 +133,17 @@ namespace Polar.Universal
             }
 
             offsets.Flush();
-            offsets_arr = null;
+
+            if (keysinmemory)
+            {
+                hkey_offsets_arr = offsets_arr;
+            }
+            else
+            {
+                hkey_offsets_arr = null;
+                offsets_arr = null;
+            }
+
             GC.Collect();
         }
 
@@ -161,7 +171,9 @@ namespace Polar.Universal
                 // движемся вправо
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    long offset = (long)offsets.GetByIndex(pos);
+                    long offset = hkey_offsets_arr != null
+                        ? hkey_offsets_arr[pos]
+                        : (long)offsets.GetByIndex(pos);
                     object val = sequence.GetByOffset(offset);
                     if (val == null) return null; // Непонятно, нужно ли?
                     var k = keyFunc(val);
@@ -197,32 +209,27 @@ namespace Polar.Universal
         /// <returns></returns>
         private long GetFirstNom(int hkey)
         {
-            long start = 0, end = hkeys.Count() - 1, right_equal = -1;
-            // Сжимаем диапазон
-            while (end - start > 1)
+            long count = hkeys.Count();
+            long left = 0;
+            long right = count;
+
+            while (left < right)
             {
-                // Находим середину
-                long middle = (start + end) / 2;
-                int middle_value = (int)hkeys.GetByIndex(middle);
-                if (middle_value < hkey)
+                long middle = left + (right - left) / 2;
+                int middleValue = (int)hkeys.GetByIndex(middle);
+
+                if (middleValue < hkey)
                 {
-                    // Займемся правым интервалом
-                    start = middle;
-                }
-                else if (middle_value > hkey)
-                {
-                    // Займемся левым интервалом
-                    end = middle;
+                    left = middle + 1;
                 }
                 else
                 {
-                    // Середина дает РАВНО
-                    end = middle;
-                    right_equal = middle;
+                    right = middle;
                 }
             }
 
-            return right_equal;
+            if (left >= count) return -1;
+            return (int)hkeys.GetByIndex(left) == hkey ? left : -1;
         }
 
         /// <summary>
@@ -292,8 +299,8 @@ namespace Polar.Universal
 
         /// <summary>
         /// Возвращает offset-ы всех актуальных элементов, ключ которых равен keysample.
-        /// Для int/long/Guid, когда индекс находится в памяти, используется typed lookup по настоящему ключу
-        /// без чтения payload-записей. Это основной index-only API для benchmark-ов.
+        /// Реализовано по той же схеме, что и GetByKey: сначала ищется диапазон одинакового hash,
+        /// затем настоящий ключ проверяется через payload-запись.
         /// </summary>
         public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample)
         {
@@ -306,121 +313,34 @@ namespace Polar.Universal
                 return new[] { dynamicOffset };
             }
 
-            if (TryGetTypedOffsetRange(keysample, out var start, out var count))
-            {
-                if (count == 0) return Array.Empty<long>();
-
-                var result = new long[count];
-                Array.Copy(typed_offsets_arr!, start, result, 0, count);
-                return result;
-            }
-
             return GetOffsetsByHashCompatiblePath(keysample);
         }
 
         /// <summary>
-        /// Возвращает число offset-ов по ключу без чтения payload, если доступен typed index.
+        /// Возвращает число актуальных offset-ов по ключу.
         /// </summary>
         public int CountByKey(IComparable keysample)
         {
             if (keysample == null) throw new ArgumentNullException(nameof(keysample));
-
-            if (keyoff_dic.ContainsKey(keysample))
-            {
-                return 1;
-            }
-
-            if (TryGetTypedOffsetRange(keysample, out _, out var count))
-            {
-                return count;
-            }
-
-            return GetOffsetsByHashCompatiblePath(keysample).Count;
+            return GetOffsetsByKey(keysample).Count;
         }
 
         /// <summary>
-        /// Пытается получить offset ровно одного элемента по ключу без чтения payload, если typed index доступен.
+        /// Пытается получить offset ровно одного элемента по ключу.
         /// Возвращает false, если найдено 0 или больше 1 offset-а.
         /// </summary>
         public bool TryGetExactlyOneOffsetByKey(IComparable keysample, out long offset)
         {
             if (keysample == null) throw new ArgumentNullException(nameof(keysample));
 
-            if (keyoff_dic.TryGetValue(keysample, out offset))
+            var offsetsByKey = GetOffsetsByKey(keysample);
+            if (offsetsByKey.Count == 1)
             {
-                return true;
-            }
-
-            if (TryGetTypedOffsetRange(keysample, out var start, out var count))
-            {
-                if (count == 1)
-                {
-                    offset = typed_offsets_arr![start];
-                    return true;
-                }
-
-                offset = default;
-                return false;
-            }
-
-            var offsets = GetOffsetsByHashCompatiblePath(keysample);
-            if (offsets.Count == 1)
-            {
-                offset = offsets[0];
+                offset = offsetsByKey[0];
                 return true;
             }
 
             offset = default;
-            return false;
-        }
-
-        private bool TryGetTypedOffsetRange(IComparable keysample, out int start, out int count)
-        {
-            start = 0;
-            count = 0;
-
-            switch (typedKeyKind)
-            {
-                case TypedKeyKind.Int32:
-                    if (TryConvertToInt32Key(keysample, out var intKey) && int_keys_arr != null &&
-                        typed_offsets_arr != null)
-                    {
-                        start = LowerBound(int_keys_arr, intKey);
-                        var end = start;
-                        while (end < int_keys_arr.Length && int_keys_arr[end] == intKey) end++;
-                        count = end - start;
-                        return true;
-                    }
-
-                    break;
-
-                case TypedKeyKind.Int64:
-                    if (TryConvertToInt64Key(keysample, out var longKey) && long_keys_arr != null &&
-                        typed_offsets_arr != null)
-                    {
-                        start = LowerBound(long_keys_arr, longKey);
-                        var end = start;
-                        while (end < long_keys_arr.Length && long_keys_arr[end] == longKey) end++;
-                        count = end - start;
-                        return true;
-                    }
-
-                    break;
-
-                case TypedKeyKind.Guid:
-                    if (TryConvertToGuidKey(keysample, out var guidKey) && guid_keys_arr != null &&
-                        typed_offsets_arr != null)
-                    {
-                        start = LowerBound(guid_keys_arr, guidKey);
-                        var end = start;
-                        while (end < guid_keys_arr.Length && guid_keys_arr[end].CompareTo(guidKey) == 0) end++;
-                        count = end - start;
-                        return true;
-                    }
-
-                    break;
-            }
-
             return false;
         }
 
@@ -446,8 +366,13 @@ namespace Polar.Universal
 
             if (hkeys_arr != null)
             {
-                int pos = GetFirstInMemoryNom(hkey);
+                int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
                 if (pos < 0) return result;
+
+                while (pos > 0 && hkeys_arr[pos - 1] == hkey)
+                {
+                    pos--;
+                }
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
