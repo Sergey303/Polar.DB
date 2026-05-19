@@ -1,3 +1,5 @@
+using Polar.Universal;
+
 namespace Polar.DB.Tests;
 
 internal static class USequenceIntegrationTestHelpers

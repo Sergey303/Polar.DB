@@ -12,7 +12,7 @@ namespace Polar.Universal
     {
         // У универсальной последовательности нет динамической части. Все элементы доступны через методы.
         // Однако элемент может быть пустым. 
-        private UniversalSequenceBase sequence;
+        public UniversalSequenceBase sequence;
         private Func<object, bool> isEmpty;
         private Func<object, IComparable> keyFunc;
         private UKeyIndex primaryKeyIndex;
@@ -104,13 +104,15 @@ namespace Polar.Universal
                 return true; // Реакция на не оригинал или пустой
             });
         }
-        public void AppendElement(object element)
+        public long AppendElement(object element)
         {
             long off = sequence.AppendElement(element);
             // Корректировка индексов
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+            return off;
         }
+        
         public void CorrectOnAppendElement(long off)
         {
             object element = sequence.GetElement(off);
@@ -200,5 +202,37 @@ namespace Polar.Universal
             this.primaryKeyIndex.Build();
             foreach (var ind in uindexes) ind.Build();
         }
+
+        public IEnumerable<object> GetAllByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetAllByKey(keysample);
+        }
+
+        public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetOffsetsByKey(keysample);
+        }
+
+        public int CountByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.CountByKey(keysample);
+        }
+
+        public bool TryGetExactlyOneOffsetByKey(IComparable keysample, out long offset)
+        {
+            return primaryKeyIndex.TryGetExactlyOneOffsetByKey(keysample, out offset);
+        }
+
+        public long GetExactlyOneOffsetByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetExactlyOneOffsetByKey(keysample);
+        }
+
+
+        public object GetExactlyOneByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetExactlyOneByKey(keysample);
+        }
+
     }
 }

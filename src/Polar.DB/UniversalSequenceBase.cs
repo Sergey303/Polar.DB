@@ -15,6 +15,8 @@ namespace Polar.DB
         protected PType tp_elem; // Поляровский тип элемента
         protected Stream fs; // Стрим - среда для последовательности. Сначала 8 байтов длина, потом подряд бинарные развертки элементов 
         internal Stream Media { get { return fs; } }
+        public long AppendOffset => ElementOffset();
+
         private BinaryReader br;
         private BinaryWriter bw;
         protected int elem_size = -1; // длина элемента, если она фиксирована, иначе -1

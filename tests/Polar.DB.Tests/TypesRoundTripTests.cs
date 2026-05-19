@@ -99,13 +99,13 @@ public class TypesRoundTripTests
             new NamedType("id", new PType(PTypeEnumeration.integer)));
 
         var po = original.ToPObject(-1);
-        Assert.Equal(PType.NoneValue, po);
+        Assert.Equal(null, po);
     }
 
     [Fact]
     public void FromPObject_For_ObjPair_Tag_Throws_As_Unimplemented()
     {
-        var objPairTag = new [] { 12, PType.NoneValue };
+        var objPairTag = new Object [] { 12, null };
 
         var ex = Assert.Throws<Exception>(() => PType.FromPObject(objPairTag));
         Assert.Equal("unknown tag for pobject", ex.Message);

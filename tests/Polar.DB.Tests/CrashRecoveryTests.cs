@@ -26,7 +26,7 @@ public class CrashRecoveryTests
         var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
 
         Assert.Equal(2, sequence.Count());
-        // Assert.Equal(16L, sequence.AppendOffset);
+        // Assert.Equal(16L, sequence.ElementOffset());
         Assert.Equal(16L, stream.Length);
         Assert.Equal(new object[] { 10, 20 }, sequence.ElementValues().ToArray());
     }
@@ -43,7 +43,7 @@ public class CrashRecoveryTests
         var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
 
         Assert.Equal(2, sequence.Count());
-        Assert.Equal(16L, sequence.AppendOffset);
+        Assert.Equal(16L, sequence.ElementOffset());
         Assert.Equal(16L, stream.Length);
         Assert.Equal(new object[] { 10, 20 }, sequence.ElementValues().ToArray());
     }
@@ -58,7 +58,7 @@ public class CrashRecoveryTests
         var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.sstring), stream);
 
         Assert.Equal(2, sequence.Count());
-        Assert.Equal(valid.Length, sequence.AppendOffset);
+        Assert.Equal(valid.Length, sequence.ElementOffset());
         Assert.Equal(valid.Length, stream.Length);
         Assert.Equal(new object[] { "alpha", "beta" }, sequence.ElementValues().ToArray());
     }
@@ -99,14 +99,14 @@ public class CrashRecoveryTests
         sequence.Flush();
 
         long originalLength = stream.Length;
-        long originalAppendOffset = sequence.AppendOffset;
+        long originalAppendOffset = sequence.ElementOffset();
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
             sequence.SetElement("this value is definitely longer than one byte", secondOffset));
 
         Assert.Contains("crossed the logical end", ex.Message);
         Assert.Equal(originalLength, stream.Length);
-        Assert.Equal(originalAppendOffset, sequence.AppendOffset);
+        Assert.Equal(originalAppendOffset, sequence.ElementOffset());
         Assert.Equal(2, sequence.Count());
         Assert.Equal("b", (string)sequence.GetElement(secondOffset));
     }

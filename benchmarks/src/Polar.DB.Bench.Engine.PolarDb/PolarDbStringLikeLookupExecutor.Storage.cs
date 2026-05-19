@@ -6,6 +6,7 @@ using System.Linq;
 using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.StringLikeLookup;
+using Polar.Universal;
 
 namespace Polar.DB.Bench.Engine.PolarDb;
 

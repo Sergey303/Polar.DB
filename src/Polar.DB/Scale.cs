@@ -382,5 +382,7 @@ namespace Polar.DB
         //    };
         //    return GetDia;
         //}
+        
+        public static Func<int,Diapason> EmptyDiapasonResolverByInt = (int _) =>  Diapason.Empty;
     }
 }

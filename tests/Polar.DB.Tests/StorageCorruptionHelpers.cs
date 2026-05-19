@@ -1,4 +1,5 @@
 using System.Text;
+using Polar.Universal;
 
 namespace Polar.DB.Tests;
 
