@@ -180,8 +180,16 @@ namespace Polar.DB
 
         public long ElementOffset(long ind)
         {
-            if (ind == 0L) return 8;
-            if (ind < 0 || ind > nelements || !tp_elem.HasNoTail) throw new Exception("Err in ElementOffset");
+            if (!tp_elem.HasNoTail)
+            {
+                throw new InvalidOperationException("ElementOffset(index) is supported only for fixed-size sequences.");
+            }
+
+            if (ind < 0 || ind >= nelements)
+            {
+                throw new ArgumentOutOfRangeException(nameof(ind));
+            }
+
             return 8 + ind * elem_size;
         }
 
@@ -201,19 +209,40 @@ namespace Polar.DB
 
         public void SetElement(object v, long off)
         {
-            if (off > append_offset)
+            if (off < 8L || off > append_offset)
             {
-                throw new InvalidOperationException("SetElement cannot write after the logical end of sequence.");
+                throw new ArgumentOutOfRangeException(nameof(off));
             }
 
             long originalPosition = fs.Position;
             long originalLength = fs.Length;
             long originalAppendOffset = append_offset;
+            byte[]? overwrittenTail = null;
+
+            if (off < originalLength)
+            {
+                long tailLength = originalLength - off;
+                if (tailLength > int.MaxValue)
+                {
+                    throw new InvalidOperationException("SetElement rollback buffer is too large.");
+                }
+
+                overwrittenTail = new byte[tailLength];
+                fs.Position = off;
+                int read = 0;
+                while (read < overwrittenTail.Length)
+                {
+                    int n = fs.Read(overwrittenTail, read, overwrittenTail.Length - read);
+                    if (n == 0) break;
+                    read += n;
+                }
+            }
 
             try
             {
                 if (off != fs.Position) fs.Position = off;
                 ByteFlow.Serialize(bw, v, tp_elem);
+                bw.Flush();
 
                 if (off < originalAppendOffset && fs.Position > originalAppendOffset)
                 {
@@ -222,10 +251,27 @@ namespace Polar.DB
             }
             catch
             {
+                try { bw.Flush(); }
+                catch { }
+
                 if (fs.Length != originalLength)
                 {
                     fs.SetLength(originalLength);
                 }
+
+                if (overwrittenTail != null)
+                {
+                    fs.Position = off;
+                    fs.Write(overwrittenTail, 0, overwrittenTail.Length);
+                    if (fs.Length != originalLength)
+                    {
+                        fs.SetLength(originalLength);
+                    }
+                }
+
+                fs.Flush();
+                br = new BinaryReader(fs);
+                bw = new BinaryWriter(fs);
 
                 append_offset = originalAppendOffset;
                 fs.Position = Math.Min(originalPosition, fs.Length);
@@ -235,6 +281,8 @@ namespace Polar.DB
 
         public void SetTypedElement(PType tp, object v, long off)
         {
+            if (tp == null) throw new ArgumentNullException(nameof(tp));
+            if (off < 8L || off >= append_offset) throw new ArgumentOutOfRangeException(nameof(off));
             if (off != fs.Position) fs.Position = off;
             ByteFlow.Serialize(bw, v, tp);
         }
@@ -285,19 +333,22 @@ namespace Polar.DB
 
         public object GetElement(long off)
         {
+            if (off < 8L || off >= append_offset) throw new ArgumentOutOfRangeException(nameof(off));
             if (off != fs.Position) fs.Position = off;
             return GetElement();
         }
 
         public object GetTypedElement(PType tp, long off)
         {
+            if (tp == null) throw new ArgumentNullException(nameof(tp));
+            if (off < 8L || off >= append_offset) throw new ArgumentOutOfRangeException(nameof(off));
             if (off != fs.Position) fs.Position = off;
             return ByteFlow.Deserialize(br, tp);
         }
 
         public object GetByIndex(long index)
         {
-            if (elem_size <= 0) throw new Exception("Err: method can't be implemented to sequences of unknown element size");
+            if (elem_size <= 0) throw new InvalidOperationException("GetByIndex is supported only for fixed-size sequences.");
             if (index < 0 || index >= nelements) throw new IndexOutOfRangeException();
             return GetElement(ElementOffset(index));
         }
@@ -313,6 +364,14 @@ namespace Polar.DB
 
         public IEnumerable<object> ElementValues(long offset, long number)
         {
+            if (offset < 8L || offset > append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
+            if (number < 0L) throw new ArgumentOutOfRangeException(nameof(number));
+            if (number > 0L && offset >= append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
+            if (elem_size > 0 && number > 0L && offset + number * elem_size > append_offset)
+            {
+                throw new ArgumentOutOfRangeException(nameof(number));
+            }
+
             fs.Position = offset;
             for (long i = 0; i < number; i++)
             {
@@ -323,6 +382,7 @@ namespace Polar.DB
         // Основной сканер: быстро пробегаем по элементам, обрабатываем пары (offset, pobject) хендлером, хендлер возвращает true
         public void Scan(Func<long, object, bool> handler)
         {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
             long ll = this.Count();
             if (ll == 0) return;
             fs.Position = 8L;
@@ -348,6 +408,14 @@ namespace Polar.DB
 
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
         {
+            if (offset < 8L || offset > append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
+            if (number < 0L) throw new ArgumentOutOfRangeException(nameof(number));
+            if (number > 0L && offset >= append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
+            if (elem_size > 0 && number > 0L && offset + number * elem_size > append_offset)
+            {
+                throw new ArgumentOutOfRangeException(nameof(number));
+            }
+
             fs.Position = offset;
             for (long i = 0; i < number; i++)
             {
