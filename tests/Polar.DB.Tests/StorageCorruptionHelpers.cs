@@ -153,7 +153,6 @@ internal static class StorageCorruptionHelpers
     public static void WriteFixedSequenceBytes(
         Stream stream,
         IEnumerable<int> values,
-        long declaredCount,
         byte[]? trailingBytes = null)
     {
         if (stream == null) throw new ArgumentNullException(nameof(stream));
@@ -163,7 +162,7 @@ internal static class StorageCorruptionHelpers
         stream.Position = 0L;
 
         using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
-        writer.Write(declaredCount);
+        writer.Write(values.Count());
 
         foreach (int value in values)
         {

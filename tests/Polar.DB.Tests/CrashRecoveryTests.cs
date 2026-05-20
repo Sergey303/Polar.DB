@@ -20,7 +20,6 @@ public class CrashRecoveryTests
         StorageCorruptionHelpers.WriteFixedSequenceBytes(
             stream,
             values: new[] { 10, 20 },
-            declaredCount: 2,
             trailingBytes: new byte[] { 0xAA, 0xBB, 0xCC, 0xDD });
 
         var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
@@ -37,8 +36,7 @@ public class CrashRecoveryTests
         using var stream = new MemoryStream();
         StorageCorruptionHelpers.WriteFixedSequenceBytes(
             stream,
-            values: new[] { 10, 20 },
-            declaredCount: 3);
+            values: new[] { 10, 20 });
 
         var sequence = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), stream);
 
