@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,6 +21,7 @@ namespace Polar.DB
         private BinaryWriter bw;
         protected int elem_size = -1; // длина элемента, если она фиксирована, иначе -1
         private long nelements; // текущее количество элеметов. В "покое" - совпадает со значением в первых 8 байтах 
+
         public UniversalSequenceBase(PType tp_el, Stream media)
         {
             tp_elem = tp_el;
@@ -28,53 +29,93 @@ namespace Polar.DB
             fs = media;
             br = new BinaryReader(fs);
             bw = new BinaryWriter(fs);
-            // Вначале либо длина стрима == 0, либо это "правильная" и заполненная последовательность
+
             if (fs.Length == 0)
-            { // делаем последовательность с нулевой длиной
+            {
                 Clear();
             }
-            else 
+            else
             {
-                fs.Position = 0L;
-                nelements = br.ReadInt64();
+                RecoverFromStream();
+            }
+        }
 
-                //// если длина элементов фиксирована, устанавливаем на условный конец, если нет -устанавливаем на начало пустого
-                //if (elem_size > 0) fs.Position = 8 + nelements * elem_size;
-                //else
-                //{
-                //    // fs.Position = fs.Length; // Этот вариант породит ошибку, если реальный размер файла больше, чем занимают элементы
-                //    //this.Scan((off, ob) => true); // Это решение почему-то раз в 15 медленнее следующего
-                //    long cnt = this.Count();
-                //    for (long ii = 0; ii < cnt; ii++)
-                //    {
-                //        GetElement();
-                //    }
-                //}
-
-                append_offset = fs.Length;
-                fs.Position = append_offset;
+        private void RecoverFromStream()
+        {
+            if (fs.Length < 8L)
+            {
+                throw new InvalidDataException("UniversalSequenceBase header is truncated.");
             }
 
-            // ==== Это не очень экономный вариант вычисления append_offset:
-            //else
-            //{ // считываем количество элементов, устанавливаем Position
-            //    fs.Position = 0L;
-            //    nelements = br.ReadInt64();
-            //    // если длина элементов фиксирована, устанавливаем на условный конец, если нет -устанавливаем на начало пустого
-            //    if (elem_size > 0) fs.Position = 8 + nelements * elem_size;
-            //    else
-            //    {
-            //        // fs.Position = fs.Length; // Этот вариант породит ошибку, если реальный размер файла больше, чем занимают элементы
-            //        //this.Scan((off, ob) => true); // Это решение почему-то раз в 15 медленнее следующего
-            //        long cnt = this.Count();
-            //        for (long ii = 0; ii < cnt; ii++)
-            //        {
-            //            GetElement();
-            //        }
-            //    }
-            //    append_offset = fs.Position;
-            //}
+            fs.Position = 0L;
+            long declaredCount = br.ReadInt64();
+            if (declaredCount < 0L)
+            {
+                throw new InvalidDataException("UniversalSequenceBase header contains a negative element count.");
+            }
+
+            if (elem_size > 0)
+            {
+                RecoverFixedSize(declaredCount);
+            }
+            else
+            {
+                RecoverVariableSize(declaredCount);
+            }
+
+            fs.Position = append_offset;
         }
+
+        private void RecoverFixedSize(long declaredCount)
+        {
+            long payloadBytes = fs.Length - 8L;
+            long readableCount = payloadBytes / elem_size;
+            nelements = Math.Min(declaredCount, readableCount);
+            append_offset = 8L + nelements * elem_size;
+
+            if (fs.Length != append_offset)
+            {
+                fs.SetLength(append_offset);
+            }
+
+            Flush();
+        }
+
+        private void RecoverVariableSize(long declaredCount)
+        {
+            long restoredCount = 0L;
+            long logicalEnd = 8L;
+            fs.Position = 8L;
+
+            for (long i = 0L; i < declaredCount; i++)
+            {
+                long before = fs.Position;
+                if (before >= fs.Length) break;
+
+                try
+                {
+                    ByteFlow.Deserialize(br, tp_elem);
+                    restoredCount++;
+                    logicalEnd = fs.Position;
+                }
+                catch
+                {
+                    fs.Position = before;
+                    break;
+                }
+            }
+
+            nelements = restoredCount;
+            append_offset = logicalEnd;
+
+            if (fs.Length != append_offset)
+            {
+                fs.SetLength(append_offset);
+            }
+
+            Flush();
+        }
+
         /// <summary>
         /// Делает последовательность с нулевым количеством элементов
         /// </summary>
@@ -86,6 +127,7 @@ namespace Polar.DB
             append_offset = 8L;
             fs.Flush();
         }
+
         public void Flush()
         {
             long pos = fs.Position;
@@ -94,28 +136,56 @@ namespace Polar.DB
             fs.Position = pos;
             fs.Flush();
         }
+
         public void Close()
         {
             Flush();
             fs.Close();
         }
+
         public void Refresh()
         {
+            if (fs.Length < 8L)
+            {
+                throw new InvalidDataException("UniversalSequenceBase header is truncated.");
+            }
+
             fs.Position = 0L;
+            long declaredCount = br.ReadInt64();
+            if (declaredCount < 0L)
+            {
+                throw new InvalidDataException("UniversalSequenceBase header contains a negative element count.");
+            }
 
-            fs.CopyTo(Stream.Null); // Это решение плохо тем, что работает с полным файлом даже если занята только часть
-            //fs.CopyToAsync(Stream.Null);
+            if (elem_size > 0)
+            {
+                long payloadBytes = fs.Length - 8L;
+                long expectedPayloadBytes = declaredCount * elem_size;
+                if (payloadBytes != expectedPayloadBytes)
+                {
+                    throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
+                }
 
-            //Scan((off, obj) => true);
+                nelements = declaredCount;
+                append_offset = 8L + expectedPayloadBytes;
+                fs.Position = append_offset;
+            }
+            else
+            {
+                RecoverVariableSize(declaredCount);
+            }
         }
+
         public long Count() { return nelements; }
+
         public long ElementOffset(long ind)
         {
             if (ind == 0L) return 8;
             if (ind < 0 || ind > nelements || !tp_elem.HasNoTail) throw new Exception("Err in ElementOffset");
             return 8 + ind * elem_size;
         }
-        public long ElementOffset() { return fs.Position; } //TODO: Это ошибка, надо сканировать!
+
+        public long ElementOffset() { return append_offset; }
 
         /// <summary>
         /// Запись сериализации значения с текущей позиции. Корректна только если либо значение фиксированного размера, либо запись ведется в конец
@@ -128,45 +198,110 @@ namespace Polar.DB
             ByteFlow.Serialize(bw, v, tp_elem);
             return pos;
         }
+
         public void SetElement(object v, long off)
         {
-            if (off != fs.Position) fs.Position = off;
-            SetElement(v);
+            if (off > append_offset)
+            {
+                throw new InvalidOperationException("SetElement cannot write after the logical end of sequence.");
+            }
+
+            long originalPosition = fs.Position;
+            long originalLength = fs.Length;
+            long originalAppendOffset = append_offset;
+
+            try
+            {
+                if (off != fs.Position) fs.Position = off;
+                ByteFlow.Serialize(bw, v, tp_elem);
+
+                if (off < originalAppendOffset && fs.Position > originalAppendOffset)
+                {
+                    throw new InvalidOperationException("SetElement crossed the logical end of sequence.");
+                }
+            }
+            catch
+            {
+                if (fs.Length != originalLength)
+                {
+                    fs.SetLength(originalLength);
+                }
+
+                append_offset = originalAppendOffset;
+                fs.Position = Math.Min(originalPosition, fs.Length);
+                throw;
+            }
         }
+
         public void SetTypedElement(PType tp, object v, long off)
         {
             if (off != fs.Position) fs.Position = off;
             ByteFlow.Serialize(bw, v, tp);
         }
-        private long append_offset = 8L; // Ошибка! надо вычислять в конструкторе
+
+        private long append_offset = 8L;
+
         public long AppendElement(object v)
         {
-            nelements += 1;
+            long originalPosition = fs.Position;
+            long originalLength = fs.Length;
+            long originalAppendOffset = append_offset;
+            long originalCount = nelements;
             long off = append_offset;
-            SetElement(v, off);
-            append_offset = fs.Position;
-            return off;
+
+            try
+            {
+                if (fs.Position != off) fs.Position = off;
+                ByteFlow.Serialize(bw, v, tp_elem);
+                append_offset = fs.Position;
+                nelements = originalCount + 1L;
+
+                if (fs.Length != append_offset)
+                {
+                    fs.SetLength(append_offset);
+                }
+
+                return off;
+            }
+            catch
+            {
+                nelements = originalCount;
+                append_offset = originalAppendOffset;
+
+                if (fs.Length != originalLength)
+                {
+                    fs.SetLength(originalLength);
+                }
+
+                fs.Position = Math.Min(originalPosition, fs.Length);
+                throw;
+            }
         }
+
         public object GetElement()
         {
             return ByteFlow.Deserialize(br, tp_elem);
         }
+
         public object GetElement(long off)
         {
             if (off != fs.Position) fs.Position = off;
             return GetElement();
         }
+
         public object GetTypedElement(PType tp, long off)
         {
             if (off != fs.Position) fs.Position = off;
             return ByteFlow.Deserialize(br, tp);
         }
+
         public object GetByIndex(long index)
         {
             if (elem_size <= 0) throw new Exception("Err: method can't be implemented to sequences of unknown element size");
             if (index < 0 || index >= nelements) throw new IndexOutOfRangeException();
             return GetElement(ElementOffset(index));
         }
+
         public IEnumerable<object> ElementValues()
         {
             fs.Position = 8L;
@@ -175,6 +310,7 @@ namespace Polar.DB
                 yield return GetElement();
             }
         }
+
         public IEnumerable<object> ElementValues(long offset, long number)
         {
             fs.Position = offset;
@@ -198,6 +334,7 @@ namespace Polar.DB
                 if (!ok) break;
             }
         }
+
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
         {
             fs.Position = 8L;
@@ -208,6 +345,7 @@ namespace Polar.DB
                 yield return new Tuple<long, object>(off, pobject);
             }
         }
+
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
         {
             fs.Position = offset;
@@ -227,6 +365,7 @@ namespace Polar.DB
             if (!tp_elem.HasNoTail || keyFun == null) throw new Exception("Err in Sort32:");
             S32(0, this.Count(), keyFun);
         }
+
         private void S32(long start, long numb, Func<object, int> keyFun)
         {
             int[] keys = new int[numb];
@@ -258,6 +397,7 @@ namespace Polar.DB
             if (!tp_elem.HasNoTail || keyFun == null) throw new Exception("Err in Sort64:");
             S64(0, this.Count(), keyFun);
         }
+
         private void S64(long start, long numb, Func<object, long> keyFun)
         {
             long[] keys = new long[numb];
