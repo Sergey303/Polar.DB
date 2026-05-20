@@ -25,7 +25,6 @@ namespace Polar.Universal
         // Динамическая часть индекса
         private Dictionary<IComparable, long> keyoff_dic;
         private bool keysinmemory;
-        private long[]? hkey_offsets_arr = null;
 
         public UKeyIndex(Func<Stream> streamGen, USequence sequence,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)
@@ -59,7 +58,6 @@ namespace Polar.Universal
         {
             hkeys.Clear();
             hkeys_arr = null;
-            hkey_offsets_arr = null;
             offsets.Clear();
             keyoff_dic.Clear();
         }
@@ -84,12 +82,10 @@ namespace Polar.Universal
             if (keysinmemory)
             {
                 hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-                hkey_offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
             }
             else
             {
                 hkeys_arr = null;
-                hkey_offsets_arr = null;
             }
         }
 
@@ -134,16 +130,7 @@ namespace Polar.Universal
 
             offsets.Flush();
 
-            if (keysinmemory)
-            {
-                hkey_offsets_arr = offsets_arr;
-            }
-            else
-            {
-                hkey_offsets_arr = null;
-                offsets_arr = null;
-            }
-
+            offsets_arr = null;
             GC.Collect();
         }
 
@@ -171,9 +158,7 @@ namespace Polar.Universal
                 // движемся вправо
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    long offset = hkey_offsets_arr != null
-                        ? hkey_offsets_arr[pos]
-                        : (long)offsets.GetByIndex(pos);
+                    long offset = (long)offsets.GetByIndex(pos);
                     object val = sequence.GetByOffset(offset);
                     if (val == null) return null; // Непонятно, нужно ли?
                     var k = keyFunc(val);
@@ -299,8 +284,7 @@ namespace Polar.Universal
 
         /// <summary>
         /// Возвращает offset-ы всех актуальных элементов, ключ которых равен keysample.
-        /// Реализовано по той же схеме, что и GetByKey: сначала ищется диапазон одинакового hash,
-        /// затем настоящий ключ проверяется через payload-запись.
+        /// Использует существующий static hash-index и проверяет настоящий ключ через payload-запись.
         /// </summary>
         public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample)
         {
@@ -317,7 +301,7 @@ namespace Polar.Universal
         }
 
         /// <summary>
-        /// Возвращает число актуальных offset-ов по ключу.
+        /// Возвращает число актуальных элементов по ключу.
         /// </summary>
         public int CountByKey(IComparable keysample)
         {
@@ -366,7 +350,7 @@ namespace Polar.Universal
 
             if (hkeys_arr != null)
             {
-                int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
+                int pos = Array.BinarySearch(hkeys_arr, hkey);
                 if (pos < 0) return result;
 
                 while (pos > 0 && hkeys_arr[pos - 1] == hkey)
@@ -376,9 +360,7 @@ namespace Polar.Universal
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    long offset = hkey_offsets_arr != null
-                        ? hkey_offsets_arr[pos]
-                        : (long)offsets.GetByIndex(pos);
+                    long offset = (long)offsets.GetByIndex(pos);
 
                     object val = sequence.GetByOffset(offset);
                     if (val == null) break;

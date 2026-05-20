@@ -162,7 +162,7 @@ internal static class StorageCorruptionHelpers
         stream.Position = 0L;
 
         using var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true);
-        writer.Write(values.Count());
+        writer.Write((long)values.Count());
 
         foreach (int value in values)
         {
