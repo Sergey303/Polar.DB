@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -136,6 +136,7 @@ namespace Polar.Universal
             if (keysinmemory) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
             else hkeys_arr = null;
             offsets.Refresh();
+            dynindex.Clear();
         }
 
         public void Build()
@@ -195,19 +196,23 @@ namespace Polar.Universal
         {
             if (ignorecase) valuesample = ((string)valuesample).ToUpper();
             int hashofvaluesample = hashOfKey(valuesample);
+            var emittedOffsets = new HashSet<long>();
 
             var query = dynindex.GetAllByValue(valuesample);
-            foreach (var v in query) yield return v;
+            foreach (var v in query)
+            {
+                if (emittedOffsets.Add(v.off)) yield return v;
+            }
 
             if (hkeys_arr == null) hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-            if (hkeys_arr == null) yield break;
+            if (hkeys_arr == null || hkeys_arr.Length == 0) yield break;
 
             int ind = Array.BinarySearch(hkeys_arr, hashofvaluesample);
             if (ind < 0) yield break;
 
             long off = (long)offsets.GetByIndex(ind);
             object rec = sequence.GetByOffset(off);
-            yield return new ObjOff(rec, off);
+            if (emittedOffsets.Add(off)) yield return new ObjOff(rec, off);
 
             int i = ind - 1;
             while (i >= 0)
@@ -215,7 +220,7 @@ namespace Polar.Universal
                 if (hkeys_arr[i] != hashofvaluesample) break;
                 off = (long)offsets.GetByIndex(i);
                 rec = sequence.GetByOffset(off);
-                yield return new ObjOff(rec, off);
+                if (emittedOffsets.Add(off)) yield return new ObjOff(rec, off);
                 i--;
             }
 
@@ -225,7 +230,7 @@ namespace Polar.Universal
                 if (hkeys_arr[i] != hashofvaluesample) break;
                 off = (long)offsets.GetByIndex(i);
                 rec = sequence.GetByOffset(off);
-                yield return new ObjOff(rec, off);
+                if (emittedOffsets.Add(off)) yield return new ObjOff(rec, off);
                 i++;
             }
         }

@@ -185,7 +185,7 @@ public class USequenceLifecycleTests
     /// </summary>
     private static UniversalSequenceBase GetInnerSequence(USequence sequence)
     {
-        var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.NonPublic);
+        var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         Assert.NotNull(field);
 
         return Assert.IsType<UniversalSequenceBase>(field.GetValue(sequence));

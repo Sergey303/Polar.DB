@@ -145,6 +145,7 @@ namespace Polar.Universal
             values.Refresh();
             values_arr = values.ElementValues().Cast<string>().ToArray();
             element_offsets.Refresh();
+            dynindex.Clear();
         }
 
         public void Build()
@@ -195,6 +196,9 @@ namespace Polar.Universal
 
         private IEnumerable<ObjOff> GetAllByComp(string valuesample, Comparer<string> comp_s)
         {
+            if (values_arr == null) values_arr = values.ElementValues().Cast<string>().ToArray();
+            if (values_arr.Length == 0) yield break;
+
             int ind = Array.BinarySearch(values_arr, valuesample, comp_s);
             if (ind < 0) yield break;
 

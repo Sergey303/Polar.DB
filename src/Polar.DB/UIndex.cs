@@ -87,6 +87,7 @@ namespace Polar.Universal
             }
 
             offsets.Refresh();
+            dynset = new HKeyObjOff[0];
         }
 
         public void Build()

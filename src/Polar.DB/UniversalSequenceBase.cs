@@ -2,31 +2,34 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-//using Polar.DB;
 
 namespace Polar.DB
 {
     /// <summary>
-    /// Класс предоставляет последовательность элементов типа tp_elem, опирающуюся на индекс или полуиндекс ключей типа Tkey
+    /// Sequence storage format: [Int64 count][serialized payload...].
+    /// fs.Position is an internal working cursor and is not restored by hot-path methods.
+    /// AppendOffset is the authoritative logical tail.
     /// </summary>
     public class UniversalSequenceBase
     {
-        protected PType tp_elem; // Поляровский тип элемента
-        protected Stream fs; // Стрим - среда для последовательности. Сначала 8 байтов длина, потом подряд бинарные развертки элементов 
-        internal Stream Media { get { return fs; } }
-        public long AppendOffset => ElementOffset();
+        private const long HeaderSize = 8L;
 
-        private BinaryReader br;
-        private BinaryWriter bw;
-        protected int elem_size = -1; // длина элемента, если она фиксирована, иначе -1
-        private long nelements; // текущее количество элеметов. В "покое" - совпадает со значением в первых 8 байтах 
+        protected PType tp_elem;
+        protected Stream fs;
+        internal Stream Media { get { return fs; } }
+        public long AppendOffset => append_offset;
+
+        private readonly BinaryReader br;
+        private readonly BinaryWriter bw;
+        protected int elem_size = -1;
+        private long nelements;
+        private long append_offset = HeaderSize;
 
         public UniversalSequenceBase(PType tp_el, Stream media)
         {
-            tp_elem = tp_el;
+            tp_elem = tp_el ?? throw new ArgumentNullException(nameof(tp_el));
+            fs = media ?? throw new ArgumentNullException(nameof(media));
             if (tp_elem.HasNoTail) elem_size = tp_elem.HeadSize;
-            fs = media;
             br = new BinaryReader(fs);
             bw = new BinaryWriter(fs);
 
@@ -36,104 +39,26 @@ namespace Polar.DB
             }
             else
             {
-                RecoverFromStream();
+                RecoverFromExistingStream(rewriteHeader: true, strict: false);
             }
         }
 
-        private void RecoverFromStream()
-        {
-            if (fs.Length < 8L)
-            {
-                throw new InvalidDataException("UniversalSequenceBase header is truncated.");
-            }
-
-            fs.Position = 0L;
-            long declaredCount = br.ReadInt64();
-            if (declaredCount < 0L)
-            {
-                throw new InvalidDataException("UniversalSequenceBase header contains a negative element count.");
-            }
-
-            if (elem_size > 0)
-            {
-                RecoverFixedSize(declaredCount);
-            }
-            else
-            {
-                RecoverVariableSize(declaredCount);
-            }
-
-            fs.Position = append_offset;
-        }
-
-        private void RecoverFixedSize(long declaredCount)
-        {
-            long payloadBytes = fs.Length - 8L;
-            long readableCount = payloadBytes / elem_size;
-            nelements = Math.Min(declaredCount, readableCount);
-            append_offset = 8L + nelements * elem_size;
-
-            if (fs.Length != append_offset)
-            {
-                fs.SetLength(append_offset);
-            }
-
-            Flush();
-        }
-
-        private void RecoverVariableSize(long declaredCount)
-        {
-            long restoredCount = 0L;
-            long logicalEnd = 8L;
-            fs.Position = 8L;
-
-            for (long i = 0L; i < declaredCount; i++)
-            {
-                long before = fs.Position;
-                if (before >= fs.Length) break;
-
-                try
-                {
-                    ByteFlow.Deserialize(br, tp_elem);
-                    restoredCount++;
-                    logicalEnd = fs.Position;
-                }
-                catch
-                {
-                    fs.Position = before;
-                    break;
-                }
-            }
-
-            nelements = restoredCount;
-            append_offset = logicalEnd;
-
-            if (fs.Length != append_offset)
-            {
-                fs.SetLength(append_offset);
-            }
-
-            Flush();
-        }
-
-        /// <summary>
-        /// Делает последовательность с нулевым количеством элементов
-        /// </summary>
         public void Clear()
         {
-            fs.Position = 0L; fs.SetLength(0);
+            fs.Position = 0L;
+            fs.SetLength(0L);
             bw.Write(0L);
-            nelements = 0;
-            append_offset = 8L;
+            nelements = 0L;
+            append_offset = HeaderSize;
+            fs.Position = append_offset;
             fs.Flush();
         }
 
         public void Flush()
         {
-            long pos = fs.Position;
             fs.Position = 0L;
             bw.Write(nelements);
-            fs.Position = pos;
+            fs.Position = append_offset;
             fs.Flush();
         }
 
@@ -145,185 +70,59 @@ namespace Polar.DB
 
         public void Refresh()
         {
-            if (fs.Length < 8L)
+            if (fs.Length == 0L)
             {
-                throw new InvalidDataException("UniversalSequenceBase header is truncated.");
+                Clear();
+                return;
             }
 
-            fs.Position = 0L;
-            long declaredCount = br.ReadInt64();
-            if (declaredCount < 0L)
-            {
-                throw new InvalidDataException("UniversalSequenceBase header contains a negative element count.");
-            }
-
-            if (elem_size > 0)
-            {
-                long payloadBytes = fs.Length - 8L;
-                long expectedPayloadBytes = declaredCount * elem_size;
-                if (payloadBytes != expectedPayloadBytes)
-                {
-                    throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
-                }
-
-                nelements = declaredCount;
-                append_offset = 8L + expectedPayloadBytes;
-                fs.Position = append_offset;
-            }
-            else
-            {
-                RecoverVariableSize(declaredCount);
-            }
+            RecoverFromExistingStream(rewriteHeader: true, strict: true);
         }
 
         public long Count() { return nelements; }
 
         public long ElementOffset(long ind)
         {
-            if (!tp_elem.HasNoTail)
-            {
-                throw new InvalidOperationException("ElementOffset(index) is supported only for fixed-size sequences.");
-            }
-
+            if (elem_size <= 0)
+                throw new InvalidOperationException("ElementOffset(index) is available only for fixed-size elements.");
             if (ind < 0 || ind >= nelements)
-            {
                 throw new ArgumentOutOfRangeException(nameof(ind));
-            }
 
-            return 8 + ind * elem_size;
+            return HeaderSize + ind * elem_size;
         }
 
         public long ElementOffset() { return append_offset; }
 
-        /// <summary>
-        /// Запись сериализации значения с текущей позиции. Корректна только если либо значение фиксированного размера, либо запись ведется в конец
-        /// </summary>
-        /// <param name="v"></param>
-        /// <returns>позиция с которой началась запись</returns>
         public long SetElement(object v)
         {
             long pos = fs.Position;
             ByteFlow.Serialize(bw, v, tp_elem);
+            if (pos == append_offset)
+                append_offset = fs.Position;
             return pos;
         }
 
         public void SetElement(object v, long off)
         {
-            if (off < 8L || off > append_offset)
-            {
-                throw new ArgumentOutOfRangeException(nameof(off));
-            }
-
-            long originalPosition = fs.Position;
-            long originalLength = fs.Length;
-            long originalAppendOffset = append_offset;
-            byte[]? overwrittenTail = null;
-
-            if (off < originalLength)
-            {
-                long tailLength = originalLength - off;
-                if (tailLength > int.MaxValue)
-                {
-                    throw new InvalidOperationException("SetElement rollback buffer is too large.");
-                }
-
-                overwrittenTail = new byte[tailLength];
-                fs.Position = off;
-                int read = 0;
-                while (read < overwrittenTail.Length)
-                {
-                    int n = fs.Read(overwrittenTail, read, overwrittenTail.Length - read);
-                    if (n == 0) break;
-                    read += n;
-                }
-            }
-
-            try
-            {
-                if (off != fs.Position) fs.Position = off;
-                ByteFlow.Serialize(bw, v, tp_elem);
-                bw.Flush();
-
-                if (off < originalAppendOffset && fs.Position > originalAppendOffset)
-                {
-                    throw new InvalidOperationException("SetElement crossed the logical end of sequence.");
-                }
-            }
-            catch
-            {
-                try { bw.Flush(); }
-                catch { }
-
-                if (fs.Length != originalLength)
-                {
-                    fs.SetLength(originalLength);
-                }
-
-                if (overwrittenTail != null)
-                {
-                    fs.Position = off;
-                    fs.Write(overwrittenTail, 0, overwrittenTail.Length);
-                    if (fs.Length != originalLength)
-                    {
-                        fs.SetLength(originalLength);
-                    }
-                }
-
-                fs.Flush();
-                br = new BinaryReader(fs);
-                bw = new BinaryWriter(fs);
-
-                append_offset = originalAppendOffset;
-                fs.Position = Math.Min(originalPosition, fs.Length);
-                throw;
-            }
+            SetTypedElementCore(tp_elem, v, off);
         }
 
         public void SetTypedElement(PType tp, object v, long off)
         {
             if (tp == null) throw new ArgumentNullException(nameof(tp));
-            if (off < 8L || off >= append_offset) throw new ArgumentOutOfRangeException(nameof(off));
-            if (off != fs.Position) fs.Position = off;
-            ByteFlow.Serialize(bw, v, tp);
+            SetTypedElementCore(tp, v, off);
         }
-
-        private long append_offset = 8L;
 
         public long AppendElement(object v)
         {
-            long originalPosition = fs.Position;
-            long originalLength = fs.Length;
-            long originalAppendOffset = append_offset;
-            long originalCount = nelements;
+            _ = v ?? throw new ArgumentNullException(nameof(v));
+
             long off = append_offset;
-
-            try
-            {
-                if (fs.Position != off) fs.Position = off;
-                ByteFlow.Serialize(bw, v, tp_elem);
-                append_offset = fs.Position;
-                nelements = originalCount + 1L;
-
-                if (fs.Length != append_offset)
-                {
-                    fs.SetLength(append_offset);
-                }
-
-                return off;
-            }
-            catch
-            {
-                nelements = originalCount;
-                append_offset = originalAppendOffset;
-
-                if (fs.Length != originalLength)
-                {
-                    fs.SetLength(originalLength);
-                }
-
-                fs.Position = Math.Min(originalPosition, fs.Length);
-                throw;
-            }
+            fs.Position = off;
+            ByteFlow.Serialize(bw, v, tp_elem);
+            append_offset = fs.Position;
+            nelements += 1L;
+            return off;
         }
 
         public object GetElement()
@@ -333,29 +132,32 @@ namespace Polar.DB
 
         public object GetElement(long off)
         {
-            if (off < 8L || off >= append_offset) throw new ArgumentOutOfRangeException(nameof(off));
-            if (off != fs.Position) fs.Position = off;
+            ValidateReadOffset(off);
+            fs.Position = off;
             return GetElement();
         }
 
         public object GetTypedElement(PType tp, long off)
         {
             if (tp == null) throw new ArgumentNullException(nameof(tp));
-            if (off < 8L || off >= append_offset) throw new ArgumentOutOfRangeException(nameof(off));
-            if (off != fs.Position) fs.Position = off;
+            ValidateReadOffset(off);
+            fs.Position = off;
             return ByteFlow.Deserialize(br, tp);
         }
 
         public object GetByIndex(long index)
         {
-            if (elem_size <= 0) throw new InvalidOperationException("GetByIndex is supported only for fixed-size sequences.");
-            if (index < 0 || index >= nelements) throw new IndexOutOfRangeException();
+            if (elem_size <= 0)
+                throw new InvalidOperationException("GetByIndex is available only for fixed-size elements.");
+            if (index < 0 || index >= nelements)
+                throw new IndexOutOfRangeException();
+
             return GetElement(ElementOffset(index));
         }
 
         public IEnumerable<object> ElementValues()
         {
-            fs.Position = 8L;
+            fs.Position = HeaderSize;
             for (long i = 0; i < Count(); i++)
             {
                 yield return GetElement();
@@ -364,14 +166,7 @@ namespace Polar.DB
 
         public IEnumerable<object> ElementValues(long offset, long number)
         {
-            if (offset < 8L || offset > append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
-            if (number < 0L) throw new ArgumentOutOfRangeException(nameof(number));
-            if (number > 0L && offset >= append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
-            if (elem_size > 0 && number > 0L && offset + number * elem_size > append_offset)
-            {
-                throw new ArgumentOutOfRangeException(nameof(number));
-            }
-
+            ValidateRange(offset, number);
             fs.Position = offset;
             for (long i = 0; i < number; i++)
             {
@@ -379,25 +174,23 @@ namespace Polar.DB
             }
         }
 
-        // Основной сканер: быстро пробегаем по элементам, обрабатываем пары (offset, pobject) хендлером, хендлер возвращает true
         public void Scan(Func<long, object, bool> handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
-            long ll = this.Count();
-            if (ll == 0) return;
-            fs.Position = 8L;
-            for (long ii = 0; ii < ll; ii++)
+            if (nelements == 0L) return;
+
+            fs.Position = HeaderSize;
+            for (long ii = 0; ii < nelements; ii++)
             {
                 long off = fs.Position;
                 object pobject = GetElement();
-                bool ok = handler(off, pobject);
-                if (!ok) break;
+                if (!handler(off, pobject)) break;
             }
         }
 
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
         {
-            fs.Position = 8L;
+            fs.Position = HeaderSize;
             for (long i = 0; i < Count(); i++)
             {
                 long off = fs.Position;
@@ -408,14 +201,7 @@ namespace Polar.DB
 
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
         {
-            if (offset < 8L || offset > append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
-            if (number < 0L) throw new ArgumentOutOfRangeException(nameof(number));
-            if (number > 0L && offset >= append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
-            if (elem_size > 0 && number > 0L && offset + number * elem_size > append_offset)
-            {
-                throw new ArgumentOutOfRangeException(nameof(number));
-            }
-
+            ValidateRange(offset, number);
             fs.Position = offset;
             for (long i = 0; i < number; i++)
             {
@@ -425,13 +211,11 @@ namespace Polar.DB
             }
         }
 
-        /// Если размер элемента фиксированный и есть функция ключа с целочисленным значением
-        /// TODO: Вроде S32 вполне может работать для произвольных записей, но только на полном диапазоне.
-
         public void Sort32(Func<object, int> keyFun)
         {
-            if (!tp_elem.HasNoTail || keyFun == null) throw new Exception("Err in Sort32:");
-            S32(0, this.Count(), keyFun);
+            if (keyFun == null) throw new ArgumentNullException(nameof(keyFun));
+            if (!tp_elem.HasNoTail) throw new InvalidOperationException("Sort32 is available only for fixed-size elements.");
+            S32(0, Count(), keyFun);
         }
 
         private void S32(long start, long numb, Func<object, int> keyFun)
@@ -447,23 +231,19 @@ namespace Polar.DB
                 return true;
             });
             Array.Sort(keys, records);
-            // TODO: Похоже, метод работает правильно только для полного диапазона. 
             Clear();
             for (long ii = 0; ii < keys.LongLength; ii++)
             {
                 AppendElement(records[ii]);
             }
-            this.Flush();
+            Flush();
         }
 
-        /// <summary>
-        /// Функция сортировки последовательности с использованием 64-разрядного ключа
-        /// </summary>
-        /// <param name="keyFun"></param>
         public void Sort64(Func<object, long> keyFun)
         {
-            if (!tp_elem.HasNoTail || keyFun == null) throw new Exception("Err in Sort64:");
-            S64(0, this.Count(), keyFun);
+            if (keyFun == null) throw new ArgumentNullException(nameof(keyFun));
+            if (!tp_elem.HasNoTail) throw new InvalidOperationException("Sort64 is available only for fixed-size elements.");
+            S64(0, Count(), keyFun);
         }
 
         private void S64(long start, long numb, Func<object, long> keyFun)
@@ -479,13 +259,184 @@ namespace Polar.DB
                 return true;
             });
             Array.Sort(keys, records);
-            // TODO: Похоже, метод работает правильно только для полного диапазона. 
             Clear();
             for (long ii = 0; ii < keys.LongLength; ii++)
             {
                 AppendElement(records[ii]);
             }
-            this.Flush();
+            Flush();
+        }
+
+        private void SetTypedElementCore(PType tp, object v, long off)
+        {
+            if (off < HeaderSize || off > append_offset)
+                throw new ArgumentOutOfRangeException(nameof(off));
+
+            long originalAppendOffset = append_offset;
+            long originalLength = fs.Length;
+            long originalCount = nelements;
+            byte[]? originalBytes = null;
+
+            if (off < originalAppendOffset)
+            {
+                long bytesToSave = originalAppendOffset - off;
+                if (bytesToSave > int.MaxValue)
+                    throw new InvalidOperationException("Rollback buffer is too large.");
+
+                originalBytes = new byte[bytesToSave];
+                fs.Position = off;
+                int read = fs.Read(originalBytes, 0, originalBytes.Length);
+                if (read != originalBytes.Length)
+                    throw new InvalidDataException("Cannot snapshot existing element bytes for rollback.");
+            }
+
+            try
+            {
+                fs.Position = off;
+                ByteFlow.Serialize(bw, v, tp);
+
+                if (off == originalAppendOffset)
+                {
+                    append_offset = fs.Position;
+                }
+                else if (fs.Position > originalAppendOffset)
+                {
+                    throw new InvalidOperationException("SetElement crossed the logical end of sequence.");
+                }
+            }
+            catch
+            {
+                if (originalBytes != null)
+                {
+                    fs.Position = off;
+                    fs.Write(originalBytes, 0, originalBytes.Length);
+                }
+                fs.SetLength(originalLength);
+                append_offset = originalAppendOffset;
+                nelements = originalCount;
+                fs.Position = Math.Min(append_offset, fs.Length);
+                fs.Flush();
+                throw;
+            }
+        }
+
+        private void ValidateReadOffset(long off)
+        {
+            if (off < HeaderSize || off >= append_offset)
+                throw new ArgumentOutOfRangeException(nameof(off));
+        }
+
+        private void ValidateRange(long offset, long number)
+        {
+            if (offset < HeaderSize || offset > append_offset)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            if (number < 0)
+                throw new ArgumentOutOfRangeException(nameof(number));
+
+            if (elem_size > 0)
+            {
+                checked
+                {
+                    long end = offset + number * elem_size;
+                    if (end > append_offset)
+                        throw new ArgumentOutOfRangeException(nameof(number));
+                }
+            }
+        }
+
+        private void RecoverFromExistingStream(bool rewriteHeader, bool strict)
+        {
+            if (fs.Length < HeaderSize)
+                throw new InvalidDataException("UniversalSequenceBase header is truncated.");
+
+            fs.Position = 0L;
+            long declaredCount = br.ReadInt64();
+            if (declaredCount < 0)
+                throw new InvalidDataException("UniversalSequenceBase declared count is negative.");
+
+            if (elem_size > 0)
+            {
+                RecoverFixedSize(declaredCount, rewriteHeader, strict);
+            }
+            else
+            {
+                RecoverVariableSize(declaredCount, rewriteHeader, strict);
+            }
+        }
+
+        private void RecoverFixedSize(long declaredCount, bool rewriteHeader, bool strict)
+        {
+            long payloadBytes = fs.Length - HeaderSize;
+            if (payloadBytes < 0)
+                throw new InvalidDataException("UniversalSequenceBase payload is truncated.");
+
+            if (payloadBytes % elem_size != 0)
+            {
+                if (strict)
+                    throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
+            }
+
+            long physicalCount = payloadBytes / elem_size;
+            if (strict && physicalCount != declaredCount)
+                throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
+
+            nelements = strict ? declaredCount : Math.Min(declaredCount, physicalCount);
+            append_offset = HeaderSize + nelements * elem_size;
+
+            if (fs.Length != append_offset)
+                fs.SetLength(append_offset);
+
+            if (rewriteHeader)
+                Flush();
+            else
+                fs.Position = append_offset;
+        }
+
+        private void RecoverVariableSize(long declaredCount, bool rewriteHeader, bool strict)
+        {
+            fs.Position = HeaderSize;
+            long count = 0L;
+            long logicalEnd = HeaderSize;
+
+            while (count < declaredCount)
+            {
+                long off = fs.Position;
+                if (off >= fs.Length)
+                {
+                    if (strict)
+                        throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.");
+                    break;
+                }
+
+                try
+                {
+                    _ = ByteFlow.Deserialize(br, tp_elem);
+                }
+                catch (EndOfStreamException ex)
+                {
+                    if (strict)
+                        throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.", ex);
+                    fs.Position = off;
+                    break;
+                }
+
+                logicalEnd = fs.Position;
+                count++;
+            }
+
+            if (strict && count != declaredCount)
+                throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.");
+
+            nelements = count;
+            append_offset = logicalEnd;
+
+            if (fs.Length != append_offset)
+                fs.SetLength(append_offset);
+
+            if (rewriteHeader)
+                Flush();
+            else
+                fs.Position = append_offset;
         }
     }
 }

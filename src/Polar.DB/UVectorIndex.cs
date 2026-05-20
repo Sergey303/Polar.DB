@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -70,6 +70,7 @@ namespace Polar.Universal
             values.Refresh();
             values_arr = values.ElementValues().Cast<IComparable>().ToArray();
             element_offsets.Refresh();
+            valueoffs_dic.Clear();
         }
 
         public void Build()
@@ -116,6 +117,13 @@ namespace Polar.Universal
                     yield return oo;
                 }
             }
+
+            if (values_arr == null)
+            {
+                values_arr = values.ElementValues().Cast<IComparable>().ToArray();
+            }
+
+            if (values_arr.Length == 0) yield break;
 
             int pos = Array.BinarySearch<IComparable>(values_arr, valuesample);
             if (pos < 0) yield break;
