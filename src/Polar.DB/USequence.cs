@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,7 +8,7 @@ namespace Polar.Universal
 {
     public class USequence
     {
-        public UniversalSequenceBase sequence;
+        private readonly  UniversalSequenceBase sequence;
         private Func<object, bool> isEmpty;
         private Func<object, IComparable> keyFunc;
         private UKeyIndex primaryKeyIndex;
@@ -58,17 +58,12 @@ namespace Polar.Universal
 
         public void Refresh()
         {
-            // The facade owns the storage instance. Flush the current header before
-            // a same-instance refresh so unflushed appends are not mistaken for
-            // a corrupted fixed-size stream.
-            sequence.Flush();
-            primaryKeyIndex.Flush();
-            if (uindexes != null) foreach (var ui in uindexes) ui.Flush();
-
             sequence.Refresh();
             primaryKeyIndex.Refresh();
-            if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
-            RestoreDynamic();
+            if (uindexes != null)
+            {
+                foreach (var ui in uindexes) ui.Refresh();
+            }
         }
 
         public void Load(IEnumerable<object> flow)
@@ -109,18 +104,23 @@ namespace Polar.Universal
 
         public IEnumerable<object> ElementValues()
         {
-            return LatestOriginalPairs().Select(pair => pair.Item2);
+           return sequence.ElementOffsetValuePairs()
+        .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
+        .Select(pair => pair.Item2);
         }
 
-        public void Scan(Func<long, object, bool> handler)
+public void Scan(Func<long, object, bool> handler)
+{
+    sequence.Scan((off, ob) =>
+    {
+        if (IsOriginalAndNotEmpty(ob, off))
         {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
-
-            foreach (var pair in LatestOriginalPairs())
-            {
-                if (!handler(pair.Item1, pair.Item2)) break;
-            }
+            return handler(off, ob);
         }
+
+        return true;
+    });
+}
 
         public long AppendElement(object element)
         {
@@ -240,6 +240,21 @@ namespace Polar.Universal
             using BinaryWriter writer = new BinaryWriter(statefile);
             writer.Write(sequence.Count());
             writer.Write(sequence.ElementOffset());
+        }
+
+        public long ElementOffset()
+        {
+            return sequence.AppendOffset;
+        }
+
+        public long Count()
+        {
+            return sequence.Count();
+        }
+
+        public object GetElementExactOneByExactOffset(long offset)
+        {
+           return sequence.GetElement(offset);
         }
     }
 }

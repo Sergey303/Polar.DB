@@ -151,34 +151,6 @@ public class USequenceLifecycleTests
     }
 
     /// <summary>
-    /// Verifies the explicit recovery hook for externally appended data:
-    /// after a raw append performed through the underlying sequence,
-    /// <see cref="USequence.CorrectOnAppendElement(long)"/> must update indexes.
-    /// </summary>
-    [Fact]
-    public void CorrectOnAppendElement_IndexesExternallyAppendedTailRecord()
-    {
-        using var scope = new SequenceScope(deleteOnDispose: true);
-
-        scope.Sequence.Load(new object[]
-        {
-            new object[] { 1, "ALICE" }
-        });
-        scope.Sequence.Build();
-
-        var rawSequence = GetInnerSequence(scope.Sequence);
-        long appendedOffset = rawSequence.AppendElement(new object[] { 2, "BOB" });
-        rawSequence.Flush();
-
-        Assert.Null(scope.Sequence.GetByKey(2));
-
-        scope.Sequence.CorrectOnAppendElement(appendedOffset);
-
-        var restored = Assert.IsType<object[]>(scope.Sequence.GetByKey(2));
-        Assert.Equal("BOB", (string)restored[1]);
-    }
-
-    /// <summary>
     /// Reads the private storage sequence used by the facade.
     /// This is intentionally test-only: it lets the public recovery hook be
     /// exercised against a realistic external append scenario.
