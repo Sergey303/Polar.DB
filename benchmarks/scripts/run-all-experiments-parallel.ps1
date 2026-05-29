@@ -7,10 +7,18 @@ param(
     [switch]$SkipClean,
     [switch]$SkipCleanAfterEachExperiment,
     [switch]$KeepFailedArtifacts,
-    [switch]$ContinueOnFailure
+    [switch]$ContinueOnFailure,
+    [switch]$SkipPreBuild,
+    [switch]$CleanupDryRun
 )
 
 $ErrorActionPreference = "Stop"
+
+function Write-Step {
+    param([string]$Message)
+    $stamp = Get-Date -Format "HH:mm:ss"
+    Write-Host "[$stamp] $Message"
+}
 
 function Assert-RepoRoot {
     param([string]$Root)
@@ -62,19 +70,80 @@ function Invoke-ExperimentCleanup {
     param(
         [string]$CleanupScript,
         [string]$RepoRoot,
-        [string]$ExperimentName
+        [string]$ExperimentName,
+        [bool]$DryRun
     )
 
-    Write-Host "==> Cleanup temporary files for finished experiment: $ExperimentName"
+    if ($DryRun) {
+        Write-Step "CLEANUP DRY-RUN: $ExperimentName"
+    }
+    else {
+        Write-Step "CLEANUP: $ExperimentName"
+    }
 
-    & powershell -NoProfile -ExecutionPolicy Bypass `
-        -File $CleanupScript `
-        -RepoRoot $RepoRoot `
-        -ExperimentName $ExperimentName `
-        -Quiet
+    $args = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $CleanupScript,
+        "-RepoRoot", $RepoRoot,
+        "-ExperimentName", $ExperimentName,
+        "-Quiet"
+    )
+
+    if ($DryRun) {
+        $args += @("-DryRun:`$true")
+    }
+    else {
+        $args += @("-Apply")
+    }
+
+    & powershell @args
 
     if ($LASTEXITCODE -ne 0) {
         throw "Cleanup failed for '$ExperimentName' with exit code $LASTEXITCODE"
+    }
+}
+
+function Invoke-DotNetBuildOnce {
+    param(
+        [string]$RepoRoot,
+        [string]$LogRoot
+    )
+
+    $projects = @(
+        "benchmarks\src\Polar.DB.Bench.Exec\Polar.DB.Bench.Exec.csproj",
+        "benchmarks\src\Polar.DB.Bench.Analysis\Polar.DB.Bench.Analysis.csproj",
+        "benchmarks\src\Polar.DB.Bench.Charts\Polar.DB.Bench.Charts.csproj",
+        "benchmarks\src\Polar.DB.Bench.Exec.PolarDbCurrent\Polar.DB.Bench.Exec.PolarDbCurrent.csproj",
+        "benchmarks\src\Polar.DB.Bench.Exec.PolarDb210\Polar.DB.Bench.Exec.PolarDb210.csproj",
+        "benchmarks\src\Polar.DB.Bench.Exec.PolarDb211\Polar.DB.Bench.Exec.PolarDb211.csproj"
+    )
+
+    foreach ($relative in $projects) {
+        $project = Join-Path $RepoRoot $relative
+        if (-not (Test-Path -LiteralPath $project)) {
+            continue
+        }
+
+        $name = [IO.Path]::GetFileNameWithoutExtension($project)
+        $stdout = Join-Path $LogRoot ("build.$name.stdout.log")
+        $stderr = Join-Path $LogRoot ("build.$name.stderr.log")
+
+        Write-Step "BUILD: $relative"
+        $process = Start-Process -FilePath "dotnet" `
+            -ArgumentList @("build", $project, "--nologo", "-v:minimal", "/m:1", "/nr:false") `
+            -WorkingDirectory $RepoRoot `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -Wait `
+            -PassThru
+
+        if ($process.ExitCode -ne 0) {
+            Write-Step "BUILD FAILED: $relative"
+            Write-Step "stdout: $stdout"
+            Write-Step "stderr: $stderr"
+            throw "Build failed for '$relative' with exit code $($process.ExitCode)."
+        }
     }
 }
 
@@ -86,6 +155,7 @@ $execProject = Join-Path $repo "benchmarks\src\Polar.DB.Bench.Exec\Polar.DB.Benc
 $cleanupScript = Join-Path $repo "benchmarks\scripts\clean-experiment-temporary-files.ps1"
 $runStamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
 $launcherLogRoot = Join-Path $repo "benchmarks\run-logs\$runStamp"
+$summaryTextPath = Join-Path $launcherLogRoot "summary.txt"
 
 if ($MaxParallel -lt 1) {
     throw "MaxParallel must be >= 1."
@@ -95,15 +165,45 @@ if (-not (Test-Path -LiteralPath $cleanupScript)) {
     throw "Cleanup script not found: $cleanupScript"
 }
 
+New-Item -ItemType Directory -Force -Path $launcherLogRoot | Out-Null
+
+# Make dotnet output stable and readable in redirected logs.
+$env:DOTNET_NOLOGO = "1"
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+$env:DOTNET_CLI_UI_LANGUAGE = "en"
+$env:MSBUILDDISABLENODEREUSE = "1"
+$env:DOTNET_CLI_USE_MSBUILD_SERVER = "0"
+
+Write-Step "Polar.DB benchmark parallel runner"
+Write-Step "RepoRoot: $repo"
+Write-Step "Logs:     $launcherLogRoot"
+Write-Step "Parallel: $MaxParallel"
+Write-Step "Cleanup before run:       $(-not $SkipClean)"
+Write-Step "Cleanup after experiment: $(-not $SkipCleanAfterEachExperiment)"
+Write-Step "Cleanup dry-run:          $CleanupDryRun"
+Write-Step "Keep failed artifacts:    $KeepFailedArtifacts"
+
 if (-not $SkipClean) {
-    Write-Host "==> Cleaning benchmark temporary files before creating new artifacts"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $cleanupScript -RepoRoot $repo
+    if ($CleanupDryRun) {
+        Write-Step "PRE-CLEAN DRY-RUN: benchmark temporary files"
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $cleanupScript -RepoRoot $repo -DryRun:$true
+    }
+    else {
+        Write-Step "PRE-CLEAN: benchmark temporary files"
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $cleanupScript -RepoRoot $repo -Apply
+    }
+
     if ($LASTEXITCODE -ne 0) {
         throw "Cleanup failed with exit code $LASTEXITCODE"
     }
 }
 
-New-Item -ItemType Directory -Force -Path $launcherLogRoot | Out-Null
+if (-not $SkipPreBuild) {
+    Invoke-DotNetBuildOnce -RepoRoot $repo -LogRoot $launcherLogRoot
+}
+else {
+    Write-Step "BUILD: skipped by -SkipPreBuild"
+}
 
 $experiments = Get-ChildItem -LiteralPath $experimentsRoot -Directory -Force |
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "experiment.json") } |
@@ -115,10 +215,10 @@ if ($experiments.Count -eq 0) {
     throw "No experiments selected."
 }
 
-Write-Host "==> Selected experiments: $($experiments.Count)"
-Write-Host "==> MaxParallel: $MaxParallel"
-Write-Host "==> Logs: $launcherLogRoot"
-Write-Host "==> Clean after each experiment: $(-not $SkipCleanAfterEachExperiment)"
+Write-Step "Selected experiments: $($experiments.Count)"
+foreach ($experiment in $experiments) {
+    Write-Step "  queued: $($experiment.Name)"
+}
 
 $queue = [System.Collections.Queue]::new()
 foreach ($experiment in $experiments) {
@@ -135,18 +235,29 @@ while ($queue.Count -gt 0 -or $running.Count -gt 0) {
         $stdout = Join-Path $launcherLogRoot "$name.stdout.log"
         $stderr = Join-Path $launcherLogRoot "$name.stderr.log"
 
-        Write-Host "==> Start: $name"
+        Write-Step "START: $name"
+        Write-Step "  stdout: $stdout"
+        Write-Step "  stderr: $stderr"
 
         $job = Start-Job -Name $name -ScriptBlock {
             param($RepoRoot, $ExecProject, $ExperimentPath, $EnvironmentClass, $StdoutPath, $StderrPath)
 
             Set-Location $RepoRoot
+            $env:DOTNET_NOLOGO = "1"
+            $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+            $env:DOTNET_CLI_UI_LANGUAGE = "en"
+            $env:MSBUILDDISABLENODEREUSE = "1"
+            $env:DOTNET_CLI_USE_MSBUILD_SERVER = "0"
 
-            & dotnet run --project $ExecProject -- --exp $ExperimentPath --env $EnvironmentClass `
-                > $StdoutPath `
-                2> $StderrPath
+            $process = Start-Process -FilePath "dotnet" `
+                -ArgumentList @("run", "--no-build", "--project", $ExecProject, "--", "--exp", $ExperimentPath, "--env", $EnvironmentClass) `
+                -WorkingDirectory $RepoRoot `
+                -RedirectStandardOutput $StdoutPath `
+                -RedirectStandardError $StderrPath `
+                -Wait `
+                -PassThru
 
-            return $LASTEXITCODE
+            return $process.ExitCode
         } -ArgumentList $repo, $execProject, $experiment.FullName, $EnvironmentClass, $stdout, $stderr
 
         $running.Add([pscustomobject]@{
@@ -154,6 +265,7 @@ while ($queue.Count -gt 0 -or $running.Count -gt 0) {
             Job = $job
             Stdout = $stdout
             Stderr = $stderr
+            StartedAt = Get-Date
         }) | Out-Null
     }
 
@@ -178,38 +290,51 @@ while ($queue.Count -gt 0 -or $running.Count -gt 0) {
 
         Remove-Job -Job $item.Job -Force -ErrorAction SilentlyContinue
 
+        $duration = New-TimeSpan -Start $item.StartedAt -End (Get-Date)
+        Write-Step ("FINISH: {0}, exit={1}, elapsed={2}" -f $item.Name, $exitCode, $duration)
+
         $cleanupExitCode = 0
         if (-not $SkipCleanAfterEachExperiment -and ($exitCode -eq 0 -or -not $KeepFailedArtifacts)) {
             try {
-                Invoke-ExperimentCleanup -CleanupScript $cleanupScript -RepoRoot $repo -ExperimentName $item.Name
+                Invoke-ExperimentCleanup -CleanupScript $cleanupScript -RepoRoot $repo -ExperimentName $item.Name -DryRun:$CleanupDryRun
             }
             catch {
                 $cleanupExitCode = 1
-                Write-Host "==> CLEANUP FAILED: $($item.Name)"
-                Write-Host "    $($_.Exception.Message)"
+                Write-Step "CLEANUP FAILED: $($item.Name)"
+                Write-Step "  $($_.Exception.Message)"
             }
         }
         elseif ($KeepFailedArtifacts -and $exitCode -ne 0) {
-            Write-Host "==> Keep failed experiment artifacts: $($item.Name)"
+            Write-Step "KEEP: failed experiment artifacts preserved for $($item.Name)"
         }
 
-        $effectiveExitCode = if ($exitCode -ne 0) { $exitCode } elseif ($cleanupExitCode -ne 0) { $cleanupExitCode } else { 0 }
+        if ($exitCode -ne 0) {
+            $effectiveExitCode = $exitCode
+        }
+        elseif ($cleanupExitCode -ne 0) {
+            $effectiveExitCode = $cleanupExitCode
+        }
+        else {
+            $effectiveExitCode = 0
+        }
 
         $results.Add([pscustomobject]@{
             Experiment = $item.Name
             ExitCode = $exitCode
             CleanupExitCode = $cleanupExitCode
             EffectiveExitCode = $effectiveExitCode
+            Elapsed = $duration.ToString()
             Stdout = $item.Stdout
             Stderr = $item.Stderr
         }) | Out-Null
 
         if ($effectiveExitCode -eq 0) {
-            Write-Host "==> OK: $($item.Name)"
+            Write-Step "OK: $($item.Name)"
         }
         else {
-            Write-Host "==> FAILED: $($item.Name), exit code $exitCode, cleanup exit code $cleanupExitCode"
-            Write-Host "    stderr: $($item.Stderr)"
+            Write-Step "FAILED: $($item.Name), exit=$exitCode, cleanup=$cleanupExitCode"
+            Write-Step "  stdout: $($item.Stdout)"
+            Write-Step "  stderr: $($item.Stderr)"
 
             if (-not $ContinueOnFailure) {
                 while ($queue.Count -gt 0) {
@@ -226,10 +351,31 @@ $summaryPath = Join-Path $launcherLogRoot "summary.csv"
 $results | Export-Csv -Path $summaryPath -NoTypeInformation -Encoding UTF8
 
 $failed = @($results | Where-Object { $_.EffectiveExitCode -ne 0 })
+$ok = @($results | Where-Object { $_.EffectiveExitCode -eq 0 })
+
+$summaryLines = New-Object System.Collections.Generic.List[string]
+$summaryLines.Add("Polar.DB benchmark run summary")
+$summaryLines.Add("Run stamp: $runStamp")
+$summaryLines.Add("RepoRoot:  $repo")
+$summaryLines.Add("Logs:      $launcherLogRoot")
+$summaryLines.Add("Completed: $($results.Count)")
+$summaryLines.Add("OK:        $($ok.Count)")
+$summaryLines.Add("Failed:    $($failed.Count)")
+$summaryLines.Add("")
+foreach ($result in $results) {
+    $summaryLines.Add(("{0} | exit={1} cleanup={2} effective={3} elapsed={4}" -f `
+        $result.Experiment, $result.ExitCode, $result.CleanupExitCode, $result.EffectiveExitCode, $result.Elapsed))
+    $summaryLines.Add("  stdout: $($result.Stdout)")
+    $summaryLines.Add("  stderr: $($result.Stderr)")
+}
+[IO.File]::WriteAllLines($summaryTextPath, $summaryLines, [Text.UTF8Encoding]::new($false))
+
 Write-Host ""
-Write-Host "==> Summary: $summaryPath"
-Write-Host "==> Completed: $($results.Count)"
-Write-Host "==> Failed:    $($failed.Count)"
+Write-Step "Summary CSV:  $summaryPath"
+Write-Step "Summary text: $summaryTextPath"
+Write-Step "Completed:    $($results.Count)"
+Write-Step "OK:           $($ok.Count)"
+Write-Step "Failed:       $($failed.Count)"
 
 if ($failed.Count -gt 0) {
     $failed | Format-Table -AutoSize
