@@ -9,7 +9,10 @@ param(
     [switch]$KeepFailedArtifacts,
     [switch]$ContinueOnFailure,
     [switch]$SkipPreBuild,
-    [switch]$CleanupDryRun
+    [switch]$CleanupDryRun,
+    [int]$ProgressIntervalSeconds = 15,
+    [switch]$QuietCleanup,
+    [switch]$ShowLiveLogTail
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,7 +74,8 @@ function Invoke-ExperimentCleanup {
         [string]$CleanupScript,
         [string]$RepoRoot,
         [string]$ExperimentName,
-        [bool]$DryRun
+        [bool]$DryRun,
+        [bool]$Quiet
     )
 
     if ($DryRun) {
@@ -86,9 +90,12 @@ function Invoke-ExperimentCleanup {
         "-ExecutionPolicy", "Bypass",
         "-File", $CleanupScript,
         "-RepoRoot", $RepoRoot,
-        "-ExperimentName", $ExperimentName,
-        "-Quiet"
+        "-ExperimentName", $ExperimentName
     )
+
+    if ($Quiet) {
+        $args += @("-Quiet")
+    }
 
     if ($DryRun) {
         $args += @("-DryRun:`$true")
@@ -147,6 +154,65 @@ function Invoke-DotNetBuildOnce {
     }
 }
 
+function Format-Duration {
+    param([TimeSpan]$Duration)
+
+    if ($Duration.TotalHours -ge 1) {
+        return "{0:00}:{1:00}:{2:00}" -f [int]$Duration.TotalHours, $Duration.Minutes, $Duration.Seconds
+    }
+
+    return "{0:00}:{1:00}" -f $Duration.Minutes, $Duration.Seconds
+}
+
+function Get-LastNonEmptyLine {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    try {
+        $lines = Get-Content -LiteralPath $Path -Tail 20 -ErrorAction Stop
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            $line = [string]$lines[$i]
+            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                return $line.Trim()
+            }
+        }
+    }
+    catch {
+        return $null
+    }
+
+    return $null
+}
+
+function Write-RunningStatus {
+    param(
+        [System.Collections.Generic.List[object]]$Running,
+        [switch]$ShowTail
+    )
+
+    if ($Running.Count -eq 0) {
+        return
+    }
+
+    Write-Step ("RUNNING: {0} active experiment(s)" -f $Running.Count)
+    foreach ($item in $Running | Sort-Object Name) {
+        $elapsed = Format-Duration -Duration (New-TimeSpan -Start $item.StartedAt -End (Get-Date))
+        Write-Step ("  active: {0}, elapsed={1}" -f $item.Name, $elapsed)
+        Write-Step ("    stdout: {0}" -f $item.Stdout)
+        Write-Step ("    stderr: {0}" -f $item.Stderr)
+
+        if ($ShowTail) {
+            $lastStdout = Get-LastNonEmptyLine -Path $item.Stdout
+            $lastStderr = Get-LastNonEmptyLine -Path $item.Stderr
+            if ($lastStdout) { Write-Step ("    last stdout: {0}" -f $lastStdout) }
+            if ($lastStderr) { Write-Step ("    last stderr: {0}" -f $lastStderr) }
+        }
+    }
+}
+
 $repo = (Resolve-Path -LiteralPath $RepoRoot).Path
 Assert-RepoRoot -Root $repo
 
@@ -159,6 +225,10 @@ $summaryTextPath = Join-Path $launcherLogRoot "summary.txt"
 
 if ($MaxParallel -lt 1) {
     throw "MaxParallel must be >= 1."
+}
+
+if ($ProgressIntervalSeconds -lt 1) {
+    throw "ProgressIntervalSeconds must be >= 1."
 }
 
 if (-not (Test-Path -LiteralPath $cleanupScript)) {
@@ -182,6 +252,9 @@ Write-Step "Cleanup before run:       $(-not $SkipClean)"
 Write-Step "Cleanup after experiment: $(-not $SkipCleanAfterEachExperiment)"
 Write-Step "Cleanup dry-run:          $CleanupDryRun"
 Write-Step "Keep failed artifacts:    $KeepFailedArtifacts"
+Write-Step "Progress interval:        $ProgressIntervalSeconds sec"
+Write-Step "Show live log tail:       $ShowLiveLogTail"
+Write-Step "Quiet cleanup:            $QuietCleanup"
 
 if (-not $SkipClean) {
     if ($CleanupDryRun) {
@@ -227,6 +300,7 @@ foreach ($experiment in $experiments) {
 
 $running = New-Object System.Collections.Generic.List[object]
 $results = New-Object System.Collections.Generic.List[object]
+$lastProgressAt = Get-Date
 
 while ($queue.Count -gt 0 -or $running.Count -gt 0) {
     while ($queue.Count -gt 0 -and $running.Count -lt $MaxParallel) {
@@ -271,6 +345,11 @@ while ($queue.Count -gt 0 -or $running.Count -gt 0) {
 
     Start-Sleep -Seconds 1
 
+    if ((New-TimeSpan -Start $lastProgressAt -End (Get-Date)).TotalSeconds -ge $ProgressIntervalSeconds) {
+        Write-RunningStatus -Running $running -ShowTail:$ShowLiveLogTail
+        $lastProgressAt = Get-Date
+    }
+
     $finished = @($running | Where-Object { $_.Job.State -in @("Completed", "Failed", "Stopped") })
     foreach ($item in $finished) {
         $exitCode = $null
@@ -291,12 +370,12 @@ while ($queue.Count -gt 0 -or $running.Count -gt 0) {
         Remove-Job -Job $item.Job -Force -ErrorAction SilentlyContinue
 
         $duration = New-TimeSpan -Start $item.StartedAt -End (Get-Date)
-        Write-Step ("FINISH: {0}, exit={1}, elapsed={2}" -f $item.Name, $exitCode, $duration)
+        Write-Step ("FINISH: {0}, exit={1}, elapsed={2}" -f $item.Name, $exitCode, (Format-Duration -Duration $duration))
 
         $cleanupExitCode = 0
         if (-not $SkipCleanAfterEachExperiment -and ($exitCode -eq 0 -or -not $KeepFailedArtifacts)) {
             try {
-                Invoke-ExperimentCleanup -CleanupScript $cleanupScript -RepoRoot $repo -ExperimentName $item.Name -DryRun:$CleanupDryRun
+                Invoke-ExperimentCleanup -CleanupScript $cleanupScript -RepoRoot $repo -ExperimentName $item.Name -DryRun:$CleanupDryRun -Quiet:$QuietCleanup
             }
             catch {
                 $cleanupExitCode = 1
