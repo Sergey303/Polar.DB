@@ -15,6 +15,8 @@ namespace Polar.DB.Bench.Engine.PolarDb;
 /// </summary>
 public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
 {
+    private const string ReferenceBulkLoadPointLookupWorkloadKey = "bulk-load-point-lookup";
+
     public string EngineKey => "polar-db";
 
     public IReadOnlyCollection<EngineCapability> Capabilities { get; } = new[]
@@ -47,6 +49,9 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
             if (StringLikeLookupWorkload.IsStringLike(spec.Workload.WorkloadKey))
                 return PolarDbStringLikeLookupExecutor.ExecuteAsync(spec, workspace, cancellationToken);
 
+            if (IsReferenceBulkLoadPointLookup(spec.Workload.WorkloadKey))
+                return PolarDbLookupSeriesExecutor.ExecuteAsync(ToExactOneLookupSeries(spec), workspace, cancellationToken);
+
             if (LookupSeriesWorkload.IsLookupSeries(spec.Workload.WorkloadKey))
                 return PolarDbLookupSeriesExecutor.ExecuteAsync(spec, workspace, cancellationToken);
 
@@ -54,4 +59,16 @@ public sealed class PolarDbStorageEngineAdapter : IStorageEngineAdapter
                 $"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in Polar.DB adapter.");
         }
     }
+
+    private static bool IsReferenceBulkLoadPointLookup(string? workloadKey) =>
+        string.Equals(workloadKey, ReferenceBulkLoadPointLookupWorkloadKey, StringComparison.OrdinalIgnoreCase);
+
+    private static ExperimentSpec ToExactOneLookupSeries(ExperimentSpec spec) =>
+        spec with
+        {
+            Workload = spec.Workload with
+            {
+                WorkloadKey = LookupSeriesWorkload.ExactOneWorkloadKey
+            }
+        };
 }

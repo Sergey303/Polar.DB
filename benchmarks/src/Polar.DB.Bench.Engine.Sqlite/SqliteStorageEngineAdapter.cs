@@ -14,6 +14,8 @@ namespace Polar.DB.Bench.Engine.Sqlite;
 /// </summary>
 public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
 {
+    private const string ReferenceBulkLoadPointLookupWorkloadKey = "bulk-load-point-lookup";
+
     public string EngineKey => "sqlite";
 
     public IReadOnlyCollection<EngineCapability> Capabilities { get; } = new[]
@@ -46,6 +48,9 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
             if (StringLikeLookupWorkload.IsStringLike(spec.Workload.WorkloadKey))
                 return SqliteStringLikeLookupExecutor.ExecuteAsync(spec, workspace, cancellationToken);
 
+            if (IsReferenceBulkLoadPointLookup(spec.Workload.WorkloadKey))
+                return SqliteLookupSeriesExecutor.ExecuteAsync(ToExactOneLookupSeries(spec), workspace, cancellationToken);
+
             if (LookupSeriesWorkload.IsLookupSeries(spec.Workload.WorkloadKey))
                 return SqliteLookupSeriesExecutor.ExecuteAsync(spec, workspace, cancellationToken);
 
@@ -53,4 +58,16 @@ public sealed class SqliteStorageEngineAdapter : IStorageEngineAdapter
                 $"Experiment/workload '{spec.ExperimentKey}'/'{spec.Workload.WorkloadKey}' is not implemented in SQLite adapter.");
         }
     }
+
+    private static bool IsReferenceBulkLoadPointLookup(string? workloadKey) =>
+        string.Equals(workloadKey, ReferenceBulkLoadPointLookupWorkloadKey, StringComparison.OrdinalIgnoreCase);
+
+    private static ExperimentSpec ToExactOneLookupSeries(ExperimentSpec spec) =>
+        spec with
+        {
+            Workload = spec.Workload with
+            {
+                WorkloadKey = LookupSeriesWorkload.ExactOneWorkloadKey
+            }
+        };
 }
