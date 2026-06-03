@@ -17,10 +17,12 @@
     <File Path="benchmarks/src/BenchSupport/BenchmarkExpected.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReport.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteStore.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteRows.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteLookupEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteLifecycleEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarRows.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarStoreFactory.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarMaterializer.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLookupEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLifecycleEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />

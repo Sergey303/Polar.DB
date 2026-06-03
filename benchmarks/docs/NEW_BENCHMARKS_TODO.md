@@ -1,9 +1,10 @@
 # New benchmarks TODO
 
 Current step:
-- expected rows and checksum are computed from the generated dataset;
-- correctness no longer uses the first measured engine as the baseline;
-- result HTML now shows an explicit `expected` row in the correctness table;
+- lifecycle engines now validate actual materialized storage contents;
+- SQLite lifecycle results are read back from the SQLite database;
+- Polar.DB lifecycle results are read back from `ElementValues()`;
+- expected rows and checksum are still computed independently from generated data;
 - all changed `.cs` files are under 150 lines;
 - no `partial` classes or methods are used.
 

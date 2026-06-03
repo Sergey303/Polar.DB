@@ -37,7 +37,7 @@ internal static class SqliteLifecycleEngine
             }
         }
 
-        return Result("sqlite", samples, data, artifactDir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite")), artifactDir);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -56,7 +56,7 @@ internal static class SqliteLifecycleEngine
             if (i >= options.WarmupOps) samples.Add(stopwatch.Elapsed.TotalMilliseconds);
         }
 
-        return Result("sqlite", samples, data, dir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(db), dir);
     }
 
     private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
@@ -69,7 +69,7 @@ internal static class SqliteLifecycleEngine
 
         var appendRows = BenchmarkData.Dataset(options.MeasuredOps, data.Length + 1);
         var samples = MeasureInTransaction(connection, appendRows, InsertOne);
-        return Result("sqlite", samples, data.Concat(appendRows), dir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir);
     }
 
     private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
@@ -82,7 +82,7 @@ internal static class SqliteLifecycleEngine
 
         var keys = BenchmarkData.PrimaryKeys(data, options.MeasuredOps).ToArray();
         var samples = MeasureInTransaction(connection, keys, DeleteOne);
-        return Result("sqlite", samples, data.Skip(options.MeasuredOps), dir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir);
     }
 
     private static List<double> MeasureInTransaction<T>(
@@ -124,10 +124,7 @@ internal static class SqliteLifecycleEngine
         command.ExecuteNonQuery();
     }
 
-    private static EngineResult Result(string engine, IReadOnlyList<double> samples, IEnumerable<Row> rows, string dir)
-    {
-        var materialized = rows.ToArray();
-        return new EngineResult(engine, "Measured", samples, materialized.Length,
-            BenchmarkChecksum.HashRows(materialized), BenchmarkPaths.DirBytes(dir));
-    }
+    private static EngineResult Result(string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir) =>
+        new(engine, "Measured", samples, actualRows.Length,
+            BenchmarkChecksum.HashRows(actualRows), BenchmarkPaths.DirBytes(dir));
 }

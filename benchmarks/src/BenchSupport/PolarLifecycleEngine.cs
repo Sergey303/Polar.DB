@@ -36,7 +36,8 @@ internal static class PolarLifecycleEngine
             }
         }
 
-        return Result("polar-db-current", samples, data, artifactDir);
+        var rows = PolarMaterializer.ReadAll(artifactDir, ExperimentKind.BuildOnly);
+        return Result("polar-db-current", samples, rows, artifactDir);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -56,7 +57,8 @@ internal static class PolarLifecycleEngine
             if (i >= options.WarmupOps) samples.Add(stopwatch.Elapsed.TotalMilliseconds);
         }
 
-        return Result("polar-db-current", samples, data, dir);
+        return Result("polar-db-current", samples,
+            PolarMaterializer.ReadAll(dir, ExperimentKind.BuildOnly), dir);
     }
 
     private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
@@ -73,9 +75,10 @@ internal static class PolarLifecycleEngine
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
         }
 
+        var rows = PolarMaterializer.ReadAll(store);
         store.Sequence.Flush();
         store.Sequence.Close();
-        return Result("polar-db-current", samples, data.Concat(appendRows), dir);
+        return Result("polar-db-current", samples, rows, dir);
     }
 
     private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
@@ -90,9 +93,10 @@ internal static class PolarLifecycleEngine
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
         }
 
+        var rows = PolarMaterializer.ReadAll(store);
         store.Sequence.Flush();
         store.Sequence.Close();
-        return Result("polar-db-current", samples, data.Skip(options.MeasuredOps), dir);
+        return Result("polar-db-current", samples, rows, dir);
     }
 
     private static PolarStore PrepareBuiltStore(string dir, Row[] data)
@@ -105,10 +109,7 @@ internal static class PolarLifecycleEngine
         return store;
     }
 
-    private static EngineResult Result(string engine, IReadOnlyList<double> samples, IEnumerable<Row> rows, string dir)
-    {
-        var materialized = rows.ToArray();
-        return new EngineResult(engine, "Measured", samples, materialized.Length,
-            BenchmarkChecksum.HashRows(materialized), BenchmarkPaths.DirBytes(dir));
-    }
+    private static EngineResult Result(string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir) =>
+        new(engine, "Measured", samples, actualRows.Length,
+            BenchmarkChecksum.HashRows(actualRows), BenchmarkPaths.DirBytes(dir));
 }
