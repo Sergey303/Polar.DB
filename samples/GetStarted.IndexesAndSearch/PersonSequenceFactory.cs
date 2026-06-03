@@ -1,4 +1,3 @@
-using Polar.DB;
 using Polar.Universal;
 
 namespace GetStarted.IndexesAndSearch;

@@ -2,7 +2,6 @@
 using System;
 using System.Linq;
 using System.Text;
-using Polar.DB.Bench.Core.Models;
 
 namespace Polar.DB.Bench.Charts.Runtime;
 

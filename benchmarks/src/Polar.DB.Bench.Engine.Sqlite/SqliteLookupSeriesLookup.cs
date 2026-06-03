@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Threading;
 using Polar.DB.Bench.Core.LookupSeries;
 using Polar.DB.Bench.Core.Models;

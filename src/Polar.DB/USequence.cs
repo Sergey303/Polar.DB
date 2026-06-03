@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Polar.DB;
+using Polar.DB.ExternalKey;
 
 namespace Polar.Universal
 {
@@ -143,6 +138,11 @@ namespace Polar.Universal
                     //.Select(ob => ConvertNaming(ob))
                     ;
                 return query;
+            }
+            if (uindexes[nom] is IExternalKeyIndex)
+            {
+                var external = (IExternalKeyIndex)uindexes[nom];
+                return external.GetManyByValue(value);
             }
             if (uindexes[nom] is UVectorIndex)
             {

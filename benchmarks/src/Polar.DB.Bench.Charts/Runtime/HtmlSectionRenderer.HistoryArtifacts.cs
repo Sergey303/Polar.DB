@@ -1,9 +1,7 @@
 #nullable enable
 using System;
-using System.IO;
 using System.Linq;
 using System.Text;
-using Polar.DB.Bench.Core.Models;
 
 namespace Polar.DB.Bench.Charts.Runtime;
 
