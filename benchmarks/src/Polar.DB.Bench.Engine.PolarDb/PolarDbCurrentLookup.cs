@@ -17,7 +17,7 @@ internal static class PolarDbCurrentLookup
         if (sequence == null) throw new ArgumentNullException(nameof(sequence));
 
         var comparableKey = ToSupportedKey(key);
-        return sequence.GetAllByKey(comparableKey).ToArray();
+        return sequence.GetByKey(comparableKey) as object[];
     }
 
     public static object FindExactlyOne(USequence sequence, object key)
@@ -25,7 +25,7 @@ internal static class PolarDbCurrentLookup
         if (sequence == null) throw new ArgumentNullException(nameof(sequence));
 
         var comparableKey = ToSupportedKey(key);
-        return sequence.GetExactlyOneByKey(comparableKey);
+        return sequence.GetByKey(comparableKey);
     }
 
     public static IComparable ToSupportedKey(object key)

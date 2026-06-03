@@ -6,6 +6,7 @@ using Polar.DB;
 
 namespace Polar.Universal
 {
+    [Obsolete]
     public class UVecIndex : IUIndex
     {
         private readonly USequence sequence;

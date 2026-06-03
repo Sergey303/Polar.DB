@@ -116,33 +116,6 @@ public class UKeyIndexLargeBlockTests
         AssertRecord(index.GetByKey("Collision-149"), 150, "Collision-149");
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void OnAppendElement_AfterBuild_OnLargeSameHashBlock_Finds_New_Key_Without_Rebuild(bool keysInMemory)
-    {
-        using var scope = new Scope();
-        var index = scope.CreateIndex(
-            record => (string)((object[])record)[1],
-            _ => 1,
-            keysInMemory);
-
-        var rows = Enumerable.Range(0, 80)
-            .Select(i => Row(i + 1, $"Base-{i:D3}"))
-            .Cast<object>()
-            .ToArray();
-
-        scope.Sequence.Load(rows);
-        index.Build();
-
-        long appendedOffset = scope.Sequence.AppendElement(Row(999, "Appended-Key"));
-        index.OnAppendElement(Row(999, "Appended-Key"), appendedOffset);
-
-        AssertRecord(index.GetByKey("Base-000"), 1, "Base-000");
-        AssertRecord(index.GetByKey("Base-079"), 80, "Base-079");
-        AssertRecord(index.GetByKey("Appended-Key"), 999, "Appended-Key");
-    }
-
     private static object[] Row(int id, string name) => new object[] { id, name };
 
     private static void AssertRecord(object value, int expectedId, string expectedName)

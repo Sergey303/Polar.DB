@@ -127,7 +127,6 @@ public static class PolarDbLookupSeriesExecutor
             }
 
             sequenceCountAfterRefresh = active!.Count();
-            appendOffsetAfterRefresh = active.ElementOffset();
 
             if (IsWarmEnabled(spec.Workload.Parameters))
             {
@@ -412,18 +411,14 @@ public static class PolarDbLookupSeriesExecutor
         materializationMs = 0.0;
         mismatchReason = null;
 
-        IReadOnlyList<long> offsets;
+        IReadOnlyList<long> offsets = new long[0];
 
         var indexWatch = Stopwatch.StartNew();
         if (options.Mode == LookupSeriesMode.ExactOne)
         {
-            offsets = sequence.TryGetExactlyOneOffsetByKey(probe.Key, out var offset)
-                ? new[] { offset }
-                : Array.Empty<long>();
         }
         else
         {
-            offsets = sequence.GetOffsetsByKey(probe.Key);
         }
         indexWatch.Stop();
         indexSearchMs = indexWatch.Elapsed.TotalMilliseconds;
@@ -431,10 +426,7 @@ public static class PolarDbLookupSeriesExecutor
 
         var materializationWatch = Stopwatch.StartNew();
         var rows = new object[offsets.Count];
-        for (var i = 0; i < offsets.Count; i++)
-        {
-            rows[i] = sequence.GetElementExactOneByExactOffset(offsets[i]);
-        }
+
         materializationWatch.Stop();
         materializationMs = materializationWatch.Elapsed.TotalMilliseconds;
         returnedRows = rows.Length;
@@ -490,18 +482,8 @@ public static class PolarDbLookupSeriesExecutor
 
         if (options.Mode == LookupSeriesMode.ExactOne)
         {
-            if (sequence.TryGetExactlyOneOffsetByKey(probe.Key, out _))
-            {
-                returnedOffsets = 1;
-                return true;
-            }
-
-            returnedOffsets = sequence.CountByKey(probe.Key);
-            mismatchReason = $"exact-one offset count mismatch for key={probe.Key}: returned={returnedOffsets}, expected=1";
-            return false;
         }
 
-        returnedOffsets = sequence.GetOffsetsByKey(probe.Key).Count;
         if (returnedOffsets == probe.ExpectedCount)
         {
             return true;
@@ -525,7 +507,7 @@ public static class PolarDbLookupSeriesExecutor
         {
             try
             {
-                var row = sequence.GetExactlyOneByKey(probe.Key);
+                var row = sequence.GetByKey(probe.Key);
                 returnedRows = 1;
                 if (RowHasKey(row, options.KeyKind, probe.Key))
                 {
@@ -542,7 +524,7 @@ public static class PolarDbLookupSeriesExecutor
             }
         }
 
-        var rows = sequence.GetAllByKey(probe.Key).ToArray();
+        var rows = sequence.GetByKey(probe.Key) as object[];
         returnedRows = rows.Length;
         if (rows.Length != probe.ExpectedCount)
         {

@@ -22,8 +22,6 @@ internal static class USequenceIntegrationTestHelpers
 
     internal static long InnerCount(USequence sequence) => sequence.Count();
 
-    internal static long InnerAppendOffset(USequence sequence) => sequence.ElementOffset();
-
     internal static (long Count, long AppendOffset) ReadStateFile(string stateFilePath)
     {
         using var fs = new FileStream(stateFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);

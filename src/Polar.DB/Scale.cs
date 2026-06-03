@@ -5,6 +5,7 @@ using System.Linq;
 
 namespace Polar.DB
 {
+    [Obsolete]
     public class Scale
     {
         private int keysLength, n_scale, min, max;

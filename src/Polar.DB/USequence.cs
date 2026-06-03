@@ -202,5 +202,10 @@ namespace Polar.Universal
             this.primaryKeyIndex.Build();
             foreach (var ind in uindexes) ind.Build();
         }
+
+        public long Count()
+        {
+            return sequence.Count();
+        }
     }
 }

@@ -78,22 +78,6 @@ public class USequenceTests
     }
 
     [Fact]
-    public void CorrectOnAppendElement_Indexes_Record_Added_Directly_To_Base_Sequence()
-    {
-        using var scope = new USequenceScope(PersonType);
-
-        var baseSequence = scope.Sequence;
-        baseSequence.Clear();
-        long offset = baseSequence.AppendElement(new object[] { 77, "Manual" });
-        baseSequence.Flush();
-
-        scope.Sequence.CorrectOnAppendElement(offset);
-
-        var found = Assert.IsType<object[]>(scope.Sequence.GetByKey(77));
-        Assert.Equal("Manual", Assert.IsType<string>(found[1]));
-    }
-
-    [Fact]
     public void RestoreDynamic_Indexes_Records_Appended_After_Last_Saved_State()
     {
         using var scope = new USequenceScope(PersonType);

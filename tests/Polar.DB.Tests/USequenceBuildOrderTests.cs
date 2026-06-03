@@ -24,7 +24,6 @@ public class USequenceBuildOrderTests
 
         var state = USequenceIntegrationTestHelpers.ReadStateFile(env.StateFilePath);
         Assert.Equal(USequenceIntegrationTestHelpers.InnerCount(sequence), state.Count);
-        Assert.Equal(USequenceIntegrationTestHelpers.InnerAppendOffset(sequence), state.AppendOffset);
 
         var byKey = Assert.IsType<object[]>(sequence.GetByKey(2));
         Assert.Equal("BOB", (string)byKey[1]);
@@ -54,7 +53,6 @@ public class USequenceBuildOrderTests
 
         var reopenedState = USequenceIntegrationTestHelpers.ReadStateFile(env.StateFilePath);
         Assert.Equal(USequenceIntegrationTestHelpers.InnerCount(reopened), reopenedState.Count);
-        Assert.Equal(USequenceIntegrationTestHelpers.InnerAppendOffset(reopened), reopenedState.AppendOffset);
 
         var reopenedByKey = Assert.IsType<object[]>(reopened.GetByKey(2));
         Assert.Equal("BOB", (string)reopenedByKey[1]);

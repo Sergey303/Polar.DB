@@ -55,7 +55,6 @@ internal static partial class PolarDbStringLikeLookupExecutor
                 active = CreateSequence(layout, options);
                 active.Refresh();
                 rowCountAfterReopen = active.Count();
-                appendOffsetAfterReopen = active.ElementOffset();
             });
 
             var mismatches = new List<string>();

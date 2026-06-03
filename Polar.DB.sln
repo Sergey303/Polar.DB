@@ -64,6 +64,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{59FD
 		benchmarks\scripts\run-all-experiments-parallel.ps1 = benchmarks\scripts\run-all-experiments-parallel.ps1
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec.PolarDbCurrent", "benchmarks\src\Polar.DB.Bench.Exec.PolarDbCurrent\Polar.DB.Bench.Exec.PolarDbCurrent.csproj", "{F7F9BF9A-7420-4E14-83F1-BB31B9C27E21}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -126,6 +128,10 @@ Global
 		{2C923367-8E44-42EA-8E09-C34AE945BAE5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2C923367-8E44-42EA-8E09-C34AE945BAE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2C923367-8E44-42EA-8E09-C34AE945BAE5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F7F9BF9A-7420-4E14-83F1-BB31B9C27E21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7F9BF9A-7420-4E14-83F1-BB31B9C27E21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F7F9BF9A-7420-4E14-83F1-BB31B9C27E21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F7F9BF9A-7420-4E14-83F1-BB31B9C27E21}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -149,6 +155,7 @@ Global
 		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{59FD1B41-F231-49F7-80B9-03EA40F9E7F8} = {018206B5-A401-4F02-8782-F88082A9E14A}
+		{F7F9BF9A-7420-4E14-83F1-BB31B9C27E21} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {60C32BA1-23B5-4607-8820-4F79BC1FFEA8}
