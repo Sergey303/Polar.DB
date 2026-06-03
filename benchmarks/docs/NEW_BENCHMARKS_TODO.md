@@ -1,14 +1,20 @@
 # New benchmarks TODO
 
 Current step:
-- `pk-int-lookup`, `pk-string-lookup`, `external-int-lookup`, and
-  `external-string-lookup` now have real Polar.DB and SQLite paths.
-- Lookup measurement excludes data generation, load, build, and reopen.
-- Both engines materialize returned values into the same `Row` shape before checksum.
-- Result HTML contains median, p95, min, max, trimmed mean, rows, checksum, and artifact bytes.
+- all new support files are under 150 lines;
+- no `partial` classes or methods are used;
+- `mag_experiments` is not removed;
+- lookup experiments use real Polar.DB and SQLite paths;
+- BuildOnly, ReopenOnly, AppendOnly, and DeleteOnly now use the same support layer.
+
+Semantics:
+- lookup excludes data generation, load, build, and reopen from measured samples;
+- build-only measures index/build preparation after data load;
+- reopen-only measures opening an existing prepared store;
+- append-only measures appending rows to an already indexed store;
+- delete-only uses Polar.DB logical tombstones and SQLite `DELETE`.
 
 Still TODO:
-- split BuildOnly, ReopenOnly, AppendOnly, DeleteOnly into the same support style;
-- decide whether append-only means raw append or append with index maintenance;
-- return NotSupported for delete if Polar.DB has no real delete API;
-- run local compile and adjust exact API calls if the repository branch differs.
+- run locally and adjust exact API calls if the branch differs;
+- decide whether append-only should also have a raw append variant without index maintenance;
+- add focused tests for benchmark helper code if it becomes more than a harness.

@@ -10,9 +10,20 @@
     <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
   </Folder>
   <Folder Name="/benchmarks/src/BenchSupport/">
+    <File Path="benchmarks/src/BenchSupport/BenchmarkModels.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkData.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkPaths.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkChecksum.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkReport.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteStore.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteLookupEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteLifecycleEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarRows.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarStoreFactory.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarLookupEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarLifecycleEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />
-    <File Path="benchmarks/src/BenchSupport/LookupEngines.cs" />
-    <File Path="benchmarks/src/BenchSupport/LookupReport.cs" />
+    <File Path="benchmarks/src/BenchSupport/LifecycleBench.cs" />
   </Folder>
   <Folder Name="/benchmarks/src/">
     <Project Path="benchmarks/src/PkIntLookup/PkIntLookup.csproj" />
