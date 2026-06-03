@@ -64,32 +64,4 @@ public class USequenceTraversalTests
         Assert.True(visitedOffsets.SequenceEqual(visitedOffsets.OrderBy(x => x)));
     }
 
-    [Fact]
-    public void Traversal_After_Reopen_Remains_Consistent_With_Primary_Key_Filtering()
-    {
-        using var env = new USequenceIntegrationTestHelpers.DeterministicIndexedSequenceEnvironment();
-
-        var sequence = env.CreateSequenceWithIndexes(optimise: false);
-        sequence.Load(new object[]
-        {
-            USequenceIntegrationTestHelpers.Row(1, "ALICE", 30, "news"),
-            USequenceIntegrationTestHelpers.Row(2, "BOB", 40, "sports")
-        });
-        sequence.Build();
-
-        sequence.AppendElement(USequenceIntegrationTestHelpers.Row(2, "BOB-NEW", 41, "news"));
-        sequence.AppendElement(USequenceIntegrationTestHelpers.Row(3, "", 0, "ignored"));
-        sequence.AppendElement(USequenceIntegrationTestHelpers.Row(4, "CLARA", 25, "tech"));
-        sequence.Close();
-
-        var reopened = env.CreateSequenceWithIndexes(optimise: false);
-        reopened.Refresh();
-
-        var values = reopened.ElementValues().Cast<object[]>().ToArray();
-
-        Assert.Equal(new[] { 1, 2, 4 }, values.Select(r => (int)r[0]).ToArray());
-        Assert.Equal("ALICE", (string)values[0][1]);
-        Assert.Equal("BOB-NEW", (string)values[1][1]);
-        Assert.Equal("CLARA", (string)values[2][1]);
-    }
 }

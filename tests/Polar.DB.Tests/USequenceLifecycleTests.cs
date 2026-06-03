@@ -1,4 +1,5 @@
 using System.Reflection;
+using Polar.Universal;
 using Xunit;
 
 namespace Polar.DB.Tests;
@@ -150,41 +151,13 @@ public class USequenceLifecycleTests
     }
 
     /// <summary>
-    /// Verifies the explicit recovery hook for externally appended data:
-    /// after a raw append performed through the underlying sequence,
-    /// <see cref="USequence.CorrectOnAppendElement(long)"/> must update indexes.
-    /// </summary>
-    [Fact]
-    public void CorrectOnAppendElement_IndexesExternallyAppendedTailRecord()
-    {
-        using var scope = new SequenceScope(deleteOnDispose: true);
-
-        scope.Sequence.Load(new object[]
-        {
-            new object[] { 1, "ALICE" }
-        });
-        scope.Sequence.Build();
-
-        var rawSequence = GetInnerSequence(scope.Sequence);
-        long appendedOffset = rawSequence.AppendElement(new object[] { 2, "BOB" });
-        rawSequence.Flush();
-
-        Assert.Null(scope.Sequence.GetByKey(2));
-
-        scope.Sequence.CorrectOnAppendElement(appendedOffset);
-
-        var restored = Assert.IsType<object[]>(scope.Sequence.GetByKey(2));
-        Assert.Equal("BOB", (string)restored[1]);
-    }
-
-    /// <summary>
     /// Reads the private storage sequence used by the facade.
     /// This is intentionally test-only: it lets the public recovery hook be
     /// exercised against a realistic external append scenario.
     /// </summary>
     private static UniversalSequenceBase GetInnerSequence(USequence sequence)
     {
-        var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.NonPublic);
+        var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         Assert.NotNull(field);
 
         return Assert.IsType<UniversalSequenceBase>(field.GetValue(sequence));

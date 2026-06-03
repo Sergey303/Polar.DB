@@ -10,6 +10,7 @@ using Polar.DB.Bench.Core.Abstractions;
 using Polar.DB.Bench.Core.LookupSeries;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.Services;
+using Polar.Universal;
 using static Polar.DB.Bench.Core.Services.FileWarmup;
 
 namespace Polar.DB.Bench.Engine.PolarDb;
@@ -125,8 +126,8 @@ public static class PolarDbLookupSeriesExecutor
                 sequence = null;
             }
 
-            sequenceCountAfterRefresh = active!.sequence.Count();
-            appendOffsetAfterRefresh = active.sequence.ElementOffset();
+            sequenceCountAfterRefresh = active!.Count();
+            appendOffsetAfterRefresh = active.ElementOffset();
 
             if (IsWarmEnabled(spec.Workload.Parameters))
             {
@@ -432,7 +433,7 @@ public static class PolarDbLookupSeriesExecutor
         var rows = new object[offsets.Count];
         for (var i = 0; i < offsets.Count; i++)
         {
-            rows[i] = sequence.sequence.GetElement(offsets[i]);
+            rows[i] = sequence.GetElementExactOneByExactOffset(offsets[i]);
         }
         materializationWatch.Stop();
         materializationMs = materializationWatch.Elapsed.TotalMilliseconds;

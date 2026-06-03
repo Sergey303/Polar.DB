@@ -57,6 +57,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Polar.DB.Bench.Exec", "benc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mag_experiments", "mag_experiments\mag_experiments.csproj", "{2C923367-8E44-42EA-8E09-C34AE945BAE5}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{59FD1B41-F231-49F7-80B9-03EA40F9E7F8}"
+	ProjectSection(SolutionItems) = preProject
+		benchmarks\scripts\run-string-like-prefix-lookup.ps1 = benchmarks\scripts\run-string-like-prefix-lookup.ps1
+		benchmarks\scripts\run-string-like-split.ps1 = benchmarks\scripts\run-string-like-split.ps1
+		benchmarks\scripts\run-all-experiments-parallel.ps1 = benchmarks\scripts\run-all-experiments-parallel.ps1
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -141,6 +148,7 @@ Global
 		{955687A2-6FC6-4F25-8E8B-EACFA189B4B0} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{48E9EB94-CE74-42C6-A9EE-8E32A8F6177B} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
 		{599F19CF-04DB-4C09-AF63-22D0ED74DCD3} = {7406FEE2-CAC6-4561-B00D-A0701EC53696}
+		{59FD1B41-F231-49F7-80B9-03EA40F9E7F8} = {018206B5-A401-4F02-8782-F88082A9E14A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {60C32BA1-23B5-4607-8820-4F79BC1FFEA8}

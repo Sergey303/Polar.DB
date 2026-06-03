@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Polar.DB.Bench.Core.Models;
 using Polar.DB.Bench.Core.Services;
 using Polar.DB.Bench.Core.StringLikeLookup;
+using Polar.Universal;
 
 namespace Polar.DB.Bench.Engine.PolarDb;
 
@@ -53,8 +54,8 @@ internal static partial class PolarDbStringLikeLookupExecutor
             {
                 active = CreateSequence(layout, options);
                 active.Refresh();
-                rowCountAfterReopen = active.sequence.Count();
-                appendOffsetAfterReopen = active.sequence.ElementOffset();
+                rowCountAfterReopen = active.Count();
+                appendOffsetAfterReopen = active.ElementOffset();
             });
 
             var mismatches = new List<string>();

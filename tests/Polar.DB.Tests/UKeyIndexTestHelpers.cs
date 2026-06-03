@@ -1,3 +1,5 @@
+using Polar.Universal;
+
 namespace Polar.DB.Tests;
 
 public static class UKeyIndexTestHelpers

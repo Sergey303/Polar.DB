@@ -219,7 +219,7 @@ namespace Polar.DB
 
         // Более удобный объект для парсинга TextFlow
         private TextReader tr;
-        internal TextFlow(TextReader tr) { this.tr = tr; }
+        public TextFlow(TextReader tr) { this.tr = tr; }
         public void Skip()
         {
             while (char.IsWhiteSpace((char)tr.Peek())) tr.Read();
