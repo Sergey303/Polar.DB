@@ -19,6 +19,9 @@ namespace Polar.Universal
         private UniversalSequenceBase offsets;
         // Динамическая часть индекса
         private Dictionary<IComparable, long> keyoff_dic;
+        
+        internal bool ElementChanged(IComparable key) { return keyoff_dic.ContainsKey(key); }
+
         private bool keysinmemory;
 
         public UKeyIndex(Func<Stream> streamGen, USequence sequence,

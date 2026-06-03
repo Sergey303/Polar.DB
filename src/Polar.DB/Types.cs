@@ -240,8 +240,9 @@ namespace Polar.DB
                 // Нет объектной пары
             };
         }
-        public string Interpret(object v, bool withfieldnames = false)
+        public string Interpret(object? v, bool withfieldnames = false)
         {
+            if (v == null) throw new ArgumentNullException();
             switch (this.vid)
             {
                 case PTypeEnumeration.none: return "";

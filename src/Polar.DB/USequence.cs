@@ -13,9 +13,11 @@ namespace Polar.Universal
         // У универсальной последовательности нет динамической части. Все элементы доступны через методы.
         // Однако элемент может быть пустым. 
         private UniversalSequenceBase sequence;
-        private Func<object, bool> isEmpty;
-        private Func<object, IComparable> keyFunc;
+        internal Func<object, bool> isEmpty;
+        internal Func<object, IComparable> keyFunc;
         private UKeyIndex primaryKeyIndex;
+        //internal HashSet<IComparable> changedIdSet = new HashSet<IComparable>();
+        internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
         
@@ -37,8 +39,8 @@ namespace Polar.Universal
         // Следующий метод актуален только если statefile != null
         public void RestoreDynamic()
         {
-            FileStream statefile = new FileStream(stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
-            BinaryReader reader = new BinaryReader(statefile);
+            FileStream statefile = new (stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
+            BinaryReader reader = new (statefile);
             long statenelements = reader.ReadInt64(); //old sequence.Count();
             long elementoffset = reader.ReadInt64(); // sequence.ElementOffset();
             statefile.Close();
@@ -74,8 +76,8 @@ namespace Polar.Universal
             if (stateFileName != null)
             {
                 // =========== Зафиксируем состояние в файле. Запомним текущее число элементов и офсет следующего ====
-                FileStream statefile = new FileStream(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
-                BinaryWriter writer = new BinaryWriter(statefile);
+                FileStream statefile = new (stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
+                BinaryWriter writer = new (statefile);
                 writer.Write(sequence.Count());
                 writer.Write(sequence.ElementOffset());
                 statefile.Close();

@@ -90,7 +90,7 @@ namespace Polar.Universal
                 return comp.Compare(v1, v2);
             }));
             // сканируем опорную последовательность, формируем массивы
-            List<long> offsets_list = new List<long>();
+            List<long> offsets_list = new ();
             sequence.Scan((off, obj) =>
             {
                 if (applicable(obj)) offsets_list.Add(off);
@@ -112,8 +112,8 @@ namespace Polar.Universal
         private void BuildHkeyOffsets()
         {
             // сканируем опорную последовательность, формируем массивы
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
+            List<int> hkeys_list = new ();
+            List<long> offsets_list = new ();
             sequence.Scan((off, obj) =>
             {
                 offsets_list.Add(off);
@@ -142,9 +142,9 @@ namespace Polar.Universal
         }
         internal IEnumerable<ObjOff> GetAllBySample(object sample)
         {
-            if (dynset.Count() > 0)
+            if (dynset.Length > 0)
             {
-                HKeyObjOff complex_sample = new HKeyObjOff() { obj = sample };
+                HKeyObjOff complex_sample = new () { obj = sample };
                 if (hashFunc != null) complex_sample.hkey = hashFunc(sample);
                 var query = dynset.Where(hoo => complex_comp.Compare(hoo, complex_sample) == 0)
                     .Select(hoo => new ObjOff(hoo.obj, hoo.off));
@@ -164,7 +164,7 @@ namespace Polar.Universal
         }
         internal IEnumerable<ObjOff> GetAllByLike(object sample, Comparer<object> comp_like)
         {
-            if (dynset.Count() > 0)
+            if (dynset.Length > 0)
             {
                 var query = dynset.Select(hoo => new ObjOff(hoo.obj, hoo.off));
                 foreach (var oo in query)
