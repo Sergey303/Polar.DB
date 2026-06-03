@@ -10,5 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="../../../src/Polar.DB/Polar.DB.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <Compile Include="../BenchSupport/LookupBench.cs" Link="LookupBench.cs" />
+    <Compile Include="../BenchSupport/LookupEngines.cs" Link="LookupEngines.cs" />
+    <Compile Include="../BenchSupport/LookupReport.cs" Link="LookupReport.cs" />
   </ItemGroup>
 </Project>

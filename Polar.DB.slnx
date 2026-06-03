@@ -9,6 +9,11 @@
   <Folder Name="/benchmarks/scripts/">
     <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
   </Folder>
+  <Folder Name="/benchmarks/src/BenchSupport/">
+    <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />
+    <File Path="benchmarks/src/BenchSupport/LookupEngines.cs" />
+    <File Path="benchmarks/src/BenchSupport/LookupReport.cs" />
+  </Folder>
   <Folder Name="/benchmarks/src/">
     <Project Path="benchmarks/src/PkIntLookup/PkIntLookup.csproj" />
     <Project Path="benchmarks/src/PkStringLookup/PkStringLookup.csproj" />
