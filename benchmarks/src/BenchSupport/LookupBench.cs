@@ -8,6 +8,7 @@ internal static class LookupBench
     {
         var work = BenchmarkPaths.PrepareWorkDir(options.ExperimentId);
         var data = BenchmarkData.Dataset(options.SetupRows);
+        var expected = BenchmarkExpected.ForLookup(options, data);
         var engines = new[]
         {
             SqliteLookupEngine.Run(options, data, Path.Combine(work, "sqlite")),
@@ -15,7 +16,7 @@ internal static class LookupBench
         };
 
         var output = BenchmarkPaths.ResultPath(options.ExperimentId);
-        File.WriteAllText(output, BenchmarkReport.Render(options, engines), Encoding.UTF8);
+        File.WriteAllText(output, BenchmarkReport.Render(options, expected, engines), Encoding.UTF8);
         Console.WriteLine(output);
     }
 }

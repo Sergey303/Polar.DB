@@ -1,10 +1,9 @@
 # New benchmarks TODO
 
 Current step:
-- old benchmark folders are already gone, so no removal script is needed;
-- lifecycle experiments now use the fully indexed setup on both engines;
-- build-only artifact size is taken from the last measured run, not from all warmup/run folders;
-- SQLite append/delete are measured inside one transaction, closer to Polar.DB append/tombstone measurement;
+- expected rows and checksum are computed from the generated dataset;
+- correctness no longer uses the first measured engine as the baseline;
+- result HTML now shows an explicit `expected` row in the correctness table;
 - all changed `.cs` files are under 150 lines;
 - no `partial` classes or methods are used.
 

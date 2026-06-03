@@ -4,7 +4,10 @@ namespace PolarDbBenchmarks;
 
 internal static class BenchmarkReport
 {
-    public static string Render(ExperimentOptions options, IReadOnlyList<EngineResult> engines)
+    public static string Render(
+        ExperimentOptions options,
+        QueryResult expected,
+        IReadOnlyList<EngineResult> engines)
     {
         var builder = new StringBuilder();
         builder.AppendLine("<!doctype html><html><head><meta charset=\"utf-8\">");
@@ -15,9 +18,9 @@ internal static class BenchmarkReport
         builder.AppendLine("<p><b>Rows:</b> " + options.SetupRows + "; <b>warmup:</b> " +
             options.WarmupOps + "; <b>measured:</b> " + options.MeasuredOps + "</p>");
         AppendTiming(builder, engines);
-        AppendCorrectness(builder, engines);
+        AppendCorrectness(builder, expected, engines);
         builder.AppendLine("<h2>Notes</h2>");
-        builder.AppendLine("<p>Generated reports and temporary databases are local artifacts.</p>");
+        builder.AppendLine("<p>Correctness is checked against expected rows and checksum computed from the generated dataset.</p>");
         builder.AppendLine("</body></html>");
         return builder.ToString();
     }
@@ -39,14 +42,19 @@ internal static class BenchmarkReport
         builder.AppendLine("</table>");
     }
 
-    private static void AppendCorrectness(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    private static void AppendCorrectness(
+        StringBuilder builder,
+        QueryResult expected,
+        IReadOnlyList<EngineResult> engines)
     {
         builder.AppendLine("<h2>Correctness</h2>");
         builder.AppendLine("<table><tr><th>Engine</th><th>Rows</th><th>Checksum</th><th>Status</th></tr>");
-        var expected = engines.FirstOrDefault(engine => engine.Status == "Measured")?.Checksum;
+        builder.AppendLine("<tr><td>expected</td><td>" + expected.Rows +
+            "</td><td>" + expected.Checksum + "</td><td class=\"ok\">Baseline</td></tr>");
+
         foreach (var engine in engines)
         {
-            var ok = expected == engine.Checksum || engine.Status != "Measured";
+            var ok = engine.Rows == expected.Rows && engine.Checksum == expected.Checksum;
             builder.AppendLine("<tr><td>" + Escape(engine.Engine) + "</td><td>" +
                 engine.Rows + "</td><td>" + engine.Checksum + "</td><td class=\"" +
                 (ok ? "ok" : "warn") + "\">" + (ok ? "OK" : "Mismatch") + "</td></tr>");
