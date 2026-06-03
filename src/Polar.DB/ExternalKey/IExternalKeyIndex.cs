@@ -1,6 +1,7 @@
 namespace Polar.DB.ExternalKey;
 
-public interface IExternalKeyIndex
+internal interface IExternalKeyIndex
 {
     IEnumerable<object> GetManyByValue(IComparable value);
+    void Compact();
 }

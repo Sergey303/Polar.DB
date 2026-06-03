@@ -76,6 +76,11 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
         _dynamic.Clear();
     }
 
+    public void Compact()
+    {
+        Build();
+    }
+
     public void OnAppendElement(object element, long offset)
     {
         IComparable primary = _sequence.keyFunc(element);
@@ -83,9 +88,9 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
         _dynamic.AddRange(GetKeys(element).Select(key => new ExternalKeyIndexEntry<T>(primary, key, offset)));
     }
 
-    public IEnumerable<object> GetManyByValue(T key) => GetManyByValue(key, null);
+    internal IEnumerable<object> GetManyByValue(T key) => GetManyByValue(key, null);
 
-    public IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
+    internal IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
     {
         var emittedOffsets = new HashSet<long>();
         foreach (var entry in _dynamic.Where(entry => KeyEquals(entry.Key, key)))
@@ -104,6 +109,11 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     IEnumerable<object> IExternalKeyIndex.GetManyByValue(IComparable value) =>
         GetManyByValue(ExternalKeyIndexKeyCodec<T>.Cast(value));
+
+    void IExternalKeyIndex.Compact()
+    {
+        Compact();
+    }
 
     private object? TryReadStatic(int index, T key, Func<object, bool>? filter, HashSet<long> emitted)
     {
@@ -131,6 +141,7 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
     private bool KeyEquals(T left, T right) => _comparer.Compare(left, right) == 0;
 
     private IEnumerable<T> GetKeys(object element) => _keysFunc(element) ?? Enumerable.Empty<T>();
+
     private void RewriteStaticStorage(long[] offsetsArray)
     {
         _keys.Clear();

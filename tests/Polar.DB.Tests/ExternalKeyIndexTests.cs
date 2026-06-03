@@ -60,6 +60,33 @@ public class ExternalKeyIndexTests
         Assert.Equal(new[] { 1 }, QueryIds(env.Sequence, 0, "carol"));
     }
 
+    [Fact]
+    public void Compact_Rebuilds_Static_Index_From_Current_Records()
+    {
+        using var env = new SequenceEnvironment();
+        var nameIndex = new ExternalKeyIndex<string>(
+            env.StreamGen,
+            env.Sequence,
+            r => new[] { (string)((object[])r)[1] },
+            StringComparer.OrdinalIgnoreCase);
+        env.Sequence.uindexes = new IUIndex[] { nameIndex };
+
+        env.Sequence.Load(new object[]
+        {
+            Row(1, "ALICE", 100L, FirstGuid),
+            Row(2, "BOB", 200L, SecondGuid)
+        });
+        env.Sequence.Build();
+        env.Sequence.AppendElement(Row(1, "CAROL", 300L, FirstGuid));
+
+        nameIndex.Compact();
+        nameIndex.Refresh();
+
+        Assert.Empty(QueryIds(env.Sequence, 0, "alice"));
+        Assert.Equal(new[] { 1 }, QueryIds(env.Sequence, 0, "carol"));
+        Assert.Equal(new[] { 2 }, QueryIds(env.Sequence, 0, "bob"));
+    }
+
     private static object[] Row(int id, string name, long score, Guid guid)
     {
         return new object[] { id, name, score, guid.ToString("D") };
