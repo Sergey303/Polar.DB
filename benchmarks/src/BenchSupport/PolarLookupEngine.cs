@@ -21,7 +21,7 @@ internal static class PolarLookupEngine
             Query(store, options.Kind, keys[i % keys.Length]);
 
         var samples = new List<double>();
-        ulong checksum = 0;
+        ulong checksum = 14695981039346656037UL;
         long rows = 0;
         foreach (var key in keys)
         {
@@ -30,7 +30,7 @@ internal static class PolarLookupEngine
             stopwatch.Stop();
 
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
-            checksum ^= query.Checksum;
+            checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
             rows += query.Rows;
         }
 
@@ -41,16 +41,10 @@ internal static class PolarLookupEngine
 
     public static QueryResult Query(PolarStore store, ExperimentKind kind, object key)
     {
-        var values = Values(store, kind, (IComparable)key);
-        ulong checksum = 0;
-        long rows = 0;
-        foreach (var value in values)
-        {
-            checksum ^= BenchmarkChecksum.Hash(PolarRows.FromPolar(value));
-            rows++;
-        }
-
-        return new QueryResult(rows, checksum);
+        var rows = Values(store, kind, (IComparable)key)
+            .Select(PolarRows.FromPolar)
+            .ToArray();
+        return new QueryResult(rows.Length, BenchmarkChecksum.HashRows(rows));
     }
 
     private static IEnumerable<object> Values(PolarStore store, ExperimentKind kind, IComparable key)

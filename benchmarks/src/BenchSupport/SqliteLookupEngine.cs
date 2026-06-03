@@ -19,7 +19,7 @@ internal static class SqliteLookupEngine
             Query(connection, options.Kind, keys[i % keys.Length]);
 
         var samples = new List<double>();
-        ulong checksum = 0;
+        ulong checksum = 14695981039346656037UL;
         long rows = 0;
         foreach (var key in keys)
         {
@@ -28,7 +28,7 @@ internal static class SqliteLookupEngine
             stopwatch.Stop();
 
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
-            checksum ^= query.Checksum;
+            checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
             rows += query.Rows;
         }
 
@@ -48,16 +48,13 @@ internal static class SqliteLookupEngine
         command.Parameters.AddWithValue("$v", key);
 
         using var reader = command.ExecuteReader();
-        ulong checksum = 0;
-        long rows = 0;
+        var rows = new List<Row>();
         while (reader.Read())
         {
-            checksum ^= BenchmarkChecksum.Hash(new Row(
-                reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2),
+            rows.Add(new Row(reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2),
                 reader.GetString(3), reader.GetString(4)));
-            rows++;
         }
 
-        return new QueryResult(rows, checksum);
+        return new QueryResult(rows.Count, BenchmarkChecksum.HashRows(rows));
     }
 }

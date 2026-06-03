@@ -4,13 +4,13 @@ internal static class BenchmarkExpected
 {
     public static QueryResult ForLookup(ExperimentOptions options, Row[] data)
     {
-        ulong checksum = 0;
+        ulong checksum = 14695981039346656037UL;
         long rows = 0;
         foreach (var key in BenchmarkData.LookupKeys(data, options.Kind, options.MeasuredOps))
         {
             var matches = LookupMatches(options.Kind, data, key);
             var queryChecksum = BenchmarkChecksum.HashRows(matches);
-            checksum ^= queryChecksum;
+            checksum = BenchmarkChecksum.Combine(checksum, queryChecksum);
             rows += matches.LongLength;
         }
 

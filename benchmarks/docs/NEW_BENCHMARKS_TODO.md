@@ -1,10 +1,9 @@
 # New benchmarks TODO
 
 Current step:
-- lifecycle engines now validate actual materialized storage contents;
-- SQLite lifecycle results are read back from the SQLite database;
-- Polar.DB lifecycle results are read back from `ElementValues()`;
-- expected rows and checksum are still computed independently from generated data;
+- lookup checksums now use order-sensitive combining instead of XOR;
+- repeated external-key probes can no longer cancel each other out in checksum;
+- per-query materialized rows are hashed through the same `HashRows` path;
 - all changed `.cs` files are under 150 lines;
 - no `partial` classes or methods are used.
 
