@@ -1,9 +1,9 @@
 using PolarDbBenchmarks;
 
 var options = new ExperimentOptions(
-    ExperimentId: "external-famous-string-lookup",
-    Title: "Heavy equal-range lookup by famous string external key.",
-    Kind: ExperimentKind.ExternalFamousStringLookup,
+    ExperimentId: "external-famous-guid-lookup",
+    Title: "Heavy equal-range lookup by famous GUID external key.",
+    Kind: ExperimentKind.ExternalFamousGuidLookup,
     RowCounts: BenchmarkDefaults.RowCounts,
     WarmupOps: BenchmarkDefaults.HeavyExternalWarmupOps,
     MeasuredOps: BenchmarkDefaults.HeavyExternalMeasuredOps);

@@ -3,7 +3,12 @@ using Polar.Universal;
 
 namespace PolarDbBenchmarks;
 
-internal sealed record PolarStore(USequence Sequence, EKeyIndex? IntIndex, EKeyIndex? StringIndex);
+internal sealed record PolarStore(
+    USequence Sequence,
+    EKeyIndex? IntIndex,
+    EKeyIndex? LongIndex,
+    EKeyIndex? GuidIndex,
+    EKeyIndex? StringIndex);
 
 internal static class PolarStoreFactory
 {
@@ -16,16 +21,17 @@ internal static class PolarStoreFactory
             return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
         }
 
-        var sequence = new USequence(
-            ElementType(), Path.Combine(dir, "state.bin"), StreamGen,
+        var sequence = new USequence(ElementType(), Path.Combine(dir, "state.bin"), StreamGen,
             IsDeleted, PrimaryKey(kind), BenchmarkChecksum.StableHash);
 
         var intIndex = NeedsIntIndex(kind) ? CreateIntIndex(StreamGen, sequence) : null;
+        var longIndex = NeedsLongIndex(kind) ? CreateLongIndex(StreamGen, sequence) : null;
+        var guidIndex = NeedsGuidIndex(kind) ? CreateGuidIndex(StreamGen, sequence) : null;
         var stringIndex = NeedsStringIndex(kind) ? CreateStringIndex(StreamGen, sequence) : null;
-        sequence.uindexes = new IUIndex[] { intIndex, stringIndex }
+        sequence.uindexes = new IUIndex[] { intIndex, longIndex, guidIndex, stringIndex }
             .Where(index => index != null).Cast<IUIndex>().ToArray();
 
-        return new PolarStore(sequence, intIndex, stringIndex);
+        return new PolarStore(sequence, intIndex, longIndex, guidIndex, stringIndex);
     }
 
     private static PType ElementType() => new PTypeRecord(
@@ -34,11 +40,13 @@ internal static class PolarStoreFactory
         new NamedType("guid_key", new PType(PTypeEnumeration.sstring)),
         new NamedType("skey", new PType(PTypeEnumeration.sstring)),
         new NamedType("external_id", new PType(PTypeEnumeration.integer)),
+        new NamedType("external_long", new PType(PTypeEnumeration.longinteger)),
+        new NamedType("external_guid", new PType(PTypeEnumeration.sstring)),
         new NamedType("external_key", new PType(PTypeEnumeration.sstring)),
         new NamedType("payload", new PType(PTypeEnumeration.sstring)),
         new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
 
-    private static bool IsDeleted(object value) => (bool)((object[])value)[7];
+    private static bool IsDeleted(object value) => (bool)((object[])value)[9];
 
     private static Func<object, IComparable> PrimaryKey(ExperimentKind kind) => kind switch
     {
@@ -49,18 +57,30 @@ internal static class PolarStoreFactory
     };
 
     private static bool NeedsIntIndex(ExperimentKind kind) =>
-        kind is ExperimentKind.ExternalIntLookup or ExperimentKind.BuildOnly;
+        kind is ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup or ExperimentKind.BuildOnly;
+
+    private static bool NeedsLongIndex(ExperimentKind kind) =>
+        kind is ExperimentKind.ExternalLongLookup or ExperimentKind.ExternalFamousLongLookup or ExperimentKind.BuildOnly;
+
+    private static bool NeedsGuidIndex(ExperimentKind kind) =>
+        kind is ExperimentKind.ExternalGuidLookup or ExperimentKind.ExternalFamousGuidLookup or ExperimentKind.BuildOnly;
 
     private static bool NeedsStringIndex(ExperimentKind kind) =>
-        kind is ExperimentKind.ExternalStringLookup
-            or ExperimentKind.ExternalFamousStringLookup
-            or ExperimentKind.BuildOnly;
+        kind is ExperimentKind.ExternalStringLookup or ExperimentKind.ExternalFamousStringLookup or ExperimentKind.BuildOnly;
 
     private static EKeyIndex CreateIntIndex(Func<Stream> streamGen, USequence sequence) =>
         new(streamGen, sequence, value => new IComparable[] { (int)((object[])value)[4] },
             BenchmarkChecksum.StableHash);
 
+    private static EKeyIndex CreateLongIndex(Func<Stream> streamGen, USequence sequence) =>
+        new(streamGen, sequence, value => new IComparable[] { (long)((object[])value)[5] },
+            BenchmarkChecksum.StableHash);
+
+    private static EKeyIndex CreateGuidIndex(Func<Stream> streamGen, USequence sequence) =>
+        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[6] },
+            BenchmarkChecksum.StableHash);
+
     private static EKeyIndex CreateStringIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[5] },
+        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[7] },
             BenchmarkChecksum.StableHash);
 }

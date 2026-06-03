@@ -9,6 +9,8 @@ internal static class PolarRows
         row.GuidKey,
         row.SKey,
         row.ExternalId,
+        row.ExternalLong,
+        row.ExternalGuid,
         row.ExternalKey,
         row.Payload,
         deleted
@@ -21,6 +23,8 @@ internal static class PolarRows
         string.Empty,
         string.Empty,
         -1,
+        0L,
+        string.Empty,
         string.Empty,
         string.Empty,
         true
@@ -30,6 +34,6 @@ internal static class PolarRows
     {
         var row = (object[])value;
         return new Row((long)row[0], (long)row[1], (string)row[2], (string)row[3],
-            (int)row[4], (string)row[5], (string)row[6]);
+            (int)row[4], (long)row[5], (string)row[6], (string)row[7], (string)row[8]);
     }
 }

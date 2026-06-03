@@ -38,7 +38,12 @@ internal static class BenchmarkExpected
             ExperimentKind.PkLongLookup => data.Where(row => row.LongKey == (long)key).ToArray(),
             ExperimentKind.PkGuidLookup => data.Where(row => row.GuidKey == (string)key).ToArray(),
             ExperimentKind.PkStringLookup => data.Where(row => row.SKey == (string)key).ToArray(),
-            ExperimentKind.ExternalIntLookup => data.Where(row => row.ExternalId == (int)key).ToArray(),
+            ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup =>
+                data.Where(row => row.ExternalId == (int)key).ToArray(),
+            ExperimentKind.ExternalLongLookup or ExperimentKind.ExternalFamousLongLookup =>
+                data.Where(row => row.ExternalLong == (long)key).ToArray(),
+            ExperimentKind.ExternalGuidLookup or ExperimentKind.ExternalFamousGuidLookup =>
+                data.Where(row => row.ExternalGuid == (string)key).ToArray(),
             ExperimentKind.ExternalStringLookup or ExperimentKind.ExternalFamousStringLookup =>
                 data.Where(row => row.ExternalKey == (string)key).ToArray(),
             _ => Array.Empty<Row>()

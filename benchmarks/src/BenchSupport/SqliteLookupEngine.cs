@@ -27,7 +27,6 @@ internal static class SqliteLookupEngine
             var stopwatch = Stopwatch.StartNew();
             var query = Query(connection, options.Kind, key);
             stopwatch.Stop();
-
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
             checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
             rows += query.Rows;
@@ -57,7 +56,9 @@ internal static class SqliteLookupEngine
         ExperimentKind.PkLongLookup => " WHERE long_key=$v",
         ExperimentKind.PkGuidLookup => " WHERE guid_key=$v",
         ExperimentKind.PkStringLookup => " WHERE skey=$v",
-        ExperimentKind.ExternalIntLookup => " WHERE external_id=$v",
+        ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup => " WHERE external_id=$v",
+        ExperimentKind.ExternalLongLookup or ExperimentKind.ExternalFamousLongLookup => " WHERE external_long=$v",
+        ExperimentKind.ExternalGuidLookup or ExperimentKind.ExternalFamousGuidLookup => " WHERE external_guid=$v",
         _ => " WHERE external_key=$v"
     };
 }

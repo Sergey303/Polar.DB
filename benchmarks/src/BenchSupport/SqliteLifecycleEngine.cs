@@ -109,16 +109,7 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
 
     private static void InsertOne(SqliteConnection connection, Row row)
     {
-        using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO rows(id,long_key,guid_key,skey,external_id,external_key,payload) VALUES($id,$long,$guid,$skey,$eid,$ekey,$payload)";
-        command.Parameters.AddWithValue("$id", row.Id);
-        command.Parameters.AddWithValue("$long", row.LongKey);
-        command.Parameters.AddWithValue("$guid", row.GuidKey);
-        command.Parameters.AddWithValue("$skey", row.SKey);
-        command.Parameters.AddWithValue("$eid", row.ExternalId);
-        command.Parameters.AddWithValue("$ekey", row.ExternalKey);
-        command.Parameters.AddWithValue("$payload", row.Payload);
-        command.ExecuteNonQuery();
+        SqliteStore.InsertRows(connection, new[] { row });
     }
 
     private static void DeleteOne(SqliteConnection connection, long id)

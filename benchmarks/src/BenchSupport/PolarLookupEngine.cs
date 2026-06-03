@@ -29,7 +29,6 @@ internal static class PolarLookupEngine
             var stopwatch = Stopwatch.StartNew();
             var query = Query(store, options.Kind, key);
             stopwatch.Stop();
-
             samples.Add(stopwatch.Elapsed.TotalMilliseconds);
             checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
             rows += query.Rows;
@@ -48,14 +47,22 @@ internal static class PolarLookupEngine
 
     private static IEnumerable<object> Values(PolarStore store, ExperimentKind kind, IComparable key)
     {
-        if (kind is ExperimentKind.PkIntLookup or ExperimentKind.PkStringLookup)
+        if (kind is ExperimentKind.PkIntLookup or ExperimentKind.PkLongLookup
+            or ExperimentKind.PkGuidLookup or ExperimentKind.PkStringLookup)
         {
             var value = store.Sequence.GetByKey(key);
             if (value != null) yield return value;
             yield break;
         }
 
-        var index = kind == ExperimentKind.ExternalIntLookup ? store.IntIndex : store.StringIndex;
+        var index = kind switch
+        {
+            ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup => store.IntIndex,
+            ExperimentKind.ExternalLongLookup or ExperimentKind.ExternalFamousLongLookup => store.LongIndex,
+            ExperimentKind.ExternalGuidLookup or ExperimentKind.ExternalFamousGuidLookup => store.GuidIndex,
+            _ => store.StringIndex
+        };
+
         foreach (var value in index!.GetManyByKey(key))
             yield return value;
     }

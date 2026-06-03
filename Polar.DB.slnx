@@ -13,7 +13,7 @@
     <File Path="benchmarks/src/BenchSupport/BenchmarkModels.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkDefaults.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkData.cs" />
-    <File Path="benchmarks/src/BenchSupport/BenchmarkFamousStrings.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkFamousKeys.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkPaths.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkChecksum.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkExpected.cs" />
@@ -41,7 +41,12 @@
     <Project Path="benchmarks/src/PkGuidLookup/PkGuidLookup.csproj" />
     <Project Path="benchmarks/src/PkStringLookup/PkStringLookup.csproj" />
     <Project Path="benchmarks/src/ExternalIntLookup/ExternalIntLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalLongLookup/ExternalLongLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj" />
     <Project Path="benchmarks/src/ExternalStringLookup/ExternalStringLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousIntLookup/ExternalFamousIntLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousLongLookup/ExternalFamousLongLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj" />
     <Project Path="benchmarks/src/ExternalFamousStringLookup/ExternalFamousStringLookup.csproj" />
     <Project Path="benchmarks/src/BuildOnly/BuildOnly.csproj" />
     <Project Path="benchmarks/src/ReopenOnly/ReopenOnly.csproj" />

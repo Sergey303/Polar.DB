@@ -25,9 +25,10 @@ internal static class SqliteRows
     }
 
     public static string SelectAllSql() =>
-        "SELECT id,long_key,guid_key,skey,external_id,external_key,payload FROM rows";
+        "SELECT id,long_key,guid_key,skey,external_id,external_long,external_guid,external_key,payload FROM rows";
 
     public static Row Read(SqliteDataReader reader) =>
-        new(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2),
-            reader.GetString(3), reader.GetInt32(4), reader.GetString(5), reader.GetString(6));
+        new(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
+            reader.GetInt32(4), reader.GetInt64(5), reader.GetString(6), reader.GetString(7),
+            reader.GetString(8));
 }

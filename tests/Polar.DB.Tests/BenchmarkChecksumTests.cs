@@ -7,9 +7,9 @@ public class BenchmarkChecksumTests
     {
         var rows = new[]
         {
-            Row(1, 1, "payload-000000001"),
-            Row(2, 1, "payload-000000002"),
-            Row(3, 2, "payload-000000003")
+            Row(1),
+            Row(2),
+            Row(3)
         };
 
         var reversed = rows.Reverse().ToArray();
@@ -22,20 +22,22 @@ public class BenchmarkChecksumTests
     {
         var expected = new[]
         {
-            Row(1, 1, "payload-000000001"),
-            Row(2, 1, "payload-000000002")
+            Row(1),
+            Row(2)
         };
 
         var actual = new[]
         {
-            Row(1, 1, "payload-000000001"),
-            Row(3, 1, "payload-000000003")
+            Row(1),
+            Row(3)
         };
 
         Assert.NotEqual(BenchmarkChecksum.HashRows(expected), BenchmarkChecksum.HashRows(actual));
     }
 
-    private static Row Row(long id, int externalId, string payload) =>
-        new(id, 9_000_000_000L + id, $"guid-{id}", $"id-{id:000000000}",
-            externalId, $"group-{externalId:0000}", payload);
+    private static Row Row(long id) =>
+        new(id, 9_000_000_000L + id, BenchmarkFamousKeys.GuidFor(id), $"id-{id:000000000}",
+            (int)(id % 1000), 80_000_000_000L + id % 1000,
+            BenchmarkFamousKeys.GuidFor(2_000_000L + id % 1000),
+            $"group-{id % 1000:0000}", $"payload-{id:000000000}");
 }

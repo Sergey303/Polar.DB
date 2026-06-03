@@ -26,8 +26,13 @@ internal static class BenchmarkData
                 ExperimentKind.PkGuidLookup => row.GuidKey,
                 ExperimentKind.PkStringLookup => row.SKey,
                 ExperimentKind.ExternalIntLookup => row.ExternalId,
+                ExperimentKind.ExternalLongLookup => row.ExternalLong,
+                ExperimentKind.ExternalGuidLookup => row.ExternalGuid,
                 ExperimentKind.ExternalStringLookup => row.ExternalKey,
-                ExperimentKind.ExternalFamousStringLookup => BenchmarkFamousStrings.HitKey,
+                ExperimentKind.ExternalFamousIntLookup => BenchmarkFamousKeys.HitInt,
+                ExperimentKind.ExternalFamousLongLookup => BenchmarkFamousKeys.HitLong,
+                ExperimentKind.ExternalFamousGuidLookup => BenchmarkFamousKeys.HitGuid,
+                ExperimentKind.ExternalFamousStringLookup => BenchmarkFamousKeys.HitString,
                 _ => row.Id
             };
         }
@@ -41,19 +46,14 @@ internal static class BenchmarkData
 
     private static Row CreateRow(long id, ExperimentKind kind)
     {
-        var externalKey = kind == ExperimentKind.ExternalFamousStringLookup
-            ? BenchmarkFamousStrings.ExternalKey(id)
-            : $"group-{id % 1000:0000}";
-        var payload = kind == ExperimentKind.ExternalFamousStringLookup
-            ? BenchmarkFamousStrings.Payload(id)
-            : $"payload-{id:000000000}";
+        var famous = kind.IsFamousExternal();
+        var externalId = famous ? BenchmarkFamousKeys.ExternalInt(id) : (int)(id % 1000);
+        var externalLong = famous ? BenchmarkFamousKeys.ExternalLong(id) : 80_000_000_000L + id % 1000;
+        var externalGuid = famous ? BenchmarkFamousKeys.ExternalGuid(id) : BenchmarkFamousKeys.GuidFor(2_000_000L + id % 1000);
+        var externalKey = famous ? BenchmarkFamousKeys.ExternalString(id) : $"group-{id % 1000:0000}";
+        var payload = famous ? BenchmarkFamousKeys.Payload(id) : $"payload-{id:000000000}";
 
-        return new Row(id, 9_000_000_000L + id, GuidFor(id), $"id-{id:000000000}",
-            (int)(id % 1000), externalKey, payload);
+        return new Row(id, 9_000_000_000L + id, BenchmarkFamousKeys.GuidFor(id), $"id-{id:000000000}",
+            externalId, externalLong, externalGuid, externalKey, payload);
     }
-
-    private static string GuidFor(long id) =>
-        new Guid((int)id, (short)(id >> 32), (short)(id >> 48),
-            new byte[] { 1, 2, 3, 4, 5, 6, (byte)(id & 255), (byte)((id >> 8) & 255) })
-            .ToString("D");
 }

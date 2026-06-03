@@ -15,6 +15,8 @@ internal static class BenchmarkChecksum
             Add(ref hash, row.GuidKey);
             Add(ref hash, row.SKey);
             Add(ref hash, row.ExternalId);
+            Add(ref hash, row.ExternalLong);
+            Add(ref hash, row.ExternalGuid);
             Add(ref hash, row.ExternalKey);
             Add(ref hash, row.Payload);
             return hash;
@@ -29,7 +31,6 @@ internal static class BenchmarkChecksum
             ulong sum = 0;
             ulong xor = 0;
             ulong mixedSum = 0;
-
             foreach (var row in rows)
             {
                 var hash = Hash(row);
@@ -39,7 +40,6 @@ internal static class BenchmarkChecksum
                 mixedSum += mixed;
                 xor ^= RotateLeft(mixed, (int)(hash & 63));
             }
-
             return FinalizeRows(count, sum, xor, mixedSum);
         }
     }
@@ -106,7 +106,6 @@ internal static class BenchmarkChecksum
                 hash ^= symbol;
                 hash *= 16777619;
             }
-
             return hash;
         }
     }
