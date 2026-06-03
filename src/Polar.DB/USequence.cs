@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Polar.DB;
 
 namespace Polar.Universal
@@ -18,8 +20,7 @@ namespace Polar.Universal
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
-        private string? stateFileName;
-
+        
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
         {
@@ -31,6 +32,11 @@ namespace Polar.Universal
             primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
         }
 
+        // Файл для сохранения параметров состояния. Команда сохранения выполняется в конце Load()
+        // Имя файла может быть null, тогда это означает, что состояние не фиксируется и не восстанавливается
+        private string? stateFileName;
+        
+        // Следующий метод актуален только если statefile != null
         public void RestoreDynamic()
         {
             FileStream statefile = new (stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
@@ -40,32 +46,23 @@ namespace Polar.Universal
             statefile.Close();
             // А текущий размер:
             long nelements = sequence.Count();
+            // Динамику надо воспроизводить только если размер увеличился
+            Console.WriteLine($"{nelements - statenelements} elements added");
             if (nelements > statenelements)
             {
-                // State marks the boundary that is already persisted into index files.
-                // Rebuild directly from the full storage sequence instead of first
-                // replaying the tail into dynamic dictionaries: replay + rebuild would
-                // expose the same tail record twice (dynamic + static).
-                Build();
-                return;
+                var additional = sequence.ElementOffsetValuePairs(elementoffset, nelements - statenelements);
+                foreach (var pair in additional)
+                {
+                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
+                }
             }
-
-            SaveState();
         }
 
-        public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); SaveState(); }
+        public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
         public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
         public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
-
-        public void Refresh()
-        {
-            sequence.Refresh();
-            primaryKeyIndex.Refresh();
-            if (uindexes != null)
-            {
-                foreach (var ui in uindexes) ui.Refresh();
-            }
-        }
+        public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
 
         public void Load(IEnumerable<object> flow)
         {
@@ -75,8 +72,6 @@ namespace Polar.Universal
                 if (!isEmpty(element)) sequence.AppendElement(element);
             }
             Flush();
-            SaveState();
-        }
 
             if (stateFileName != null)
             {
@@ -87,172 +82,125 @@ namespace Polar.Universal
                 writer.Write(sequence.ElementOffset());
                 statefile.Close();
             }
-
-            foreach (var pair in pairs)
-            {
-                var key = keyFunc(pair.Item2);
-                if (latestByKey.TryGetValue(key, out var latestOffset) &&
-                    latestOffset == pair.Item1 &&
-                    !isEmpty(pair.Item2))
-                {
-                    yield return pair;
-                }
-            }
         }
+        internal bool IsOriginalAndNotEmpty(object element, long off) =>
+            primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element); // сначала на оригинал, потом на пустое, может можно и иначе 
+
 
         public IEnumerable<object> ElementValues()
         {
-           return sequence.ElementOffsetValuePairs()
-        .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
-        .Select(pair => pair.Item2);
+            return sequence.ElementOffsetValuePairs()
+                // Оставляем оригиналы и непустые
+                .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
+                .Select(pair => pair.Item2);
         }
-
-public void Scan(Func<long, object, bool> handler)
-{
-    sequence.Scan((off, ob) =>
-    {
-        if (IsOriginalAndNotEmpty(ob, off))
+        public void Scan(Func<long, object, bool> handler)
         {
-            return handler(off, ob);
+            sequence.Scan((off, ob) => 
+            {
+                if (IsOriginalAndNotEmpty(ob, off)) 
+                {
+                    bool ok = handler(off, ob);
+                    return ok;
+                } 
+                return true; // Реакция на не оригинал или пустой
+            });
         }
-
-        return true;
-    });
-}
-
-        public long AppendElement(object element)
+        public void AppendElement(object element)
         {
             long off = sequence.AppendElement(element);
+            // Корректировка индексов
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
-            return off;
         }
-
         public void CorrectOnAppendElement(long off)
         {
             object element = sequence.GetElement(off);
+            // Корректировка индексов
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
 
-        public object GetByKey(IComparable keysample) => primaryKeyIndex.GetByKey(keysample);
-        internal object GetByOffset(long off) => sequence.GetElement(off);
+        public object GetByKey(IComparable keysample)
+        {
+            return primaryKeyIndex.GetByKey(keysample);
+        }
+
+        internal object GetByOffset(long off)
+        {
+            return sequence.GetElement(off);
+        }
 
         public IEnumerable<object> GetAllByValue(int nom, IComparable value,
             Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)
         {
-            if (uindexes[nom] is SVectorIndex sind)
+            if (uindexes[nom] is SVectorIndex)
             {
-                return sind.GetAllByValue((string)value)
+                var sind = (SVectorIndex)uindexes[nom];
+                IEnumerable<object> query = sind.GetAllByValue((string)value)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
+                    .Select(obof => obof.obj)
+                    //.Select(ob => ConvertNaming(ob))
+                    ;
+                return query;
             }
-            if (uindexes[nom] is UVectorIndex uind)
+            if (uindexes[nom] is UVectorIndex)
             {
-                return uind.GetAllByValue(value)
+                var uind = (UVectorIndex)uindexes[nom];
+                IEnumerable<object> query = uind.GetAllByValue((IComparable)value)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
+                    .Select(obof => obof.obj)
+                    ;
+                return query;
             }
-            if (uindexes[nom] is UVecIndex uvind)
+            if (uindexes[nom] is UVecIndex)
             {
-                IComparable normalizedValue = ignorecase && value is string s ? s.ToUpper() : value;
-                return uvind.GetAllByValue(normalizedValue)
+                var uvind = (UVecIndex)uindexes[nom];
+
+                IEnumerable<object> query = uvind.GetAllByValue(value)
                     .Where(obof => keysFunc(obof.obj)
-                        .Select(w => ignorecase && w is string ws ? ws.ToUpper() : w)
-                        .Any(w => w.CompareTo(normalizedValue) == 0))
+                        .Select(w => ignorecase ? ((string)w).ToUpper() : w)
+                        .Any(W => W.CompareTo(value) == 0))
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
                     .Select(obof => obof.obj)
                     .ToArray();
+                return query;
             }
-            throw new Exception("93394");
+            else throw new Exception("93394");
         }
-
         public IEnumerable<object> GetAllBySample(int nom, object osample)
         {
-            if (uindexes[nom] is UIndex uind)
+            if (uindexes[nom] is UIndex)
             {
-                return uind.GetAllBySample(osample)
+                var uind = (UIndex)uindexes[nom];
+                IEnumerable<object> query = uind.GetAllBySample(osample)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
+                    .Select(obof => obof.obj)
+                    //.Select(ob => ConvertNaming(ob))
+                    ;
+                return query;
             }
-            throw new Exception("93394");
+            else throw new Exception("93394");
         }
-
         public IEnumerable<object> GetAllByLike(int nom, object sample)
         {
             var uind = uindexes[nom];
-            if (uind is SVectorIndex sind)
+            if (uind is SVectorIndex)
             {
-                return sind.GetAllByLike((string)sample)
+                var query = ((SVectorIndex)uind).GetAllByLike((string)sample)
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
+                    .Select(obof => obof.obj) // 
+                    //.Select(ob => ConvertNaming(ob))
+                    ;
+                return query;
             }
             throw new NotImplementedException("Err: 292121");
         }
 
         public void Build()
         {
-            sequence.Flush();
-            primaryKeyIndex.Build();
+            this.primaryKeyIndex.Build();
             foreach (var ind in uindexes) ind.Build();
-            SaveState();
-        }
-
-        public IEnumerable<object> GetAllByKey(IComparable keysample) => primaryKeyIndex.GetAllByKey(keysample);
-        public IReadOnlyList<long> GetOffsetsByKey(IComparable keysample) => primaryKeyIndex.GetOffsetsByKey(keysample);
-        public int CountByKey(IComparable keysample) => primaryKeyIndex.CountByKey(keysample);
-        public bool TryGetExactlyOneOffsetByKey(IComparable keysample, out long offset) => primaryKeyIndex.TryGetExactlyOneOffsetByKey(keysample, out offset);
-        public long GetExactlyOneOffsetByKey(IComparable keysample) => primaryKeyIndex.GetExactlyOneOffsetByKey(keysample);
-        public object GetExactlyOneByKey(IComparable keysample) => primaryKeyIndex.GetExactlyOneByKey(keysample);
-
-        private bool TryReadState(out long count, out long appendOffset)
-        {
-            count = 0L;
-            appendOffset = 8L;
-            if (stateFileName == null || !File.Exists(stateFileName)) return false;
-
-            try
-            {
-                using FileStream statefile = new FileStream(stateFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                if (statefile.Length < 16L) return false;
-                using BinaryReader reader = new BinaryReader(statefile);
-                count = reader.ReadInt64();
-                appendOffset = reader.ReadInt64();
-                if (count < 0L || appendOffset < 8L) return false;
-                return true;
-            }
-            catch
-            {
-                count = 0L;
-                appendOffset = 8L;
-                return false;
-            }
-        }
-
-        private void SaveState()
-        {
-            if (stateFileName == null) return;
-            string? dir = Path.GetDirectoryName(stateFileName);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            using FileStream statefile = new FileStream(stateFileName, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-            using BinaryWriter writer = new BinaryWriter(statefile);
-            writer.Write(sequence.Count());
-            writer.Write(sequence.ElementOffset());
-        }
-
-        public long ElementOffset()
-        {
-            return sequence.AppendOffset;
-        }
-
-        public long Count()
-        {
-            return sequence.Count();
-        }
-
-        public object GetElementExactOneByExactOffset(long offset)
-        {
-           return sequence.GetElement(offset);
         }
     }
 }
