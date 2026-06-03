@@ -11,7 +11,7 @@ internal static class LookupBench
 
         foreach (var rowCount in options.RowCounts)
         {
-            var data = BenchmarkData.Dataset(rowCount);
+            var data = BenchmarkData.Dataset(rowCount, options.Kind);
             var caseDir = Path.Combine(work, "rows-" + rowCount);
             var expected = BenchmarkExpected.ForLookup(options, data);
             var engines = new[]

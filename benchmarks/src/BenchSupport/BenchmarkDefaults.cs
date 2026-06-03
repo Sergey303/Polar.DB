@@ -11,6 +11,9 @@ internal static class BenchmarkDefaults
     public const int LookupWarmupOps = 300;
     public const int LookupMeasuredOps = 2_000;
 
+    public const int HeavyExternalWarmupOps = 1;
+    public const int HeavyExternalMeasuredOps = 3;
+
     public const int BuildWarmupOps = 1;
     public const int BuildMeasuredOps = 3;
 

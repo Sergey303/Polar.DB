@@ -40,21 +40,24 @@ internal static class SqliteLookupEngine
     public static QueryResult Query(SqliteConnection connection, ExperimentKind kind, object key)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = kind switch
-        {
-            ExperimentKind.PkIntLookup => "SELECT id,skey,external_id,external_key,payload FROM rows WHERE id=$v",
-            ExperimentKind.PkStringLookup => "SELECT id,skey,external_id,external_key,payload FROM rows WHERE skey=$v",
-            ExperimentKind.ExternalIntLookup => "SELECT id,skey,external_id,external_key,payload FROM rows WHERE external_id=$v",
-            _ => "SELECT id,skey,external_id,external_key,payload FROM rows WHERE external_key=$v"
-        };
+        command.CommandText = SqliteRows.SelectAllSql() + Where(kind);
         command.Parameters.AddWithValue("$v", key);
 
         using var reader = command.ExecuteReader();
         var rows = new List<Row>();
         while (reader.Read())
-            rows.Add(new Row(reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2),
-                reader.GetString(3), reader.GetString(4)));
+            rows.Add(SqliteRows.Read(reader));
 
         return new QueryResult(rows.Count, BenchmarkChecksum.HashRows(rows));
     }
+
+    private static string Where(ExperimentKind kind) => kind switch
+    {
+        ExperimentKind.PkIntLookup => " WHERE id=$v",
+        ExperimentKind.PkLongLookup => " WHERE long_key=$v",
+        ExperimentKind.PkGuidLookup => " WHERE guid_key=$v",
+        ExperimentKind.PkStringLookup => " WHERE skey=$v",
+        ExperimentKind.ExternalIntLookup => " WHERE external_id=$v",
+        _ => " WHERE external_key=$v"
+    };
 }

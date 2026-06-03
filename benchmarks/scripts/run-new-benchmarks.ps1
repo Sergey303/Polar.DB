@@ -2,9 +2,12 @@ $ErrorActionPreference = "Stop"
 
 $projects = @(
   "benchmarks\src\PkIntLookup\PkIntLookup.csproj",
+  "benchmarks\src\PkLongLookup\PkLongLookup.csproj",
+  "benchmarks\src\PkGuidLookup\PkGuidLookup.csproj",
   "benchmarks\src\PkStringLookup\PkStringLookup.csproj",
   "benchmarks\src\ExternalIntLookup\ExternalIntLookup.csproj",
   "benchmarks\src\ExternalStringLookup\ExternalStringLookup.csproj",
+  "benchmarks\src\ExternalFamousStringLookup\ExternalFamousStringLookup.csproj",
   "benchmarks\src\BuildOnly\BuildOnly.csproj",
   "benchmarks\src\ReopenOnly\ReopenOnly.csproj",
   "benchmarks\src\AppendOnly\AppendOnly.csproj",

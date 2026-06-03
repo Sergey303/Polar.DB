@@ -1,23 +1,24 @@
 # New benchmarks TODO
 
 Current step:
-- correctness now ignores materialized row order;
-- `HashRows` is a multiset checksum: same rows in different order produce the same checksum;
-- a focused xUnit test verifies that same-count but different rows still produce a different checksum;
+- added primary-key lookup copies for `long` and GUID-like keys;
+- GUID lookup stores canonical GUID strings because the current benchmark schema uses Polar.DB primitive strings;
+- added `external-famous-string-lookup`;
+- the famous external-key dataset has 40% rows with key `to-be-or-not-to-be`;
+- heavy famous external lookup searches exactly that high-cardinality key;
+- heavy external lookup uses `1` warmup and `3` measured operations to avoid materializing billions of rows;
 - all changed `.cs` files are under 150 lines;
 - no `partial` classes or methods are used.
 
 Defaults:
 - row orders: `50_000`, `5_000_000`;
 - lookup: `300` warmup operations, `2_000` measured operations;
+- heavy external famous lookup: `1` warmup operation, `3` measured operations;
 - build-only: `1` warmup run, `3` measured runs;
 - reopen-only: `3` warmup runs, `20` measured runs;
 - append/delete: `50` warmup operations, `2_000` measured operations.
 
 Still TODO:
-- delete obsolete `benchmarks/src/BenchSupport/BenchmarkArgs.cs` if it exists locally;
-- remove already committed generated HTML files from git history/current index;
 - run `dotnet test tests/Polar.DB.Tests/Polar.DB.Tests.csproj` locally;
 - run `dotnet build Polar.DB.slnx` locally;
-- inspect the large-order runs and adjust `BenchmarkDefaults.RowCounts` if neither engine approaches memory pressure;
-- decide whether a separate raw append benchmark is needed.
+- inspect whether `external-famous-string-lookup` needs smaller row orders on 16 GiB machines.

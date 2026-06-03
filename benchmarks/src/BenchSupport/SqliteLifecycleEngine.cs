@@ -69,7 +69,7 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();
 
-        var appendRows = BenchmarkData.Dataset(options.MeasuredOps, data.Length + 1);
+        var appendRows = BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1);
         var samples = MeasureInTransaction(connection, appendRows, InsertOne);
         return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
@@ -110,8 +110,10 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
     private static void InsertOne(SqliteConnection connection, Row row)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO rows(id,skey,external_id,external_key,payload) VALUES($id,$skey,$eid,$ekey,$payload)";
+        command.CommandText = "INSERT INTO rows(id,long_key,guid_key,skey,external_id,external_key,payload) VALUES($id,$long,$guid,$skey,$eid,$ekey,$payload)";
         command.Parameters.AddWithValue("$id", row.Id);
+        command.Parameters.AddWithValue("$long", row.LongKey);
+        command.Parameters.AddWithValue("$guid", row.GuidKey);
         command.Parameters.AddWithValue("$skey", row.SKey);
         command.Parameters.AddWithValue("$eid", row.ExternalId);
         command.Parameters.AddWithValue("$ekey", row.ExternalKey);

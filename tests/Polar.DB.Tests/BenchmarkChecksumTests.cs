@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace PolarDbBenchmarks;
 
 public class BenchmarkChecksumTests
@@ -9,9 +7,9 @@ public class BenchmarkChecksumTests
     {
         var rows = new[]
         {
-            new Row(1, "id-000000001", 1, "group-0001", "payload-000000001"),
-            new Row(2, "id-000000002", 1, "group-0001", "payload-000000002"),
-            new Row(3, "id-000000003", 2, "group-0002", "payload-000000003")
+            Row(1, 1, "payload-000000001"),
+            Row(2, 1, "payload-000000002"),
+            Row(3, 2, "payload-000000003")
         };
 
         var reversed = rows.Reverse().ToArray();
@@ -24,16 +22,20 @@ public class BenchmarkChecksumTests
     {
         var expected = new[]
         {
-            new Row(1, "id-000000001", 1, "group-0001", "payload-000000001"),
-            new Row(2, "id-000000002", 1, "group-0001", "payload-000000002")
+            Row(1, 1, "payload-000000001"),
+            Row(2, 1, "payload-000000002")
         };
 
         var actual = new[]
         {
-            new Row(1, "id-000000001", 1, "group-0001", "payload-000000001"),
-            new Row(3, "id-000000003", 1, "group-0001", "payload-000000003")
+            Row(1, 1, "payload-000000001"),
+            Row(3, 1, "payload-000000003")
         };
 
         Assert.NotEqual(BenchmarkChecksum.HashRows(expected), BenchmarkChecksum.HashRows(actual));
     }
+
+    private static Row Row(long id, int externalId, string payload) =>
+        new(id, 9_000_000_000L + id, $"guid-{id}", $"id-{id:000000000}",
+            externalId, $"group-{externalId:0000}", payload);
 }

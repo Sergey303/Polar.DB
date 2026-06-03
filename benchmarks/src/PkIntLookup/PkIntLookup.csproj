@@ -13,6 +13,7 @@
     <Compile Include="../BenchSupport/BenchmarkModels.cs" Link="BenchmarkModels.cs" />
 <Compile Include="../BenchSupport/BenchmarkDefaults.cs" Link="BenchmarkDefaults.cs" />
 <Compile Include="../BenchSupport/BenchmarkData.cs" Link="BenchmarkData.cs" />
+<Compile Include="../BenchSupport/BenchmarkFamousStrings.cs" Link="BenchmarkFamousStrings.cs" />
 <Compile Include="../BenchSupport/BenchmarkPaths.cs" Link="BenchmarkPaths.cs" />
 <Compile Include="../BenchSupport/BenchmarkChecksum.cs" Link="BenchmarkChecksum.cs" />
 <Compile Include="../BenchSupport/BenchmarkExpected.cs" Link="BenchmarkExpected.cs" />

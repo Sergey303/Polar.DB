@@ -23,39 +23,44 @@ internal static class PolarStoreFactory
         var intIndex = NeedsIntIndex(kind) ? CreateIntIndex(StreamGen, sequence) : null;
         var stringIndex = NeedsStringIndex(kind) ? CreateStringIndex(StreamGen, sequence) : null;
         sequence.uindexes = new IUIndex[] { intIndex, stringIndex }
-            .Where(index => index != null)
-            .Cast<IUIndex>()
-            .ToArray();
+            .Where(index => index != null).Cast<IUIndex>().ToArray();
 
         return new PolarStore(sequence, intIndex, stringIndex);
     }
 
     private static PType ElementType() => new PTypeRecord(
         new NamedType("id", new PType(PTypeEnumeration.longinteger)),
+        new NamedType("long_key", new PType(PTypeEnumeration.longinteger)),
+        new NamedType("guid_key", new PType(PTypeEnumeration.sstring)),
         new NamedType("skey", new PType(PTypeEnumeration.sstring)),
         new NamedType("external_id", new PType(PTypeEnumeration.integer)),
         new NamedType("external_key", new PType(PTypeEnumeration.sstring)),
         new NamedType("payload", new PType(PTypeEnumeration.sstring)),
         new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
 
-    private static bool IsDeleted(object value) => (bool)((object[])value)[5];
+    private static bool IsDeleted(object value) => (bool)((object[])value)[7];
 
-    private static Func<object, IComparable> PrimaryKey(ExperimentKind kind) =>
-        kind == ExperimentKind.PkStringLookup
-            ? value => (string)((object[])value)[1]
-            : value => (long)((object[])value)[0];
+    private static Func<object, IComparable> PrimaryKey(ExperimentKind kind) => kind switch
+    {
+        ExperimentKind.PkLongLookup => value => (long)((object[])value)[1],
+        ExperimentKind.PkGuidLookup => value => (string)((object[])value)[2],
+        ExperimentKind.PkStringLookup => value => (string)((object[])value)[3],
+        _ => value => (long)((object[])value)[0]
+    };
 
     private static bool NeedsIntIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalIntLookup or ExperimentKind.BuildOnly;
 
     private static bool NeedsStringIndex(ExperimentKind kind) =>
-        kind is ExperimentKind.ExternalStringLookup or ExperimentKind.BuildOnly;
+        kind is ExperimentKind.ExternalStringLookup
+            or ExperimentKind.ExternalFamousStringLookup
+            or ExperimentKind.BuildOnly;
 
     private static EKeyIndex CreateIntIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (int)((object[])value)[2] },
+        new(streamGen, sequence, value => new IComparable[] { (int)((object[])value)[4] },
             BenchmarkChecksum.StableHash);
 
     private static EKeyIndex CreateStringIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[3] },
+        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[5] },
             BenchmarkChecksum.StableHash);
 }

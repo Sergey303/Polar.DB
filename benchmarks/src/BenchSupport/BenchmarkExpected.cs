@@ -22,7 +22,7 @@ internal static class BenchmarkExpected
         var expectedRows = options.Kind switch
         {
             ExperimentKind.AppendOnly => data.Concat(
-                BenchmarkData.Dataset(options.MeasuredOps, data.Length + 1)),
+                BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1)),
             ExperimentKind.DeleteOnly => data.Skip(options.MeasuredOps),
             _ => data
         };
@@ -35,9 +35,12 @@ internal static class BenchmarkExpected
         kind switch
         {
             ExperimentKind.PkIntLookup => data.Where(row => row.Id == (long)key).ToArray(),
+            ExperimentKind.PkLongLookup => data.Where(row => row.LongKey == (long)key).ToArray(),
+            ExperimentKind.PkGuidLookup => data.Where(row => row.GuidKey == (string)key).ToArray(),
             ExperimentKind.PkStringLookup => data.Where(row => row.SKey == (string)key).ToArray(),
             ExperimentKind.ExternalIntLookup => data.Where(row => row.ExternalId == (int)key).ToArray(),
-            ExperimentKind.ExternalStringLookup => data.Where(row => row.ExternalKey == (string)key).ToArray(),
+            ExperimentKind.ExternalStringLookup or ExperimentKind.ExternalFamousStringLookup =>
+                data.Where(row => row.ExternalKey == (string)key).ToArray(),
             _ => Array.Empty<Row>()
         };
 }

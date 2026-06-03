@@ -66,7 +66,7 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
     {
         var before = BenchmarkResources.Capture();
         var store = PrepareBuiltStore(dir, data);
-        var appendRows = BenchmarkData.Dataset(options.MeasuredOps, data.Length + 1);
+        var appendRows = BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1);
         var samples = new List<double>();
 
         foreach (var row in appendRows)

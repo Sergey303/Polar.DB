@@ -11,8 +11,10 @@ internal static class BenchmarkChecksum
         {
             var hash = Offset;
             Add(ref hash, row.Id);
-            Add(ref hash, row.ExternalId);
+            Add(ref hash, row.LongKey);
+            Add(ref hash, row.GuidKey);
             Add(ref hash, row.SKey);
+            Add(ref hash, row.ExternalId);
             Add(ref hash, row.ExternalKey);
             Add(ref hash, row.Payload);
             return hash;
