@@ -7,16 +7,23 @@ internal static class LifecycleBench
     public static void Run(ExperimentOptions options)
     {
         var work = BenchmarkPaths.PrepareWorkDir(options.ExperimentId);
-        var data = BenchmarkData.Dataset(options.SetupRows);
-        var expected = BenchmarkExpected.ForLifecycle(options, data);
-        var engines = new[]
+        var runs = new List<BenchmarkRunResult>();
+
+        foreach (var rowCount in options.RowCounts)
         {
-            SqliteLifecycleEngine.Run(options, data, Path.Combine(work, "sqlite")),
-            PolarLifecycleEngine.Run(options, data, Path.Combine(work, "polar"))
-        };
+            var data = BenchmarkData.Dataset(rowCount);
+            var caseDir = Path.Combine(work, "rows-" + rowCount);
+            var expected = BenchmarkExpected.ForLifecycle(options, data);
+            var engines = new[]
+            {
+                SqliteLifecycleEngine.Run(options, data, Path.Combine(caseDir, "sqlite")),
+                PolarLifecycleEngine.Run(options, data, Path.Combine(caseDir, "polar"))
+            };
+            runs.Add(new BenchmarkRunResult(rowCount, expected, engines));
+        }
 
         var output = BenchmarkPaths.ResultPath(options.ExperimentId);
-        File.WriteAllText(output, BenchmarkReport.Render(options, expected, engines), Encoding.UTF8);
+        File.WriteAllText(output, BenchmarkReport.Render(options, runs), Encoding.UTF8);
         Console.WriteLine(output);
     }
 }

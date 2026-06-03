@@ -11,11 +11,17 @@
     <ProjectReference Include="../../../src/Polar.DB/Polar.DB.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
     <Compile Include="../BenchSupport/BenchmarkModels.cs" Link="BenchmarkModels.cs" />
+<Compile Include="../BenchSupport/BenchmarkDefaults.cs" Link="BenchmarkDefaults.cs" />
 <Compile Include="../BenchSupport/BenchmarkData.cs" Link="BenchmarkData.cs" />
 <Compile Include="../BenchSupport/BenchmarkPaths.cs" Link="BenchmarkPaths.cs" />
 <Compile Include="../BenchSupport/BenchmarkChecksum.cs" Link="BenchmarkChecksum.cs" />
 <Compile Include="../BenchSupport/BenchmarkExpected.cs" Link="BenchmarkExpected.cs" />
+<Compile Include="../BenchSupport/BenchmarkResources.cs" Link="BenchmarkResources.cs" />
+<Compile Include="../BenchSupport/BenchmarkSystemMemory.cs" Link="BenchmarkSystemMemory.cs" />
+<Compile Include="../BenchSupport/BenchmarkStats.cs" Link="BenchmarkStats.cs" />
 <Compile Include="../BenchSupport/BenchmarkReport.cs" Link="BenchmarkReport.cs" />
+<Compile Include="../BenchSupport/BenchmarkReportFormat.cs" Link="BenchmarkReportFormat.cs" />
+<Compile Include="../BenchSupport/BenchmarkReportTables.cs" Link="BenchmarkReportTables.cs" />
 <Compile Include="../BenchSupport/SqliteStore.cs" Link="SqliteStore.cs" />
 <Compile Include="../BenchSupport/SqliteRows.cs" Link="SqliteRows.cs" />
 <Compile Include="../BenchSupport/SqliteLookupEngine.cs" Link="SqliteLookupEngine.cs" />

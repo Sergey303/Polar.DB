@@ -4,9 +4,9 @@ var options = new ExperimentOptions(
     ExperimentId: "pk-string-lookup",
     Title: "Point lookup by unique string primary key.",
     Kind: ExperimentKind.PkStringLookup,
-    SetupRows: 50000,
-    WarmupOps: 300,
-    MeasuredOps: 2000);
+    RowCounts: BenchmarkDefaults.RowCounts,
+    WarmupOps: BenchmarkDefaults.LookupWarmupOps,
+    MeasuredOps: BenchmarkDefaults.LookupMeasuredOps);
 
 if (options.Kind.IsLookup())
     LookupBench.Run(options);

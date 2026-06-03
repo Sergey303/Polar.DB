@@ -4,9 +4,9 @@ var options = new ExperimentOptions(
     ExperimentId: "append-only",
     Title: "Append rows to an existing indexed storage.",
     Kind: ExperimentKind.AppendOnly,
-    SetupRows: 50000,
-    WarmupOps: 50,
-    MeasuredOps: 2000);
+    RowCounts: BenchmarkDefaults.RowCounts,
+    WarmupOps: BenchmarkDefaults.MutationWarmupOps,
+    MeasuredOps: BenchmarkDefaults.MutationMeasuredOps);
 
 if (options.Kind.IsLookup())
     LookupBench.Run(options);

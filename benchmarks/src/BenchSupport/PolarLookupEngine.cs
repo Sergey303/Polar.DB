@@ -6,6 +6,7 @@ internal static class PolarLookupEngine
 {
     public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
     {
+        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var created = PolarStoreFactory.Open(dir, options.Kind);
         created.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
@@ -36,14 +37,12 @@ internal static class PolarLookupEngine
 
         store.Sequence.Close();
         return new EngineResult("polar-db-current", "Measured", samples, rows,
-            checksum, BenchmarkPaths.DirBytes(dir));
+            checksum, BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
     }
 
     public static QueryResult Query(PolarStore store, ExperimentKind kind, object key)
     {
-        var rows = Values(store, kind, (IComparable)key)
-            .Select(PolarRows.FromPolar)
-            .ToArray();
+        var rows = Values(store, kind, (IComparable)key).Select(PolarRows.FromPolar).ToArray();
         return new QueryResult(rows.Length, BenchmarkChecksum.HashRows(rows));
     }
 

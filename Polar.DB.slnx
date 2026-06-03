@@ -5,26 +5,23 @@
     <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.ru.md" />
     <File Path="benchmarks/docs/NEW_BENCHMARKS_TODO.md" />
   </Folder>
-  <Folder Name="/benchmarks/results/">
-    <File Path="benchmarks/results/append-only.html" />
-    <File Path="benchmarks/results/build-only.html" />
-    <File Path="benchmarks/results/delete-only.html" />
-    <File Path="benchmarks/results/external-int-lookup.html" />
-    <File Path="benchmarks/results/external-string-lookup.html" />
-    <File Path="benchmarks/results/pk-int-lookup.html" />
-    <File Path="benchmarks/results/pk-string-lookup.html" />
-    <File Path="benchmarks/results/reopen-only.html" />
-  </Folder>
+  <Folder Name="/benchmarks/results/" />
   <Folder Name="/benchmarks/scripts/">
     <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
   </Folder>
   <Folder Name="/benchmarks/src/BenchSupport/">
     <File Path="benchmarks/src/BenchSupport/BenchmarkModels.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkDefaults.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkData.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkPaths.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkChecksum.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkExpected.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkResources.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkSystemMemory.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkStats.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReport.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkReportFormat.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkReportTables.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteStore.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteRows.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteLookupEngine.cs" />

@@ -23,10 +23,22 @@ internal static class BenchmarkChecksum
     {
         unchecked
         {
-            var hash = Offset;
+            ulong count = 0;
+            ulong sum = 0;
+            ulong xor = 0;
+            ulong mixedSum = 0;
+
             foreach (var row in rows)
-                hash = Combine(hash, Hash(row));
-            return hash;
+            {
+                var hash = Hash(row);
+                var mixed = Mix(hash);
+                count++;
+                sum += hash;
+                mixedSum += mixed;
+                xor ^= RotateLeft(mixed, (int)(hash & 63));
+            }
+
+            return FinalizeRows(count, sum, xor, mixedSum);
         }
     }
 
@@ -54,6 +66,32 @@ internal static class BenchmarkChecksum
                 _ => key.GetHashCode()
             };
         }
+    }
+
+    private static ulong FinalizeRows(ulong count, ulong sum, ulong xor, ulong mixedSum)
+    {
+        var result = Offset;
+        result = Combine(result, count);
+        result = Combine(result, sum);
+        result = Combine(result, xor);
+        result = Combine(result, mixedSum);
+        return result;
+    }
+
+    private static ulong Mix(ulong value)
+    {
+        value ^= value >> 33;
+        value *= 0xff51afd7ed558ccdUL;
+        value ^= value >> 33;
+        value *= 0xc4ceb9fe1a85ec53UL;
+        value ^= value >> 33;
+        return value;
+    }
+
+    private static ulong RotateLeft(ulong value, int shift)
+    {
+        shift &= 63;
+        return shift == 0 ? value : (value << shift) | (value >> (64 - shift));
     }
 
     private static int StableStringHash(string value)

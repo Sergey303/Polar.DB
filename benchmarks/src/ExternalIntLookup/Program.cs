@@ -4,9 +4,9 @@ var options = new ExperimentOptions(
     ExperimentId: "external-int-lookup",
     Title: "Equal-range lookup by non-unique integer external key.",
     Kind: ExperimentKind.ExternalIntLookup,
-    SetupRows: 50000,
-    WarmupOps: 300,
-    MeasuredOps: 2000);
+    RowCounts: BenchmarkDefaults.RowCounts,
+    WarmupOps: BenchmarkDefaults.LookupWarmupOps,
+    MeasuredOps: BenchmarkDefaults.LookupMeasuredOps);
 
 if (options.Kind.IsLookup())
     LookupBench.Run(options);

@@ -1,4 +1,3 @@
-
 **/*.bin
 **/*.pac
 /.dotnet-cli/*
@@ -28,7 +27,7 @@ _ReSharper.Caches/
 ## --- NuGet / Пакеты ---
 *.nupkg
 *.snupkg
-# Не игнорируйте project.assets.json, если используете старые форматы, 
+# Не игнорируйте project.assets.json, если используете старые форматы,
 # но для SDK-style проектов (как ваш) папка obj уже в игноре.
 node_modules/
 
@@ -42,14 +41,24 @@ TestResults/
 *.trx
 *.coverage
 
+## --- Benchmarks generated artifacts ---
+benchmarks/work/
+benchmarks/results/*.html
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+*.state
+*.index
+
 ## --- Прочее ---
 .env
 .env.*
 !.env.example
 dist/
 publish/
-
-
 
 # patch files
 *.patch

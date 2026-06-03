@@ -15,6 +15,7 @@ internal static class SqliteLifecycleEngine
 
     private static EngineResult BuildOnly(ExperimentOptions options, Row[] data, string dir)
     {
+        var before = BenchmarkResources.Capture();
         var samples = new List<double>();
         var artifactDir = dir;
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
@@ -37,11 +38,12 @@ internal static class SqliteLifecycleEngine
             }
         }
 
-        return Result("sqlite", samples, SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite")), artifactDir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite")), artifactDir, before);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
     {
+        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
@@ -56,11 +58,11 @@ internal static class SqliteLifecycleEngine
             if (i >= options.WarmupOps) samples.Add(stopwatch.Elapsed.TotalMilliseconds);
         }
 
-        return Result("sqlite", samples, SqliteRows.ReadAll(db), dir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(db), dir, before);
     }
-
-    private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
+private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
     {
+        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
@@ -69,11 +71,12 @@ internal static class SqliteLifecycleEngine
 
         var appendRows = BenchmarkData.Dataset(options.MeasuredOps, data.Length + 1);
         var samples = MeasureInTransaction(connection, appendRows, InsertOne);
-        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
 
     private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
     {
+        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
@@ -82,7 +85,7 @@ internal static class SqliteLifecycleEngine
 
         var keys = BenchmarkData.PrimaryKeys(data, options.MeasuredOps).ToArray();
         var samples = MeasureInTransaction(connection, keys, DeleteOne);
-        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir);
+        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
 
     private static List<double> MeasureInTransaction<T>(
@@ -124,7 +127,12 @@ internal static class SqliteLifecycleEngine
         command.ExecuteNonQuery();
     }
 
-    private static EngineResult Result(string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir) =>
-        new(engine, "Measured", samples, actualRows.Length,
-            BenchmarkChecksum.HashRows(actualRows), BenchmarkPaths.DirBytes(dir));
+    private static EngineResult Result(
+        string engine,
+        IReadOnlyList<double> samples,
+        Row[] actualRows,
+        string dir,
+        ResourceSnapshot before) =>
+        new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
+            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
 }

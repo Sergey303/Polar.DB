@@ -7,6 +7,7 @@ internal static class SqliteLookupEngine
 {
     public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
     {
+        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
@@ -32,7 +33,8 @@ internal static class SqliteLookupEngine
             rows += query.Rows;
         }
 
-        return new EngineResult("sqlite", "Measured", samples, rows, checksum, BenchmarkPaths.DirBytes(dir));
+        return new EngineResult("sqlite", "Measured", samples, rows, checksum,
+            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
     }
 
     public static QueryResult Query(SqliteConnection connection, ExperimentKind kind, object key)
@@ -50,10 +52,8 @@ internal static class SqliteLookupEngine
         using var reader = command.ExecuteReader();
         var rows = new List<Row>();
         while (reader.Read())
-        {
             rows.Add(new Row(reader.GetInt64(0), reader.GetString(1), reader.GetInt32(2),
                 reader.GetString(3), reader.GetString(4)));
-        }
 
         return new QueryResult(rows.Count, BenchmarkChecksum.HashRows(rows));
     }
