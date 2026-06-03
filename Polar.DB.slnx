@@ -5,7 +5,16 @@
     <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.ru.md" />
     <File Path="benchmarks/docs/NEW_BENCHMARKS_TODO.md" />
   </Folder>
-  <Folder Name="/benchmarks/results/" />
+  <Folder Name="/benchmarks/results/">
+    <File Path="benchmarks/results/append-only.html" />
+    <File Path="benchmarks/results/build-only.html" />
+    <File Path="benchmarks/results/delete-only.html" />
+    <File Path="benchmarks/results/external-int-lookup.html" />
+    <File Path="benchmarks/results/external-string-lookup.html" />
+    <File Path="benchmarks/results/pk-int-lookup.html" />
+    <File Path="benchmarks/results/pk-string-lookup.html" />
+    <File Path="benchmarks/results/reopen-only.html" />
+  </Folder>
   <Folder Name="/benchmarks/scripts/">
     <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
   </Folder>

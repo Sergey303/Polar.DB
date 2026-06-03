@@ -1,0 +1,20 @@
+﻿<!doctype html><html><head><meta charset="utf-8">
+<title>external-string-lookup</title>
+<style>body{font-family:Segoe UI,Arial,sans-serif;margin:32px}table{border-collapse:collapse;margin:12px 0}td,th{border:1px solid #ddd;padding:6px 10px}th{background:#f4f4f4}.ok{color:#177245}.warn{color:#9a6700}</style>
+</head><body><h1>Equal-range lookup by non-unique string external key.</h1>
+<p><b>Experiment:</b> external-string-lookup</p>
+<p><b>Rows:</b> 50000; <b>warmup:</b> 300; <b>measured:</b> 2000</p>
+<h2>Timing</h2>
+<table><tr><th>Engine</th><th>Status</th><th>Median ms</th><th>P95 ms</th><th>Min ms</th><th>Max ms</th><th>Trimmed mean ms</th><th>Rows</th><th>Bytes</th></tr>
+<tr><td>sqlite</td><td>Measured</td><td>0,0779</td><td>0,156</td><td>0,0683</td><td>0,5439</td><td>0,086389</td><td>100000</td><td>8495328</td></tr>
+<tr><td>polar-db-current</td><td>Measured</td><td>0,1708</td><td>0,3254</td><td>0,1277</td><td>0,5783</td><td>0,186023</td><td>100000</td><td>3950056</td></tr>
+</table>
+<h2>Correctness</h2>
+<table><tr><th>Engine</th><th>Rows</th><th>Checksum</th><th>Status</th></tr>
+<tr><td>expected</td><td>100000</td><td>9136173030932283826</td><td class="ok">Baseline</td></tr>
+<tr><td>sqlite</td><td>100000</td><td>9136173030932283826</td><td class="ok">OK</td></tr>
+<tr><td>polar-db-current</td><td>100000</td><td>8036898841075086463</td><td class="warn">Mismatch</td></tr>
+</table>
+<h2>Notes</h2>
+<p>Correctness is checked against expected rows and checksum computed from the generated dataset.</p>
+</body></html>
