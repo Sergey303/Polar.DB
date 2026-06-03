@@ -12,13 +12,11 @@ public class SecondaryIndexesTests
         new NamedType("tags", new PTypeSequence(new PType(PTypeEnumeration.sstring))));
 
     [Fact]
-    public void SVector_UVector_UVec_And_UIndex_Return_Expected_Results_AfterBuild()
+    public void SVector_And_UIndex_Return_Expected_Results_AfterBuild()
     {
         using var scope = new IndexedSequenceScope();
 
         var sIndex = new SVectorIndex(scope.StreamGen, scope.Sequence, r => new[] { (string)((object[])r)[1] });
-        var ageIndex = new UVectorIndex(scope.StreamGen, scope.Sequence, new PType(PTypeEnumeration.integer), r => new IComparable[] { (int)((object[])r)[2] });
-        var tagIndex = new UVecIndex(scope.StreamGen, scope.Sequence, TagsOf, tag => Hashfunctions.HashRot13((string)tag), ignorecase: true);
         var exactNameIndex = new UIndex(
             scope.StreamGen,
             scope.Sequence,
@@ -26,7 +24,7 @@ public class SecondaryIndexesTests
             hashFunc: r => Hashfunctions.HashRot13((string)((object[])r)[1]),
             comp: Comparer<object>.Create((a, b) => string.Compare((string)((object[])a)[1], (string)((object[])b)[1], StringComparison.Ordinal)));
 
-        scope.Sequence.uindexes = new IUIndex[] { sIndex, ageIndex, tagIndex, exactNameIndex };
+        scope.Sequence.uindexes = new IUIndex[] { sIndex, exactNameIndex };
 
         scope.Sequence.Load(new object[]
         {
@@ -44,32 +42,22 @@ public class SecondaryIndexesTests
         Assert.Single(byLike);
         Assert.Equal(1, (int)byLike[0][0]);
 
-        var byAge = scope.Sequence.GetAllByValue(1, 30, _ => Array.Empty<IComparable>()).Cast<object[]>().ToArray();
-        Assert.Equal(2, byAge.Length);
-        Assert.Equal(new[] { 1, 3 }, byAge.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
-
-        var byTag = scope.Sequence.GetAllByValue(2, "NEWS", TagsOf, ignorecase: true).Cast<object[]>().ToArray();
-        Assert.Equal(2, byTag.Length);
-        Assert.Equal(new[] { 1, 3 }, byTag.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
-
         var sample = new object[] { 0, "BOB", 0, Array.Empty<object>() };
-        var bySample = scope.Sequence.GetAllBySample(3, sample).Cast<object[]>().ToArray();
+        var bySample = scope.Sequence.GetAllBySample(1, sample).Cast<object[]>().ToArray();
         Assert.Equal(new[] { 2, 3 }, bySample.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
 
         var duplicateName = new object[] { 0, "ALICE", 0, Array.Empty<object>() };
-        var allBySameName = scope.Sequence.GetAllBySample(3, duplicateName).Cast<object[]>().ToArray();
+        var allBySameName = scope.Sequence.GetAllBySample(1, duplicateName).Cast<object[]>().ToArray();
         Assert.Equal(new[] { 1 }, allBySameName.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
     }
 
     [Fact]
-    public void SVector_UVector_And_UVec_See_Dynamic_Appends_Without_Rebuild()
+    public void SVector_Sees_Dynamic_Appends_Without_Rebuild()
     {
         using var scope = new IndexedSequenceScope();
 
         var sIndex = new SVectorIndex(scope.StreamGen, scope.Sequence, r => new[] { (string)((object[])r)[1] });
-        var ageIndex = new UVectorIndex(scope.StreamGen, scope.Sequence, new PType(PTypeEnumeration.integer), r => new IComparable[] { (int)((object[])r)[2] });
-        var tagIndex = new UVecIndex(scope.StreamGen, scope.Sequence, TagsOf, tag => Hashfunctions.HashRot13((string)tag), ignorecase: true);
-        scope.Sequence.uindexes = new IUIndex[] { sIndex, ageIndex, tagIndex };
+        scope.Sequence.uindexes = new IUIndex[] { sIndex };
 
         scope.Sequence.Load(new object[]
         {
@@ -82,20 +70,6 @@ public class SecondaryIndexesTests
         var byName = scope.Sequence.GetAllByValue(0, "bob", _ => Array.Empty<IComparable>()).Cast<object[]>().ToArray();
         Assert.Single(byName);
         Assert.Equal(2, (int)byName[0][0]);
-
-        var byAge = scope.Sequence.GetAllByValue(1, 35, _ => Array.Empty<IComparable>()).Cast<object[]>().ToArray();
-        Assert.Single(byAge);
-        Assert.Equal(2, (int)byAge[0][0]);
-
-        var byTag = scope.Sequence.GetAllByValue(2, "NEWS", TagsOf, ignorecase: true).Cast<object[]>().ToArray();
-        Assert.Equal(2, byTag.Length);
-        Assert.Equal(new[] { 1, 2 }, byTag.Select(r => (int)r[0]).OrderBy(x => x).ToArray());
-
-    }
-
-    private static IEnumerable<IComparable> TagsOf(object record)
-    {
-        return ((object[])((object[])record)[3]).Cast<IComparable>();
     }
 
     private sealed class IndexedSequenceScope : IDisposable

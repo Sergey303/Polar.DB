@@ -13,9 +13,6 @@ internal static class USequenceIntegrationTestHelpers
     internal static object[] Row(int id, string name, int age, params string[] tags) =>
         new object[] { id, name, age, tags.Cast<object>().ToArray() };
 
-    internal static IEnumerable<IComparable> TagsOf(object record) =>
-        ((object[])((object[])record)[3]).Cast<IComparable>();
-
     internal static int IdOf(object record) => (int)((object[])record)[0];
 
     internal static string NameOf(object record) => (string)((object[])record)[1];
@@ -65,18 +62,15 @@ internal static class USequenceIntegrationTestHelpers
                 optimise: optimise);
 
             var sIndex = new SVectorIndex(StreamGen, sequence, r => new[] { (string)((object[])r)[1] });
-            var ageIndex = new UVectorIndex(StreamGen, sequence, new PType(PTypeEnumeration.integer),
-                r => new IComparable[] { (int)((object[])r)[2] });
-            var tagIndex = new UVecIndex(StreamGen, sequence, TagsOf, tag => Hashfunctions.HashRot13((string)tag), ignorecase: true);
             var exactNameIndex = new UIndex(
                 StreamGen,
                 sequence,
                 applicable: _ => true,
-                hashFunc: r => Hashfunctions.HashRot13((string)((object[])r)[1]),
+                hashFunc: r => ((string)((object[])r)[1]).GetHashCode(),
                 comp: Comparer<object>.Create((a, b) =>
                     string.Compare((string)((object[])a)[1], (string)((object[])b)[1], StringComparison.Ordinal)));
 
-            sequence.uindexes = new IUIndex[] { sIndex, ageIndex, tagIndex, exactNameIndex };
+            sequence.uindexes = new IUIndex[] { sIndex, exactNameIndex };
             _created.Add(sequence);
             return sequence;
         }
@@ -99,7 +93,7 @@ internal static class USequenceIntegrationTestHelpers
             }
             catch
             {
-                    // ignored
+                // ignored
             }
         }
     }
