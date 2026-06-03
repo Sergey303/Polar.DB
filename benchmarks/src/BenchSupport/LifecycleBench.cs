@@ -2,7 +2,7 @@ using System.Text;
 
 namespace PolarDbBenchmarks;
 
-internal static class LookupBench
+internal static class LifecycleBench
 {
     public static void Run(ExperimentOptions options)
     {
@@ -10,8 +10,8 @@ internal static class LookupBench
         var data = BenchmarkData.Dataset(options.SetupRows);
         var engines = new[]
         {
-            SqliteLookupEngine.Run(options, data, Path.Combine(work, "sqlite")),
-            PolarLookupEngine.Run(options, data, Path.Combine(work, "polar"))
+            SqliteLifecycleEngine.Run(options, data, Path.Combine(work, "sqlite")),
+            PolarLifecycleEngine.Run(options, data, Path.Combine(work, "polar"))
         };
 
         var output = BenchmarkPaths.ResultPath(options.ExperimentId);

@@ -1,0 +1,69 @@
+using System.Diagnostics;
+
+namespace PolarDbBenchmarks;
+
+internal static class PolarLookupEngine
+{
+    public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
+    {
+        Directory.CreateDirectory(dir);
+        var created = PolarStoreFactory.Open(dir, options.Kind);
+        created.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
+        created.Sequence.Build();
+        created.Sequence.Flush();
+        created.Sequence.Close();
+
+        var store = PolarStoreFactory.Open(dir, options.Kind);
+        store.Sequence.Refresh();
+
+        var keys = BenchmarkData.LookupKeys(data, options.Kind, options.MeasuredOps).ToArray();
+        for (var i = 0; i < options.WarmupOps; i++)
+            Query(store, options.Kind, keys[i % keys.Length]);
+
+        var samples = new List<double>();
+        ulong checksum = 0;
+        long rows = 0;
+        foreach (var key in keys)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var query = Query(store, options.Kind, key);
+            stopwatch.Stop();
+
+            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            checksum ^= query.Checksum;
+            rows += query.Rows;
+        }
+
+        store.Sequence.Close();
+        return new EngineResult("polar-db-current", "Measured", samples, rows,
+            checksum, BenchmarkPaths.DirBytes(dir));
+    }
+
+    public static QueryResult Query(PolarStore store, ExperimentKind kind, object key)
+    {
+        var values = Values(store, kind, (IComparable)key);
+        ulong checksum = 0;
+        long rows = 0;
+        foreach (var value in values)
+        {
+            checksum ^= BenchmarkChecksum.Hash(PolarRows.FromPolar(value));
+            rows++;
+        }
+
+        return new QueryResult(rows, checksum);
+    }
+
+    private static IEnumerable<object> Values(PolarStore store, ExperimentKind kind, IComparable key)
+    {
+        if (kind is ExperimentKind.PkIntLookup or ExperimentKind.PkStringLookup)
+        {
+            var value = store.Sequence.GetByKey(key);
+            if (value != null) yield return value;
+            yield break;
+        }
+
+        var index = kind == ExperimentKind.ExternalIntLookup ? store.IntIndex : store.StringIndex;
+        foreach (var value in index!.GetManyByKey(key))
+            yield return value;
+    }
+}
