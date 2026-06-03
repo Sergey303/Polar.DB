@@ -1,0 +1,53 @@
+<Solution>
+  <Folder Name="/benchmarks/" />
+  <Folder Name="/benchmarks/docs/">
+    <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.md" />
+    <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.ru.md" />
+  </Folder>
+  <Folder Name="/benchmarks/docs/examples/">
+    <File Path="benchmarks/docs/examples/sample-baseline.v1.json" />
+    <File Path="benchmarks/docs/examples/sample-policy.v1.json" />
+  </Folder>
+  <Folder Name="/benchmarks/experiments/" />
+  <Folder Name="/benchmarks/scripts/">
+    <File Path="benchmarks/scripts/run-all-experiments-parallel.ps1" />
+    <File Path="benchmarks/scripts/run-string-like-prefix-lookup.ps1" />
+    <File Path="benchmarks/scripts/run-string-like-split.ps1" />
+  </Folder>
+  <Folder Name="/benchmarks/src/">
+    <Project Path="benchmarks/src/Polar.DB.Bench.Analysis/Polar.DB.Bench.Analysis.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Charts/Polar.DB.Bench.Charts.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Core/Polar.DB.Bench.Core.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Engine.PolarDb/Polar.DB.Bench.Engine.PolarDb.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Engine.Sqlite/Polar.DB.Bench.Engine.Sqlite.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Exec.PolarDb210/Polar.DB.Bench.Exec.PolarDb210.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Exec.PolarDb211/Polar.DB.Bench.Exec.PolarDb211.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Exec.PolarDbCurrent/Polar.DB.Bench.Exec.PolarDbCurrent.csproj" />
+    <Project Path="benchmarks/src/Polar.DB.Bench.Exec/Polar.DB.Bench.Exec.csproj" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/About.md" />
+    <File Path="docs/BDLearningCourse.md" />
+    <File Path="docs/Concept.md" />
+    <File Path="docs/Description.md" />
+    <File Path="docs/LibsDescriptions.md" />
+    <File Path="docs/Mixture.md" />
+    <File Path="docs/QuestionsAndComments.md" />
+    <File Path="docs/REPOSITORY_STATE.md" />
+    <File Path="docs/Specifications.md" />
+    <File Path="docs/Starting.md" />
+    <File Path="docs/WHY_THIS_EXISTS.md" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/GetStarted.IndexesAndSearch/GetStarted.IndexesAndSearch.csproj" />
+    <Project Path="samples/GetStarted.SequencesAndStorage/GetStarted.SequencesAndStorage.csproj" />
+    <Project Path="samples/GetStarted.StructuresAndSerialization/GetStarted.StructuresAndSerialization.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Polar.DB/Polar.DB.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Polar.DB.Tests/Polar.DB.Tests.csproj" />
+  </Folder>
+  <Project Path="mag_experiments/mag_experiments.csproj" />
+</Solution>
