@@ -49,11 +49,11 @@ internal static class BenchmarkData
         var famous = kind.IsFamousExternal();
         var externalId = famous ? BenchmarkFamousKeys.ExternalInt(id) : (int)(id % 1000);
         var externalLong = famous ? BenchmarkFamousKeys.ExternalLong(id) : 80_000_000_000L + id % 1000;
-        var externalGuid = famous ? BenchmarkFamousKeys.ExternalGuid(id) : BenchmarkFamousKeys.GuidFor(2_000_000L + id % 1000);
+        var externalGuid = famous ? BenchmarkFamousKeys.ExternalGuid(id) : BenchmarkGuid.For(2_000_000L + id % 1000);
         var externalKey = famous ? BenchmarkFamousKeys.ExternalString(id) : $"group-{id % 1000:0000}";
         var payload = famous ? BenchmarkFamousKeys.Payload(id) : $"payload-{id:000000000}";
 
-        return new Row(id, 9_000_000_000L + id, BenchmarkFamousKeys.GuidFor(id), $"id-{id:000000000}",
+        return new Row(id, 9_000_000_000L + id, BenchmarkGuid.For(id), $"id-{id:000000000}",
             externalId, externalLong, externalGuid, externalKey, payload);
     }
 }

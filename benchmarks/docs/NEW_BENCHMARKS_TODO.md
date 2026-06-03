@@ -1,11 +1,10 @@
 # New benchmarks TODO
 
 Current step:
-- primary lookup matrix now has `int`, `long`, GUID-like string, and string keys;
-- external lookup matrix now has `int`, `long`, GUID-like string, and string keys;
-- famous external lookup matrix now has `int`, `long`, GUID-like string, and string keys;
-- famous external-key datasets keep 40% rows on the searched key for each key type;
-- heavy famous external lookup still uses `1` warmup operation and `3` measured operations;
+- GUID benchmark keys now use `System.Guid` in the benchmark model;
+- SQLite stores GUID keys as 16-byte BLOB values;
+- Polar.DB stores GUID keys as two `longinteger` fields and exposes `Guid` values to indexes;
+- primary GUID lookup and external GUID lookup compare real `Guid` values, not strings;
 - all changed `.cs` files are under 150 lines;
 - no `partial` classes or methods are used.
 

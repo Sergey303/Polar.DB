@@ -48,11 +48,11 @@ internal sealed record BenchmarkRunResult(int SetupRows, QueryResult Expected, I
 internal sealed record Row(
     long Id,
     long LongKey,
-    string GuidKey,
+    Guid GuidKey,
     string SKey,
     int ExternalId,
     long ExternalLong,
-    string ExternalGuid,
+    Guid ExternalGuid,
     string ExternalKey,
     string Payload);
 

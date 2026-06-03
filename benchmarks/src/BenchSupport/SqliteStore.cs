@@ -9,7 +9,7 @@ internal static class SqliteStore
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();
         Exec(connection, "PRAGMA journal_mode=WAL;");
-        Exec(connection, "CREATE TABLE rows(id INTEGER PRIMARY KEY, long_key INTEGER NOT NULL, guid_key TEXT NOT NULL, skey TEXT NOT NULL, external_id INTEGER NOT NULL, external_long INTEGER NOT NULL, external_guid TEXT NOT NULL, external_key TEXT NOT NULL, payload TEXT NOT NULL);");
+        Exec(connection, "CREATE TABLE rows(id INTEGER PRIMARY KEY, long_key INTEGER NOT NULL, guid_key BLOB NOT NULL, skey TEXT NOT NULL, external_id INTEGER NOT NULL, external_long INTEGER NOT NULL, external_guid BLOB NOT NULL, external_key TEXT NOT NULL, payload TEXT NOT NULL);");
         InsertRows(connection, rows);
         if (withIndexes) CreateIndexes(connection);
     }
@@ -21,20 +21,20 @@ internal static class SqliteStore
         command.CommandText = "INSERT INTO rows(id,long_key,guid_key,skey,external_id,external_long,external_guid,external_key,payload) VALUES($id,$long,$guid,$skey,$eid,$elong,$eguid,$ekey,$payload)";
         var id = command.Parameters.Add("$id", SqliteType.Integer);
         var longKey = command.Parameters.Add("$long", SqliteType.Integer);
-        var guidKey = command.Parameters.Add("$guid", SqliteType.Text);
+        var guidKey = command.Parameters.Add("$guid", SqliteType.Blob);
         var skey = command.Parameters.Add("$skey", SqliteType.Text);
         var externalId = command.Parameters.Add("$eid", SqliteType.Integer);
         var externalLong = command.Parameters.Add("$elong", SqliteType.Integer);
-        var externalGuid = command.Parameters.Add("$eguid", SqliteType.Text);
+        var externalGuid = command.Parameters.Add("$eguid", SqliteType.Blob);
         var externalKey = command.Parameters.Add("$ekey", SqliteType.Text);
         var payload = command.Parameters.Add("$payload", SqliteType.Text);
 
         foreach (var row in rows)
         {
-            id.Value = row.Id; longKey.Value = row.LongKey; guidKey.Value = row.GuidKey;
+            id.Value = row.Id; longKey.Value = row.LongKey; guidKey.Value = BenchmarkGuid.ToBytes(row.GuidKey);
             skey.Value = row.SKey; externalId.Value = row.ExternalId; externalLong.Value = row.ExternalLong;
-            externalGuid.Value = row.ExternalGuid; externalKey.Value = row.ExternalKey; payload.Value = row.Payload;
-            command.ExecuteNonQuery();
+            externalGuid.Value = BenchmarkGuid.ToBytes(row.ExternalGuid); externalKey.Value = row.ExternalKey;
+            payload.Value = row.Payload; command.ExecuteNonQuery();
         }
 
         tx.Commit();

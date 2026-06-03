@@ -14,6 +14,7 @@
     <File Path="benchmarks/src/BenchSupport/BenchmarkDefaults.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkData.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkFamousKeys.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkGuid.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkPaths.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkChecksum.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkExpected.cs" />

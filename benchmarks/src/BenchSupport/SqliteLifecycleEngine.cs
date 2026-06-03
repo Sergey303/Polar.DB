@@ -107,10 +107,8 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
         return samples;
     }
 
-    private static void InsertOne(SqliteConnection connection, Row row)
-    {
+    private static void InsertOne(SqliteConnection connection, Row row) =>
         SqliteStore.InsertRows(connection, new[] { row });
-    }
 
     private static void DeleteOne(SqliteConnection connection, long id)
     {

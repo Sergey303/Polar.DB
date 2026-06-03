@@ -37,22 +37,24 @@ internal static class PolarStoreFactory
     private static PType ElementType() => new PTypeRecord(
         new NamedType("id", new PType(PTypeEnumeration.longinteger)),
         new NamedType("long_key", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("guid_key", new PType(PTypeEnumeration.sstring)),
+        new NamedType("guid_low", new PType(PTypeEnumeration.longinteger)),
+        new NamedType("guid_high", new PType(PTypeEnumeration.longinteger)),
         new NamedType("skey", new PType(PTypeEnumeration.sstring)),
         new NamedType("external_id", new PType(PTypeEnumeration.integer)),
         new NamedType("external_long", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("external_guid", new PType(PTypeEnumeration.sstring)),
+        new NamedType("external_guid_low", new PType(PTypeEnumeration.longinteger)),
+        new NamedType("external_guid_high", new PType(PTypeEnumeration.longinteger)),
         new NamedType("external_key", new PType(PTypeEnumeration.sstring)),
         new NamedType("payload", new PType(PTypeEnumeration.sstring)),
         new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
 
-    private static bool IsDeleted(object value) => (bool)((object[])value)[9];
+    private static bool IsDeleted(object value) => (bool)((object[])value)[11];
 
     private static Func<object, IComparable> PrimaryKey(ExperimentKind kind) => kind switch
     {
         ExperimentKind.PkLongLookup => value => (long)((object[])value)[1],
-        ExperimentKind.PkGuidLookup => value => (string)((object[])value)[2],
-        ExperimentKind.PkStringLookup => value => (string)((object[])value)[3],
+        ExperimentKind.PkGuidLookup => value => ReadGuid(value, 2),
+        ExperimentKind.PkStringLookup => value => (string)((object[])value)[4],
         _ => value => (long)((object[])value)[0]
     };
 
@@ -68,19 +70,21 @@ internal static class PolarStoreFactory
     private static bool NeedsStringIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalStringLookup or ExperimentKind.ExternalFamousStringLookup or ExperimentKind.BuildOnly;
 
+    private static Guid ReadGuid(object value, int offset)
+    {
+        var row = (object[])value;
+        return BenchmarkGuid.Join((long)row[offset], (long)row[offset + 1]);
+    }
+
     private static EKeyIndex CreateIntIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (int)((object[])value)[4] },
-            BenchmarkChecksum.StableHash);
+        new(streamGen, sequence, value => new IComparable[] { (int)((object[])value)[5] }, BenchmarkChecksum.StableHash);
 
     private static EKeyIndex CreateLongIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (long)((object[])value)[5] },
-            BenchmarkChecksum.StableHash);
+        new(streamGen, sequence, value => new IComparable[] { (long)((object[])value)[6] }, BenchmarkChecksum.StableHash);
 
     private static EKeyIndex CreateGuidIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[6] },
-            BenchmarkChecksum.StableHash);
+        new(streamGen, sequence, value => new IComparable[] { ReadGuid(value, 7) }, BenchmarkChecksum.StableHash);
 
     private static EKeyIndex CreateStringIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[7] },
-            BenchmarkChecksum.StableHash);
+        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[9] }, BenchmarkChecksum.StableHash);
 }

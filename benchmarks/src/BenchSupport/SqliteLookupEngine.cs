@@ -40,7 +40,7 @@ internal static class SqliteLookupEngine
     {
         using var command = connection.CreateCommand();
         command.CommandText = SqliteRows.SelectAllSql() + Where(kind);
-        command.Parameters.AddWithValue("$v", key);
+        command.Parameters.AddWithValue("$v", SqliteKey(kind, key));
 
         using var reader = command.ExecuteReader();
         var rows = new List<Row>();
@@ -49,6 +49,12 @@ internal static class SqliteLookupEngine
 
         return new QueryResult(rows.Count, BenchmarkChecksum.HashRows(rows));
     }
+
+    private static object SqliteKey(ExperimentKind kind, object key) =>
+        kind is ExperimentKind.PkGuidLookup or ExperimentKind.ExternalGuidLookup
+            or ExperimentKind.ExternalFamousGuidLookup
+                ? BenchmarkGuid.ToBytes((Guid)key)
+                : key;
 
     private static string Where(ExperimentKind kind) => kind switch
     {

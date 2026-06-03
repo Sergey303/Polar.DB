@@ -64,10 +64,17 @@ internal static class BenchmarkChecksum
             {
                 int value => value,
                 long value => (int)(value ^ (value >> 32)),
+                Guid value => StableGuidHash(value),
                 string value => StableStringHash(value),
                 _ => key.GetHashCode()
             };
         }
+    }
+
+    private static int StableGuidHash(Guid value)
+    {
+        var split = BenchmarkGuid.Split(value);
+        return StableHash(split.Low) ^ RotateLeft((ulong)StableHash(split.High), 17).GetHashCode();
     }
 
     private static ulong FinalizeRows(ulong count, ulong sum, ulong xor, ulong mixedSum)
@@ -114,6 +121,13 @@ internal static class BenchmarkChecksum
     {
         hash ^= (ulong)value;
         hash *= Prime;
+    }
+
+    private static void Add(ref ulong hash, Guid value)
+    {
+        var split = BenchmarkGuid.Split(value);
+        Add(ref hash, split.Low);
+        Add(ref hash, split.High);
     }
 
     private static void Add(ref ulong hash, string value)

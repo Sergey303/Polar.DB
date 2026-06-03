@@ -28,7 +28,7 @@ internal static class SqliteRows
         "SELECT id,long_key,guid_key,skey,external_id,external_long,external_guid,external_key,payload FROM rows";
 
     public static Row Read(SqliteDataReader reader) =>
-        new(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
-            reader.GetInt32(4), reader.GetInt64(5), reader.GetString(6), reader.GetString(7),
-            reader.GetString(8));
+        new(reader.GetInt64(0), reader.GetInt64(1), BenchmarkGuid.FromBytes((byte[])reader["guid_key"]),
+            reader.GetString(3), reader.GetInt32(4), reader.GetInt64(5),
+            BenchmarkGuid.FromBytes((byte[])reader["external_guid"]), reader.GetString(7), reader.GetString(8));
 }

@@ -36,8 +36,8 @@ public class BenchmarkChecksumTests
     }
 
     private static Row Row(long id) =>
-        new(id, 9_000_000_000L + id, BenchmarkFamousKeys.GuidFor(id), $"id-{id:000000000}",
+        new(id, 9_000_000_000L + id, BenchmarkGuid.For(id), $"id-{id:000000000}",
             (int)(id % 1000), 80_000_000_000L + id % 1000,
-            BenchmarkFamousKeys.GuidFor(2_000_000L + id % 1000),
+            BenchmarkGuid.For(2_000_000L + id % 1000),
             $"group-{id % 1000:0000}", $"payload-{id:000000000}");
 }
