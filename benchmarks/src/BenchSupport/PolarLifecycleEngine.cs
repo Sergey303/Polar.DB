@@ -15,6 +15,7 @@ internal static class PolarLifecycleEngine
     private static EngineResult BuildOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var samples = new List<double>();
+        var artifactDir = dir;
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
         {
             var runDir = Path.Combine(dir, "run-" + i);
@@ -28,22 +29,26 @@ internal static class PolarLifecycleEngine
             stopwatch.Stop();
             store.Sequence.Close();
 
-            if (i >= 0) samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            if (i >= 0)
+            {
+                samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+                artifactDir = runDir;
+            }
         }
 
-        return Result("polar-db-current", samples, data, dir);
+        return Result("polar-db-current", samples, data, artifactDir);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
     {
-        var prepared = PrepareBuiltStore(dir, data, ExperimentKind.PkIntLookup);
+        var prepared = PrepareBuiltStore(dir, data);
         prepared.Sequence.Close();
-
         var samples = new List<double>();
+
         for (var i = 0; i < options.MeasuredOps + options.WarmupOps; i++)
         {
             var stopwatch = Stopwatch.StartNew();
-            var store = PolarStoreFactory.Open(dir, ExperimentKind.PkIntLookup);
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.BuildOnly);
             store.Sequence.Refresh();
             store.Sequence.Close();
             stopwatch.Stop();
@@ -56,7 +61,7 @@ internal static class PolarLifecycleEngine
 
     private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
     {
-        var store = PrepareBuiltStore(dir, data, ExperimentKind.PkIntLookup);
+        var store = PrepareBuiltStore(dir, data);
         var appendRows = BenchmarkData.Dataset(options.MeasuredOps, data.Length + 1);
         var samples = new List<double>();
 
@@ -75,7 +80,7 @@ internal static class PolarLifecycleEngine
 
     private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
     {
-        var store = PrepareBuiltStore(dir, data, ExperimentKind.PkIntLookup);
+        var store = PrepareBuiltStore(dir, data);
         var samples = new List<double>();
         foreach (var key in BenchmarkData.PrimaryKeys(data, options.MeasuredOps))
         {
@@ -90,10 +95,10 @@ internal static class PolarLifecycleEngine
         return Result("polar-db-current", samples, data.Skip(options.MeasuredOps), dir);
     }
 
-    private static PolarStore PrepareBuiltStore(string dir, Row[] data, ExperimentKind kind)
+    private static PolarStore PrepareBuiltStore(string dir, Row[] data)
     {
         Directory.CreateDirectory(dir);
-        var store = PolarStoreFactory.Open(dir, kind);
+        var store = PolarStoreFactory.Open(dir, ExperimentKind.BuildOnly);
         store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
         store.Sequence.Build();
         store.Sequence.Flush();

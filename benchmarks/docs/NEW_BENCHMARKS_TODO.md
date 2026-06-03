@@ -1,20 +1,21 @@
 # New benchmarks TODO
 
 Current step:
-- the missing `benchmarks/src/BenchSupport` files are included;
-- no removal script is included because old benchmark folders are already gone;
-- all new `.cs` files are under 150 lines;
-- no `partial` classes or methods are used;
-- `LookupBench.cs` and `LifecycleBench.cs` include `System.Text` explicitly.
+- old benchmark folders are already gone, so no removal script is needed;
+- lifecycle experiments now use the fully indexed setup on both engines;
+- build-only artifact size is taken from the last measured run, not from all warmup/run folders;
+- SQLite append/delete are measured inside one transaction, closer to Polar.DB append/tombstone measurement;
+- all changed `.cs` files are under 150 lines;
+- no `partial` classes or methods are used.
 
 Semantics:
 - lookup excludes data generation, load, build, and reopen from measured samples;
 - build-only measures index/build preparation after data load;
-- reopen-only measures opening an existing prepared store;
-- append-only measures appending rows to an already indexed store;
-- delete-only uses Polar.DB logical tombstones and SQLite `DELETE`.
+- reopen-only measures opening an existing prepared store with indexes;
+- append-only measures indexed append without per-row flush/commit;
+- delete-only uses Polar.DB logical tombstones and SQLite `DELETE` inside one transaction.
 
 Still TODO:
 - run `dotnet build Polar.DB.slnx` locally;
 - run each benchmark and inspect the generated HTML;
-- if append-only must be raw append, split it from append-with-index-maintenance.
+- decide whether a separate raw append benchmark is needed.
