@@ -48,21 +48,6 @@ Important compatibility rule:
 - Avoid changing whitespace across a whole file when only a small code change is needed.
 - Keep comments useful: explain invariants and non-obvious behavior, not syntax.
 
-## Repository-specific safety rules
-
-Polar.DB code is sensitive to storage invariants. Be especially careful around:
-
-- logical end of valid data;
-- `AppendOffset` semantics;
-- stream `Position` versus stream `Length`;
-- recovery and refresh behavior;
-- sidecar state files;
-- index build order;
-- duplicate-key boundary lookups;
-- variable-size record rewrite behavior.
-
-Do not treat a current stream cursor position as a durable logical state unless the surrounding code explicitly proves that invariant.
-
 ## Tests
 
 - Add or update tests for behavior changes.
