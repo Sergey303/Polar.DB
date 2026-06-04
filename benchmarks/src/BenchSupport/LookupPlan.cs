@@ -4,6 +4,7 @@ internal sealed record LookupPlan(
     string Name,
     bool FileWarmup,
     object[] WarmupKeys,
-    object[] MeasuredKeys,
-    int Samples,
-    int LookupsPerSample);
+    object[] BatchKeys,
+    object[] LatencyKeys,
+    int BatchSamples,
+    int LookupsPerBatchSample);

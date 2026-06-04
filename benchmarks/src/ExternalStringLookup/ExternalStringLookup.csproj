@@ -23,6 +23,7 @@
 <Compile Include="../BenchSupport/BenchmarkSystemMemory.cs" Link="BenchmarkSystemMemory.cs" />
 <Compile Include="../BenchSupport/BenchmarkStats.cs" Link="BenchmarkStats.cs" />
 <Compile Include="../BenchSupport/BenchmarkFileWarmup.cs" Link="BenchmarkFileWarmup.cs" />
+    <Compile Include="../BenchSupport/BenchmarkProgress.cs" Link="BenchmarkProgress.cs" />
 <Compile Include="../BenchSupport/BenchmarkReport.cs" Link="BenchmarkReport.cs" />
 <Compile Include="../BenchSupport/BenchmarkReportFormat.cs" Link="BenchmarkReportFormat.cs" />
 <Compile Include="../BenchSupport/BenchmarkReportTables.cs" Link="BenchmarkReportTables.cs" />

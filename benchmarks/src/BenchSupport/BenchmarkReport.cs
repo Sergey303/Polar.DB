@@ -16,7 +16,8 @@ internal static class BenchmarkReport
     public static string RenderLookup(ExperimentOptions options, IReadOnlyList<LookupRunResult> runs)
     {
         var builder = Header(options);
-        builder.AppendLine("<p>Lookup reports contain two phases: cold after reopen and hot after file/cache warmup.</p>");
+        builder.AppendLine("<p>Lookup reports contain cold-after-reopen and hot-after-warmup phases.</p>");
+        builder.AppendLine("<p>Batch metrics are throughput-oriented. Single-query latency metrics measure individual queries.</p>");
         foreach (var run in runs)
             AppendLookupRun(builder, run);
         AppendCommonNotes(builder);

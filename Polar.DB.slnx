@@ -23,6 +23,7 @@
     <File Path="benchmarks/src/BenchSupport/BenchmarkSystemMemory.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkStats.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkFileWarmup.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkProgress.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReport.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReportFormat.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReportTables.cs" />

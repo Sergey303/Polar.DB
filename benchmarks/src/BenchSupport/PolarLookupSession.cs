@@ -17,7 +17,6 @@ internal sealed class PolarLookupSession
     {
         var accumulator = new BenchmarkRowAccumulator();
         long rows = 0;
-
         foreach (var value in Values((IComparable)key))
         {
             accumulator.Add(PolarRows.FromPolar(value));
@@ -27,24 +26,51 @@ internal sealed class PolarLookupSession
         return new QueryResult(rows, accumulator.Finish());
     }
 
-    public (IReadOnlyList<double> Samples, long Rows, ulong Checksum) Measure(LookupPlan plan)
+    public (IReadOnlyList<double> Samples, long Rows, ulong Checksum) MeasureBatch(
+        LookupPlan plan,
+        string progressPrefix)
     {
         var samples = new List<double>();
         ulong checksum = 14695981039346656037UL;
         long rows = 0;
         var offset = 0;
+        var progress = new BenchmarkProgress(progressPrefix, plan.BatchSamples);
 
-        for (var sample = 0; sample < plan.Samples; sample++)
+        for (var sample = 0; sample < plan.BatchSamples; sample++)
         {
             var stopwatch = Stopwatch.StartNew();
-            for (var i = 0; i < plan.LookupsPerSample; i++)
+            for (var i = 0; i < plan.LookupsPerBatchSample; i++)
             {
-                var query = Query(plan.MeasuredKeys[offset++]);
+                var query = Query(plan.BatchKeys[offset++]);
                 checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
                 rows += query.Rows;
             }
             stopwatch.Stop();
-            samples.Add(stopwatch.Elapsed.TotalMilliseconds / plan.LookupsPerSample);
+            samples.Add(stopwatch.Elapsed.TotalMilliseconds / plan.LookupsPerBatchSample);
+            progress.Step(sample + 1);
+        }
+
+        return (samples, rows, checksum);
+    }
+
+    public (IReadOnlyList<double> Samples, long Rows, ulong Checksum) MeasureLatency(
+        object[] keys,
+        string progressPrefix)
+    {
+        var progress = new BenchmarkProgress(progressPrefix, keys.Length);
+        var samples = new List<double>();
+        ulong checksum = 14695981039346656037UL;
+        long rows = 0;
+
+        for (var i = 0; i < keys.Length; i++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var query = Query(keys[i]);
+            stopwatch.Stop();
+            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
+            rows += query.Rows;
+            progress.Step(i + 1);
         }
 
         return (samples, rows, checksum);

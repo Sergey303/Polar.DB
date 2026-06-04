@@ -24,6 +24,9 @@
     <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkFamousKeys.cs" Link="BenchmarkSupport\BenchmarkFamousKeys.cs" />
     <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkGuid.cs" Link="BenchmarkSupport\BenchmarkGuid.cs" />
     <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkModels.cs" Link="BenchmarkSupport\BenchmarkModels.cs" />
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkRowAccumulator.cs">
+      <Link>BenchmarkSupport\BenchmarkRowAccumulator.cs</Link>
+    </Compile>
   </ItemGroup>
 
 </Project>

@@ -49,6 +49,16 @@ internal sealed record ResourceSnapshot(long ManagedBytes, long WorkingSetBytes,
 internal sealed record EngineResult(string Engine, string Status, IReadOnlyList<double> SamplesMs,
     long Rows, ulong Checksum, long ArtifactBytes, ResourceSnapshot ResourcesBefore, ResourceSnapshot ResourcesAfter);
 
-internal sealed record LookupEngineResult(string Engine, string Status, IReadOnlyList<double> SamplesMs,
-    long Queries, long Rows, ulong Checksum, long ArtifactBytes,
-    ResourceSnapshot ResourcesBefore, ResourceSnapshot ResourcesAfter);
+internal sealed record LookupEngineResult(
+    string Engine,
+    string Status,
+    IReadOnlyList<double> BatchAvgSamplesMs,
+    IReadOnlyList<double> LatencySamplesMs,
+    long BatchQueries,
+    long BatchRows,
+    ulong BatchChecksum,
+    long LatencyRows,
+    ulong LatencyChecksum,
+    long ArtifactBytes,
+    ResourceSnapshot ResourcesBefore,
+    ResourceSnapshot ResourcesAfter);

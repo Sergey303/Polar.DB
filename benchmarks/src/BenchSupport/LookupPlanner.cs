@@ -8,10 +8,12 @@ internal static class LookupPlanner
         return new[]
         {
             new LookupPlan("Cold after reopen", false, Array.Empty<object>(),
-                Keys(kind, rows, ColdSamples(kind) * lookups, 17), ColdSamples(kind), lookups),
+                Keys(kind, rows, ColdSamples(kind) * lookups, 17),
+                Keys(kind, rows, LatencySamples(kind), 37), ColdSamples(kind), lookups),
             new LookupPlan("Hot after file and lookup warmup", true,
                 Keys(kind, rows, WarmupSamples(kind) * lookups, 71),
-                Keys(kind, rows, HotSamples(kind) * lookups, 97), HotSamples(kind), lookups)
+                Keys(kind, rows, HotSamples(kind) * lookups, 97),
+                Keys(kind, rows, LatencySamples(kind), 131), HotSamples(kind), lookups)
         };
     }
 
@@ -50,6 +52,11 @@ internal static class LookupPlanner
         kind.IsPrimaryLookup() ? BenchmarkDefaults.PrimaryWarmupSamples :
         kind.IsFamousExternal() ? BenchmarkDefaults.FamousWarmupSamples :
         BenchmarkDefaults.ExternalWarmupSamples;
+
+    private static int LatencySamples(ExperimentKind kind) =>
+        kind.IsPrimaryLookup() ? BenchmarkDefaults.PrimaryLatencySamples :
+        kind.IsFamousExternal() ? BenchmarkDefaults.FamousLatencySamples :
+        BenchmarkDefaults.ExternalLatencySamples;
 
     private static object[] Keys(ExperimentKind kind, Row[] rows, int count, int seed)
     {
