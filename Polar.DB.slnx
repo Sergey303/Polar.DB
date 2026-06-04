@@ -1,9 +1,7 @@
 <Solution>
   <Folder Name="/benchmarks/" />
   <Folder Name="/benchmarks/docs/">
-    <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.md" />
-    <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.ru.md" />
-    <File Path="benchmarks/docs/NEW_BENCHMARKS_TODO.md" />
+    <File Path="benchmarks/docs/README.md" />
   </Folder>
   <Folder Name="/benchmarks/results/" />
   <Folder Name="/benchmarks/scripts/">
