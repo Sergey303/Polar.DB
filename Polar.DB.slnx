@@ -76,4 +76,5 @@
   <Folder Name="/tests/">
     <Project Path="tests/Polar.DB.Tests/Polar.DB.Tests.csproj" />
   </Folder>
+  <Project Path="mag_experiments/mag_experiments.csproj" />
 </Solution>
