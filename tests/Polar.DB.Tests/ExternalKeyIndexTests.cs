@@ -61,7 +61,7 @@ public class ExternalKeyIndexTests
     }
 
     [Fact]
-    public void Compact_Rebuilds_Static_Index_From_Current_Records()
+    public async Task Compact_Rebuilds_Static_Index_From_Current_Records()
     {
         using var env = new SequenceEnvironment();
         var nameIndex = new ExternalKeyIndex<string>(
@@ -79,7 +79,7 @@ public class ExternalKeyIndexTests
         env.Sequence.Build();
         env.Sequence.AppendElement(Row(1, "CAROL", 300L, FirstGuid));
 
-        nameIndex.Compact();
+        await nameIndex.CompactAsync();
         nameIndex.Refresh();
 
         Assert.Empty(QueryIds(env.Sequence, 0, "alice"));
