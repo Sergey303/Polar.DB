@@ -18,4 +18,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Polar.DB\Polar.DB.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkChecksum.cs" Link="BenchmarkSupport\BenchmarkChecksum.cs" />
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkFamousKeys.cs" Link="BenchmarkSupport\BenchmarkFamousKeys.cs" />
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkGuid.cs" Link="BenchmarkSupport\BenchmarkGuid.cs" />
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkModels.cs" Link="BenchmarkSupport\BenchmarkModels.cs" />
+  </ItemGroup>
+
 </Project>

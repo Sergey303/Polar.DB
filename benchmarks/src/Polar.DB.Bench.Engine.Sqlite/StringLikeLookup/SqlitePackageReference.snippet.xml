@@ -1,3 +1,0 @@
-<ItemGroup>
-  <PackageReference Include="Microsoft.Data.Sqlite" />
-</ItemGroup>

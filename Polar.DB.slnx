@@ -1,29 +1,56 @@
 <Solution>
   <Folder Name="/benchmarks/" />
   <Folder Name="/benchmarks/docs/">
-    <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.md" />
-    <File Path="benchmarks/docs/BENCHMARK_WORKFLOW_GUIDE.ru.md" />
+    <File Path="benchmarks/docs/README.md" />
   </Folder>
-  <Folder Name="/benchmarks/docs/examples/">
-    <File Path="benchmarks/docs/examples/sample-baseline.v1.json" />
-    <File Path="benchmarks/docs/examples/sample-policy.v1.json" />
-  </Folder>
-  <Folder Name="/benchmarks/experiments/" />
+  <Folder Name="/benchmarks/results/" />
   <Folder Name="/benchmarks/scripts/">
-    <File Path="benchmarks/scripts/run-all-experiments-parallel.ps1" />
-    <File Path="benchmarks/scripts/run-string-like-prefix-lookup.ps1" />
-    <File Path="benchmarks/scripts/run-string-like-split.ps1" />
+    <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
+  </Folder>
+  <Folder Name="/benchmarks/src/BenchSupport/">
+    <File Path="benchmarks/src/BenchSupport/BenchmarkModels.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkDefaults.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkData.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkFamousKeys.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkGuid.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkPaths.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkChecksum.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkExpected.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkResources.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkSystemMemory.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkStats.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkReport.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkReportFormat.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkReportTables.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteStore.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteRows.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteLookupEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteLifecycleEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarRows.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarStoreFactory.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarMaterializer.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarLookupEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarLifecycleEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />
+    <File Path="benchmarks/src/BenchSupport/LifecycleBench.cs" />
   </Folder>
   <Folder Name="/benchmarks/src/">
-    <Project Path="benchmarks/src/Polar.DB.Bench.Analysis/Polar.DB.Bench.Analysis.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Charts/Polar.DB.Bench.Charts.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Core/Polar.DB.Bench.Core.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Engine.PolarDb/Polar.DB.Bench.Engine.PolarDb.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Engine.Sqlite/Polar.DB.Bench.Engine.Sqlite.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Exec.PolarDb210/Polar.DB.Bench.Exec.PolarDb210.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Exec.PolarDb211/Polar.DB.Bench.Exec.PolarDb211.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Exec.PolarDbCurrent/Polar.DB.Bench.Exec.PolarDbCurrent.csproj" />
-    <Project Path="benchmarks/src/Polar.DB.Bench.Exec/Polar.DB.Bench.Exec.csproj" />
+    <Project Path="benchmarks/src/PkIntLookup/PkIntLookup.csproj" />
+    <Project Path="benchmarks/src/PkLongLookup/PkLongLookup.csproj" />
+    <Project Path="benchmarks/src/PkGuidLookup/PkGuidLookup.csproj" />
+    <Project Path="benchmarks/src/PkStringLookup/PkStringLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalIntLookup/ExternalIntLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalLongLookup/ExternalLongLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalStringLookup/ExternalStringLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousIntLookup/ExternalFamousIntLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousLongLookup/ExternalFamousLongLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousStringLookup/ExternalFamousStringLookup.csproj" />
+    <Project Path="benchmarks/src/BuildOnly/BuildOnly.csproj" />
+    <Project Path="benchmarks/src/ReopenOnly/ReopenOnly.csproj" />
+    <Project Path="benchmarks/src/AppendOnly/AppendOnly.csproj" />
+    <Project Path="benchmarks/src/DeleteOnly/DeleteOnly.csproj" />
   </Folder>
   <Folder Name="/docs/">
     <File Path="docs/About.md" />
@@ -49,5 +76,4 @@
   <Folder Name="/tests/">
     <Project Path="tests/Polar.DB.Tests/Polar.DB.Tests.csproj" />
   </Folder>
-  <Project Path="mag_experiments/mag_experiments.csproj" />
 </Solution>

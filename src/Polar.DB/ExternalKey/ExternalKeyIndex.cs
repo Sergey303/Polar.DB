@@ -5,13 +5,16 @@ namespace Polar.DB.ExternalKey;
 public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
     where T : IComparable<T>
 {
+    private readonly object _snapshotGate = new();
+    private readonly object _storageGate = new();
     private readonly USequence _sequence;
     private readonly Func<object, IEnumerable<T>> _keysFunc;
     private readonly IComparer<T> _comparer;
     private readonly UniversalSequenceBase _keys;
     private readonly UniversalSequenceBase _offsets;
     private readonly List<ExternalKeyIndexEntry<T>> _dynamic = new();
-    private T[] _keysArray = Array.Empty<T>();
+    private ExternalKeyIndexSnapshot<T> _snapshot = ExternalKeyIndexSnapshot<T>.Empty;
+    private long _revision;
 
     public ExternalKeyIndex(
         Func<Stream> streamGen,
@@ -29,80 +32,125 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     public void Clear()
     {
-        _keys.Clear();
-        _offsets.Clear();
-        _dynamic.Clear();
-        _keysArray = Array.Empty<T>();
+        lock (_storageGate)
+        {
+            _keys.Clear();
+            _offsets.Clear();
+        }
+
+        lock (_snapshotGate)
+        {
+            _dynamic.Clear();
+            _snapshot = ExternalKeyIndexSnapshot<T>.Empty;
+            _revision++;
+        }
     }
 
     public void Flush()
     {
-        _keys.Flush();
-        _offsets.Flush();
+        lock (_storageGate)
+        {
+            _keys.Flush();
+            _offsets.Flush();
+        }
     }
 
     public void Close()
     {
-        _keys.Close();
-        _offsets.Close();
+        lock (_storageGate)
+        {
+            _keys.Close();
+            _offsets.Close();
+        }
     }
 
     public void Refresh()
     {
-        _keys.Refresh();
-        _offsets.Refresh();
-        _dynamic.Clear();
-        _keysArray = _keys.ElementValues().Select(ExternalKeyIndexKeyCodec<T>.FromStorage).ToArray();
+        ExternalKeyIndexSnapshot<T> snapshot;
+        lock (_storageGate)
+        {
+            _keys.Refresh();
+            _offsets.Refresh();
+            snapshot = ExternalKeyIndexCompaction<T>.ReadSnapshot(_keys, _offsets);
+        }
+
+        lock (_snapshotGate)
+        {
+            _snapshot = snapshot;
+            _dynamic.Clear();
+            _revision++;
+        }
     }
 
     public void Build()
     {
-        var keys = new List<T>();
-        var offsets = new List<long>();
-        _sequence.Scan((off, obj) =>
-        {
-            foreach (var key in GetKeys(obj))
-            {
-                keys.Add(key);
-                offsets.Add(off);
-            }
-            return true;
-        });
+        var snapshot = ExternalKeyIndexCompaction<T>.BuildSnapshot(
+            _sequence, _keysFunc, _comparer, CancellationToken.None);
 
-        _keysArray = keys.ToArray();
-        long[] offsetsArray = offsets.ToArray();
-        Array.Sort(_keysArray, offsetsArray, _comparer);
-        RewriteStaticStorage(offsetsArray);
-        _dynamic.Clear();
+        lock (_storageGate)
+            ExternalKeyIndexCompaction<T>.WriteSnapshot(_keys, _offsets, snapshot, CancellationToken.None);
+
+        lock (_snapshotGate)
+            PublishSnapshot(snapshot, long.MaxValue);
     }
 
-    public void Compact()
+    public Task CompactAsync(CancellationToken cancellationToken = default)
     {
-        Build();
+        long compactRevision;
+        lock (_snapshotGate)
+            compactRevision = _revision;
+
+        return Task.Run(() =>
+        {
+            var snapshot = ExternalKeyIndexCompaction<T>.BuildSnapshot(
+                _sequence, _keysFunc, _comparer, cancellationToken);
+
+            lock (_storageGate)
+                ExternalKeyIndexCompaction<T>.WriteSnapshot(_keys, _offsets, snapshot, cancellationToken);
+
+            lock (_snapshotGate)
+                PublishSnapshot(snapshot, compactRevision);
+        }, cancellationToken);
     }
 
     public void OnAppendElement(object element, long offset)
     {
         IComparable primary = _sequence.keyFunc(element);
-        _dynamic.RemoveAll(entry => Equals(entry.Primary, primary));
-        _dynamic.AddRange(GetKeys(element).Select(key => new ExternalKeyIndexEntry<T>(primary, key, offset)));
+
+        lock (_snapshotGate)
+        {
+            long revision = ++_revision;
+            _dynamic.RemoveAll(entry => Equals(entry.Primary, primary));
+
+            foreach (var key in GetKeys(element))
+                _dynamic.Add(new ExternalKeyIndexEntry<T>(primary, key, offset, revision));
+        }
     }
 
     internal IEnumerable<object> GetManyByValue(T key) => GetManyByValue(key, null);
 
     internal IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
     {
+        ExternalKeyIndexSnapshot<T> snapshot;
+        ExternalKeyIndexEntry<T>[] dynamicEntries;
+
+        lock (_snapshotGate)
+        {
+            snapshot = _snapshot;
+            dynamicEntries = _dynamic.ToArray();
+        }
+
         var emittedOffsets = new HashSet<long>();
-        foreach (var entry in _dynamic.Where(entry => KeyEquals(entry.Key, key)))
+        foreach (var entry in dynamicEntries.Where(entry => KeyEquals(entry.Key, key)))
         {
             object? value = TryReadDynamic(entry, elementFilter, emittedOffsets);
             if (value != null) yield return value;
         }
 
-        int pos = ExternalKeyIndexSearch.FindFirstEqual(_keysArray, key, _comparer);
-        for (int i = pos; i >= 0 && i < _keysArray.Length && KeyEquals(_keysArray[i], key); i++)
+        int pos = ExternalKeyIndexSearch.FindFirstEqual(snapshot.Keys, key, _comparer);
+        for (int i = pos; i >= 0 && i < snapshot.Keys.Length && KeyEquals(snapshot.Keys[i], key); i++)
         {
-            object? value = TryReadStatic(i, key, elementFilter, emittedOffsets);
+            object? value = TryReadStatic(snapshot.Offsets[i], key, elementFilter, emittedOffsets);
             if (value != null) yield return value;
         }
     }
@@ -110,18 +158,13 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
     IEnumerable<object> IExternalKeyIndex.GetManyByValue(IComparable value) =>
         GetManyByValue(ExternalKeyIndexKeyCodec<T>.Cast(value));
 
-    void IExternalKeyIndex.Compact()
-    {
-        Compact();
-    }
+    Task IExternalKeyIndex.CompactAsync(CancellationToken cancellationToken) =>
+        CompactAsync(cancellationToken);
 
-    private object? TryReadStatic(int index, T key, Func<object, bool>? filter, HashSet<long> emitted)
+    private object? TryReadStatic(long offset, T key, Func<object, bool>? filter, HashSet<long> emitted)
     {
-        long offset = (long)_offsets.GetByIndex(index);
         object element = _sequence.GetByOffset(offset);
-        IComparable primary = _sequence.keyFunc(element);
-        if (_sequence.ElementChanged(primary)) return null;
-        if (_sequence.isEmpty(element)) return null;
+        if (!_sequence.IsOriginalAndNotEmpty(element, offset)) return null;
         if (filter != null && !filter(element)) return null;
         if (filter == null && !HasKey(element, key)) return null;
         return emitted.Add(offset) ? element : null;
@@ -129,11 +172,16 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     private object? TryReadDynamic(ExternalKeyIndexEntry<T> entry, Func<object, bool>? filter, HashSet<long> emitted)
     {
-        if (!emitted.Add(entry.Offset)) return null;
         object element = _sequence.GetByOffset(entry.Offset);
-        if (_sequence.isEmpty(element)) return null;
+        if (!_sequence.IsOriginalAndNotEmpty(element, entry.Offset)) return null;
         if (filter != null && !filter(element)) return null;
-        return element;
+        return emitted.Add(entry.Offset) ? element : null;
+    }
+
+    private void PublishSnapshot(ExternalKeyIndexSnapshot<T> snapshot, long compactedThroughRevision)
+    {
+        _snapshot = snapshot;
+        _dynamic.RemoveAll(entry => entry.Revision <= compactedThroughRevision);
     }
 
     private bool HasKey(object element, T key) => GetKeys(element).Any(candidate => KeyEquals(candidate, key));
@@ -141,14 +189,4 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
     private bool KeyEquals(T left, T right) => _comparer.Compare(left, right) == 0;
 
     private IEnumerable<T> GetKeys(object element) => _keysFunc(element) ?? Enumerable.Empty<T>();
-
-    private void RewriteStaticStorage(long[] offsetsArray)
-    {
-        _keys.Clear();
-        foreach (var key in _keysArray) _keys.AppendElement(ExternalKeyIndexKeyCodec<T>.ToStorage(key));
-        _keys.Flush();
-        _offsets.Clear();
-        foreach (var offset in offsetsArray) _offsets.AppendElement(offset);
-        _offsets.Flush();
-    }
 }

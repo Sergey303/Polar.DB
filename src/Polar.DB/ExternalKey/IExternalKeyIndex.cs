@@ -3,5 +3,6 @@ namespace Polar.DB.ExternalKey;
 internal interface IExternalKeyIndex
 {
     IEnumerable<object> GetManyByValue(IComparable value);
-    void Compact();
+
+    Task CompactAsync(CancellationToken cancellationToken);
 }
