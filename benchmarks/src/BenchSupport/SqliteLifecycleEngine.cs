@@ -7,13 +7,13 @@ internal static class SqliteLifecycleEngine
 {
     public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
     {
-        if (options.Kind == ExperimentKind.BuildOnly) return BuildOnly(options, data, dir);
+        if (options.Kind == ExperimentKind.BuildPrimaryIntOnly) return BuildPrimaryIntOnly(options, data, dir);
         if (options.Kind == ExperimentKind.ReopenOnly) return ReopenOnly(options, data, dir);
         if (options.Kind == ExperimentKind.AppendOnly) return AppendOnly(options, data, dir);
         return DeleteOnly(options, data, dir);
     }
 
-    private static EngineResult BuildOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
         var samples = new List<double>();
@@ -23,12 +23,12 @@ internal static class SqliteLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var db = Path.Combine(runDir, "data.sqlite");
-            SqliteStore.Create(db, data, withIndexes: false);
+            SqliteStore.CreateForPrimaryIntBuild(db, data);
 
             using var connection = new SqliteConnection($"Data Source={db}");
             connection.Open();
             var stopwatch = Stopwatch.StartNew();
-            SqliteStore.CreateIndexes(connection);
+            SqliteStore.CreatePrimaryIntIndex(connection);
             stopwatch.Stop();
 
             if (i >= 0)
@@ -60,7 +60,8 @@ internal static class SqliteLifecycleEngine
 
         return Result("sqlite", samples, SqliteRows.ReadAll(db), dir, before);
     }
-private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
+
+    private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -88,10 +89,7 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
         return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
 
-    private static List<double> MeasureInTransaction<T>(
-        SqliteConnection connection,
-        IEnumerable<T> items,
-        Action<SqliteConnection, T> action)
+    private static List<double> MeasureInTransaction<T>(SqliteConnection connection, IEnumerable<T> items, Action<SqliteConnection, T> action)
     {
         using var transaction = connection.BeginTransaction();
         var samples = new List<double>();
@@ -107,8 +105,21 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
         return samples;
     }
 
-    private static void InsertOne(SqliteConnection connection, Row row) =>
-        SqliteStore.InsertRows(connection, new[] { row });
+    private static void InsertOne(SqliteConnection connection, Row row)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO rows(id,long_key,guid_key,skey,external_id,external_long,external_guid,external_key,payload) VALUES($id,$long,$guid,$skey,$eid,$elong,$eguid,$ekey,$payload)";
+        command.Parameters.AddWithValue("$id", row.Id);
+        command.Parameters.AddWithValue("$long", row.LongKey);
+        command.Parameters.AddWithValue("$guid", BenchmarkGuid.ToBytes(row.GuidKey));
+        command.Parameters.AddWithValue("$skey", row.SKey);
+        command.Parameters.AddWithValue("$eid", row.ExternalId);
+        command.Parameters.AddWithValue("$elong", row.ExternalLong);
+        command.Parameters.AddWithValue("$eguid", BenchmarkGuid.ToBytes(row.ExternalGuid));
+        command.Parameters.AddWithValue("$ekey", row.ExternalKey);
+        command.Parameters.AddWithValue("$payload", row.Payload);
+        command.ExecuteNonQuery();
+    }
 
     private static void DeleteOne(SqliteConnection connection, long id)
     {
@@ -118,12 +129,7 @@ private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, st
         command.ExecuteNonQuery();
     }
 
-    private static EngineResult Result(
-        string engine,
-        IReadOnlyList<double> samples,
-        Row[] actualRows,
-        string dir,
-        ResourceSnapshot before) =>
+    private static EngineResult Result(string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir, ResourceSnapshot before) =>
         new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
             BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
 }

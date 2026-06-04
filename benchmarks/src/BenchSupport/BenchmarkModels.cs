@@ -14,7 +14,7 @@ internal enum ExperimentKind
     ExternalFamousLongLookup,
     ExternalFamousGuidLookup,
     ExternalFamousStringLookup,
-    BuildOnly,
+    BuildPrimaryIntOnly,
     ReopenOnly,
     AppendOnly,
     DeleteOnly

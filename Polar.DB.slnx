@@ -6,6 +6,7 @@
   <Folder Name="/benchmarks/results/" />
   <Folder Name="/benchmarks/scripts/">
     <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
+    <File Path="benchmarks/scripts/clean-benchmark-docs.ps1" />
   </Folder>
   <Folder Name="/benchmarks/src/BenchSupport/">
     <File Path="benchmarks/src/BenchSupport/BenchmarkModels.cs" />
@@ -47,7 +48,7 @@
     <Project Path="benchmarks/src/ExternalFamousLongLookup/ExternalFamousLongLookup.csproj" />
     <Project Path="benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj" />
     <Project Path="benchmarks/src/ExternalFamousStringLookup/ExternalFamousStringLookup.csproj" />
-    <Project Path="benchmarks/src/BuildOnly/BuildOnly.csproj" />
+    <Project Path="benchmarks/src/BuildPrimaryIntOnly/BuildPrimaryIntOnly.csproj" />
     <Project Path="benchmarks/src/ReopenOnly/ReopenOnly.csproj" />
     <Project Path="benchmarks/src/AppendOnly/AppendOnly.csproj" />
     <Project Path="benchmarks/src/DeleteOnly/DeleteOnly.csproj" />
@@ -76,5 +77,4 @@
   <Folder Name="/tests/">
     <Project Path="tests/Polar.DB.Tests/Polar.DB.Tests.csproj" />
   </Folder>
-  <Project Path="mag_experiments/mag_experiments.csproj" />
 </Solution>

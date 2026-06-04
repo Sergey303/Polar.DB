@@ -13,7 +13,7 @@ $projects = @(
   "benchmarks\src\ExternalFamousLongLookup\ExternalFamousLongLookup.csproj",
   "benchmarks\src\ExternalFamousGuidLookup\ExternalFamousGuidLookup.csproj",
   "benchmarks\src\ExternalFamousStringLookup\ExternalFamousStringLookup.csproj",
-  "benchmarks\src\BuildOnly\BuildOnly.csproj",
+  "benchmarks\src\BuildPrimaryIntOnly\BuildPrimaryIntOnly.csproj",
   "benchmarks\src\ReopenOnly\ReopenOnly.csproj",
   "benchmarks\src\AppendOnly\AppendOnly.csproj",
   "benchmarks\src\DeleteOnly\DeleteOnly.csproj"

@@ -24,7 +24,7 @@ powershell -ExecutionPolicy Bypass -File .\benchmarks\scripts\run-new-benchmarks
 Run one experiment:
 
 ```powershell
-dotnet run -c Release --project benchmarks\src\PkIntLookup\PkIntLookup.csproj
+dotnet run -c Release --project benchmarks\src\BuildPrimaryIntOnly\BuildPrimaryIntOnly.csproj
 ```
 
 Run tests:
@@ -58,7 +58,7 @@ Heavy external-key lookup with 40% rows on the searched key:
 
 Lifecycle experiments:
 
-- `build-only`
+- `build-primary-int-only`
 - `reopen-only`
 - `append-only`
 - `delete-only`
@@ -76,30 +76,26 @@ Current operation counts:
 
 - normal lookup: `300` warmup operations, `2_000` measured operations;
 - famous external lookup: `1` warmup operation, `3` measured operations;
-- build-only: `1` warmup run, `3` measured runs;
+- build-primary-int-only: `1` warmup run, `3` measured runs;
 - reopen-only: `3` warmup runs, `20` measured runs;
 - append/delete: `50` warmup operations, `2_000` measured operations.
+
+## Build primary integer index only
+
+`build-primary-int-only` measures only primary integer index build after data load.
+
+For Polar.DB this opens `USequence` without external indexes and measures:
+
+- `Sequence.Build()`;
+- `Sequence.Flush()`.
+
+For SQLite this loads rows into a table where `id` is not a primary key yet, then
+measures creation of a unique index on `id`.
 
 ## Correctness
 
 Correctness is checked against expected rows and checksums computed from the
-generated dataset.
-
-Row order is ignored for correctness. This matters for external-key lookup where
-different engines may return the same rows in different order.
-
-## Resources
-
-Reports include:
-
-- HDD artifact size;
-- private RAM;
-- working set;
-- managed heap;
-- available RAM;
-- resource ratios against currently available RAM.
-
-Available RAM is detected at runtime from the operating system when possible.
+generated dataset. Row order is ignored for correctness.
 
 ## Generated files
 

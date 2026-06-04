@@ -9,9 +9,18 @@ internal static class SqliteStore
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();
         Exec(connection, "PRAGMA journal_mode=WAL;");
-        Exec(connection, "CREATE TABLE rows(id INTEGER PRIMARY KEY, long_key INTEGER NOT NULL, guid_key BLOB NOT NULL, skey TEXT NOT NULL, external_id INTEGER NOT NULL, external_long INTEGER NOT NULL, external_guid BLOB NOT NULL, external_key TEXT NOT NULL, payload TEXT NOT NULL);");
+        CreateTable(connection, "id INTEGER PRIMARY KEY");
         InsertRows(connection, rows);
         if (withIndexes) CreateIndexes(connection);
+    }
+
+    public static void CreateForPrimaryIntBuild(string db, Row[] rows)
+    {
+        using var connection = new SqliteConnection($"Data Source={db}");
+        connection.Open();
+        Exec(connection, "PRAGMA journal_mode=WAL;");
+        CreateTable(connection, "id INTEGER NOT NULL");
+        InsertRows(connection, rows);
     }
 
     public static void InsertRows(SqliteConnection connection, IEnumerable<Row> rows)
@@ -40,6 +49,9 @@ internal static class SqliteStore
         tx.Commit();
     }
 
+    public static void CreatePrimaryIntIndex(SqliteConnection connection) =>
+        Exec(connection, "CREATE UNIQUE INDEX ix_rows_id ON rows(id);");
+
     public static void CreateIndexes(SqliteConnection connection)
     {
         Exec(connection, "CREATE UNIQUE INDEX ix_rows_long_key ON rows(long_key);");
@@ -56,5 +68,10 @@ internal static class SqliteStore
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    private static void CreateTable(SqliteConnection connection, string idColumn)
+    {
+        Exec(connection, "CREATE TABLE rows(" + idColumn + ", long_key INTEGER NOT NULL, guid_key BLOB NOT NULL, skey TEXT NOT NULL, external_id INTEGER NOT NULL, external_long INTEGER NOT NULL, external_guid BLOB NOT NULL, external_key TEXT NOT NULL, payload TEXT NOT NULL);");
     }
 }

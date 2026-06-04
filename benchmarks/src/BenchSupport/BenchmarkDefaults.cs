@@ -14,8 +14,8 @@ internal static class BenchmarkDefaults
     public const int HeavyExternalWarmupOps = 1;
     public const int HeavyExternalMeasuredOps = 3;
 
-    public const int BuildWarmupOps = 1;
-    public const int BuildMeasuredOps = 3;
+    public const int BuildPrimaryIntWarmupOps = 1;
+    public const int BuildPrimaryIntMeasuredOps = 3;
 
     public const int ReopenWarmupOps = 3;
     public const int ReopenMeasuredOps = 20;
