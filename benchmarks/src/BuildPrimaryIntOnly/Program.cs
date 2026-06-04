@@ -8,4 +8,7 @@ var options = new ExperimentOptions(
     WarmupOps: BenchmarkDefaults.BuildPrimaryIntWarmupOps,
     MeasuredOps: BenchmarkDefaults.BuildPrimaryIntMeasuredOps);
 
-LifecycleBench.Run(options);
+if (options.Kind.IsLookup())
+    LookupBench.Run(options);
+else
+    LifecycleBench.Run(options);

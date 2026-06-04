@@ -7,6 +7,7 @@
   <Folder Name="/benchmarks/scripts/">
     <File Path="benchmarks/scripts/run-new-benchmarks.ps1" />
     <File Path="benchmarks/scripts/clean-benchmark-docs.ps1" />
+    <File Path="benchmarks/scripts/rename-build-only-to-primary-int.ps1" />
   </Folder>
   <Folder Name="/benchmarks/src/BenchSupport/">
     <File Path="benchmarks/src/BenchSupport/BenchmarkModels.cs" />
@@ -16,21 +17,28 @@
     <File Path="benchmarks/src/BenchSupport/BenchmarkGuid.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkPaths.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkChecksum.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkRowAccumulator.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkExpected.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkResources.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkSystemMemory.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkStats.cs" />
+    <File Path="benchmarks/src/BenchSupport/BenchmarkFileWarmup.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReport.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReportFormat.cs" />
     <File Path="benchmarks/src/BenchSupport/BenchmarkReportTables.cs" />
+    <File Path="benchmarks/src/BenchSupport/SearchBenchmarkReportTables.cs" />
+    <File Path="benchmarks/src/BenchSupport/LookupPlan.cs" />
+    <File Path="benchmarks/src/BenchSupport/LookupPlanner.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteStore.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteRows.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteLookupEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/SqliteLookupSession.cs" />
     <File Path="benchmarks/src/BenchSupport/SqliteLifecycleEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarRows.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarStoreFactory.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarMaterializer.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLookupEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/PolarLookupSession.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLifecycleEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />
     <File Path="benchmarks/src/BenchSupport/LifecycleBench.cs" />

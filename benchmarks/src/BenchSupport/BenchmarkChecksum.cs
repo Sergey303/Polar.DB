@@ -10,38 +10,19 @@ internal static class BenchmarkChecksum
         unchecked
         {
             var hash = Offset;
-            Add(ref hash, row.Id);
-            Add(ref hash, row.LongKey);
-            Add(ref hash, row.GuidKey);
-            Add(ref hash, row.SKey);
-            Add(ref hash, row.ExternalId);
-            Add(ref hash, row.ExternalLong);
-            Add(ref hash, row.ExternalGuid);
-            Add(ref hash, row.ExternalKey);
-            Add(ref hash, row.Payload);
+            Add(ref hash, row.Id); Add(ref hash, row.LongKey); Add(ref hash, row.GuidKey);
+            Add(ref hash, row.SKey); Add(ref hash, row.ExternalId); Add(ref hash, row.ExternalLong);
+            Add(ref hash, row.ExternalGuid); Add(ref hash, row.ExternalKey); Add(ref hash, row.Payload);
             return hash;
         }
     }
 
     public static ulong HashRows(IEnumerable<Row> rows)
     {
-        unchecked
-        {
-            ulong count = 0;
-            ulong sum = 0;
-            ulong xor = 0;
-            ulong mixedSum = 0;
-            foreach (var row in rows)
-            {
-                var hash = Hash(row);
-                var mixed = Mix(hash);
-                count++;
-                sum += hash;
-                mixedSum += mixed;
-                xor ^= RotateLeft(mixed, (int)(hash & 63));
-            }
-            return FinalizeRows(count, sum, xor, mixedSum);
-        }
+        var accumulator = new BenchmarkRowAccumulator();
+        foreach (var row in rows)
+            accumulator.Add(row);
+        return accumulator.Finish();
     }
 
     public static ulong Combine(ulong current, ulong value)
@@ -74,33 +55,7 @@ internal static class BenchmarkChecksum
     private static int StableGuidHash(Guid value)
     {
         var split = BenchmarkGuid.Split(value);
-        return StableHash(split.Low) ^ RotateLeft((ulong)StableHash(split.High), 17).GetHashCode();
-    }
-
-    private static ulong FinalizeRows(ulong count, ulong sum, ulong xor, ulong mixedSum)
-    {
-        var result = Offset;
-        result = Combine(result, count);
-        result = Combine(result, sum);
-        result = Combine(result, xor);
-        result = Combine(result, mixedSum);
-        return result;
-    }
-
-    private static ulong Mix(ulong value)
-    {
-        value ^= value >> 33;
-        value *= 0xff51afd7ed558ccdUL;
-        value ^= value >> 33;
-        value *= 0xc4ceb9fe1a85ec53UL;
-        value ^= value >> 33;
-        return value;
-    }
-
-    private static ulong RotateLeft(ulong value, int shift)
-    {
-        shift &= 63;
-        return shift == 0 ? value : (value << shift) | (value >> (64 - shift));
+        return StableHash(split.Low) ^ (int)RotateLeft((uint)StableHash(split.High), 17);
     }
 
     private static int StableStringHash(string value)
@@ -116,6 +71,9 @@ internal static class BenchmarkChecksum
             return hash;
         }
     }
+
+    private static uint RotateLeft(uint value, int shift) =>
+        (value << shift) | (value >> (32 - shift));
 
     private static void Add(ref ulong hash, long value)
     {

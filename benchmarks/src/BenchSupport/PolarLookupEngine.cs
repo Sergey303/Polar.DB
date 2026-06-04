@@ -1,12 +1,13 @@
-using System.Diagnostics;
-
 namespace PolarDbBenchmarks;
 
 internal static class PolarLookupEngine
 {
-    public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
+    public static IReadOnlyList<LookupEngineResult> Run(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        IReadOnlyList<LookupPlan> plans)
     {
-        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var created = PolarStoreFactory.Open(dir, options.Kind);
         created.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
@@ -14,56 +15,29 @@ internal static class PolarLookupEngine
         created.Sequence.Flush();
         created.Sequence.Close();
 
-        var store = PolarStoreFactory.Open(dir, options.Kind);
+        var results = new List<LookupEngineResult>();
+        foreach (var plan in plans)
+            results.Add(RunPhase(options.Kind, dir, plan));
+
+        return results;
+    }
+
+    private static LookupEngineResult RunPhase(ExperimentKind kind, string dir, LookupPlan plan)
+    {
+        if (plan.FileWarmup) BenchmarkFileWarmup.ReadAll(dir);
+
+        var before = BenchmarkResources.Capture();
+        var store = PolarStoreFactory.Open(dir, kind);
         store.Sequence.Refresh();
+        var session = new PolarLookupSession(store, kind);
 
-        var keys = BenchmarkData.LookupKeys(data, options.Kind, options.MeasuredOps).ToArray();
-        for (var i = 0; i < options.WarmupOps; i++)
-            Query(store, options.Kind, keys[i % keys.Length]);
+        foreach (var key in plan.WarmupKeys)
+            session.Query(key);
 
-        var samples = new List<double>();
-        ulong checksum = 14695981039346656037UL;
-        long rows = 0;
-        foreach (var key in keys)
-        {
-            var stopwatch = Stopwatch.StartNew();
-            var query = Query(store, options.Kind, key);
-            stopwatch.Stop();
-            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
-            checksum = BenchmarkChecksum.Combine(checksum, query.Checksum);
-            rows += query.Rows;
-        }
-
+        var measured = session.Measure(plan);
         store.Sequence.Close();
-        return new EngineResult("polar-db-current", "Measured", samples, rows,
-            checksum, BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
-    }
 
-    public static QueryResult Query(PolarStore store, ExperimentKind kind, object key)
-    {
-        var rows = Values(store, kind, (IComparable)key).Select(PolarRows.FromPolar).ToArray();
-        return new QueryResult(rows.Length, BenchmarkChecksum.HashRows(rows));
-    }
-
-    private static IEnumerable<object> Values(PolarStore store, ExperimentKind kind, IComparable key)
-    {
-        if (kind is ExperimentKind.PkIntLookup or ExperimentKind.PkLongLookup
-            or ExperimentKind.PkGuidLookup or ExperimentKind.PkStringLookup)
-        {
-            var value = store.Sequence.GetByKey(key);
-            if (value != null) yield return value;
-            yield break;
-        }
-
-        var index = kind switch
-        {
-            ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup => store.IntIndex,
-            ExperimentKind.ExternalLongLookup or ExperimentKind.ExternalFamousLongLookup => store.LongIndex,
-            ExperimentKind.ExternalGuidLookup or ExperimentKind.ExternalFamousGuidLookup => store.GuidIndex,
-            _ => store.StringIndex
-        };
-
-        foreach (var value in index!.GetManyByKey(key))
-            yield return value;
+        return new LookupEngineResult("polar-db-current", "Measured", measured.Samples, plan.MeasuredKeys.Length,
+            measured.Rows, measured.Checksum, BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
     }
 }

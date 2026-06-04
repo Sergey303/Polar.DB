@@ -7,23 +7,37 @@ internal static class LookupBench
     public static void Run(ExperimentOptions options)
     {
         var work = BenchmarkPaths.PrepareWorkDir(options.ExperimentId);
-        var runs = new List<BenchmarkRunResult>();
+        var runs = new List<LookupRunResult>();
 
         foreach (var rowCount in options.RowCounts)
         {
             var data = BenchmarkData.Dataset(rowCount, options.Kind);
+            var plans = LookupPlanner.Plans(options.Kind, data);
             var caseDir = Path.Combine(work, "rows-" + rowCount);
-            var expected = BenchmarkExpected.ForLookup(options, data);
-            var engines = new[]
-            {
-                SqliteLookupEngine.Run(options, data, Path.Combine(caseDir, "sqlite")),
-                PolarLookupEngine.Run(options, data, Path.Combine(caseDir, "polar"))
-            };
-            runs.Add(new BenchmarkRunResult(rowCount, expected, engines));
+            var sqlite = SqliteLookupEngine.Run(options, data, Path.Combine(caseDir, "sqlite"), plans);
+            var polar = PolarLookupEngine.Run(options, data, Path.Combine(caseDir, "polar"), plans);
+            runs.Add(new LookupRunResult(rowCount, BuildPhases(options.Kind, data, plans, sqlite, polar)));
         }
 
         var output = BenchmarkPaths.ResultPath(options.ExperimentId);
-        File.WriteAllText(output, BenchmarkReport.Render(options, runs), Encoding.UTF8);
+        File.WriteAllText(output, BenchmarkReport.RenderLookup(options, runs), Encoding.UTF8);
         Console.WriteLine(output);
+    }
+
+    private static IReadOnlyList<LookupPhaseResult> BuildPhases(
+        ExperimentKind kind,
+        Row[] data,
+        IReadOnlyList<LookupPlan> plans,
+        IReadOnlyList<LookupEngineResult> sqlite,
+        IReadOnlyList<LookupEngineResult> polar)
+    {
+        var phases = new List<LookupPhaseResult>();
+        for (var i = 0; i < plans.Count; i++)
+        {
+            var expected = BenchmarkExpected.ForLookup(kind, data, plans[i].MeasuredKeys);
+            phases.Add(new LookupPhaseResult(plans[i].Name, expected, new[] { sqlite[i], polar[i] }));
+        }
+
+        return phases;
     }
 }

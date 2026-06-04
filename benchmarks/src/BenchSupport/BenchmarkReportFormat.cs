@@ -47,7 +47,7 @@ internal static class BenchmarkReportFormat
     public static string Escape(string value) =>
         value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
-    private static bool IsBest(double value, double best) => Math.Abs(value - best) <= Math.Max(0.000001, best * 0.000001);
+    public static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    private static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+    private static bool IsBest(double value, double best) => Math.Abs(value - best) <= Math.Max(0.000001, best * 0.000001);
 }

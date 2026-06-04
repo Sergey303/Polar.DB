@@ -2,15 +2,14 @@ namespace PolarDbBenchmarks;
 
 internal static class BenchmarkExpected
 {
-    public static QueryResult ForLookup(ExperimentOptions options, Row[] data)
+    public static QueryResult ForLookup(ExperimentKind kind, Row[] data, object[] keys)
     {
         ulong checksum = 14695981039346656037UL;
         long rows = 0;
-        foreach (var key in BenchmarkData.LookupKeys(data, options.Kind, options.MeasuredOps))
+        foreach (var key in keys)
         {
-            var matches = LookupMatches(options.Kind, data, key);
-            var queryChecksum = BenchmarkChecksum.HashRows(matches);
-            checksum = BenchmarkChecksum.Combine(checksum, queryChecksum);
+            var matches = LookupMatches(kind, data, key);
+            checksum = BenchmarkChecksum.Combine(checksum, BenchmarkChecksum.HashRows(matches));
             rows += matches.LongLength;
         }
 
