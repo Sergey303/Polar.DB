@@ -7,8 +7,8 @@ internal static class BenchmarkReportTables
     public static void AppendTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
     {
         AppendMainTiming(builder, engines);
-        if (engines.Any(engine => engine.BuildSamplesMs != null))
-            AppendBuildBreakdown(builder, engines);
+        if (engines.Any(engine => engine.BuildSamplesMs != null)) AppendBuildBreakdown(builder, engines);
+        if (engines.Any(engine => engine.PrimaryBuildStages != null)) AppendPrimaryBuildInternals(builder, engines);
     }
 
     private static void AppendMainTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
@@ -56,7 +56,27 @@ internal static class BenchmarkReportTables
             builder.Append("<td>" + BenchmarkReportFormat.Number(flush.Median) + " ms</td>");
             builder.Append("<td>" + BenchmarkReportFormat.Number(flush.P95) + " ms</td>");
             builder.Append("<td>" + BenchmarkReportFormat.Number(total.Median) + " ms</td>");
-            builder.Append("<td>" + BenchmarkReportFormat.Number(BuildShare(build.Median, total.Median)) + "%</td></tr>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(Share(build.Median, total.Median)) + "%</td></tr>");
+        }
+        builder.AppendLine("</table>");
+    }
+
+    private static void AppendPrimaryBuildInternals(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
+        builder.AppendLine("<h3>Polar.DB primary index build internals</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Scan/extract</th><th>To arrays</th><th>Sort</th><th>Write hash keys</th><th>Write offsets</th><th>GC</th><th>Profile total</th></tr>");
+        foreach (var engine in engines.Where(engine => engine.PrimaryBuildStages != null))
+        {
+            var s = engine.PrimaryBuildStages!;
+            builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(engine.Engine) + "</td>");
+            builder.Append(Cell(s.ScanMs));
+            builder.Append(Cell(s.ToArrayMs));
+            builder.Append(Cell(s.SortMs));
+            builder.Append(Cell(s.WriteHashKeysMs));
+            builder.Append(Cell(s.WriteOffsetsMs));
+            builder.Append(Cell(s.GcMs));
+            builder.Append(Cell(s.ProfileTotalMs));
+            builder.Append("</tr>");
         }
         builder.AppendLine("</table>");
     }
@@ -82,7 +102,6 @@ internal static class BenchmarkReportTables
         builder.AppendLine("<table><tr><th>Engine</th><th>Rows</th><th>Checksum</th><th>Status</th></tr>");
         builder.AppendLine("<tr><td>expected</td><td>" + expected.Rows +
             "</td><td>" + expected.Checksum + "</td><td class=\"ok\">Baseline</td></tr>");
-
         foreach (var engine in engines)
         {
             var ok = engine.Rows == expected.Rows && engine.Checksum == expected.Checksum;
@@ -93,6 +112,9 @@ internal static class BenchmarkReportTables
         builder.AppendLine("</table>");
     }
 
-    private static double BuildShare(double buildMedian, double totalMedian) =>
-        double.IsNaN(buildMedian) || totalMedian <= 0 ? double.NaN : buildMedian * 100.0 / totalMedian;
+    private static string Cell(IReadOnlyList<double> values) =>
+        "<td>" + BenchmarkReportFormat.Number(BenchmarkStats.From(values).Median) + " ms</td>";
+
+    private static double Share(double part, double total) =>
+        double.IsNaN(part) || total <= 0 ? double.NaN : part * 100.0 / total;
 }

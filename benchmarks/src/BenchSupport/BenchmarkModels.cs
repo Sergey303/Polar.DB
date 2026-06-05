@@ -46,6 +46,15 @@ internal sealed record QueryResult(long Rows, ulong Checksum);
 
 internal sealed record ResourceSnapshot(long ManagedBytes, long WorkingSetBytes, long PrivateBytes, long AvailableMemoryBytes);
 
+internal sealed record PrimaryBuildStageSamples(
+    IReadOnlyList<double> ScanMs,
+    IReadOnlyList<double> ToArrayMs,
+    IReadOnlyList<double> SortMs,
+    IReadOnlyList<double> WriteHashKeysMs,
+    IReadOnlyList<double> WriteOffsetsMs,
+    IReadOnlyList<double> GcMs,
+    IReadOnlyList<double> ProfileTotalMs);
+
 internal sealed record EngineResult(
     string Engine,
     string Status,
@@ -56,7 +65,8 @@ internal sealed record EngineResult(
     ResourceSnapshot ResourcesBefore,
     ResourceSnapshot ResourcesAfter,
     IReadOnlyList<double>? BuildSamplesMs = null,
-    IReadOnlyList<double>? FlushSamplesMs = null);
+    IReadOnlyList<double>? FlushSamplesMs = null,
+    PrimaryBuildStageSamples? PrimaryBuildStages = null);
 
 internal sealed record LookupEngineResult(
     string Engine, string Status, IReadOnlyList<double> BatchAvgSamplesMs,

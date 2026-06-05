@@ -120,6 +120,24 @@ namespace Polar.DB
             return off;
         }
 
+        public void ReplaceWithFixedInt32Array(int[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            EnsureFixedElementSize(sizeof(int), nameof(ReplaceWithFixedInt32Array));
+            var bytes = new byte[checked(values.Length * sizeof(int))];
+            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+            ReplaceWithRawFixedPayload(values.LongLength, bytes);
+        }
+
+        public void ReplaceWithFixedInt64Array(long[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            EnsureFixedElementSize(sizeof(long), nameof(ReplaceWithFixedInt64Array));
+            var bytes = new byte[checked(values.Length * sizeof(long))];
+            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+            ReplaceWithRawFixedPayload(values.LongLength, bytes);
+        }
+
         public object GetElement()
         {
             return ByteFlow.Deserialize(br, tp_elem);
@@ -260,6 +278,24 @@ namespace Polar.DB
                 AppendElement(records[ii]);
             }
             Flush();
+        }
+
+        private void ReplaceWithRawFixedPayload(long count, byte[] payload)
+        {
+            fs.Position = 0L;
+            fs.SetLength(0L);
+            bw.Write(count);
+            fs.Write(payload, 0, payload.Length);
+            nelements = count;
+            append_offset = HeaderSize + payload.LongLength;
+            fs.Position = append_offset;
+            fs.Flush();
+        }
+
+        private void EnsureFixedElementSize(int expected, string method)
+        {
+            if (elem_size != expected)
+                throw new InvalidOperationException(method + " requires fixed element size " + expected + ".");
         }
 
         private void SetTypedElementCore(PType tp, object v, long off)
