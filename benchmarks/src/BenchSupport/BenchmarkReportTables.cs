@@ -6,6 +6,13 @@ internal static class BenchmarkReportTables
 {
     public static void AppendTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
     {
+        AppendMainTiming(builder, engines);
+        if (engines.Any(engine => engine.BuildSamplesMs != null))
+            AppendBuildBreakdown(builder, engines);
+    }
+
+    private static void AppendMainTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
         var rows = engines.Select(engine => (Engine: engine, Stats: BenchmarkStats.From(engine.SamplesMs))).ToArray();
         var bestMedian = rows.Min(row => row.Stats.Median);
         var bestP95 = rows.Min(row => row.Stats.P95);
@@ -15,7 +22,7 @@ internal static class BenchmarkReportTables
         var bestWorking = engines.Min(engine => engine.ResourcesAfter.WorkingSetBytes);
 
         builder.AppendLine("<h3>Timing and resources</h3>");
-        builder.AppendLine("<table><tr><th>Engine</th><th>Status</th><th>Median</th><th>P95</th><th>Trimmed mean</th><th>Rows</th><th>HDD</th><th>Private RAM</th><th>Working set</th><th>Managed heap</th><th>Available RAM</th></tr>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Status</th><th>Total median</th><th>Total p95</th><th>Total trimmed</th><th>Rows</th><th>HDD</th><th>Private RAM</th><th>Working set</th><th>Managed heap</th><th>Available RAM</th></tr>");
         foreach (var row in rows)
         {
             var engine = row.Engine;
@@ -31,7 +38,26 @@ internal static class BenchmarkReportTables
             builder.Append("<td>" + BenchmarkReportFormat.Bytes(engine.ResourcesAfter.ManagedBytes) + "</td>");
             builder.Append("<td>" + BenchmarkReportFormat.Bytes(engine.ResourcesAfter.AvailableMemoryBytes) + "</td></tr>");
         }
+        builder.AppendLine("</table>");
+    }
 
+    private static void AppendBuildBreakdown(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
+        builder.AppendLine("<h3>Build stage breakdown</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Build median</th><th>Build p95</th><th>Flush median</th><th>Flush p95</th><th>Total median</th><th>Build share</th></tr>");
+        foreach (var engine in engines)
+        {
+            var build = BenchmarkStats.From(engine.BuildSamplesMs ?? Array.Empty<double>());
+            var flush = BenchmarkStats.From(engine.FlushSamplesMs ?? Array.Empty<double>());
+            var total = BenchmarkStats.From(engine.SamplesMs);
+            builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(engine.Engine) + "</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(build.Median) + " ms</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(build.P95) + " ms</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(flush.Median) + " ms</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(flush.P95) + " ms</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(total.Median) + " ms</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Number(BuildShare(build.Median, total.Median)) + "%</td></tr>");
+        }
         builder.AppendLine("</table>");
     }
 
@@ -47,14 +73,10 @@ internal static class BenchmarkReportTables
                 BenchmarkReportFormat.RatioCell(engine.ResourcesAfter.PrivateBytes, available) +
                 BenchmarkReportFormat.RatioCell(engine.ResourcesAfter.WorkingSetBytes, available) + "</tr>");
         }
-
         builder.AppendLine("</table>");
     }
 
-    public static void AppendCorrectness(
-        StringBuilder builder,
-        QueryResult expected,
-        IReadOnlyList<EngineResult> engines)
+    public static void AppendCorrectness(StringBuilder builder, QueryResult expected, IReadOnlyList<EngineResult> engines)
     {
         builder.AppendLine("<h3>Correctness</h3>");
         builder.AppendLine("<table><tr><th>Engine</th><th>Rows</th><th>Checksum</th><th>Status</th></tr>");
@@ -68,7 +90,9 @@ internal static class BenchmarkReportTables
                 engine.Rows + "</td><td>" + engine.Checksum + "</td><td class=\"" +
                 (ok ? "ok" : "warn") + "\">" + (ok ? "OK" : "Mismatch") + "</td></tr>");
         }
-
         builder.AppendLine("</table>");
     }
+
+    private static double BuildShare(double buildMedian, double totalMedian) =>
+        double.IsNaN(buildMedian) || totalMedian <= 0 ? double.NaN : buildMedian * 100.0 / totalMedian;
 }

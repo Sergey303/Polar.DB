@@ -45,12 +45,14 @@ internal static class SqliteStore
             externalGuid.Value = BenchmarkGuid.ToBytes(row.ExternalGuid); externalKey.Value = row.ExternalKey;
             payload.Value = row.Payload; command.ExecuteNonQuery();
         }
-
         tx.Commit();
     }
 
     public static void CreatePrimaryIntIndex(SqliteConnection connection) =>
         Exec(connection, "CREATE UNIQUE INDEX ix_rows_id ON rows(id);");
+
+    public static void Flush(SqliteConnection connection) =>
+        Exec(connection, "PRAGMA wal_checkpoint(TRUNCATE);");
 
     public static void CreateIndexes(SqliteConnection connection)
     {

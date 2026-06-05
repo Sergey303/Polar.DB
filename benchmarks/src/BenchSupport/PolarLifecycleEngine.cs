@@ -15,8 +15,11 @@ internal static class PolarLifecycleEngine
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
-        var samples = new List<double>();
+        var totalSamples = new List<double>();
+        var buildSamples = new List<double>();
+        var flushSamples = new List<double>();
         var artifactDir = dir;
+
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
         {
             var runDir = Path.Combine(dir, "run-" + i);
@@ -24,21 +27,23 @@ internal static class PolarLifecycleEngine
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
             store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
 
-            var stopwatch = Stopwatch.StartNew();
-            store.Sequence.Build();
-            store.Sequence.Flush();
-            stopwatch.Stop();
+            var total = Stopwatch.StartNew();
+            var buildMs = Measure(() => store.Sequence.Build());
+            var flushMs = Measure(() => store.Sequence.Flush());
+            total.Stop();
             store.Sequence.Close();
 
             if (i >= 0)
             {
-                samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+                totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                buildSamples.Add(buildMs);
+                flushSamples.Add(flushMs);
                 artifactDir = runDir;
             }
         }
 
         var rows = PolarMaterializer.ReadAll(artifactDir, ExperimentKind.BuildPrimaryIntOnly);
-        return Result("polar-db-current", samples, rows, artifactDir, before);
+        return Result("polar-db-current", totalSamples, rows, artifactDir, before, buildSamples, flushSamples);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -50,13 +55,13 @@ internal static class PolarLifecycleEngine
 
         for (var i = 0; i < options.MeasuredOps + options.WarmupOps; i++)
         {
-            var stopwatch = Stopwatch.StartNew();
-            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
-            store.Sequence.Refresh();
-            store.Sequence.Close();
-            stopwatch.Stop();
-
-            if (i >= options.WarmupOps) samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            var ms = Measure(() =>
+            {
+                var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
+                store.Sequence.Refresh();
+                store.Sequence.Close();
+            });
+            if (i >= options.WarmupOps) samples.Add(ms);
         }
 
         return Result("polar-db-current", samples,
@@ -69,33 +74,21 @@ internal static class PolarLifecycleEngine
         var store = PrepareBuiltStore(dir, data, ExperimentKind.AppendOnly);
         var appendRows = BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1);
         var samples = new List<double>();
-
         foreach (var row in appendRows)
-        {
-            var stopwatch = Stopwatch.StartNew();
-            store.Sequence.AppendElement(PolarRows.ToPolar(row));
-            stopwatch.Stop();
-            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
-        }
+            samples.Add(Measure(() => store.Sequence.AppendElement(PolarRows.ToPolar(row))));
 
         var rows = PolarMaterializer.ReadAll(store);
         store.Sequence.Flush();
         store.Sequence.Close();
         return Result("polar-db-current", samples, rows, dir, before);
     }
-
-    private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
+private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
         var store = PrepareBuiltStore(dir, data, ExperimentKind.DeleteOnly);
         var samples = new List<double>();
         foreach (var key in BenchmarkData.PrimaryKeys(data, options.MeasuredOps))
-        {
-            var stopwatch = Stopwatch.StartNew();
-            store.Sequence.AppendElement(PolarRows.Tombstone(key));
-            stopwatch.Stop();
-            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
-        }
+            samples.Add(Measure(() => store.Sequence.AppendElement(PolarRows.Tombstone(key))));
 
         var rows = PolarMaterializer.ReadAll(store);
         store.Sequence.Flush();
@@ -113,7 +106,17 @@ internal static class PolarLifecycleEngine
         return store;
     }
 
-    private static EngineResult Result(string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir, ResourceSnapshot before) =>
+    private static double Measure(Action action)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        action();
+        stopwatch.Stop();
+        return stopwatch.Elapsed.TotalMilliseconds;
+    }
+
+    private static EngineResult Result(
+        string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir,
+        ResourceSnapshot before, IReadOnlyList<double>? build = null, IReadOnlyList<double>? flush = null) =>
         new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
+            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush);
 }

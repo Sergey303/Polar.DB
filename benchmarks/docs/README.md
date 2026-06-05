@@ -1,45 +1,14 @@
 # Benchmarks
 
-Search experiments print progress to the console for setup, warmup, batch
-throughput samples, and single-query latency samples.
+`build-primary-int-only` reports a build-stage breakdown:
 
-Search experiments use two phases in the same HTML report:
+- `Build` is `CREATE UNIQUE INDEX` for SQLite and `Sequence.Build()` for Polar.DB;
+- `Flush` is `PRAGMA wal_checkpoint(TRUNCATE)` for SQLite and `Sequence.Flush()` for Polar.DB;
+- `Total` is the measured build+flush window.
 
-- cold after reopen: storage is reopened, no explicit file warmup, no lookup warmup;
-- hot after file and lookup warmup: storage is reopened, files are sequentially read once,
-  then unmeasured lookup batches are executed before measurement.
+This makes the build experiment diagnostic: if Polar.DB still loses, the report
+shows whether the time is spent in index construction or in persistence/flush.
 
-Reopen time is excluded from measured lookup time.
+Search reports still separate batch throughput from single-query latency.
 
-Search reports have two metric groups:
-
-- batch throughput: batch average ms/query, rows/sec, batch size;
-- single-query latency: median/p95/max measured on individual queries.
-
-Current default batch settings:
-
-- primary lookup: `100` lookups per batch sample;
-- normal external lookup: enough lookups per sample to target about `20_000`
-  returned rows per sample;
-- famous external lookup: `1` lookup per sample.
-
-Current sample counts:
-
-- primary: `10` cold batch samples, `100` hot batch samples, `1000` latency samples;
-- normal external: `5` cold batch samples, `30` hot batch samples, `30` latency samples;
-- famous external: `1` cold batch sample, `1` hot batch sample, `1` latency sample.
-
-Correctness is checked against batch measured queries and ignores materialized row order.
-
-Do not commit generated files:
-
-- `benchmarks/work/`
-- `benchmarks/results/*.html`
-- `*.sqlite`
-- `*.sqlite-wal`
-- `*.sqlite-shm`
-- `*.db`
-- `*.db-wal`
-- `*.db-shm`
-- `*.state`
-- `*.index`
+Generated benchmark work files are temporary and may be removed after each run.

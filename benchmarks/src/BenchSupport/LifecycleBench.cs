@@ -7,6 +7,19 @@ internal static class LifecycleBench
     public static void Run(ExperimentOptions options)
     {
         var work = BenchmarkPaths.PrepareWorkDir(options.ExperimentId);
+        try
+        {
+            RunCore(options, work);
+        }
+        finally
+        {
+            Console.WriteLine("[bench] " + options.ExperimentId + ": cleanup work");
+            BenchmarkPaths.TryCleanupWorkDir(options.ExperimentId);
+        }
+    }
+
+    private static void RunCore(ExperimentOptions options, string work)
+    {
         var runs = new List<BenchmarkRunResult>();
 
         foreach (var rowCount in options.RowCounts)

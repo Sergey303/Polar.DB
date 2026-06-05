@@ -16,29 +16,36 @@ internal static class SqliteLifecycleEngine
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
-        var samples = new List<double>();
+        var totalSamples = new List<double>();
+        var buildSamples = new List<double>();
+        var flushSamples = new List<double>();
         var artifactDir = dir;
+
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
         {
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var db = Path.Combine(runDir, "data.sqlite");
             SqliteStore.CreateForPrimaryIntBuild(db, data);
-
             using var connection = new SqliteConnection($"Data Source={db}");
             connection.Open();
-            var stopwatch = Stopwatch.StartNew();
-            SqliteStore.CreatePrimaryIntIndex(connection);
-            stopwatch.Stop();
+
+            var total = Stopwatch.StartNew();
+            var buildMs = Measure(() => SqliteStore.CreatePrimaryIntIndex(connection));
+            var flushMs = Measure(() => SqliteStore.Flush(connection));
+            total.Stop();
 
             if (i >= 0)
             {
-                samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+                totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                buildSamples.Add(buildMs);
+                flushSamples.Add(flushMs);
                 artifactDir = runDir;
             }
         }
 
-        return Result("sqlite", samples, SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite")), artifactDir, before);
+        var actualRows = SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite"));
+        return Result("sqlite", totalSamples, actualRows, artifactDir, before, buildSamples, flushSamples);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -48,16 +55,15 @@ internal static class SqliteLifecycleEngine
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
         var samples = new List<double>();
-
         for (var i = 0; i < options.MeasuredOps + options.WarmupOps; i++)
         {
-            var stopwatch = Stopwatch.StartNew();
-            using var connection = new SqliteConnection($"Data Source={db}");
-            connection.Open();
-            stopwatch.Stop();
-            if (i >= options.WarmupOps) samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            var ms = Measure(() =>
+            {
+                using var connection = new SqliteConnection($"Data Source={db}");
+                connection.Open();
+            });
+            if (i >= options.WarmupOps) samples.Add(ms);
         }
-
         return Result("sqlite", samples, SqliteRows.ReadAll(db), dir, before);
     }
 
@@ -74,8 +80,7 @@ internal static class SqliteLifecycleEngine
         var samples = MeasureInTransaction(connection, appendRows, InsertOne);
         return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
-
-    private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
+private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -89,17 +94,13 @@ internal static class SqliteLifecycleEngine
         return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
 
-    private static List<double> MeasureInTransaction<T>(SqliteConnection connection, IEnumerable<T> items, Action<SqliteConnection, T> action)
+    private static List<double> MeasureInTransaction<T>(
+        SqliteConnection connection, IEnumerable<T> items, Action<SqliteConnection, T> action)
     {
         using var transaction = connection.BeginTransaction();
         var samples = new List<double>();
         foreach (var item in items)
-        {
-            var stopwatch = Stopwatch.StartNew();
-            action(connection, item);
-            stopwatch.Stop();
-            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
-        }
+            samples.Add(Measure(() => action(connection, item)));
 
         transaction.Commit();
         return samples;
@@ -129,7 +130,17 @@ internal static class SqliteLifecycleEngine
         command.ExecuteNonQuery();
     }
 
-    private static EngineResult Result(string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir, ResourceSnapshot before) =>
+    private static double Measure(Action action)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        action();
+        stopwatch.Stop();
+        return stopwatch.Elapsed.TotalMilliseconds;
+    }
+
+    private static EngineResult Result(
+        string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir,
+        ResourceSnapshot before, IReadOnlyList<double>? build = null, IReadOnlyList<double>? flush = null) =>
         new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
+            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush);
 }

@@ -46,19 +46,20 @@ internal sealed record QueryResult(long Rows, ulong Checksum);
 
 internal sealed record ResourceSnapshot(long ManagedBytes, long WorkingSetBytes, long PrivateBytes, long AvailableMemoryBytes);
 
-internal sealed record EngineResult(string Engine, string Status, IReadOnlyList<double> SamplesMs,
-    long Rows, ulong Checksum, long ArtifactBytes, ResourceSnapshot ResourcesBefore, ResourceSnapshot ResourcesAfter);
-
-internal sealed record LookupEngineResult(
+internal sealed record EngineResult(
     string Engine,
     string Status,
-    IReadOnlyList<double> BatchAvgSamplesMs,
-    IReadOnlyList<double> LatencySamplesMs,
-    long BatchQueries,
-    long BatchRows,
-    ulong BatchChecksum,
-    long LatencyRows,
-    ulong LatencyChecksum,
+    IReadOnlyList<double> SamplesMs,
+    long Rows,
+    ulong Checksum,
     long ArtifactBytes,
     ResourceSnapshot ResourcesBefore,
-    ResourceSnapshot ResourcesAfter);
+    ResourceSnapshot ResourcesAfter,
+    IReadOnlyList<double>? BuildSamplesMs = null,
+    IReadOnlyList<double>? FlushSamplesMs = null);
+
+internal sealed record LookupEngineResult(
+    string Engine, string Status, IReadOnlyList<double> BatchAvgSamplesMs,
+    IReadOnlyList<double> LatencySamplesMs, long BatchQueries, long BatchRows,
+    ulong BatchChecksum, long LatencyRows, ulong LatencyChecksum, long ArtifactBytes,
+    ResourceSnapshot ResourcesBefore, ResourceSnapshot ResourcesAfter);

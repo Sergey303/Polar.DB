@@ -7,6 +7,19 @@ internal static class LookupBench
     public static void Run(ExperimentOptions options)
     {
         var work = BenchmarkPaths.PrepareWorkDir(options.ExperimentId);
+        try
+        {
+            RunCore(options, work);
+        }
+        finally
+        {
+            BenchmarkProgress.Stage(options.ExperimentId + ": cleanup work");
+            BenchmarkPaths.TryCleanupWorkDir(options.ExperimentId);
+        }
+    }
+
+    private static void RunCore(ExperimentOptions options, string work)
+    {
         var runs = new List<LookupRunResult>();
 
         foreach (var rowCount in options.RowCounts)
