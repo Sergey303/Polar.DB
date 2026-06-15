@@ -16,10 +16,23 @@ internal static class BenchmarkReportFormat
         return "<td>" + Number(value) + suffix + " ×" + Number(value / best) + "</td>";
     }
 
+    public static string HigherBetterCell(double value, double best, string suffix)
+    {
+        if (double.IsNaN(value)) return "<td>N/A</td>";
+        if (IsBest(value, best)) return "<td class=\"win\">" + Number(value) + suffix + " best</td>";
+        return "<td>" + Number(value) + suffix + " ×" + Number(best / value) + " lower</td>";
+    }
+
     public static string ByteCell(long value, long best)
     {
         if (best <= 0 || value <= best) return "<td class=\"win\">" + Bytes(value) + " best</td>";
         return "<td>" + Bytes(value) + " ×" + Number((double)value / best) + "</td>";
+    }
+
+    public static string HigherBetterLongCell(long value, long best, string suffix)
+    {
+        if (value == best) return "<td class=\"win\">" + value + suffix + " best</td>";
+        return "<td>" + value + suffix + " ×" + Number((double)best / value) + " lower</td>";
     }
 
     public static string RatioCell(long value, long available)
@@ -40,7 +53,6 @@ internal static class BenchmarkReportFormat
             size /= 1024;
             unit++;
         }
-
         return Number(size) + " " + units[unit];
     }
 
@@ -49,5 +61,6 @@ internal static class BenchmarkReportFormat
 
     public static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    private static bool IsBest(double value, double best) => Math.Abs(value - best) <= Math.Max(0.000001, best * 0.000001);
+    private static bool IsBest(double value, double best) =>
+        Math.Abs(value - best) <= Math.Max(0.000001, Math.Abs(best) * 0.000001);
 }

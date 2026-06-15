@@ -75,6 +75,9 @@
     <File Path="docs/Starting.md" />
     <File Path="docs/WHY_THIS_EXISTS.md" />
   </Folder>
+  <Folder Name="/mag_experiments/">
+    <Project Path="mag_experiments/mag_experiments.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/GetStarted.IndexesAndSearch/GetStarted.IndexesAndSearch.csproj" />
     <Project Path="samples/GetStarted.SequencesAndStorage/GetStarted.SequencesAndStorage.csproj" />
