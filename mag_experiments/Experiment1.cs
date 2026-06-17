@@ -5,6 +5,11 @@ namespace mag_experiments
 {
     internal class Experiment1
     {
+        /// <summary>
+        /// Проверяем USequenceBase: заводим базовую последовательность, загружаем ее данными, 
+        /// формируем списки ключей и офсетов, сортируем их и используем для (быстрого) выполнения запросов
+        /// выборки по клуючам
+        /// </summary>
         public static void Run()
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
@@ -23,8 +28,7 @@ namespace mag_experiments
             Func<Stream> GenStream = () => new System.IO.FileStream(dbpath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
             // Создаем универсальную последовательность
-            //USequence useq = new USequence(tp_pers, dbpath + "state.bin", GenStream, ob => false,
-            //    ob => (int)((object[])ob)[0], ic => (int)ic, true);
+
             USequenceBase usb = new USequenceBase(tp_pers, GenStream());
             sw.Restart();
             // Загрузка данными
@@ -56,14 +60,8 @@ namespace mag_experiments
 
             sw.Restart();
 
-            // Построение индекса
+            // Построение индекса в виде двух массивов
             Array.Sort<int, long>(keys_arr, offsets_arr);
-            USequenceBase keys = new USequenceBase(new PType(PTypeEnumeration.integer), GenStream());
-            foreach (var key in keys_arr) { keys.AppendElement(key); }
-            keys.Flush();
-            USequenceBase offsets = new USequenceBase(new PType(PTypeEnumeration.longinteger), GenStream());
-            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
-            offsets.Flush();
 
             sw.Stop();
             Console.WriteLine($"Сортировка: {sw.ElapsedMilliseconds} ms.");
@@ -81,7 +79,7 @@ namespace mag_experiments
                 int k = rnd.Next(npersons);
                 int n = keys_arr.BinarySearch<int>(k);
                 //long o = offsets_arr[n];
-                long o = (long)offsets.GetByIndex(n);
+                long o = (long)offsets_arr[n];
                 var ob = usb.GetElement(o);
                 //if (i < 100) Console.WriteLine(tp_pers.Interpret(ob));
             }
@@ -90,33 +88,9 @@ namespace mag_experiments
             Console.WriteLine($"10000 выборок: {sw.ElapsedMilliseconds} ms.");
 
             // Результаты:
-            // 10 млн. элементов загрузка 1168 мс. построение 854 мс. Выборки: 43 мс / 10 тыс. (для массива offsets_arr) 77 мс (нормально)
 
-            // 5 млн. элементов загрузка 746 мс. построение 545 мс. Выборки: 76 мс (нормально)
+            // 5 млн. элементов загрузка 755 мс., сортировка 240 мс. Выборки (10тыс): 41 мс
 
-            //useq.Build();
-            //sw.Stop();
-            //Console.WriteLine($"Построение: {sw.ElapsedMilliseconds} ms.");
-
-            //int key = npersons * 2 / 3;
-            //var valu = useq.GetByKey(key);
-            //// Проверка
-            //Console.WriteLine(tp_pers.Interpret(valu));
-
-            //sw.Restart();
-            //// Испытание
-            //for (int i = 0; i < 10000; i++)
-            //{
-            //    int k = rnd.Next(npersons);
-            //    var ob = useq.GetByKey(k);
-            //}
-
-            //sw.Stop();
-            //Console.WriteLine($"Испытание (10 тыс.): {sw.ElapsedMilliseconds} ms.");
-
-            // Результаты: 10 млн. записей
-            // загр. 1.3 с, пост. 2.6 с., испы. 77 мс.
-            // Release: загр. 0.9 с, пост. 2.0 с., испы. 81 мс.
         }
     }
 }
