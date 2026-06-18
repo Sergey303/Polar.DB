@@ -2,8 +2,10 @@
 // вместо USequence, другой вариант UniversalKeyIndex вместо UKeyIndex.
 
 Console.WriteLine("mag_experiments");
-string db_path = @"C:\Home\data\getstarted\";
-var files = Directory.GetFiles(db_path);
+string dbPath = $"{Path.GetTempPath()}\\data\\{Guid.NewGuid():N}\\";
+if(!Directory.Exists(dbPath)) 
+    Directory.CreateDirectory(dbPath);
+var files = Directory.GetFiles(dbPath);
 foreach (var file in files) File.Delete(file);
 
 //mag_experiments.Experiment1.Run(); // Проверка USequenceBase
@@ -11,7 +13,8 @@ foreach (var file in files) File.Delete(file);
 ////mag_experiments.Exp4SequenceBase.Run();
 ////mag_experiments.Exp5EKeyIndex.Run();
 ////mag_experiments.Exp6Like.Run();
-mag_experiments.Exp7Indexes.Run();
+// mag_experiments.Exp7Indexes.Run();
 //mag_experiments.Exp7.Run();
 ////mag_experiments.Experiment2.Run();
 ////mag_experiments.Experiment3.Run();
+mag_experiments.PersonExternalKeySample.Run(dbPath);

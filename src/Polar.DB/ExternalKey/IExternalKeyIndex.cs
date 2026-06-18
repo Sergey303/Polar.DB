@@ -4,5 +4,4 @@ internal interface IExternalKeyIndex
 {
     IEnumerable<object> GetManyByValue(IComparable value);
 
-    Task CompactAsync(CancellationToken cancellationToken);
 }

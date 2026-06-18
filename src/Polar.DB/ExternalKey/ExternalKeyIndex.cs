@@ -67,20 +67,6 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
         PublishSnapshot(snapshot, long.MaxValue);
     }
 
-    public Task CompactAsync(CancellationToken cancellationToken = default)
-    {
-        long compactRevision = _revision;
-
-        return Task.Run(() =>
-        {
-            var snapshot = ExternalKeyIndexCompaction<T>.BuildSnapshot(
-                _sequence, _keysFunc, _comparer, cancellationToken);
-
-            ExternalKeyIndexCompaction<T>.WriteSnapshot(_keys, _offsets, snapshot, cancellationToken);
-            PublishSnapshot(snapshot, compactRevision);
-        }, cancellationToken);
-    }
-
     public void OnAppendElement(object element, long offset)
     {
         IComparable primary = _sequence.keyFunc(element);
@@ -92,9 +78,9 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
             _dynamic.Add(new ExternalKeyIndexEntry<T>(primary, key, offset, revision));
     }
 
-    internal IEnumerable<object> GetManyByValue(T key) => GetManyByValue(key, null);
+    public IEnumerable<object> GetManyByValue(T key) => GetManyByValue(key, null);
 
-    internal IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
+    public IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
     {
         ExternalKeyIndexSnapshot<T> snapshot = _snapshot;
         ExternalKeyIndexEntry<T>[] dynamicEntries = _dynamic.ToArray();
@@ -116,9 +102,6 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     IEnumerable<object> IExternalKeyIndex.GetManyByValue(IComparable value) =>
         GetManyByValue(ExternalKeyIndexKeyCodec<T>.Cast(value));
-
-    Task IExternalKeyIndex.CompactAsync(CancellationToken cancellationToken) =>
-        CompactAsync(cancellationToken);
 
     private object? TryReadStatic(long offset, T key, Func<object, bool>? filter, HashSet<long> emitted)
     {

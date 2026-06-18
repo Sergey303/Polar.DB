@@ -2,7 +2,7 @@ using GetStarted.IndexesAndSearch.Scenarios;
 
 namespace GetStarted.IndexesAndSearch;
 
-internal static class ScenarioCatalog
+internal static class ScenarioCatalog 
 {
     public static IReadOnlyList<ISampleScenario> All { get; } =
         new ISampleScenario[]
@@ -13,6 +13,7 @@ internal static class ScenarioCatalog
             new TagVectorScenario(),
             new SkillHashScenario(),
             new ScaleScenario(),
-            new HashFunctionsScenario()
+            new HashFunctionsScenario(),
+            new PersonExternalKeySample()
         };
 }
