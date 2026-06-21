@@ -10,6 +10,8 @@ namespace mag_experiments
 
     public static void Run(string dbPath)
         {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            Random rnd = new Random();
 
             // Тип элемента последовательности
             var tp = new PTypeRecord(
@@ -22,17 +24,39 @@ namespace mag_experiments
             int cnt = 0;
             Func<Stream> GenStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
-            USequence sequence = new USequence(tp, dbPath + "state.bin", GenStream,
+            UniversalSequence sequence = new (tp, dbPath + "state.bin", GenStream,
                 obj => accessor.Get<bool>(obj, "deleted"), 
                 obj => accessor.Get<int>(obj, "id"), 
                 key => (int)key);
-            
+
+            object[] flow0 =
+[
+    new object[] { 5, "five", 55, false },
+                new object[] { 4, "4", 44, false },
+                new object[] { 3, "3", 31, false },
+                new object[] { 2, "2", 33, false },
+                new object[] { 1, "1___0", 32, false },
+                new object[] { 10, "кандидат на уничтожение", 33, false },
+                new object[] { 11, "1___2", 34, false },
+                new object[] { 12, "Второй кандидат", 35, false },
+                new object[] { 13, "Статически уничтоженный элемент", 36, true },
+                new object[] { 100, "1_", 32, false },
+                new object[] { 99, "11", 33, false },
+                new object[] { 101, "1__", 32, false }
+// Возможно, надо добавить элементы с идентификаторами 6 и 7 
+];
+            int npersons = 5_000_000;
+            var flow5m = Enumerable.Range(0, npersons)
+                .Select(i => new object[] { npersons - i - 1, i.ToString(), 22, false });
+
+            sequence.Load(flow0);
+
             ExternalKeyIndex<int> ageIndex = new ExternalKeyIndex<int>(GenStream, sequence,
                 obj => Enumerable.Repeat(accessor.Get<int>(obj, "age"), 1));
             //Polar.DB.ExternalKey.ExternalKeyIndex<int> ageIndex = new Polar.DB.ExternalKey.ExternalKeyIndex<int>(
             //    GenStream, sequence,
             //    ob => Enumerable.Repeat<int>((int)((object[])ob)[2], 1));
-            
+
             ExternalKeyIndex<int> ager = new ExternalKeyIndex<int>(GenStream, sequence,
                 obj => Enumerable.Repeat(accessor.Get<int>(obj, "age"), 1),
                 Comparer<int>.Create((int v1, int v2) => Math.Abs(v1 - v2) < 2 ? 0 : v1 - v2));
@@ -49,24 +73,17 @@ namespace mag_experiments
                         b, 0, len, StringComparison.Ordinal);
                 }));
 
-            sequence.uindexes = [ageIndex, ager, namer];
+            //sequence.uindexes = [ageIndex, ager, namer];
             sequence.Build();
 
-            object[] flow0 =
-            [
-                new object[] { 5, "five", 55, false },
-                new object[] { 4, "4", 44, false },
-                new object[] { 3, "3", 31, false },
-                new object[] { 2, "2", 33, false },
-                new object[] { 1, "1___0", 32, false },
-                new object[] { 10, "кандидат на уничтожение", 33, false },
-                new object[] { 11, "1___2", 34, false },
-                new object[] { 12, "Второй кандидат", 35, false },
-                new object[] { 13, "Статически уничтоженный элемент", 36, true },
-                new object[] { 100, "1_", 32, false },
-                new object[] { 101, "1__", 32, false }
-                // Возможно, надо добавить элементы с идентификаторами 6 и 7 
-            ];
+
+            sequence.Clear();
+            sw.Restart();
+            sequence.Load(flow5m);
+            sequence.Build();
+            sw.Stop();
+            Console.WriteLine($"Load 5M OK duration={sw.ElapsedMilliseconds}");
+
             sequence.Clear();
             sequence.Load(flow0);
             sequence.Flush();
@@ -115,6 +132,36 @@ namespace mag_experiments
 
             var squery = namer.GetManyByValue("1_").ToArray();
             if (squery != null) foreach (var item in squery) Console.WriteLine(tp.Interpret(item));
+
+            // Проверка скорости загрузки
+            Console.WriteLine("\n Проверка скорости загрузки");
+            sequence.Clear();
+            sw.Restart();
+
+            // Загрузка данными
+            
+
+            sequence.Load(flow5m);
+            sequence.Build();
+
+            sw.Stop();
+            int ke = npersons * 2 / 3;
+            var res = sequence.GetByKey(ke);
+            Console.WriteLine(tp.Interpret(res));
+            Console.WriteLine($"Проба ok. duration={sw.ElapsedMilliseconds} ms");
+
+            sw.Restart();
+            for (int i = 0; i < 10_000; i++)
+            {
+                int k = rnd.Next(npersons);
+                var result = sequence.GetByKey(k);
+            }
+            sw.Stop();
+            Console.WriteLine($"Выборка 10 тыс. элементов по ключу. duration={sw.ElapsedMilliseconds} ms");
+
+
+
+
         }
     }
 }

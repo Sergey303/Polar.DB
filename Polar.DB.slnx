@@ -45,22 +45,22 @@
     <File Path="benchmarks/src/BenchSupport/LifecycleBench.cs" />
   </Folder>
   <Folder Name="/benchmarks/src/">
-    <Project Path="benchmarks/src/PkIntLookup/PkIntLookup.csproj" />
-    <Project Path="benchmarks/src/PkLongLookup/PkLongLookup.csproj" />
-    <Project Path="benchmarks/src/PkGuidLookup/PkGuidLookup.csproj" />
-    <Project Path="benchmarks/src/PkStringLookup/PkStringLookup.csproj" />
-    <Project Path="benchmarks/src/ExternalIntLookup/ExternalIntLookup.csproj" />
-    <Project Path="benchmarks/src/ExternalLongLookup/ExternalLongLookup.csproj" />
-    <Project Path="benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj" />
-    <Project Path="benchmarks/src/ExternalStringLookup/ExternalStringLookup.csproj" />
+    <Project Path="benchmarks/src/AppendOnly/AppendOnly.csproj" />
+    <Project Path="benchmarks/src/BuildPrimaryIntOnly/BuildPrimaryIntOnly.csproj" />
+    <Project Path="benchmarks/src/DeleteOnly/DeleteOnly.csproj" />
+    <Project Path="benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj" />
     <Project Path="benchmarks/src/ExternalFamousIntLookup/ExternalFamousIntLookup.csproj" />
     <Project Path="benchmarks/src/ExternalFamousLongLookup/ExternalFamousLongLookup.csproj" />
-    <Project Path="benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj" />
     <Project Path="benchmarks/src/ExternalFamousStringLookup/ExternalFamousStringLookup.csproj" />
-    <Project Path="benchmarks/src/BuildPrimaryIntOnly/BuildPrimaryIntOnly.csproj" />
+    <Project Path="benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalIntLookup/ExternalIntLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalLongLookup/ExternalLongLookup.csproj" />
+    <Project Path="benchmarks/src/ExternalStringLookup/ExternalStringLookup.csproj" />
+    <Project Path="benchmarks/src/PkGuidLookup/PkGuidLookup.csproj" />
+    <Project Path="benchmarks/src/PkIntLookup/PkIntLookup.csproj" />
+    <Project Path="benchmarks/src/PkLongLookup/PkLongLookup.csproj" />
+    <Project Path="benchmarks/src/PkStringLookup/PkStringLookup.csproj" />
     <Project Path="benchmarks/src/ReopenOnly/ReopenOnly.csproj" />
-    <Project Path="benchmarks/src/AppendOnly/AppendOnly.csproj" />
-    <Project Path="benchmarks/src/DeleteOnly/DeleteOnly.csproj" />
   </Folder>
   <Folder Name="/docs/">
     <File Path="docs/About.md" />
@@ -77,6 +77,7 @@
   </Folder>
   <Folder Name="/mag_experiments/">
     <Project Path="mag_experiments/mag_experiments.csproj" />
+    <Project Path="mag_series/mag_series.csproj" Id="f6325e1f-af3f-4b6f-9e63-835d30af541f" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/GetStarted.IndexesAndSearch/GetStarted.IndexesAndSearch.csproj" />
