@@ -2,14 +2,13 @@ namespace Polar.DB.SchedulingOptimization;
 
 public static class Scheduler
 {
-    public static async Task RunAsync(Action<CancellationToken> @do, TimeSpan checkEvery, CancellationToken token)
+    public static async Task RunAsync(Func<CancellationToken, Task> @do, TimeSpan checkEvery, CancellationToken token)
     {
         // Простой шедулер без Quartz/Hangfire
         while (!token.IsCancellationRequested)
         {
             await Task.Delay(checkEvery, token);
-            @do(token);
-            
+            await @do(token);
         }
     }
 }

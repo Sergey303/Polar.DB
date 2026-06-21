@@ -1,8 +1,8 @@
+using Polar.DB;
 using Polar.DB.ExternalKey;
 using Polar.Universal;
 
-#pragma warning disable CS0612
-namespace Polar.DB.SchedulingOptimization;
+namespace GetStarted.SequencesAndStorage;
 
 public static class PersonSchema
 {
@@ -13,7 +13,7 @@ public static class PersonSchema
 
     public static readonly PTypeRecord Type = new(
         new NamedType(Id, new PType(PTypeEnumeration.integer)),
-        new NamedType(Age, new PType(PTypeEnumeration.sstring)),
+        new NamedType(Age, new PType(PTypeEnumeration.integer)),
         new NamedType(Name, new PType(PTypeEnumeration.sstring)),
         new NamedType(IsDeleted, new PType(PTypeEnumeration.boolean)));
 
@@ -37,14 +37,23 @@ public static class PersonSchema
 
 
 
-    public static USequence CreateOrOpen(string dbPath)
+    public static USequence Create(string dbPath)
     {
-            int cnt = 0;
-            Func<Stream> genStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
+        var sequence = Open(dbPath);
+        sequence.Build();
         
-        USequence sequence = new USequence(PersonSchema.Type, dbPath + "state.bin", genStream,
-            PersonSchema.Deleted, 
-            obj => PersonSchema.GetId(obj), 
+        return sequence;
+    }
+
+    public static USequence Open(string dbPath)
+    {
+        int cnt = 0;
+        Func<Stream> genStream = () =>
+            new FileStream(Path.Combine(dbPath, "f" + (cnt++) + ".bin"), FileMode.OpenOrCreate, FileAccess.ReadWrite);
+
+        USequence sequence = new USequence(Type, Path.Combine(dbPath, "state.bin"), genStream,
+            Deleted,
+            obj => GetId(obj),
             key => (int)key);
 
         ExternalKeyIndex<int> ageIndex = new ExternalKeyIndex<int>(genStream, sequence,
@@ -66,9 +75,7 @@ public static class PersonSchema
                     b, 0, len, StringComparison.Ordinal);
             }));
 
-        sequence.uindexes = new IUIndex[] { ageIndex, ager, namer};
-        sequence.Build();
-        
+        sequence.uindexes = new IUIndex[] { ageIndex, ager, namer };
         return sequence;
     }
 }

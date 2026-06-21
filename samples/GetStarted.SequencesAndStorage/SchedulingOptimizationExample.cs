@@ -1,7 +1,7 @@
-using Polar.DB;
-using Polar.DB.ExternalKey;
 using Polar.DB.SchedulingOptimization;
 using Polar.Universal;
+
+namespace GetStarted.SequencesAndStorage;
 
 public sealed class SchedulingOptimization
 {
@@ -17,10 +17,10 @@ public sealed class SchedulingOptimization
                 PersonSchema.Create(2, 5423, "Bob"),
                 PersonSchema.Create(3, 5123, "Clara")
             })
-            : PersonSchema.CreateOrOpen(dbPath));
+            : PersonSchema.Open(dbPath));
 
 
-        await Scheduler.RunAsync(cancellationToken1 => epochFolderManager.DoNewEpoch((newPath, isNew) =>
+        await Scheduler.RunAsync(cancellationToken1 => epochFolderManager.DoNewEpoch( async (newPath, isNew) =>
         {
             if (isNew)
             {
@@ -31,7 +31,7 @@ public sealed class SchedulingOptimization
             }
             else
             {
-               return PersonSchema.CreateOrOpen(newPath);
+                return PersonSchema.Open(newPath);
             }
         }), TimeSpan.FromMinutes(5), cancellationToken);
         
@@ -51,7 +51,7 @@ public sealed class SchedulingOptimization
     /// <returns>созданная или открытая БД</returns>
     public USequence CreateDb(string dbPath, IEnumerable<object> rows)
     {
-        var sequence = PersonSchema.CreateOrOpen(dbPath);
+        var sequence = PersonSchema.Create(dbPath);
         sequence.Load(rows);
         sequence.Flush();
         sequence.Build();
