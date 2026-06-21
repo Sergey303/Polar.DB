@@ -1,16 +1,16 @@
 namespace Polar.DB.SchedulingOptimization;
 
-public sealed record EpochFolderData
+public sealed class EpochFolderData
 {
-    public EpochFolderData(string Name,
-        string Path,
-        DateTimeOffset UtcTime,
-        EpochState State)
+    public EpochFolderData(string name,
+        string path,
+        DateTimeOffset utcTime,
+        EpochState state)
     {
-        this.Name = Name;
-        this.Path = Path;
-        this.UtcTime = UtcTime;
-        this.State = State;
+        this.Name = name;
+        this.Path = path;
+        this.UtcTime = utcTime;
+        this.State = state;
     }
 
     public string Name { get; }

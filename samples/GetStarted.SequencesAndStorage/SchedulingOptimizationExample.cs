@@ -33,7 +33,7 @@ public sealed class SchedulingOptimization
             {
                 return PersonSchema.Open(newPath);
             }
-        }), TimeSpan.FromMinutes(5), cancellationToken);
+        }), TimeSpan.FromMinutes(5), false, cancellationToken);
         
         activeSequence.AppendElement(PersonSchema.Tombstone(1));
         
