@@ -3,7 +3,7 @@ using Polar.DB.ExternalKey;
 
 namespace Polar.Universal
 {
-    public class USequence
+    public class USequence: IDisposable
     {
         private UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
@@ -171,5 +171,10 @@ namespace Polar.Universal
         public UIndexBuildProfile LastPrimaryBuildProfile => primaryKeyIndex.LastBuildProfile;
 
         public long Count() => sequence.Count();
+        public void Dispose()
+        {
+            Flush();
+            Close();
+        }
     }
 }
