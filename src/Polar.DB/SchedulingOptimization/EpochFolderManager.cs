@@ -26,10 +26,7 @@ public sealed class EpochFolderManager
     /// <summary>
     /// Последняя завершённая эпоха. Папки без marker-файла игнорируются.
     /// </summary>
-    public string? GetLatestReady()
-    {
-        return ListReady().LastOrDefault();
-    }
+    public string? GetLatestReady() => ListReady().LastOrDefault();
 
     /// <summary>
     /// Все завершённые эпохи по возрастанию времени.
@@ -54,7 +51,6 @@ public sealed class EpochFolderManager
     public string CreateBuilding(DateTimeOffset? utcTime = null)
     {
         Directory.CreateDirectory(_rootPath);
-
         var utc = (utcTime ?? DateTimeOffset.UtcNow).ToUniversalTime();
 
         for (var attempt = 0; attempt < 10; attempt++)
@@ -92,13 +88,10 @@ public sealed class EpochFolderManager
             throw new DirectoryNotFoundException(sourcePath);
 
         var readyPath = Path.Combine(sourcePath, ReadyMarkerFileName);
-        if (File.Exists(readyPath))
-            return sourcePath;
+        if (File.Exists(readyPath)) return sourcePath;
 
         using (var stream = new FileStream(readyPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-        {
             stream.Flush(true);
-        }
 
         return Make(sourcePath, epoch.UtcTime, EpochState.Ready).Path;
     }
@@ -141,13 +134,9 @@ public sealed class EpochFolderManager
         return name;
     }
 
-    private static EpochFolderData Make(string path, DateTimeOffset utc, EpochState state)
-    {
-        return new EpochFolderData(Path.GetFileName(path), path, utc, state);
-    }
+    private static EpochFolderData Make(string path, DateTimeOffset utc, EpochState state) =>
+        new(Path.GetFileName(path), path, utc, state);
 
-    private static string FormatName(DateTimeOffset utc)
-    {
-        return utc.ToUniversalTime().ToString(NameFormat, CultureInfo.InvariantCulture);
-    }
+    private static string FormatName(DateTimeOffset utc) =>
+        utc.ToUniversalTime().ToString(NameFormat, CultureInfo.InvariantCulture);
 }
