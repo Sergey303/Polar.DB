@@ -54,6 +54,19 @@ public sealed class ActiveSequenceOwner : IDisposable
         }
     }
 
+    public T ReadForRotation<T>(ActiveSequenceRotation rotation, Func<USequence, T> read)
+    {
+        if (rotation == null) throw new ArgumentNullException(nameof(rotation));
+        if (read == null) throw new ArgumentNullException(nameof(read));
+
+        lock (_mutationLock)
+        {
+            ThrowIfDisposed();
+            EnsureCurrentRotation(rotation);
+            return read(_active);
+        }
+    }
+
     public USequence CompleteRotation(
         ActiveSequenceRotation rotation,
         USequence newActive,
