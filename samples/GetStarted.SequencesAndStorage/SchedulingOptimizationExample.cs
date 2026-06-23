@@ -58,9 +58,10 @@ public sealed class SchedulingOptimization
 
         try
         {
-            var activeRows = rotation.Source.ElementValues()
-                .Where(record => !PersonSchema.Deleted(record))
-                .ToArray();
+            var activeRows = owner.ReadForRotation(rotation, source =>
+                source.ElementValues()
+                    .Where(record => !PersonSchema.Deleted(record))
+                    .ToArray());
 
             newSequence = CreateDb(epochPath, activeRows);
             var oldSequence = owner.CompleteRotation(
