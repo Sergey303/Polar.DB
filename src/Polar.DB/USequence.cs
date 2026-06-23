@@ -13,6 +13,7 @@ namespace Polar.Universal
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
         private string? stateFileName;
+        private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
@@ -47,7 +48,10 @@ namespace Polar.Universal
 
         public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
         public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
-        public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
+        public void Close()
+        {
+            Dispose();
+        }
         public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
 
         public void Load(IEnumerable<object> flow)
@@ -171,10 +175,21 @@ namespace Polar.Universal
         public UIndexBuildProfile LastPrimaryBuildProfile => primaryKeyIndex.LastBuildProfile;
 
         public long Count() => sequence.Count();
+
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
             Flush();
-            Close();
+            sequence.Dispose();
+            primaryKeyIndex.Dispose();
+            if (uindexes != null) foreach (var ui in uindexes) ui.Dispose();
+            disposed = true;
         }
     }
 }

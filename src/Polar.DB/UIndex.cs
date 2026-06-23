@@ -1,4 +1,4 @@
-﻿using Polar.DB;
+using Polar.DB;
 
 namespace Polar.Universal
 {
@@ -53,6 +53,7 @@ namespace Polar.Universal
 
         private int[] hkeys_arr = null;
         private Comparer<long> comp_spec_long;
+        private bool disposed;
 
         public void Clear()
         {
@@ -70,8 +71,7 @@ namespace Polar.Universal
 
         public void Close()
         {
-            if (hashFunc != null) hkeys.Close();
-            offsets.Close();
+            Dispose();
         }
 
         public void Refresh()
@@ -277,6 +277,21 @@ namespace Polar.Universal
 
             if (left >= count) return -1;
             return (int)hkeys.GetByIndex(left) == hkey ? left : -1;
+        }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            if (hashFunc != null) hkeys.Dispose();
+            offsets.Dispose();
+            disposed = true;
+        }
+
     }
 }

@@ -13,6 +13,7 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
     private readonly List<ExternalKeyIndexEntry<T>> _dynamic = new();
     private ExternalKeyIndexSnapshot<T> _snapshot = ExternalKeyIndexSnapshot<T>.Empty;
     private long _revision;
+        private bool disposed;
 
     public ExternalKeyIndex(
         Func<Stream> streamGen,
@@ -45,8 +46,7 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     public void Close()
     {
-        _keys.Close();
-        _offsets.Close();
+        Dispose();
     }
 
     public void Refresh()
@@ -130,5 +130,20 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     private bool KeyEquals(T left, T right) => _comparer.Compare(left, right) == 0;
 
-    private IEnumerable<T> GetKeys(object element) => _keysFunc(element) ?? Enumerable.Empty<T>();
+    private IEnumerable<T> GetKeys(object element) => _keysFunc(element) ?? Enumerable.Empty<T>();
+    
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        if (!disposing || disposed) return;
+        _keys.Dispose();
+        _offsets.Dispose();
+        disposed = true;
+    }
+
 }

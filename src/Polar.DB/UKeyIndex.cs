@@ -2,7 +2,7 @@ using Polar.DB;
 
 namespace Polar.Universal
 {
-    public class UKeyIndex
+    public class UKeyIndex : IDisposable
     {
         private readonly USequence sequence;
         private Func<object, IComparable> keyFunc;
@@ -13,6 +13,7 @@ namespace Polar.Universal
         internal bool ElementChanged(IComparable key) { return keyoff_dic.ContainsKey(key); }
         private bool keysinmemory;
         private int[] hkeys_arr = null;
+        private bool disposed;
 
         public UIndexBuildProfile LastBuildProfile { get; private set; } = UIndexBuildProfile.Empty;
 
@@ -52,8 +53,7 @@ namespace Polar.Universal
 
         public void Close()
         {
-            hkeys.Close();
-            offsets.Close();
+            Dispose();
         }
 
         public void Refresh()
@@ -304,6 +304,21 @@ namespace Polar.Universal
             action();
             stopwatch.Stop();
             return stopwatch.Elapsed.TotalMilliseconds;
+        }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            hkeys.Dispose();
+            offsets.Dispose();
+            disposed = true;
+        }
+
     }
 }

@@ -5,7 +5,7 @@ namespace Polar.DB
     /// fs.Position is an internal working cursor and is not restored by hot-path methods.
     /// AppendOffset is the authoritative logical tail.
     /// </summary>
-    public class UniversalSequenceBase
+    public class UniversalSequenceBase : IDisposable
     {
         private const long HeaderSize = 8L;
 
@@ -19,6 +19,7 @@ namespace Polar.DB
         protected int elem_size = -1;
         private long nelements;
         private long append_offset = HeaderSize;
+        private bool disposed;
 
         public UniversalSequenceBase(PType tp_el, Stream media)
         {
@@ -59,8 +60,7 @@ namespace Polar.DB
 
         public void Close()
         {
-            Flush();
-            fs.Close();
+            Dispose();
         }
 
         public void Refresh()
@@ -469,5 +469,21 @@ namespace Polar.DB
             else
                 fs.Position = append_offset;
         }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            Flush();
+            bw.Dispose();
+            br.Dispose();
+            disposed = true;
+        }
+
     }
 }

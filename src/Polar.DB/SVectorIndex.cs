@@ -1,4 +1,4 @@
-﻿using Polar.DB;
+using Polar.DB;
 
 namespace Polar.Universal
 {
@@ -104,6 +104,7 @@ namespace Polar.Universal
 
         private DynPairsSet dynindex;
         private string[] values_arr = null;
+        private bool disposed;
 
         public SVectorIndex(Func<Stream> streamGen, USequence sequence, Func<object, IEnumerable<string>> valuesFunc, bool ignorecase = true)
         {
@@ -132,8 +133,7 @@ namespace Polar.Universal
 
         public void Close()
         {
-            values.Close();
-            element_offsets.Close();
+            Dispose();
         }
 
         public void Refresh()
@@ -243,6 +243,21 @@ namespace Polar.Universal
 
             var qu = GetAllByComp(svalue, comp_string_like);
             foreach (var v in qu) yield return v;
+        }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            values.Dispose();
+            element_offsets.Dispose();
+            disposed = true;
+        }
+
     }
 }

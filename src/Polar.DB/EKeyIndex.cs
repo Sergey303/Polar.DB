@@ -1,4 +1,4 @@
-﻿using Polar.DB;
+using Polar.DB;
 
 namespace Polar.Universal
 {
@@ -13,6 +13,8 @@ namespace Polar.Universal
         // Статическая часть индекса
         private UniversalSequenceBase hkeys;
         private UniversalSequenceBase offsets;
+        private bool disposed;
+
         // Динамическая часть состоит из списка первичный_ключ - (локальный_)ключ - объект
         struct PLO
         {
@@ -34,6 +36,7 @@ namespace Polar.Universal
 
             plo_list = new List<PLO>();
         }
+
         public void OnAppendElement(object element, long offset)
         {
             var keys = keysFunc(element);//.Distinct(); // Возможно, надо так...
@@ -55,7 +58,8 @@ namespace Polar.Universal
 
         public void Clear() { hkeys.Clear(); hkeys_arr = new int[0]; offsets.Clear(); plo_list = new List<PLO>(); }
         public void Flush() { hkeys.Flush(); offsets.Flush(); }
-        public void Close() { hkeys.Close(); offsets.Close(); }
+        public void Close() { Dispose(); }
+
         public void Refresh()
         {
             hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
@@ -65,8 +69,8 @@ namespace Polar.Universal
         public void Build()
         {
             // сканируем опорную последовательность, формируем массивы
-            List<int> hkeys_list = new ();
-            List<long> offsets_list = new ();
+            List<int> hkeys_list = new();
+            List<long> offsets_list = new();
 
             sequence.Scan((off, obj) =>
             {
@@ -107,9 +111,8 @@ namespace Polar.Universal
             // Ищем в статическом индексе
             int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
 
-
             // Список статически найденных элементов
-            List<object> objects = new ();
+            List<object> objects = new();
             if (pos >= 0)
             {
                 //  ищем самую левую позицию 
@@ -117,10 +120,9 @@ namespace Polar.Universal
                 while (p >= 0 && hkeys_arr[p] == hkey) { pos = p; p--; }
 
                 // Создаем множество офсетов объектов objects
-                HashSet<long> offhash = new ();
+                HashSet<long> offhash = new();
 
                 // движемся вправо
-                //while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 for (int i = pos; i < hkeys_arr.Length && hkeys_arr[i] == hkey; i++)
                 {
                     // Проверки 1) на первичный ключ 2) на непустоту  3) на локальный ключ
@@ -153,6 +155,20 @@ namespace Polar.Universal
                     .Where(ob => !sequence.isEmpty(ob)) // убрали пустые
                     .Concat(objects)
                     ;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            hkeys.Dispose();
+            offsets.Dispose();
+            disposed = true;
         }
     }
 }

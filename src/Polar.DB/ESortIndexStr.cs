@@ -1,4 +1,4 @@
-﻿using Polar.DB;
+using Polar.DB;
 
 namespace Polar.Universal
 {
@@ -12,6 +12,8 @@ namespace Polar.Universal
         // Статическая часть индекса
         private UniversalSequenceBase svalues;
         private UniversalSequenceBase offsets;
+        private bool disposed;
+
         // Динамическая часть состоит из списка первичный_ключ - (локальный_)ключ-величина - офсет
         struct PSO
         {
@@ -34,6 +36,7 @@ namespace Polar.Universal
 
             pso_arr = new PSO[0];
         }
+
         public void OnAppendElement(object element, long offset)
         {
             var svals = svaluesFunc(element);//
@@ -54,7 +57,8 @@ namespace Polar.Universal
 
         public void Clear() { svalues.Clear(); svalues_arr = new string[0]; offsets.Clear(); pso_arr = new PSO[0]; }
         public void Flush() { svalues.Flush(); offsets.Flush(); }
-        public void Close() { svalues.Close(); offsets.Close(); }
+        public void Close() { Dispose(); }
+
         public void Refresh()
         {
             svalues_arr = svalues.ElementValues().Cast<string>().ToArray();
@@ -115,9 +119,6 @@ namespace Polar.Universal
                 int p = pos;
                 while (p >= 0 && SEQU(svalues_arr[p], svalue)) { pos = p; p--; }
 
-                // Создаем множество офсетов объектов objects
-                //HashSet<long> offhash = new();
-
                 // движемся вправо
                 for (int i = pos; i < svalues_arr.Length && SEQU(svalues_arr[i], svalue); i++)
                 {
@@ -134,15 +135,9 @@ namespace Polar.Universal
                                                                             // элемент может быть пустым, такие не берем
                     if (sequence.isEmpty(elem_obj)) continue;
 
-                    // Элемент должен содержать искомый локальный ключ
-                    //if (!svaluesFunc(elem_obj).Any(s => SEQU(s, svalue))) continue;
-
-                    // Теперь этот элемент надо попробовать накопить, элементы разные если офсеты разные
                     // Проверим на то, что первичный ключ изменен, в этом случае элемент пропускаем
                     if (sequence.ElementChanged(p_key)) continue; // пропускаем
-                                                                  
-                    // Добавим в offhash и objects
-                    //offhash.Add(offset);
+
                     objects.Add(elem_obj);
                 }
             }
@@ -153,6 +148,20 @@ namespace Polar.Universal
                     .Where(ob => !sequence.isEmpty(ob)) // убрали пустые
                     .Concat(objects)
                     ;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            svalues.Dispose();
+            offsets.Dispose();
+            disposed = true;
         }
     }
 }
