@@ -318,7 +318,7 @@ namespace Polar.DB
                 fs.Position = off;
                 int read = fs.Read(originalBytes, 0, originalBytes.Length);
                 if (read != originalBytes.Length)
-                    throw new EndOfStreamException("Could not read rollback buffer.");
+                    throw new InvalidDataException("Cannot snapshot existing element bytes for rollback.");
             }
 
             try
@@ -327,9 +327,13 @@ namespace Polar.DB
                 ByteFlow.Serialize(bw, v, tp);
 
                 if (off == originalAppendOffset)
-                    nelements += 1L;
-                append_offset = Math.Max(append_offset, fs.Position);
-                fs.SetLength(append_offset);
+                {
+                    append_offset = fs.Position;
+                }
+                else if (fs.Position > originalAppendOffset)
+                {
+                    throw new InvalidOperationException("SetElement crossed the logical end of sequence.");
+                }
             }
             catch
             {
@@ -338,11 +342,11 @@ namespace Polar.DB
                     fs.Position = off;
                     fs.Write(originalBytes, 0, originalBytes.Length);
                 }
-
                 fs.SetLength(originalLength);
                 append_offset = originalAppendOffset;
                 nelements = originalCount;
-                fs.Position = append_offset;
+                fs.Position = Math.Min(append_offset, fs.Length);
+                fs.Flush();
                 throw;
             }
         }
@@ -355,8 +359,115 @@ namespace Polar.DB
 
         private void ValidateRange(long offset, long number)
         {
-            if (number < 0) throw new ArgumentOutOfRangeException(nameof(number));
-            if (offset < HeaderSize || offset > append_offset) throw new ArgumentOutOfRangeException(nameof(offset));
+            if (offset < HeaderSize || offset > append_offset)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+            if (number < 0)
+                throw new ArgumentOutOfRangeException(nameof(number));
+
+            if (elem_size > 0)
+            {
+                checked
+                {
+                    long end = offset + number * elem_size;
+                    if (end > append_offset)
+                        throw new ArgumentOutOfRangeException(nameof(number));
+                }
+            }
+        }
+
+        private void RecoverFromExistingStream(bool rewriteHeader, bool strict)
+        {
+            if (fs.Length < HeaderSize)
+                throw new InvalidDataException("UniversalSequenceBase header is truncated.");
+
+            fs.Position = 0L;
+            long declaredCount = br.ReadInt64();
+            if (declaredCount < 0)
+                throw new InvalidDataException("UniversalSequenceBase declared count is negative.");
+
+            if (elem_size > 0)
+            {
+                RecoverFixedSize(declaredCount, rewriteHeader, strict);
+            }
+            else
+            {
+                RecoverVariableSize(declaredCount, rewriteHeader, strict);
+            }
+        }
+
+        private void RecoverFixedSize(long declaredCount, bool rewriteHeader, bool strict)
+        {
+            long payloadBytes = fs.Length - HeaderSize;
+            if (payloadBytes < 0)
+                throw new InvalidDataException("UniversalSequenceBase payload is truncated.");
+
+            if (payloadBytes % elem_size != 0)
+            {
+                if (strict)
+                    throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
+            }
+
+            long physicalCount = payloadBytes / elem_size;
+            if (strict && physicalCount != declaredCount)
+                throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
+
+            nelements = strict ? declaredCount : Math.Min(declaredCount, physicalCount);
+            append_offset = HeaderSize + nelements * elem_size;
+
+            if (fs.Length != append_offset)
+                fs.SetLength(append_offset);
+
+            if (rewriteHeader)
+                Flush();
+            else
+                fs.Position = append_offset;
+        }
+
+        private void RecoverVariableSize(long declaredCount, bool rewriteHeader, bool strict)
+        {
+            fs.Position = HeaderSize;
+            long count = 0L;
+            long logicalEnd = HeaderSize;
+
+            while (count < declaredCount)
+            {
+                long off = fs.Position;
+                if (off >= fs.Length)
+                {
+                    if (strict)
+                        throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.");
+                    break;
+                }
+
+                try
+                {
+                    _ = ByteFlow.Deserialize(br, tp_elem);
+                }
+                catch (EndOfStreamException ex)
+                {
+                    if (strict)
+                        throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.", ex);
+                    fs.Position = off;
+                    break;
+                }
+
+                logicalEnd = fs.Position;
+                count++;
+            }
+
+            if (strict && count != declaredCount)
+                throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.");
+
+            nelements = count;
+            append_offset = logicalEnd;
+
+            if (fs.Length != append_offset)
+                fs.SetLength(append_offset);
+
+            if (rewriteHeader)
+                Flush();
+            else
+                fs.Position = append_offset;
         }
 
         public void Dispose()
