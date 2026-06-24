@@ -13,5 +13,6 @@ internal static class ScenarioCatalog
             new FromGetStarted3Main305FirstBinarySearchScenario(),
             new FromGetStarted3Main306PersistentKeysAndOffsetsScenario(),
             new RecoveryAndRefreshScenario(),
+            new SchedulingOptimizationScenario(),
         };
 }

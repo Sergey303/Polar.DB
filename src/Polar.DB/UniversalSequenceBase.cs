@@ -469,14 +469,14 @@ namespace Polar.DB
             else
                 fs.Position = append_offset;
         }
-        
+
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
 
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (!disposing || disposed) return;
             Flush();
@@ -484,6 +484,5 @@ namespace Polar.DB
             br.Dispose();
             disposed = true;
         }
-
     }
 }
