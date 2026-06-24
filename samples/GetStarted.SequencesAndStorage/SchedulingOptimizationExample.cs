@@ -3,36 +3,41 @@ using Polar.Universal;
 
 namespace GetStarted.SequencesAndStorage;
 
-public sealed class SchedulingOptimization
+public static class SchedulingOptimizationExample
 {
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public static void Run()
     {
-        string rootPath = Path.Combine(Path.GetTempPath(), "data", Guid.NewGuid().ToString("N"));
-        var epochFolderManager = new EpochFolderManager(rootPath);
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            "polar-db-scheduling-example",
+            Guid.NewGuid().ToString("N"));
 
-        using var owner = new ActiveSequenceOwner(OpenLastOrCreate(epochFolderManager));
+        var epochs = new EpochFolderManager(rootPath);
+        using var owner = new ActiveSequenceOwner(OpenLastOrCreate(epochs));
+
+        Console.WriteLine("Initial active epoch:");
+        PrintRows(owner.Read(active => active.ElementValues().ToArray()));
 
         owner.AppendElement(PersonSchema.Create(4, 42, "Dora"));
+        Console.WriteLine("After append to active epoch:");
+        PrintRows(owner.Read(active => active.ElementValues().ToArray()));
 
-        foreach (var person in owner.Active.ElementValues())
-        {
-            Console.WriteLine($"{PersonSchema.GetId(person)}: {PersonSchema.GetName(person)}: {PersonSchema.Deleted(person)}");
-        }
+        RotateOnce(epochs, owner);
+        Console.WriteLine("After rotation:");
+        PrintRows(owner.Read(active => active.ElementValues().ToArray()));
 
-        await Scheduler.RunAsync(
-            token => RotateAsync(epochFolderManager, owner, token),
-            TimeSpan.FromMinutes(5),
-            false,
-            cancellationToken);
+        Console.WriteLine("Ready epochs:");
+        foreach (var path in epochs.ListReady())
+            Console.WriteLine("  " + path);
     }
 
-    private USequence OpenLastOrCreate(EpochFolderManager epochFolderManager)
+    private static USequence OpenLastOrCreate(EpochFolderManager epochs)
     {
-        var latestReadyPath = epochFolderManager.GetLatestReady();
+        var latestReadyPath = epochs.GetLatestReady();
         if (!string.IsNullOrWhiteSpace(latestReadyPath) && Directory.Exists(latestReadyPath))
             return PersonSchema.Open(latestReadyPath);
 
-        var epochPath = epochFolderManager.CreateBuilding(DateTimeOffset.UtcNow);
+        var epochPath = epochs.CreateBuilding(DateTimeOffset.UtcNow);
         var sequence = CreateDb(epochPath, new[]
         {
             PersonSchema.Create(1, 1123, "Alice"),
@@ -40,20 +45,14 @@ public sealed class SchedulingOptimization
             PersonSchema.Create(3, 5123, "Clara")
         });
 
-        sequence.Flush();
-        epochFolderManager.MarkReady(epochPath);
+        epochs.MarkReady(epochPath);
         return sequence;
     }
 
-    private Task RotateAsync(
-        EpochFolderManager epochFolderManager,
-        ActiveSequenceOwner owner,
-        CancellationToken cancellationToken)
+    private static void RotateOnce(EpochFolderManager epochs, ActiveSequenceOwner owner)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
         var rotation = owner.BeginRotation();
-        var epochPath = epochFolderManager.CreateBuilding(DateTimeOffset.UtcNow);
+        var epochPath = epochs.CreateBuilding(DateTimeOffset.UtcNow);
         USequence? newSequence = null;
 
         try
@@ -63,15 +62,16 @@ public sealed class SchedulingOptimization
                     .Where(record => !PersonSchema.Deleted(record))
                     .ToArray());
 
+            owner.AppendElement(PersonSchema.Create(5, 35, "Eve"));
             newSequence = CreateDb(epochPath, activeRows);
+
             var oldSequence = owner.CompleteRotation(
                 rotation,
                 newSequence,
-                () => epochFolderManager.MarkReady(epochPath));
+                () => epochs.MarkReady(epochPath));
 
             newSequence = null;
             oldSequence.Dispose();
-            return Task.CompletedTask;
         }
         catch
         {
@@ -81,12 +81,24 @@ public sealed class SchedulingOptimization
         }
     }
 
-    public USequence CreateDb(string dbPath, IEnumerable<object> rows)
+    private static USequence CreateDb(string dbPath, IEnumerable<object> rows)
     {
-        var sequence = PersonSchema.Create(dbPath);
+        var sequence = PersonSchema.Open(dbPath);
         sequence.Load(rows);
         sequence.Flush();
         sequence.Build();
         return sequence;
+    }
+
+    private static void PrintRows(IEnumerable<object> rows)
+    {
+        foreach (var row in rows)
+        {
+            Console.WriteLine(
+                $"  id={PersonSchema.GetId(row)}, " +
+                $"age={PersonSchema.GetAge(row)}, " +
+                $"name={PersonSchema.GetName(row)}, " +
+                $"deleted={PersonSchema.Deleted(row)}");
+        }
     }
 }

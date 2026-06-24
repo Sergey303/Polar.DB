@@ -3,14 +3,10 @@ using Polar.Universal;
 
 namespace GetStarted.SequencesAndStorage.Scenarios;
 
-internal sealed class FromGetStartedProgramUniversalSequenceAndUSequenceScenario : ISampleScenario
+internal static class FromGetStartedProgramUniversalSequenceAndUSequenceScenario
 {
-    public string Id => "gs-legacy-seq";
-    public string Title => "UniversalSequenceBase, массив офсетов и USequence (из samples/GetStarted/Program.cs)";
-    public string SourcePath => "samples/GetStarted/Program.cs";
-    public bool IsExtractedFragment => true;
 
-    public void Run()
+    public static void Run()
     {
         // ===== Последовательности =====
         // Создаем тип последовательности персон

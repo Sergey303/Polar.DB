@@ -2,14 +2,10 @@ using Polar.DB;
 
 namespace GetStarted.SequencesAndStorage.Scenarios;
 
-internal sealed class FromGetStarted3Main305FirstBinarySearchScenario : ISampleScenario
+internal static class FromGetStarted3Main305FirstBinarySearchScenario
 {
-    public string Id => "gs3-305";
-    public string Title => "Своя BinarySearchFirst поверх keys/offsets";
-    public string SourcePath => "samples/GetStarted3/Main305.cs";
-    public bool IsExtractedFragment => false;
 
-    public void Run()
+    public static void Run()
     {
         Console.WriteLine("Start Main305");
         // Создадим типы записи и последовательности записей

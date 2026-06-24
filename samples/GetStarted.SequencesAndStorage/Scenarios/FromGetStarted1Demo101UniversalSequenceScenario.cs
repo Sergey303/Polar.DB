@@ -2,14 +2,10 @@ using Polar.DB;
 
 namespace GetStarted.SequencesAndStorage.Scenarios;
 
-internal sealed class FromGetStarted1Demo101UniversalSequenceScenario : ISampleScenario
+internal static class FromGetStarted1Demo101UniversalSequenceScenario
 {
-    public string Id => "gs1-demo101-seq";
-    public string Title => "Базовая UniversalSequenceBase: загрузка и сканирование (из Demo101)";
-    public string SourcePath => "samples/GetStarted1/Demo101.cs";
-    public bool IsExtractedFragment => true;
 
-    public void Run()
+    public static void Run()
     {
         // ===== Последовательности =====
         // Создаем тип последовательности персон

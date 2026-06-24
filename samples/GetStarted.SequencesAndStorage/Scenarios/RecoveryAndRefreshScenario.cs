@@ -2,14 +2,10 @@ using Polar.DB;
 
 namespace GetStarted.SequencesAndStorage.Scenarios;
 
-internal sealed class RecoveryAndRefreshScenario : ISampleScenario
+internal static class RecoveryAndRefreshScenario
 {
-    public string Id => "recovery-refresh";
-    public string Title => "Recovery and Refresh after reopen";
-    public string SourcePath => "Scenarios/06-RecoveryAndRefreshScenario.cs";
-    public bool IsExtractedFragment => false;
 
-    public void Run()
+    public static void Run()
     {
         var recordType = new PTypeRecord(
             new NamedType("id", new PType(PTypeEnumeration.integer)),

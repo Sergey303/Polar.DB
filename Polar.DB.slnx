@@ -83,6 +83,7 @@
     <Project Path="samples/GetStarted.IndexesAndSearch/GetStarted.IndexesAndSearch.csproj" />
     <Project Path="samples/GetStarted.SequencesAndStorage/GetStarted.SequencesAndStorage.csproj" />
     <Project Path="samples/GetStarted.StructuresAndSerialization/GetStarted.StructuresAndSerialization.csproj" />
+    <Project Path="samples/Polar.DB.Samples.Common/Polar.DB.Samples.Common.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Polar.DB/Polar.DB.csproj" />

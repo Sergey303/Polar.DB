@@ -2,14 +2,10 @@ using Polar.DB;
 
 namespace GetStarted.SequencesAndStorage.Scenarios;
 
-internal sealed class FromGetStarted3Main306PersistentKeysAndOffsetsScenario : ISampleScenario
+internal static class FromGetStarted3Main306PersistentKeysAndOffsetsScenario
 {
-    public string Id => "gs3-306";
-    public string Title => "Хранение keys/offsets в отдельных последовательностях";
-    public string SourcePath => "samples/GetStarted3/Main306.cs";
-    public bool IsExtractedFragment => false;
 
-    public void Run()
+    public static void Run()
     {
         Console.WriteLine("Start Main306");
         // Создадим типы записи и последовательности записей

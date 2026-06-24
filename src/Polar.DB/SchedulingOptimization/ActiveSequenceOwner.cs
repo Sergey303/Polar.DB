@@ -3,31 +3,19 @@ using Polar.Universal;
 namespace Polar.DB.SchedulingOptimization;
 
 /// <summary>
-/// Единая точка изменений активной USequence.
-/// USequence не знает про ротацию эпох и подписки.
+/// Single mutation gate for the active USequence.
+/// USequence itself stays unaware of epochs, collectors and rotation.
 /// </summary>
 public sealed class ActiveSequenceOwner : IDisposable
 {
     private readonly object _mutationLock = new();
-    private USequence _active;
+    public USequence Active { get; private set; }
     private AppendCollector? _collector;
     private bool _disposed;
 
     public ActiveSequenceOwner(USequence active)
     {
-        _active = active ?? throw new ArgumentNullException(nameof(active));
-    }
-
-    public USequence Active
-    {
-        get
-        {
-            lock (_mutationLock)
-            {
-                ThrowIfDisposed();
-                return _active;
-            }
-        }
+        Active = active ?? throw new ArgumentNullException(nameof(active));
     }
 
     public void AppendElement(object element)
@@ -35,8 +23,19 @@ public sealed class ActiveSequenceOwner : IDisposable
         lock (_mutationLock)
         {
             ThrowIfDisposed();
-            _active.AppendElement(element);
+            Active.AppendElement(element);
             _collector?.Add(element);
+        }
+    }
+
+    public T Read<T>(Func<USequence, T> read)
+    {
+        if (read == null) throw new ArgumentNullException(nameof(read));
+
+        lock (_mutationLock)
+        {
+            ThrowIfDisposed();
+            return read(Active);
         }
     }
 
@@ -50,7 +49,7 @@ public sealed class ActiveSequenceOwner : IDisposable
 
             var collector = new AppendCollector();
             _collector = collector;
-            return new ActiveSequenceRotation(_active, collector);
+            return new ActiveSequenceRotation(Active, collector);
         }
     }
 
@@ -63,7 +62,7 @@ public sealed class ActiveSequenceOwner : IDisposable
         {
             ThrowIfDisposed();
             EnsureCurrentRotation(rotation);
-            return read(_active);
+            return read(Active);
         }
     }
 
@@ -88,8 +87,8 @@ public sealed class ActiveSequenceOwner : IDisposable
             newActive.Flush();
             markReady();
 
-            var oldActive = _active;
-            _active = newActive;
+            var oldActive = Active;
+            Active = newActive;
             return oldActive;
         }
     }
@@ -112,7 +111,7 @@ public sealed class ActiveSequenceOwner : IDisposable
             if (_disposed) return;
             _disposed = true;
             _collector = null;
-            _active.Dispose();
+            Active.Dispose();
         }
     }
 
@@ -120,8 +119,8 @@ public sealed class ActiveSequenceOwner : IDisposable
     {
         if (!ReferenceEquals(_collector, rotation.Collector))
             throw new InvalidOperationException("Epoch rotation is not current.");
-        if (!ReferenceEquals(_active, rotation.Source))
-            throw new InvalidOperationException("Active sequence was changed during rotation.");
+        if (!ReferenceEquals(Active, rotation.Source))
+            throw new InvalidOperationException("Active sequence changed during rotation.");
     }
 
     private void ThrowIfDisposed()

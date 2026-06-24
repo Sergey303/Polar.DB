@@ -3,14 +3,10 @@ using Polar.Universal;
 
 namespace GetStarted.SequencesAndStorage.Scenarios;
 
-internal sealed class SchedulingOptimizationScenario : ISampleScenario
+internal static class SchedulingOptimizationScenario
 {
-    public string Id => "epoch-rotate";
-    public string Title => "Ротация эпох с ready marker и append-хвостом";
-    public string SourcePath => "samples/GetStarted.SequencesAndStorage/SchedulingOptimizationExample.cs";
-    public bool IsExtractedFragment => false;
 
-    public void Run()
+    public static void Run()
     {
         AssertReadyMarkerChoosesOnlyCompletedEpochs();
         AssertAppendTailMovesToNewActiveEpoch();

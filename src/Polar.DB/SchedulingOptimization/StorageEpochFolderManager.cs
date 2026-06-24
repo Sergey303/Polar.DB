@@ -1,39 +1,40 @@
 namespace Polar.DB.SchedulingOptimization;
 
 /// <summary>
-/// Удобные расширения EpochFolderManager для простых сценариев.
+/// Small helpers for storage objects that can be opened inside an epoch folder.
+/// EpochFolderManager still owns only folders and ready markers.
 /// </summary>
 public static class StorageEpochFolderManager
 {
-    /// <summary>
-    /// Открывает последнюю готовую эпоху или создаёт первую.
-    /// </summary>
     public static T OpenLastOrCreateNewEpoch<T>(
-        this EpochFolderManager epochFolderManager,
+        this EpochFolderManager epochs,
         Func<string, bool, T> factory)
         where T : IDisposable
     {
-        var latestReadyPath = epochFolderManager.GetLatestReady();
+        if (epochs == null) throw new ArgumentNullException(nameof(epochs));
+        if (factory == null) throw new ArgumentNullException(nameof(factory));
+
+        var latestReadyPath = epochs.GetLatestReady();
         if (!string.IsNullOrWhiteSpace(latestReadyPath) && Directory.Exists(latestReadyPath))
             return factory(latestReadyPath, false);
 
-        return epochFolderManager.DoNewEpoch(factory);
+        return epochs.CreateReadyEpoch(factory);
     }
 
-    /// <summary>
-    /// Создаёт новую эпоху, закрывает созданную сущность и ставит marker готовности.
-    /// </summary>
-    public static T DoNewEpoch<T>(
-        this EpochFolderManager epochFolderManager,
+    public static T CreateReadyEpoch<T>(
+        this EpochFolderManager epochs,
         Func<string, bool, T> factory)
         where T : IDisposable
     {
-        var epochPath = epochFolderManager.CreateBuilding(DateTimeOffset.UtcNow);
-        var newStorage = factory(epochPath, true);
+        if (epochs == null) throw new ArgumentNullException(nameof(epochs));
+        if (factory == null) throw new ArgumentNullException(nameof(factory));
 
-        newStorage.Dispose();
+        var epochPath = epochs.CreateBuilding(DateTimeOffset.UtcNow);
+        using (factory(epochPath, true))
+        {
+        }
 
-        var latestReadyPath = epochFolderManager.MarkReady(epochPath);
-        return factory(latestReadyPath, false);
+        var readyPath = epochs.MarkReady(epochPath);
+        return factory(readyPath, false);
     }
 }

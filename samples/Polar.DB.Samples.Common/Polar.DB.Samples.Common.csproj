@@ -1,17 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>10.0</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>GetStarted.SequencesAndStorage</RootNamespace>
+    <RootNamespace>Polar.DB.Samples.Common</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Polar.DB\Polar.DB.csproj" />
-    <ProjectReference Include="..\Polar.DB.Samples.Common\Polar.DB.Samples.Common.csproj" />
   </ItemGroup>
 
 </Project>
