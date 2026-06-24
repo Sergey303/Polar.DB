@@ -1,3 +1,4 @@
+using Common;
 using Polar.DB.SchedulingOptimization;
 using Polar.Universal;
 
@@ -7,35 +8,27 @@ public static class SchedulingOptimizationExample
 {
     public static void Run()
     {
-        var rootPath = Path.Combine(
-            Path.GetTempPath(),
-            "polar-db-scheduling-example",
-            Guid.NewGuid().ToString("N"));
-
-        var epochs = new EpochFolderManager(rootPath);
+        var epochs = new EpochFolderManager(DbPath.Create());
         using var owner = new ActiveSequenceOwner(OpenLastOrCreate(epochs));
 
-        Console.WriteLine("Initial active epoch:");
-        PrintRows(owner.Read(active => active.ElementValues().ToArray()));
+        CheckIds("Initial active epoch", owner, 1, 2, 3);
+        CheckReadyEpochs(epochs, 1);
 
         owner.AppendElement(PersonSchema.Create(4, 42, "Dora"));
-        Console.WriteLine("After append to active epoch:");
-        PrintRows(owner.Read(active => active.ElementValues().ToArray()));
+        CheckIds("After append to active epoch", owner, 1, 2, 3, 4);
 
         RotateOnce(epochs, owner);
-        Console.WriteLine("After rotation:");
-        PrintRows(owner.Read(active => active.ElementValues().ToArray()));
-
-        Console.WriteLine("Ready epochs:");
-        foreach (var path in epochs.ListReady())
-            Console.WriteLine("  " + path);
+        CheckIds("After rotation", owner, 1, 2, 3, 4, 5);
+        CheckReadyEpochs(epochs, 2);
+        CheckLatestReadyCanReopen(epochs, 1, 2, 3, 4, 5);
+        CheckBuildingEpochIsIgnored(epochs);
     }
 
     private static USequence OpenLastOrCreate(EpochFolderManager epochs)
     {
         var latestReadyPath = epochs.GetLatestReady();
         if (!string.IsNullOrWhiteSpace(latestReadyPath) && Directory.Exists(latestReadyPath))
-            return PersonSchema.Open(latestReadyPath);
+            return PersonSequence.Open(latestReadyPath);
 
         var epochPath = epochs.CreateBuilding(DateTimeOffset.UtcNow);
         var sequence = CreateDb(epochPath, new[]
@@ -59,7 +52,7 @@ public static class SchedulingOptimizationExample
         {
             var activeRows = owner.ReadForRotation(rotation, source =>
                 source.ElementValues()
-                    .Where(record => !PersonSchema.Deleted(record))
+                    .Where(record => !PersonSchema.IsDeleted(record))
                     .ToArray());
 
             owner.AppendElement(PersonSchema.Create(5, 35, "Eve"));
@@ -83,22 +76,52 @@ public static class SchedulingOptimizationExample
 
     private static USequence CreateDb(string dbPath, IEnumerable<object> rows)
     {
-        var sequence = PersonSchema.Open(dbPath);
+        var sequence = PersonSequence.Open(dbPath);
         sequence.Load(rows);
         sequence.Flush();
         sequence.Build();
         return sequence;
     }
 
-    private static void PrintRows(IEnumerable<object> rows)
+    private static void CheckIds(string title, ActiveSequenceOwner owner, params int[] expected)
     {
+        var rows = owner.Read(active => active.ElementValues().ToArray());
+        PrintRows(title, rows);
+
+        var actual = rows.Select(PersonSchema.GetId).OrderBy(id => id).ToArray();
+        Check.SequenceEqual(expected, actual, title + " ids must match");
+    }
+
+    private static void CheckReadyEpochs(EpochFolderManager epochs, int expectedCount)
+    {
+        var ready = epochs.ListReady().ToArray();
+        Check.Equal(expectedCount, ready.Length, "Ready epoch count must match");
+        Check.True(ready.All(path => File.Exists(Path.Combine(path, "_epoch.ready"))),
+            "Every ready epoch must have _epoch.ready marker");
+    }
+
+    private static void CheckLatestReadyCanReopen(EpochFolderManager epochs, params int[] expectedIds)
+    {
+        var latestReady = epochs.GetLatestReady();
+        Check.True(!string.IsNullOrWhiteSpace(latestReady), "Latest ready epoch must exist");
+
+        using var reopened = PersonSequence.Open(latestReady);
+        var actual = reopened.ElementValues().Select(PersonSchema.GetId).OrderBy(id => id).ToArray();
+        Check.SequenceEqual(expectedIds, actual, "Latest ready epoch must contain rotated data");
+    }
+
+    private static void CheckBuildingEpochIsIgnored(EpochFolderManager epochs)
+    {
+        var latestBefore = epochs.GetLatestReady();
+        _ = epochs.CreateBuilding(DateTimeOffset.UtcNow.AddMinutes(10));
+        var latestAfter = epochs.GetLatestReady();
+        Check.Equal(latestBefore, latestAfter, "Building epoch without marker must be ignored");
+    }
+
+    private static void PrintRows(string title, IEnumerable<object> rows)
+    {
+        Console.WriteLine(title + ":");
         foreach (var row in rows)
-        {
-            Console.WriteLine(
-                $"  id={PersonSchema.GetId(row)}, " +
-                $"age={PersonSchema.GetAge(row)}, " +
-                $"name={PersonSchema.GetName(row)}, " +
-                $"deleted={PersonSchema.Deleted(row)}");
-        }
+            Console.WriteLine("  " + PersonSchema.Format(row));
     }
 }

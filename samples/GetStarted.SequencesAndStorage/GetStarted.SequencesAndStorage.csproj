@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Polar.DB\Polar.DB.csproj" />
-    <ProjectReference Include="..\Polar.DB.Samples.Common\Polar.DB.Samples.Common.csproj" />
+    <ProjectReference Include="..\Common\Common.csproj" />
   </ItemGroup>
 
 </Project>

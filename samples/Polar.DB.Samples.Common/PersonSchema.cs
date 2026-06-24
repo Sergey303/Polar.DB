@@ -6,7 +6,7 @@ namespace GetStarted.SequencesAndStorage;
 
 public static class PersonSchema
 {
-    public const string Id = "id";
+    public const string Id = nameof(Id);
     public const string Age = "age";
     public const string Name = "name";
     public const string IsDeleted = "is_deleted";
