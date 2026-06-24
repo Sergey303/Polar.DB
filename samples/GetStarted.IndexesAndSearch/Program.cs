@@ -10,7 +10,6 @@ internal static class Program
         Section.Run("Age index search", AgeIndexSearch.Run);
         Section.Run("Tag and prefix search", TagAndPrefixSearch.Run);
         Section.Run("Text token search", TextTokenSearch.Run);
-        Section.Run("Skill hash search", SkillHashSearch.Run);
         Section.Run("External key search", ExternalKeySearch.Run);
         Section.Run("Hash function comparison", HashFunctionComparison.Run);
         Section.Run("Index scale smoke", IndexScaleSmoke.Run);
