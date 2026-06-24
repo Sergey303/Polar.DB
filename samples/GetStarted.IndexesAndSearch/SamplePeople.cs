@@ -54,24 +54,24 @@ internal static class SamplePeople
     public static IReadOnlyList<object> BaseDataset() =>
         new object[]
         {
-            Person(1, "Alice Baker", "Berlin", 30, new[] { "db", "ml" }, new[] { "csharp", "sql" }, "Builds search and indexing demos."),
-            Person(2, "Bob Chen", "Helsinki", 34, new[] { "ops", "storage" }, new[] { "go", "linux" }, "Operates storage pipelines."),
-            Person(3, "Carla Diaz", "Berlin", 30, new[] { "ux", "graph" }, new[] { "figma", "analytics" }, "Designs graph exploration flows."),
-            Person(4, "Dmitry Ivanov", "Riga", 28, new[] { "db", "graph" }, new[] { "csharp", "dotnet" }, "Writes query planner notes."),
-            Person(5, "Elena Smirnova", "Tallinn", 41, new[] { "archive", "storage" }, new[] { "sql", "etl" }, "Maintains archival search processes.")
+            Person(1, "Анна Бакова", "Berlin", 30, new[] { "db", "ml" }, new[] { "csharp", "sql" }, "Builds search and indexing demos."),
+            Person(2, "Борис Чернов", "Helsinki", 34, new[] { "ops", "storage" }, new[] { "go", "linux" }, "Operates storage pipelines."),
+            Person(3, "Клара Демина", "Berlin", 30, new[] { "ux", "graph" }, new[] { "figma", "analytics" }, "Designs graph exploration flows."),
+            Person(4, "Дмитрий Иванов", "Riga", 28, new[] { "db", "graph" }, new[] { "csharp", "dotnet" }, "Writes query planner notes."),
+            Person(5, "Елена Смирнова", "Tallinn", 41, new[] { "archive", "storage" }, new[] { "sql", "etl" }, "Maintains archиваl search processes.")
         };
 
     public static object[] AppendedForPrimaryKey() =>
-        Person(6, "Farah Noor", "Berlin", 33, new[] { "graph", "ml" }, new[] { "python", "analytics" }, "Adds semantic search experiments.");
+        Person(6, "Федор Новиков", "Berlin", 33, new[] { "graph", "ml" }, new[] { "python", "analytics" }, "Adds semantic search experiments.");
 
     public static object[] AppendedForAge() =>
-        Person(7, "George Mills", "Oslo", 30, new[] { "ops", "backup" }, new[] { "powershell", "sql" }, "Handles 30-day retention tasks.");
+        Person(7, "Георгий Мельников", "Oslo", 30, new[] { "ops", "backup" }, new[] { "powershell", "sql" }, "Handles 30-day retention tasks.");
 
     public static object[] AppendedForTextSearch() =>
-        Person(8, "Hanna Petrov", "Vilnius", 29, new[] { "analysis", "graph" }, new[] { "python", "search" }, "Documents analytics recipes for graph search.");
+        Person(8, "Анна Петрова", "Vilnius", 29, new[] { "analysis", "graph" }, new[] { "python", "search" }, "Documents analytics recipes for graph search.");
 
     public static object[] AppendedForTagSearch() =>
-        Person(9, "Ivan Orlov", "Warsaw", 36, new[] { "storage", "api" }, new[] { "java", "kafka" }, "Extends storage ingestion services.");
+        Person(9, "Иван Орлов", "Warsaw", 36, new[] { "storage", "api" }, new[] { "java", "kafka" }, "Extends storage ingestion services.");
 
     public static object[] AppendedForSkillSearch() =>
         Person(10, "Julia Novak", "Prague", 31, new[] { "db", "ui" }, new[] { "CSharp", "Blazor" }, "Bridges backend indexing and UI demos.");

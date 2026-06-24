@@ -1,15 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-      <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>10.0</LangVersion>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>GetStarted.StructuresAndSerialization</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Polar.DB\Polar.DB.csproj" />
+    <ProjectReference Include="..\Common\Common.csproj" />
   </ItemGroup>
-
 </Project>

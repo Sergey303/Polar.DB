@@ -15,11 +15,11 @@ public static class PersonDatabaseObjectArray
             PrintRows("Initial live records", db.ElementValues());
 
             object bob = db.GetByKey(2);
-            Check.Equal("Bob", ReadName(bob), "Lookup by primary key must find Bob");
+            Check.Equal("Борис", ReadName(bob), "Lookup by primary key must find Борис");
 
-            db.AppendElement(PersonSchema.Create(4, 42, "Dora"));
+            db.AppendElement(PersonSchema.Create(4, 42, "Дарья"));
             db.AppendElement(PersonSchema.Tombstone(2));
-            db.AppendElement(PersonSchema.Create(2, 54, "Robert"));
+            db.AppendElement(PersonSchema.Create(2, 54, "Роман"));
             db.Flush();
 
             PrintRows("After append, delete and update", db.ElementValues());
@@ -37,9 +37,9 @@ public static class PersonDatabaseObjectArray
     {
         db.Load(new[]
         {
-            PersonSchema.Create(1, 31, "Alice"),
-            PersonSchema.Create(2, 52, "Bob"),
-            PersonSchema.Create(3, 27, "Clara")
+            PersonSchema.Create(1, 31, "Анна"),
+            PersonSchema.Create(2, 52, "Борис"),
+            PersonSchema.Create(3, 27, "Клара")
         });
 
         db.Build();
@@ -55,8 +55,8 @@ public static class PersonDatabaseObjectArray
         Check.SequenceEqual(new[] { 1, 2, 3, 4 }, ids, "Live ids must match");
 
         object person = db.GetByKey(2);
-        Check.Equal("Robert", ReadName(person), "Latest id=2 record must be Robert");
-        Check.Equal(54, ReadAge(person), "Updated Robert age must match");
+        Check.Equal("Роман", ReadName(person), "Latest id=2 record must be Роман");
+        Check.Equal(54, ReadAge(person), "Updated Роман age must match");
     }
 
     private static int ReadId(object record) =>
