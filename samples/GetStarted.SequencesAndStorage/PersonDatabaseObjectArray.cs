@@ -19,7 +19,7 @@ public static class PersonDatabaseObjectArray
 
             db.AppendElement(PersonSchema.Create(4, 42, "Дарья"));
             db.AppendElement(PersonSchema.Tombstone(2));
-            db.AppendElement(PersonSchema.Create(2, 54, "Роман"));
+            db.AppendElement(PersonSchema.Create(2,  54, "Роман"));
             db.Flush();
 
             PrintRows("After append, delete and update", db.ElementValues());
@@ -37,9 +37,9 @@ public static class PersonDatabaseObjectArray
     {
         db.Load(new[]
         {
-            PersonSchema.Create(1, 31, "Анна"),
-            PersonSchema.Create(2, 52, "Борис"),
-            PersonSchema.Create(3, 27, "Клара")
+            PersonSchema.Create(1,  31, "Анна"),
+            PersonSchema.Create(2,  52, "Борис"),
+            PersonSchema.Create(3,  27, "Клара")
         });
 
         db.Build();

@@ -1,6 +1,6 @@
 using Polar.Universal;
 
-namespace GetStarted.SequencesAndStorage;
+namespace Common;
 
 public static class PersonSequence
 {
@@ -19,9 +19,9 @@ public static class PersonSequence
             PersonSchema.Type,
             Path.Combine(dbPath, "state.bin"),
             StreamGen,
-            PersonSchema.IsEmpty,
-            PersonSchema.PrimaryKey,
-            PersonSchema.HashKey);
+            PersonSchema.Deleted,
+            record => PersonSchema.GetId(record),
+            key => Convert.ToInt32(key));
 
         sequence.Refresh();
         return sequence;

@@ -17,25 +17,25 @@ internal static class TextTokenSearch
             ignorecase: false);
 
         sequence.uindexes = new IUIndex[] { textIndex };
-        sequence.Load(SamplePeople.BaseDataset());
+        sequence.Load(ExtendPeopleScheme.BaseDataset());
         sequence.Build();
         sequence.Refresh();
 
-        object[] иванов = FindByToken(sequence, "иванов");
-        Check.SequenceEqual(new[] { 4 }, OrderedIds(иванов),
+        object[] records = FindByToken(sequence, "иванов");
+        Check.SequenceEqual(new[] { 4 }, OrderedIds(records),
             "Text token lookup must find Дмитрий Иванов");
 
         Console.WriteLine("Exact lookup by text token 'иванов':");
-        Print(иванов);
+        Print(records);
 
-        sequence.AppendElement(SamplePeople.AppendedForPrimaryKey());
-        object[] федор = FindByToken(sequence, "федор");
-        Check.SequenceEqual(new[] { 6 }, OrderedIds(федор),
+        sequence.AppendElement(ExtendPeopleScheme.AppendedForPrimaryKey());
+        object[] objects = FindByToken(sequence, "федор");
+        Check.SequenceEqual(new[] { 6 }, OrderedIds(objects),
             "Text token lookup must include appended Федор without rebuild");
 
         Console.WriteLine();
         Console.WriteLine("Exact token lookup after append without rebuilding indexes:");
-        Print(федор);
+        Print(objects);
 
         object[] ivPrefix = sequence.GetAllByLike(0, "ива").ToArray();
         Check.SequenceEqual(new[] { 4 }, OrderedIds(ivPrefix),
@@ -58,10 +58,10 @@ internal static class TextTokenSearch
 
     private static IEnumerable<string> Tokens(object record)
     {
-        foreach (string token in SplitWords(SamplePeople.Name(record)))
+        foreach (string token in SplitWords(ExtendPeopleScheme.Name(record)))
             yield return token;
 
-        foreach (string tag in SamplePeople.Tags(record))
+        foreach (string tag in ExtendPeopleScheme.Tags(record))
             yield return tag.ToLowerInvariant();
     }
 
@@ -73,19 +73,19 @@ internal static class TextTokenSearch
 
     private static int[] OrderedIds(IEnumerable<object> records)
     {
-        return records.Select(SamplePeople.Id).OrderBy(id => id).ToArray();
+        return records.Select(ExtendPeopleScheme.Id).OrderBy(id => id).ToArray();
     }
 
     private static USequence CreateSequence(string dbPath)
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
-            hashOfKey: key => Convert.ToInt32(key),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
+            hashOfKey: Convert.ToInt32,
             optimise: true);
     }
 
@@ -104,7 +104,7 @@ internal static class TextTokenSearch
 
     private static void Print(IEnumerable<object> records)
     {
-        foreach (object record in records.OrderBy(SamplePeople.Id))
-            Console.WriteLine($"  {SamplePeople.Describe(record)}");
+        foreach (object record in records.OrderBy(ExtendPeopleScheme.Id))
+            Console.WriteLine($"  {ExtendPeopleScheme.Describe(record)}");
     }
 }

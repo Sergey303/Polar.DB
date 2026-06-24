@@ -1,9 +1,9 @@
 using System.Text;
 using Polar.DB;
 
-namespace GetStarted.IndexesAndSearch;
+namespace Common;
 
-internal static class SamplePeople
+public static class ExtendPeopleScheme
 {
     public static readonly PTypeRecord RecordType = new(
         new NamedType("id", new PType(PTypeEnumeration.integer)),

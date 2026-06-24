@@ -10,28 +10,28 @@ internal static class PrimaryKeyLookup
         string dbPath = DbPath.Create();
         using var sequence = CreateSequence(dbPath);
 
-        sequence.Load(SamplePeople.BaseDataset());
+        sequence.Load(ExtendPeopleScheme.BaseDataset());
         sequence.Build();
         sequence.Refresh();
 
         object found = sequence.GetByKey(4);
-        Check.Equal("Дмитрий Иванов", SamplePeople.Name(found), "Lookup by built primary key must find id=4");
+        Check.Equal("Дмитрий Иванов", ExtendPeopleScheme.Name(found), "Lookup by built primary key must find id=4");
 
         Console.WriteLine("Lookup in the built primary-key index:");
-        Console.WriteLine($"  {SamplePeople.Describe(found)}");
+        Console.WriteLine($"  {ExtendPeopleScheme.Describe(found)}");
 
-        object appended = SamplePeople.AppendedForPrimaryKey();
+        object appended = ExtendPeopleScheme.AppendedForPrimaryKey();
         sequence.AppendElement(appended);
 
         object foundAfterAppend = sequence.GetByKey(6);
-        Check.Equal("Федор Новиков", SamplePeople.Name(foundAfterAppend),
+        Check.Equal("Федор Новиков", ExtendPeopleScheme.Name(foundAfterAppend),
             "Lookup by dynamic primary key must find appended id=6 without rebuild");
 
         Console.WriteLine();
         Console.WriteLine("Lookup after append without rebuilding indexes:");
-        Console.WriteLine($"  {SamplePeople.Describe(foundAfterAppend)}");
+        Console.WriteLine($"  {ExtendPeopleScheme.Describe(foundAfterAppend)}");
 
-        var liveIds = sequence.ElementValues().Select(SamplePeople.Id);
+        var liveIds = sequence.ElementValues().Select(ExtendPeopleScheme.Id);
         Check.SequenceEqual(new[] { 1, 2, 3, 4, 5, 6 }, liveIds,
             "Primary sequence must enumerate loaded and appended records");
     }
@@ -40,12 +40,12 @@ internal static class PrimaryKeyLookup
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
-            hashOfKey: key => Convert.ToInt32(key),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
+            hashOfKey: Convert.ToInt32,
             optimise: true);
     }
 

@@ -12,7 +12,7 @@ internal static class PersonRecordSerialization
         Console.WriteLine("  record(Id: integer, Name: sstring, Age: integer)");
         Console.WriteLine();
 
-        object original = PersonSchema.Create(1, "Анна Иванова", 30);
+        object original = PersonSchema.Create(1, 30, "Анна Иванова");
         Console.WriteLine("Original record:");
         Console.WriteLine("  " + PersonSchema.Format(original));
         Console.WriteLine();

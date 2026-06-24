@@ -13,33 +13,33 @@ internal static class TagAndPrefixSearch
         var tagIndex = new SVectorIndex(
             streamGen: CreateStreamFactory(dbPath, "tags"),
             sequence: sequence,
-            valuesFunc: SamplePeople.Tags,
+            valuesFunc: ExtendPeopleScheme.Tags,
             ignorecase: false);
 
         sequence.uindexes = new IUIndex[] { tagIndex };
-        sequence.Load(SamplePeople.BaseDataset());
+        sequence.Load(ExtendPeopleScheme.BaseDataset());
         sequence.Build();
         sequence.Refresh();
 
         var storageBeforeAppend = FindByTag(sequence, "storage");
-        Check.SequenceEqual(new[] { 2, 5 }, storageBeforeAppend.Select(SamplePeople.Id).OrderBy(id => id),
+        Check.SequenceEqual(new[] { 2, 5 }, storageBeforeAppend.Select(ExtendPeopleScheme.Id).OrderBy(id => id),
             "Exact tag lookup must find initial storage records");
 
         Console.WriteLine("Exact lookup by tag 'storage':");
         Print(storageBeforeAppend);
 
-        sequence.AppendElement(SamplePeople.AppendedForTagSearch());
+        sequence.AppendElement(ExtendPeopleScheme.AppendedForTagSearch());
         var storageAfterAppend = FindByTag(sequence, "storage");
-        Check.SequenceEqual(new[] { 2, 5, 9 }, storageAfterAppend.Select(SamplePeople.Id).OrderBy(id => id),
+        Check.SequenceEqual(new[] { 2, 5, 9 }, storageAfterAppend.Select(ExtendPeopleScheme.Id).OrderBy(id => id),
             "Exact tag lookup must include appended storage record without rebuild");
 
         Console.WriteLine();
         Console.WriteLine("Exact lookup after append without rebuilding indexes:");
         Print(storageAfterAppend);
 
-        sequence.AppendElement(SamplePeople.AppendedForTextSearch());
+        sequence.AppendElement(ExtendPeopleScheme.AppendedForTextSearch());
         var graphPrefix = sequence.GetAllByLike(0, "gra").ToArray();
-        Check.SequenceEqual(new[] { 3, 4, 8 }, graphPrefix.Select(SamplePeople.Id).OrderBy(id => id),
+        Check.SequenceEqual(new[] { 3, 4, 8 }, graphPrefix.Select(ExtendPeopleScheme.Id).OrderBy(id => id),
             "Prefix lookup by 'gra' must find graph-tagged records, including appended record");
 
         Console.WriteLine();
@@ -49,18 +49,18 @@ internal static class TagAndPrefixSearch
 
     private static object[] FindByTag(USequence sequence, string tag)
     {
-        return sequence.GetAllByValue(0, tag, SamplePeople.TagsAsComparables).ToArray();
+        return sequence.GetAllByValue(0, tag, ExtendPeopleScheme.TagsAsComparables).ToArray();
     }
 
     private static USequence CreateSequence(string dbPath)
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
             hashOfKey: key => Convert.ToInt32(key),
             optimise: true);
     }
@@ -80,7 +80,7 @@ internal static class TagAndPrefixSearch
 
     private static void Print(IEnumerable<object> records)
     {
-        foreach (object record in records.OrderBy(SamplePeople.Id))
-            Console.WriteLine($"  {SamplePeople.Describe(record)}");
+        foreach (object record in records.OrderBy(ExtendPeopleScheme.Id))
+            Console.WriteLine($"  {ExtendPeopleScheme.Describe(record)}");
     }
 }

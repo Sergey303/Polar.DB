@@ -14,15 +14,15 @@ internal static class AgeIndexSearch
             streamGen: CreateStreamFactory(dbPath, "age"),
             sequence: sequence,
             applicable: _ => true,
-            hashFunc: SamplePeople.Age,
+            hashFunc: ExtendPeopleScheme.Age,
             comp: Comparer<object>.Create(CompareByAge));
 
         sequence.uindexes = new IUIndex[] { ageIndex };
-        sequence.Load(SamplePeople.BaseDataset());
+        sequence.Load(ExtendPeopleScheme.BaseDataset());
         sequence.Build();
         sequence.Refresh();
 
-        object age30Sample = SamplePeople.AgeSample(30);
+        object age30Sample = ExtendPeopleScheme.AgeSample(30);
         object[] age30BeforeAppend = FindByAge(sequence, age30Sample);
         Check.SequenceEqual(new[] { 1, 3 }, OrderedIds(age30BeforeAppend),
             "Age index must find initial age=30 records");
@@ -30,7 +30,7 @@ internal static class AgeIndexSearch
         Console.WriteLine("Lookup by secondary age index, age=30:");
         Print(age30BeforeAppend);
 
-        sequence.AppendElement(SamplePeople.AppendedForAge());
+        sequence.AppendElement(ExtendPeopleScheme.AppendedForAge());
         object[] age30AfterAppend = FindByAge(sequence, age30Sample);
         Check.SequenceEqual(new[] { 1, 3, 7 }, OrderedIds(age30AfterAppend),
             "Age index must include appended age=30 record without rebuild");
@@ -47,24 +47,24 @@ internal static class AgeIndexSearch
 
     private static int[] OrderedIds(IEnumerable<object> records)
     {
-        return records.Select(SamplePeople.Id).OrderBy(id => id).ToArray();
+        return records.Select(ExtendPeopleScheme.Id).OrderBy(id => id).ToArray();
     }
 
     private static int CompareByAge(object left, object right)
     {
-        return SamplePeople.Age(left).CompareTo(SamplePeople.Age(right));
+        return ExtendPeopleScheme.Age(left).CompareTo(ExtendPeopleScheme.Age(right));
     }
 
     private static USequence CreateSequence(string dbPath)
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
-            hashOfKey: key => Convert.ToInt32(key),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
+            hashOfKey: Convert.ToInt32,
             optimise: true);
     }
 
@@ -83,7 +83,7 @@ internal static class AgeIndexSearch
 
     private static void Print(IEnumerable<object> records)
     {
-        foreach (object record in records.OrderBy(SamplePeople.Id))
-            Console.WriteLine($"  {SamplePeople.Describe(record)}");
+        foreach (object record in records.OrderBy(ExtendPeopleScheme.Id))
+            Console.WriteLine($"  {ExtendPeopleScheme.Describe(record)}");
     }
 }

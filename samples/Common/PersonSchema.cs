@@ -2,15 +2,19 @@ using Polar.DB;
 using Polar.DB.ExternalKey;
 using Polar.Universal;
 
-namespace GetStarted.SequencesAndStorage;
+namespace Common;
 
 public static class PersonSchema
 {
     public const string Id = nameof(Id);
-    public const string Age = "age";
-    public const string Name = "name";
-    public const string IsDeleted = "is_deleted";
-
+    public const string Age = nameof(Age);
+    public const string Name = nameof(Name);
+    public const string IsDeleted = nameof(IsDeleted);
+    public const int IdIndex = 0;
+    public const int AgeIndex = 1;
+    public const int NameIndex = 2;
+    public const int DeletedIndex = 3;
+    
     public static readonly PTypeRecord Type = new(
         new NamedType(Id, new PType(PTypeEnumeration.integer)),
         new NamedType(Age, new PType(PTypeEnumeration.integer)),
@@ -35,6 +39,8 @@ public static class PersonSchema
     public static string GetName(object record) => Accessor.Get<string>(record, Name);
     public static bool Deleted(object record) => Accessor.Get<bool>(record, IsDeleted);
 
+    public static string Format(object record) =>
+        $"#{GetId(record)} {GetName(record)} | age={GetAge(record)}";
 
 
     public static USequence Create(string dbPath)

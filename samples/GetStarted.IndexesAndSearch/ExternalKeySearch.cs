@@ -18,7 +18,7 @@ internal static class ExternalKeySearch
             comparer: StringComparer.Ordinal);
 
         sequence.uindexes = new IUIndex[] { cityIndex };
-        sequence.Load(SamplePeople.BaseDataset());
+        sequence.Load(ExtendPeopleScheme.BaseDataset());
         sequence.Build();
         sequence.Refresh();
 
@@ -37,7 +37,7 @@ internal static class ExternalKeySearch
         Console.WriteLine("Lookup by another external city key 'Riga':");
         Print(riga);
 
-        sequence.AppendElement(SamplePeople.AppendedForPrimaryKey());
+        sequence.AppendElement(ExtendPeopleScheme.AppendedForPrimaryKey());
         object[] berlinAfterAppend = FindByCity(sequence, "Berlin");
         Check.SequenceEqual(new[] { 1, 3, 6 }, OrderedIds(berlinAfterAppend),
             "External city key must include appended Berlin record without rebuild");
@@ -49,12 +49,12 @@ internal static class ExternalKeySearch
 
     private static IEnumerable<string> CityKeys(object record)
     {
-        yield return SamplePeople.City(record);
+        yield return ExtendPeopleScheme.City(record);
     }
 
     private static IEnumerable<IComparable> CityComparables(object record)
     {
-        yield return SamplePeople.City(record);
+        yield return ExtendPeopleScheme.City(record);
     }
 
     private static object[] FindByCity(USequence sequence, string city)
@@ -64,18 +64,18 @@ internal static class ExternalKeySearch
 
     private static int[] OrderedIds(IEnumerable<object> records)
     {
-        return records.Select(SamplePeople.Id).OrderBy(id => id).ToArray();
+        return records.Select(ExtendPeopleScheme.Id).OrderBy(id => id).ToArray();
     }
 
     private static USequence CreateSequence(string dbPath)
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
             hashOfKey: key => Convert.ToInt32(key),
             optimise: true);
     }
@@ -95,7 +95,7 @@ internal static class ExternalKeySearch
 
     private static void Print(IEnumerable<object> records)
     {
-        foreach (object record in records.OrderBy(SamplePeople.Id))
-            Console.WriteLine($"  {SamplePeople.Describe(record)}");
+        foreach (object record in records.OrderBy(ExtendPeopleScheme.Id))
+            Console.WriteLine($"  {ExtendPeopleScheme.Describe(record)}");
     }
 }

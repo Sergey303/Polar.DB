@@ -4,7 +4,7 @@ using Polar.Universal;
 
 namespace GetStarted.SequencesAndStorage;
 
-public static class SchedulingOptimizationExample
+public static class SchedulingOptimization
 {
     public static void Run()
     {
@@ -33,8 +33,8 @@ public static class SchedulingOptimizationExample
         var epochPath = epochs.CreateBuilding(DateTimeOffset.UtcNow);
         var sequence = CreateDb(epochPath, new[]
         {
-            PersonSchema.Create(1, 1123, "Анна"),
-            PersonSchema.Create(2, 5423, "Борис"),
+            PersonSchema.Create(1, 1123,"Анна"),
+            PersonSchema.Create(2, 5423, "Борис" ),
             PersonSchema.Create(3, 5123, "Клара")
         });
 
@@ -52,7 +52,7 @@ public static class SchedulingOptimizationExample
         {
             var activeRows = owner.ReadForRotation(rotation, source =>
                 source.ElementValues()
-                    .Where(record => !PersonSchema.IsDeleted(record))
+                    .Where(record => !PersonSchema.Deleted(record))
                     .ToArray());
 
             owner.AppendElement(PersonSchema.Create(5, 35, "Евгения"));
@@ -96,15 +96,13 @@ public static class SchedulingOptimizationExample
     {
         var ready = epochs.ListReady().ToArray();
         Check.Equal(expectedCount, ready.Length, "Ready epoch count must match");
-        Check.True(ready.All(path => File.Exists(Path.Combine(path, "_epoch.ready"))),
-            "Евгенияry ready epoch must have _epoch.ready marker");
+        if (!ready.All(path => File.Exists(Path.Combine(path, "_epoch.ready")))) throw new InvalidOperationException("Евгенияry ready epoch must have _epoch.ready marker");
     }
 
     private static void CheckLatestReadyCanReopen(EpochFolderManager epochs, params int[] expectedIds)
     {
         var latestReady = epochs.GetLatestReady();
-        Check.True(!string.IsNullOrWhiteSpace(latestReady), "Latest ready epoch must exist");
-
+        if (string.IsNullOrWhiteSpace(latestReady)) throw new InvalidOperationException("Latest ready epoch must exist");
         using var reopened = PersonSequence.Open(latestReady);
         var actual = reopened.ElementValues().Select(PersonSchema.GetId).OrderBy(id => id).ToArray();
         Check.SequenceEqual(expectedIds, actual, "Latest ready epoch must contain rotated data");

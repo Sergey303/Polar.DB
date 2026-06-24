@@ -13,12 +13,12 @@ internal static class SkillHashSearch
         var skillIndex = new UVecIndex(
             streamGen: CreateStreamFactory(dbPath, "skills"),
             sequence: sequence,
-            keysFunc: SamplePeople.SkillsAsComparables,
+            keysFunc: ExtendPeopleScheme.SkillsAsComparables,
             hashOfKey: StableStringHash,
             ignorecase: false);
 
         sequence.uindexes = new IUIndex[] { skillIndex };
-        sequence.Load(SamplePeople.BaseDataset());
+        sequence.Load(ExtendPeopleScheme.BaseDataset());
         sequence.Build();
         sequence.Refresh();
 
@@ -29,7 +29,7 @@ internal static class SkillHashSearch
         Console.WriteLine("Lookup by hashed skill 'sql':");
         Print(sqlBeforeAppend);
 
-        sequence.AppendElement(SamplePeople.AppendedForAge());
+        sequence.AppendElement(ExtendPeopleScheme.AppendedForAge());
         object[] sqlAfterAppend = FindBySkill(sequence, "sql");
         Check.SequenceEqual(new[] { 1, 5, 7 }, OrderedIds(sqlAfterAppend),
             "Skill hash index must include appended sql record without rebuild");
@@ -49,12 +49,12 @@ internal static class SkillHashSearch
 
     private static object[] FindBySkill(USequence sequence, string skill)
     {
-        return sequence.GetAllByValue(0, skill, SamplePeople.SkillsAsComparables).ToArray();
+        return sequence.GetAllByValue(0, skill, ExtendPeopleScheme.SkillsAsComparables).ToArray();
     }
 
     private static int[] OrderedIds(IEnumerable<object> records)
     {
-        return records.Select(SamplePeople.Id).OrderBy(id => id).ToArray();
+        return records.Select(ExtendPeopleScheme.Id).OrderBy(id => id).ToArray();
     }
 
     private static int StableStringHash(IComparable key)
@@ -73,11 +73,11 @@ internal static class SkillHashSearch
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
             hashOfKey: key => Convert.ToInt32(key),
             optimise: true);
     }
@@ -97,7 +97,7 @@ internal static class SkillHashSearch
 
     private static void Print(IEnumerable<object> records)
     {
-        foreach (object record in records.OrderBy(SamplePeople.Id))
-            Console.WriteLine($"  {SamplePeople.Describe(record)}");
+        foreach (object record in records.OrderBy(ExtendPeopleScheme.Id))
+            Console.WriteLine($"  {ExtendPeopleScheme.Describe(record)}");
     }
 }

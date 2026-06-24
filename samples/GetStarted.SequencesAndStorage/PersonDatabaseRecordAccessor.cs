@@ -6,7 +6,7 @@ namespace GetStarted.SequencesAndStorage;
 
 public static class PersonDatabaseRecordAccessor
 {
-    private static readonly RecordAccessor Accessor = new((PTypeRecord)PersonSchema.Type);
+    private static readonly RecordAccessor Accessor = new(PersonSchema.Type);
 
     public static void Run()
     {
@@ -54,7 +54,7 @@ public static class PersonDatabaseRecordAccessor
         Accessor.Set(record, PersonSchema.Id, id);
         Accessor.Set(record, PersonSchema.Age, age);
         Accessor.Set(record, PersonSchema.Name, name);
-        Accessor.Set(record, PersonSchema.Deleted, deleted);
+        Accessor.Set(record, PersonSchema.IsDeleted, deleted);
         return record;
     }
 
@@ -85,7 +85,7 @@ public static class PersonDatabaseRecordAccessor
         Accessor.Get<string>(record, PersonSchema.Name);
 
     private static bool ReadDeleted(object record) =>
-        Accessor.Get<bool>(record, PersonSchema.Deleted);
+        Accessor.Get<bool>(record, PersonSchema.IsDeleted);
 
     private static void PrintRows(string title, IEnumerable<object> rows)
     {

@@ -16,8 +16,8 @@ internal static class HashFunctionComparison
         HashReport weakFirstChar = Analyze(keys, "first char", key => key[0]);
         HashReport stable = Analyze(keys, "stable", StableStringHash);
 
-        Check.True(weakLength.Collisions > 0, "Length hash must show visible collisions");
-        Check.True(weakFirstChar.Collisions > 0, "First-char hash must show visible collisions");
+        if (!(weakLength.Collisions > 0)) throw new InvalidOperationException("Length hash must show visible collisions");
+        if (!(weakFirstChar.Collisions > 0)) throw new InvalidOperationException("First-char hash must show visible collisions");
         Check.Equal(0, stable.Collisions, "Stable hash must avoid collisions on this small key set");
 
         Print(weakLength);

@@ -16,7 +16,7 @@ internal static class IndexScaleSmoke
             streamGen: CreateStreamFactory(dbPath, "age"),
             sequence: sequence,
             applicable: _ => true,
-            hashFunc: SamplePeople.Age,
+            hashFunc: ExtendPeopleScheme.Age,
             comp: Comparer<object>.Create(CompareByAge));
 
         sequence.uindexes = new IUIndex[] { ageIndex };
@@ -25,7 +25,7 @@ internal static class IndexScaleSmoke
         sequence.Refresh();
 
         object byPrimaryKey = sequence.GetByKey(150);
-        Check.Equal(150, SamplePeople.Id(byPrimaryKey), "Primary key lookup must find id=150");
+        Check.Equal(150, ExtendPeopleScheme.Id(byPrimaryKey), "Primary key lookup must find id=150");
 
         object[] age42 = FindByAge(sequence, 42);
         Check.SequenceEqual(new[] { 22, 62, 102, 142, 182 }, OrderedIds(age42),
@@ -33,7 +33,7 @@ internal static class IndexScaleSmoke
 
         Console.WriteLine($"Loaded generated records: {Count}");
         Console.WriteLine("Primary key lookup id=150:");
-        Console.WriteLine($"  {SamplePeople.Describe(byPrimaryKey)}");
+        Console.WriteLine($"  {ExtendPeopleScheme.Describe(byPrimaryKey)}");
         Console.WriteLine();
         Console.WriteLine("Secondary age index lookup age=42:");
         Print(age42);
@@ -42,7 +42,7 @@ internal static class IndexScaleSmoke
     private static IReadOnlyList<object> CreatePeople(int count)
     {
         return Enumerable.Range(1, count)
-            .Select(id => (object)SamplePeople.Person(
+            .Select(id => (object)ExtendPeopleScheme.Person(
                 id,
                 FullName(id),
                 City(id),
@@ -55,17 +55,17 @@ internal static class IndexScaleSmoke
 
     private static object[] FindByAge(USequence sequence, int age)
     {
-        return sequence.GetAllBySample(0, SamplePeople.AgeSample(age)).ToArray();
+        return sequence.GetAllBySample(0, ExtendPeopleScheme.AgeSample(age)).ToArray();
     }
 
     private static int[] OrderedIds(IEnumerable<object> records)
     {
-        return records.Select(SamplePeople.Id).OrderBy(id => id).ToArray();
+        return records.Select(ExtendPeopleScheme.Id).OrderBy(id => id).ToArray();
     }
 
     private static int CompareByAge(object left, object right)
     {
-        return SamplePeople.Age(left).CompareTo(SamplePeople.Age(right));
+        return ExtendPeopleScheme.Age(left).CompareTo(ExtendPeopleScheme.Age(right));
     }
 
     private static int Age(int id) => 20 + id % 40;
@@ -97,11 +97,11 @@ internal static class IndexScaleSmoke
     {
         var nextStreamIndex = 0;
         return new USequence(
-            SamplePeople.RecordType,
+            ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => SamplePeople.Id(record),
+            keyFunc: record => ExtendPeopleScheme.Id(record),
             hashOfKey: key => Convert.ToInt32(key),
             optimise: true);
     }
@@ -121,7 +121,7 @@ internal static class IndexScaleSmoke
 
     private static void Print(IEnumerable<object> records)
     {
-        foreach (object record in records.OrderBy(SamplePeople.Id))
-            Console.WriteLine($"  {SamplePeople.Describe(record)}");
+        foreach (object record in records.OrderBy(ExtendPeopleScheme.Id))
+            Console.WriteLine($"  {ExtendPeopleScheme.Describe(record)}");
     }
 }
