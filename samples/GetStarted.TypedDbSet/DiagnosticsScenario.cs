@@ -11,9 +11,9 @@ internal static partial class Program
         using IDbSet<Person> people = new DbSet<Person>(
             rootPath,
             options => options
-                .Key(x => x.Id)
-                .ExternalKey(x => x.Age)
-                .ExternalKey(x => x.City));
+                .UseKey(x => x.Id)
+                .UseExternalKey(x => x.Age)
+                .UseExternalKey(x => x.City));
 
         people.AddRange(new[]
         {

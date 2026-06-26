@@ -17,7 +17,7 @@ internal static partial class Program
         SchemeCompatibilityException missingField = ExpectSchemeError(() =>
         {
             using var _ = new DbSet<PersonWithoutCity>(rootPath, options =>
-                options.Name(PersonStorageName).Key(x => x.Id));
+                options.Name(PersonStorageName).UseKey(x => x.Id));
         });
 
         Check.Equal(true, missingField.Detail.Contains("Field count changed"),
@@ -26,7 +26,7 @@ internal static partial class Program
         SchemeCompatibilityException reorderedFields = ExpectSchemeError(() =>
         {
             using var _ = new DbSet<PersonWithChangedOrder>(rootPath, options =>
-                options.Name(PersonStorageName).Key(x => x.Id));
+                options.Name(PersonStorageName).UseKey(x => x.Id));
         });
 
         Check.Equal(true, reorderedFields.Detail.Contains("Field #2 changed"),

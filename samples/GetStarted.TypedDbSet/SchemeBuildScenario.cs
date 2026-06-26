@@ -26,11 +26,11 @@ internal static partial class Program
         ExpectLongKeySupport();
         ExpectGuidKeySupport();
         ExpectBuildError<PersonWithDateTime>(
-            options => options.Key(x => x.Id),
+            options => options.UseKey(x => x.Id),
             "CreatedAt",
             "System.DateTime");
         ExpectBuildError<PersonWithoutConstructor>(
-            options => options.Key(x => x.Id),
+            options => options.UseKey(x => x.Id),
             "public constructor with fields");
 
         Console.WriteLine("Scheme build guard requires explicit key and supports long/Guid keys.");
@@ -41,7 +41,7 @@ internal static partial class Program
         string rootPath = DbPath.Create();
         using IDbSet<PersonWithLongId> people = new DbSet<PersonWithLongId>(
             rootPath,
-            options => options.Key(x => x.Id));
+            options => options.UseKey(x => x.Id));
 
         long id = 9_000_000_000L;
         people.Append(new PersonWithLongId(id, "Леонид Серов"));
@@ -53,7 +53,7 @@ internal static partial class Program
         string rootPath = DbPath.Create();
         using IDbSet<PersonWithGuidId> people = new DbSet<PersonWithGuidId>(
             rootPath,
-            options => options.Key(x => x.Code));
+            options => options.UseKey(x => x.Code));
 
         Guid code = Guid.Parse("9f9ca22f-9136-4e91-bceb-8f8c3f4be001");
         people.Append(new PersonWithGuidId(code, "Наталья Бородина"));

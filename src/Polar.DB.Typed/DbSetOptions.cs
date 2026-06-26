@@ -20,17 +20,20 @@ public sealed class DbSetOptions<T>
         return this;
     }
 
-    public DbSetOptions<T> Key<TKey>(Expression<Func<T, TKey>> field)
+    public DbSetOptions<T> UseKey<TKey>(Expression<Func<T, TKey>> field)
     {
         if (field == null) throw new ArgumentNullException(nameof(field));
         KeySelectorValue = field;
         return this;
     }
 
-    public DbSetOptions<T> ExternalKey<TKey>(Expression<Func<T, TKey>> field)
+    public DbSetOptions<T> UseExternalKey<TKey>(Expression<Func<T, TKey>> field)
     {
         if (field == null) throw new ArgumentNullException(nameof(field));
+        
         _externalKeyNames.Add(ExpressionField.Name(field));
+        
         return this;
     }
+
 }

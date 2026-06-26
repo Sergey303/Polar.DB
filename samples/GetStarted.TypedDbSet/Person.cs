@@ -11,9 +11,9 @@ internal static partial class Program
     private static IDbSet<Person> OpenPeople(string rootPath) => new DbSet<Person>(
         rootPath,
         options => options
-            .Key(x => x.Id)
-            .ExternalKey(x => x.Age)
-            .ExternalKey(x => x.City));
+            .UseKey(x => x.Id)
+            .UseExternalKey(x => x.Age)
+            .UseExternalKey(x => x.City));
 
     private static string Format(Person person) =>
         $"#{person.Id} {person.Name} | age={person.Age} | city={person.City}";

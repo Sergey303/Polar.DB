@@ -2,11 +2,11 @@ using Polar.DB.Typed.Schema;
 
 namespace Polar.DB.Typed.Runtime;
 
-internal sealed class ExternalKeyIndex
+internal sealed class ExternalKeyIndexTyped
 {
     private readonly Dictionary<object, List<object>> _records = new();
 
-    public ExternalKeyIndex(FieldScheme field)
+    public ExternalKeyIndexTyped(FieldScheme field)
     {
         Field = field ?? throw new ArgumentNullException(nameof(field));
     }

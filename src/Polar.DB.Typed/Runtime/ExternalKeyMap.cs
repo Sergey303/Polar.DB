@@ -1,11 +1,10 @@
-using Polar.DB.ExternalKey;
 using Polar.DB.Typed.Schema;
 
 namespace Polar.DB.Typed.Runtime;
 
-internal sealed class InMemoryExternalKeyMap
+internal sealed class ExternalKeyMap<TRecord>
 {
-    private readonly Dictionary<string, InMemoryExternalKeyIndex> _indexes = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ExternalKeyIndexTyped> _indexes = new(StringComparer.Ordinal);
 
     public int Count => _indexes.Count;
 
@@ -28,7 +27,7 @@ internal sealed class InMemoryExternalKeyMap
         if (field == null) throw new ArgumentNullException(nameof(field));
         if (records == null) throw new ArgumentNullException(nameof(records));
 
-        var index = new InMemoryExternalKeyIndex(field.Name, field.Index);
+        var index = new ExternalKeyIndexTyped(field);
         foreach (object? record in records)
         {
             if (record == null) continue;
@@ -42,12 +41,12 @@ internal sealed class InMemoryExternalKeyMap
     {
         if (records == null) throw new ArgumentNullException(nameof(records));
 
-        InMemoryExternalKeyIndex[] existing = _indexes.Values
-            .Select(index => new InMemoryExternalKeyIndex(index.Name, index.RecordIndex))
+        ExternalKeyIndexTyped[] existing = _indexes.Values
+            .Select(index => new ExternalKeyIndexTyped(index.Field))
             .ToArray();
 
         _indexes.Clear();
-        foreach (InMemoryExternalKeyIndex index in existing)
+        foreach (ExternalKeyIndexTyped index in existing)
         {
             foreach (object? record in records)
             {
@@ -63,7 +62,7 @@ internal sealed class InMemoryExternalKeyMap
     {
         if (record == null) throw new ArgumentNullException(nameof(record));
 
-        foreach (InMemoryExternalKeyIndex index in _indexes.Values)
+        foreach (ExternalKeyIndexTyped index in _indexes.Values)
             index.ReadKey(record);
     }
 
@@ -71,13 +70,13 @@ internal sealed class InMemoryExternalKeyMap
     {
         if (record == null) throw new ArgumentNullException(nameof(record));
 
-        foreach (InMemoryExternalKeyIndex index in _indexes.Values)
+        foreach (ExternalKeyIndexTyped index in _indexes.Values)
             index.Add(record);
     }
 
-    public IReadOnlyList<object> Find(string fieldName, object? value)
+    public IReadOnlyList<object> Find<T>(string fieldName, T? value)
     {
-        if (!_indexes.TryGetValue(fieldName, out InMemoryExternalKeyIndex? index))
+        if (!_indexes.TryGetValue(fieldName, out ExternalKeyIndexTyped? index))
             throw new InvalidOperationException($"External key index for field '{fieldName}' was not built.");
 
         return index.Find(value);

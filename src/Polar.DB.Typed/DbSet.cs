@@ -17,7 +17,7 @@ public sealed class DbSet<T> : IDbSet<T>
     private readonly DbSetGate _gate = new();
     private readonly RuntimeAppendCollector _appendCollector = new();
     private readonly RuntimePrimaryKeyMap _primaryKeyMap = new();
-    private readonly InMemoryExternalKeyMap _externalKeyIndexes = new();
+    private readonly ExternalKeyMap<T> _externalKeyIndexes = new();
     private readonly ActiveSequenceOwner _owner;
     private bool _disposed;
 

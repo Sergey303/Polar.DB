@@ -19,9 +19,9 @@ internal static partial class Program
             rootPath,
             options => options
                 .Name("people")
-                .Key(x => x.Code)
-                .ExternalKey(x => x.Age)
-                .ExternalKey(x => x.City)))
+                .UseKey(x => x.Code)
+                .UseExternalKey(x => x.Age)
+                .UseExternalKey(x => x.City)))
         {
             people.AddRange(new[]
             {
@@ -44,9 +44,9 @@ internal static partial class Program
             rootPath,
             options => options
                 .Name("people")
-                .Key(x => x.Code)
-                .ExternalKey(x => x.Age)
-                .ExternalKey(x => x.City));
+                .UseKey(x => x.Code)
+                .UseExternalKey(x => x.Age)
+                .UseExternalKey(x => x.City));
 
         Check.Equal(2, reopened.Count, "Configured DbSet must rebuild Count after reopen");
         Check.Equal("Лидия Королёва", reopened.GetByKey("P-100").Name,
@@ -67,8 +67,8 @@ internal static partial class Program
         using IDbSet<PersonByLongCode> people = new DbSet<PersonByLongCode>(
             rootPath,
             options => options
-                .Key(x => x.Code)
-                .ExternalKey(x => x.City));
+                .UseKey(x => x.Code)
+                .UseExternalKey(x => x.City));
 
         long code = 9_000_000_001L;
         people.Append(new PersonByLongCode(code, "Олег Зимин", "Псков"));
@@ -83,8 +83,8 @@ internal static partial class Program
         using IDbSet<PersonByGuidCode> people = new DbSet<PersonByGuidCode>(
             rootPath,
             options => options
-                .Key(x => x.Code)
-                .ExternalKey(x => x.City));
+                .UseKey(x => x.Code)
+                .UseExternalKey(x => x.City));
 
         Guid code = Guid.Parse("4d937aea-0f43-47a1-9ce2-945729c7f002");
         people.Append(new PersonByGuidCode(code, "Полина Рябова", "Тверь"));
@@ -99,7 +99,7 @@ internal static partial class Program
             DbPath.Create(),
             options => options
                 .Name("people-by-code-no-ext")
-                .Key(x => x.Code));
+                .UseKey(x => x.Code));
 
         people.Append(new PersonByCode("P-200", "Роман Нестеров", 37, "Самара"));
 

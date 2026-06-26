@@ -31,8 +31,8 @@ internal static partial class Program
         using IDbSet<PersonWithTypedGuidKey> guidPeople = new DbSet<PersonWithTypedGuidKey>(
             DbPath.Create(),
             options => options
-                .Key(x => x.Code)
-                .ExternalKey(x => x.City));
+                .UseKey(x => x.Code)
+                .UseExternalKey(x => x.City));
 
         guidPeople.Append(new PersonWithTypedGuidKey(code, "Мария Лебедева", "Тверь"));
         Check.Equal("Мария Лебедева", guidPeople.GetByKey(code).Name, "Guid key must still work");
