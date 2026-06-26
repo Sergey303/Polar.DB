@@ -1,7 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using Polar.DB;
-using Polar.DB.Typed;
 
 namespace Polar.DB.Typed.Schema;
 

@@ -21,7 +21,7 @@ internal static partial class Program
             new Person(91, "Валерия Котова", 36, "Калуга")
         });
 
-        DbSetDiagnostics before = people.Diagnostics();
+        DbSetDiagnostics before = ((DbSet<Person>) people).Diagnostics();
         Check.Equal(PersonStorageName, before.StorageName, "Diagnostics must show storage name");
         Check.Equal(true, Directory.Exists(before.StoragePath), "Diagnostics must show existing storage path");
         Check.Equal("Id", before.KeyName, "Diagnostics must show configured primary key name");
@@ -36,7 +36,7 @@ internal static partial class Program
             "Diagnostics must show that no secondary map is built before first Find");
 
         _ = people.Find(x => x.City, "Москва");
-        DbSetDiagnostics after = people.Diagnostics();
+        DbSetDiagnostics after = ((DbSet<Person>) people).Diagnostics();
         Check.SequenceEqual(new[] { "City" }, after.BuiltExternalKeyNames,
             "Diagnostics must show built external-key maps after Find");
 

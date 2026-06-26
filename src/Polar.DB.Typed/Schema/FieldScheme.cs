@@ -1,5 +1,4 @@
 using System.Reflection;
-using Polar.DB;
 
 namespace Polar.DB.Typed.Schema;
 
@@ -35,6 +34,47 @@ internal sealed class FieldScheme
     public object? ToStorageValue(object? value) => _toStorage(value);
 
     public object? FromStorageValue(object? value) => _fromStorage(value);
+
+    public object? ReadStorageValue(object storageRecord)
+    {
+        if (storageRecord == null) throw new ArgumentNullException(nameof(storageRecord));
+        return ((object[])storageRecord)[Index];
+    }
+
+    public TField ReadClrValue<TField>(object storageRecord)
+    {
+        EnsureClrType<TField>();
+
+        object? value = FromStorageValue(ReadStorageValue(storageRecord));
+        if (value is TField typed)
+            return typed;
+
+        if (value == null && default(TField) == null)
+            return default!;
+
+        throw new InvalidOperationException(
+            $"Field '{Name}' expected CLR value type '{typeof(TField).FullName}', " +
+            $"but storage conversion returned '{value?.GetType().FullName ?? "<null>"}'.");
+    }
+
+    public IEnumerable<TField> ReadSingleClrValue<TField>(object storageRecord)
+    {
+        TField value = ReadClrValue<TField>(storageRecord);
+        if (value == null)
+            yield break;
+
+        yield return value;
+    }
+
+    public void EnsureClrType<TField>()
+    {
+        if (ClrType != typeof(TField))
+        {
+            throw new ArgumentException(
+                $"Field '{Name}' expects key type '{ClrType.FullName}', " +
+                $"but got '{typeof(TField).FullName}'.");
+        }
+    }
 
     public IComparable ToComparableStorageKey(IComparable key)
     {

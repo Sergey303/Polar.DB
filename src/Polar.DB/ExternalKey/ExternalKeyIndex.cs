@@ -2,7 +2,7 @@ using Polar.Universal;
 
 namespace Polar.DB.ExternalKey;
 
-public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
+public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     where T : IComparable<T>
 {
     private readonly USequence _sequence;
@@ -13,7 +13,7 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
     private readonly List<ExternalKeyIndexEntry<T>> _dynamic = new();
     private ExternalKeyIndexSnapshot<T> _snapshot = ExternalKeyIndexSnapshot<T>.Empty;
     private long _revision;
-        private bool disposed;
+    private bool _disposed;
 
     public ExternalKeyIndex(
         Func<Stream> streamGen,
@@ -74,7 +74,7 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
         _dynamic.RemoveAll(entry => Equals(entry.Primary, primary));
 
-        foreach (var key in GetKeys(element))
+        foreach (T key in GetKeys(element))
             _dynamic.Add(new ExternalKeyIndexEntry<T>(primary, key, offset, revision));
     }
 
@@ -86,7 +86,7 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
         ExternalKeyIndexEntry<T>[] dynamicEntries = _dynamic.ToArray();
 
         var emittedOffsets = new HashSet<long>();
-        foreach (var entry in dynamicEntries.Where(entry => KeyEquals(entry.Key, key)))
+        foreach (ExternalKeyIndexEntry<T> entry in dynamicEntries.Where(entry => KeyEquals(entry.Key, key)))
         {
             object? value = TryReadDynamic(entry, elementFilter, emittedOffsets);
             if (value != null) yield return value;
@@ -130,8 +130,8 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     private bool KeyEquals(T left, T right) => _comparer.Compare(left, right) == 0;
 
-    private IEnumerable<T> GetKeys(object element) => _keysFunc(element) ?? Enumerable.Empty<T>();
-    
+    private IEnumerable<T> GetKeys(object element) => _keysFunc(element) ?? Enumerable.Empty<T>();
+
     public void Dispose()
     {
         Dispose(true);
@@ -140,10 +140,9 @@ public sealed class ExternalKeyIndex<T> : IUIndex, IExternalKeyIndex
 
     private void Dispose(bool disposing)
     {
-        if (!disposing || disposed) return;
+        if (!disposing || _disposed) return;
         _keys.Dispose();
         _offsets.Dispose();
-        disposed = true;
+        _disposed = true;
     }
-
 }

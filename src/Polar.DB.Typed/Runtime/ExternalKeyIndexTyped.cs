@@ -1,46 +1,51 @@
-using Polar.DB.Typed.Schema;
+using Polar.DB.ExternalKey;
+using Polar.Universal;
 
 namespace Polar.DB.Typed.Runtime;
 
-internal sealed class ExternalKeyIndexTyped
+internal sealed class ExternalKeyIndexTyped<TRecord, TExternalKey> : IExternalKeyIndexTyped<TRecord, TExternalKey>
+    where TExternalKey : IComparable<TExternalKey>
 {
-    private readonly Dictionary<object, List<object>> _records = new();
+    private readonly IExternalKeyIndex<TExternalKey> _storageIndex;
+    private readonly Func<object, TRecord> _fromStorageRecord;
+    private readonly Func<object, TExternalKey> _readKey;
 
-    public ExternalKeyIndexTyped(FieldScheme field)
+    public ExternalKeyIndexTyped(
+        string name,
+        IExternalKeyIndex<TExternalKey> storageIndex,
+        Func<object, TRecord> fromStorageRecord,
+        Func<object, TExternalKey> readKey)
     {
-        Field = field ?? throw new ArgumentNullException(nameof(field));
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("External key name is required.", nameof(name));
+
+        Name = name;
+        _storageIndex = storageIndex ?? throw new ArgumentNullException(nameof(storageIndex));
+        _fromStorageRecord = fromStorageRecord ?? throw new ArgumentNullException(nameof(fromStorageRecord));
+        _readKey = readKey ?? throw new ArgumentNullException(nameof(readKey));
     }
 
-    public FieldScheme Field { get; }
-    public string Name => Field.Name;
+    public string Name { get; }
 
-    public object ReadKey(object record)
+    public Type KeyType => typeof(TExternalKey);
+
+    public IUIndex StorageIndex => _storageIndex;
+
+    public void Build()
     {
-        if (record == null) throw new ArgumentNullException(nameof(record));
-
-        object? rawValue = ((object[])record)[Field.Index];
-        return Normalize(rawValue);
+        _storageIndex.Build();
     }
 
-    public void Add(object record)
+    public void ValidateStorageRecord(object storageRecord)
     {
-        object key = ReadKey(record);
-        if (!_records.TryGetValue(key, out List<object>? bucket))
-        {
-            bucket = new List<object>();
-            _records.Add(key, bucket);
-        }
-
-        bucket.Add(record);
+        _ = _readKey(storageRecord);
     }
 
-    public IReadOnlyList<object> Find(object? value)
+    public IReadOnlyList<TRecord> Find(TExternalKey value)
     {
-        object key = Normalize(value);
-        return _records.TryGetValue(key, out List<object>? bucket)
-            ? bucket.ToArray()
-            : Array.Empty<object>();
+        return _storageIndex
+            .GetManyByValue(value)
+            .Select(_fromStorageRecord)
+            .ToArray();
     }
-
-    internal static object Normalize(object? value) => value ?? new();
 }

@@ -5,8 +5,6 @@ using Polar.DB.Typed.Concurrency;
 using Polar.DB.Typed.Runtime;
 using Polar.DB.Typed.Schema;
 using Polar.Universal;
-using RuntimeAppendCollector = Polar.DB.Typed.Runtime.AppendCollector;
-using RuntimePrimaryKeyMap = Polar.DB.Typed.Runtime.PrimaryKeyMap;
 
 namespace Polar.DB.Typed;
 
@@ -15,10 +13,11 @@ public sealed class DbSet<T> : IDbSet<T>
     private readonly Scheme<T> _scheme;
     private readonly string _tablePath;
     private readonly DbSetGate _gate = new();
-    private readonly RuntimeAppendCollector _appendCollector = new();
-    private readonly RuntimePrimaryKeyMap _primaryKeyMap = new();
-    private readonly ExternalKeyMap<T> _externalKeyIndexes = new();
+    private readonly AppendCollector _appendCollector = new();
+    private readonly PrimaryKeyMap _primaryKeyMap = new();
+    private readonly IExternalKeyIndexRegistry<T> _externalKeyIndexes = new ExternalKeyIndexRegistry<T>();
     private readonly ActiveSequenceOwner _owner;
+    private readonly IExternalKeyIndexFactory<T> _externalKeyIndexFactory;
     private bool _disposed;
 
     public DbSet(string rootPath)
@@ -39,6 +38,7 @@ public sealed class DbSet<T> : IDbSet<T>
         _tablePath = Path.Combine(rootPath, _scheme.StorageName);
         _scheme.SaveOrValidate(_tablePath);
         _owner = new ActiveSequenceOwner(OpenSequence(_tablePath));
+        _externalKeyIndexFactory = new ExternalKeyIndexFactory<T>(_tablePath, _owner.Active, _scheme.FromRecord);
         RebuildPrimaryKeyMap();
     }
 
@@ -151,18 +151,15 @@ public sealed class DbSet<T> : IDbSet<T>
     }
 
     public IReadOnlyList<T> Find<TKey>(Expression<Func<T, TKey>> field, TKey value)
+        where TKey : IComparable<TKey>
     {
         ThrowIfDisposed();
         string fieldName = ExpressionField.Name(field);
         FieldScheme fieldScheme = _scheme.GetExternalKey(fieldName);
+        fieldScheme.EnsureClrType<TKey>();
 
-        EnsureExternalKeyIndex(fieldName, fieldScheme);
-        object? storageValue = fieldScheme.ToStorageValue(value);
-
-        return _gate.Read(() => _externalKeyIndexes
-            .Find(fieldName, storageValue)
-            .Select(_scheme.FromRecord)
-            .ToArray());
+        IExternalKeyIndexTyped<T, TKey> index = EnsureExternalKeyIndex<TKey>(fieldName, fieldScheme);
+        return _gate.Read(() => index.Find(value));
     }
 
     public void Dispose()
@@ -199,7 +196,6 @@ public sealed class DbSet<T> : IDbSet<T>
                     activeSequenceChanged = true;
 
                     _primaryKeyMap.Add(item.Key, item.Record);
-                    _externalKeyIndexes.AddToBuiltIndexes(item.Record);
                     _appendCollector.Append(item.Record);
                 }
             }
@@ -213,22 +209,33 @@ public sealed class DbSet<T> : IDbSet<T>
         });
     }
 
-    private void EnsureExternalKeyIndex(string fieldName, FieldScheme fieldScheme)
+    private IExternalKeyIndexTyped<T, TKey> EnsureExternalKeyIndex<TKey>(
+        string fieldName,
+        FieldScheme fieldScheme)
+        where TKey : IComparable<TKey>
     {
-        if (_gate.Read(() => _externalKeyIndexes.Has(fieldName)))
-            return;
+        IExternalKeyIndexTyped<T, TKey>? found = null;
+        if (_gate.Read(() => _externalKeyIndexes.TryGet(fieldName, out found)))
+            return found!;
 
         _gate.Write(() =>
         {
-            if (_externalKeyIndexes.Has(fieldName))
+            if (_externalKeyIndexes.TryGet(fieldName, out found))
                 return;
 
-            IEnumerable<object> records = _owner.Active
-                .ElementValues()
-                .Where(record => record != null)!;
-
-            _externalKeyIndexes.Rebuild(fieldScheme, records);
+            IExternalKeyIndexTyped<T, TKey> index = _externalKeyIndexFactory.Create<TKey>(fieldScheme);
+            index.Build();
+            _externalKeyIndexes.Add(index);
+            UpdateActiveExternalKeyIndexes();
+            found = index;
         });
+
+        return found!;
+    }
+
+    private void UpdateActiveExternalKeyIndexes()
+    {
+        _owner.Active.uindexes = _externalKeyIndexes.StorageIndexes.ToArray();
     }
 
     private void RebuildPrimaryKeyMap()
@@ -245,7 +252,7 @@ public sealed class DbSet<T> : IDbSet<T>
             .ToArray();
 
         _primaryKeyMap.Rebuild(records, _scheme.GetRecordKey);
-        _externalKeyIndexes.RebuildExisting(records);
+        _externalKeyIndexes.RebuildExisting();
     }
 
     private USequence OpenSequence(string tablePath)

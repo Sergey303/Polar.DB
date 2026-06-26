@@ -1,7 +1,5 @@
 using System.Globalization;
 using System.Reflection;
-using Polar.DB;
-using Polar.DB.Typed;
 
 namespace Polar.DB.Typed.Schema;
 
@@ -71,12 +69,14 @@ internal static class SchemeBuilder
 
     private static void EnsureComparableKey(Type recordType, FieldScheme field)
     {
-        if (!typeof(IComparable).IsAssignableFrom(field.ClrType))
+        Type typedComparable = typeof(IComparable<>).MakeGenericType(field.ClrType);
+        if (!typeof(IComparable).IsAssignableFrom(field.ClrType) ||
+            !typedComparable.IsAssignableFrom(field.ClrType))
         {
             throw new SchemeBuildException(
                 recordType,
                 field.Name,
-                $"Key field '{field.Name}' must implement IComparable.");
+                $"Key field '{field.Name}' must implement IComparable and IComparable<{field.ClrType.Name}>.");
         }
     }
 

@@ -21,6 +21,7 @@ public sealed class DbSetOptions<T>
     }
 
     public DbSetOptions<T> UseKey<TKey>(Expression<Func<T, TKey>> field)
+        where TKey : IComparable<TKey>
     {
         if (field == null) throw new ArgumentNullException(nameof(field));
         KeySelectorValue = field;
@@ -28,12 +29,10 @@ public sealed class DbSetOptions<T>
     }
 
     public DbSetOptions<T> UseExternalKey<TKey>(Expression<Func<T, TKey>> field)
+        where TKey : IComparable<TKey>
     {
         if (field == null) throw new ArgumentNullException(nameof(field));
-        
         _externalKeyNames.Add(ExpressionField.Name(field));
-        
         return this;
     }
-
 }

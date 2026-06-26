@@ -10,6 +10,7 @@ internal static class ExternalKeyIndexKeyCodec<T>
         if (type == typeof(long)) return new PType(PTypeEnumeration.longinteger);
         if (type == typeof(string)) return new PType(PTypeEnumeration.sstring);
         if (type == typeof(Guid)) return new PType(PTypeEnumeration.sstring);
+        if (type == typeof(bool)) return new PType(PTypeEnumeration.boolean);
 
         throw new NotSupportedException($"ExternalKeyIndex does not support key type {type.FullName}.");
     }
@@ -34,6 +35,8 @@ internal static class ExternalKeyIndexKeyCodec<T>
             return (T)(object)Guid.Parse(text);
         if (typeof(T) == typeof(string))
             return (T)(object)Convert.ToString(key)!;
+        if (typeof(T) == typeof(bool))
+            return (T)(object)Convert.ToBoolean(key);
 
         return (T)Convert.ChangeType(key, typeof(T));
     }

@@ -7,18 +7,23 @@ namespace Polar.DB.SchedulingOptimization;
 /// </summary>
 public sealed class AppendCollector
 {
-    private readonly List<object> _items = new();
+    private readonly List<object> _records = new();
 
-    public int Count => _items.Count;
+    public int Count => _records.Count;
 
-    public void Add(object element)
+    public void Append(object record)
     {
-        if (element == null) throw new ArgumentNullException(nameof(element));
-        _items.Add(element);
+        if (record == null) throw new ArgumentNullException(nameof(record));
+        _records.Add(record);
     }
 
-    public object[] TakeSnapshot()
+    public IReadOnlyList<object> TakeSnapshot()
     {
-        return _items.ToArray();
+        return _records.ToArray();
+    }
+
+    public void Clear()
+    {
+        _records.Clear();
     }
 }

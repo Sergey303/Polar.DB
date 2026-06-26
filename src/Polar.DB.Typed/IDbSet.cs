@@ -7,8 +7,6 @@ public interface IDbSet<T> : IDisposable
 {
     int Count { get; }
 
-    DbSetDiagnostics Diagnostics();
-
     void Append(T value);
 
     void AddRange(IEnumerable<T> values);
@@ -25,5 +23,6 @@ public interface IDbSet<T> : IDisposable
 
     IReadOnlyList<T> Find<TKey>(
         Expression<Func<T, TKey>> field,
-        TKey value);
+        TKey value)
+        where TKey : IComparable<TKey>;
 }

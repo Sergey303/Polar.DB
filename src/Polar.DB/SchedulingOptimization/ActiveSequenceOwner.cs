@@ -24,7 +24,7 @@ public sealed class ActiveSequenceOwner : IDisposable
         {
             ThrowIfDisposed();
             Active.AppendElement(element);
-            _collector?.Add(element);
+            _collector?.Append(element);
         }
     }
 
