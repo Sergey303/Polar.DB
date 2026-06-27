@@ -1,40 +1,38 @@
 namespace Polar.DB.Typed.Runtime;
 
-internal sealed class PrimaryKeyMap
+internal sealed class PrimaryKeyMap<TRecord> : IPrimaryKeyMap<TRecord>
 {
-    private readonly Dictionary<IComparable, object> _records = new();
+    private readonly IPrimaryKeyIndex<TRecord> _index;
 
-    public int Count => _records.Count;
-
-    public void Rebuild(
-        IEnumerable<object> records,
-        Func<object, IComparable> getKey)
+    public PrimaryKeyMap(IPrimaryKeyIndex<TRecord> index)
     {
-        if (records == null) throw new ArgumentNullException(nameof(records));
-        if (getKey == null) throw new ArgumentNullException(nameof(getKey));
-
-        _records.Clear();
-        foreach (object? record in records)
-        {
-            if (record == null) continue;
-            Add(getKey(record), record);
-        }
+        _index = index ?? throw new ArgumentNullException(nameof(index));
     }
 
-    public void Add(IComparable key, object record)
+    public int Count => _index.Count;
+
+    public void Build()
+    {
+        _index.Build();
+    }
+
+    public bool TryGet(IComparable key, out TRecord record)
     {
         if (key == null) throw new ArgumentNullException(nameof(key));
-        if (record == null) throw new ArgumentNullException(nameof(record));
+        return _index.TryGet(key, out record);
+    }
 
-        if (_records.ContainsKey(key))
+    public bool Contains(IComparable key)
+    {
+        if (key == null) throw new ArgumentNullException(nameof(key));
+        return _index.Contains(key);
+    }
+
+    public void EnsureMissing(IComparable key)
+    {
+        if (key == null) throw new ArgumentNullException(nameof(key));
+
+        if (Contains(key))
             throw new InvalidOperationException($"Duplicate primary key '{key}'.");
-
-        _records.Add(key, record);
-    }
-
-    public bool TryGet(IComparable key, out object record)
-    {
-        if (key == null) throw new ArgumentNullException(nameof(key));
-        return _records.TryGetValue(key, out record!);
     }
 }

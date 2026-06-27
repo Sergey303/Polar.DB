@@ -14,7 +14,7 @@ public sealed class DbSet<T> : IDbSet<T>
     private readonly string _tablePath;
     private readonly DbSetGate _gate = new();
     private readonly AppendCollector _appendCollector = new();
-    private readonly PrimaryKeyMap _primaryKeyMap = new();
+    private readonly IPrimaryKeyMap<T> _primaryKeyMap;
     private readonly IExternalKeyIndexRegistry<T> _externalKeyIndexes = new ExternalKeyIndexRegistry<T>();
     private readonly ActiveSequenceOwner _owner;
     private readonly IExternalKeyIndexFactory<T> _externalKeyIndexFactory;
@@ -38,8 +38,10 @@ public sealed class DbSet<T> : IDbSet<T>
         _tablePath = Path.Combine(rootPath, _scheme.StorageName);
         _scheme.SaveOrValidate(_tablePath);
         _owner = new ActiveSequenceOwner(OpenSequence(_tablePath));
+        _primaryKeyMap = new PrimaryKeyMap<T>(
+            new USequencePrimaryKeyIndex<T>(_owner.Active, _scheme.FromRecord));
         _externalKeyIndexFactory = new ExternalKeyIndexFactory<T>(_tablePath, _owner.Active, _scheme.FromRecord);
-        RebuildPrimaryKeyMap();
+        BuildPrimaryKeyMap();
     }
 
     public int Count
@@ -115,20 +117,21 @@ public sealed class DbSet<T> : IDbSet<T>
         if (key == null) throw new ArgumentNullException(nameof(key));
 
         IComparable storageKey = _scheme.NormalizeKey(key);
-        T? found = _gate.Read(() =>
+        T? foundValue = default;
+        bool found = _gate.Read(() =>
         {
-            return _primaryKeyMap.TryGet(storageKey, out object record)
-                ? _scheme.FromRecord(record)
-                : default;
+            bool ok = _primaryKeyMap.TryGet(storageKey, out T record);
+            foundValue = record;
+            return ok;
         });
 
-        if (found == null)
+        if (!found)
         {
             value = default;
             return false;
         }
 
-        value = found;
+        value = foundValue!;
         return true;
     }
 
@@ -137,7 +140,7 @@ public sealed class DbSet<T> : IDbSet<T>
         ThrowIfDisposed();
         if (key == null) throw new ArgumentNullException(nameof(key));
         IComparable storageKey = _scheme.NormalizeKey(key);
-        return _gate.Read(() => _primaryKeyMap.TryGet(storageKey, out _));
+        return _gate.Read(() => _primaryKeyMap.Contains(storageKey));
     }
 
     public IReadOnlyList<T> All()
@@ -177,8 +180,7 @@ public sealed class DbSet<T> : IDbSet<T>
             var keysInBatch = new HashSet<IComparable>();
             foreach (PendingRecord item in records)
             {
-                if (_primaryKeyMap.TryGet(item.Key, out _))
-                    throw new InvalidOperationException($"Duplicate primary key '{item.Key}'.");
+                _primaryKeyMap.EnsureMissing(item.Key);
 
                 if (!keysInBatch.Add(item.Key))
                     throw new InvalidOperationException($"Duplicate primary key '{item.Key}' inside AddRange batch.");
@@ -195,7 +197,6 @@ public sealed class DbSet<T> : IDbSet<T>
                     _owner.AppendElement(item.Record);
                     activeSequenceChanged = true;
 
-                    _primaryKeyMap.Add(item.Key, item.Record);
                     _appendCollector.Append(item.Record);
                 }
             }
@@ -238,20 +239,14 @@ public sealed class DbSet<T> : IDbSet<T>
         _owner.Active.uindexes = _externalKeyIndexes.StorageIndexes.ToArray();
     }
 
-    private void RebuildPrimaryKeyMap()
+    private void BuildPrimaryKeyMap()
     {
-        _primaryKeyMap.Rebuild(_owner.Active.ElementValues(), _scheme.GetRecordKey);
+        _primaryKeyMap.Build();
     }
 
     private void TryRecoverInMemoryMaps()
     {
-        object[] records = _owner.Active
-            .ElementValues()
-            .Where(record => record != null)
-            .Select(record => record!)
-            .ToArray();
-
-        _primaryKeyMap.Rebuild(records, _scheme.GetRecordKey);
+        _primaryKeyMap.Build();
         _externalKeyIndexes.RebuildExisting();
     }
 
