@@ -14,7 +14,7 @@ namespace Polar.Universal
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
         private string? stateFileName;
-        private UKeyIndex.BuildEntry[]? loadedPrimaryBuildEntries;
+        private BuildEntry[]? loadedPrimaryBuildEntries;
         private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
@@ -79,8 +79,8 @@ namespace Polar.Universal
         {
             Clear();
             var loadedEntries = flow is ICollection<object> collection
-                ? new List<UKeyIndex.BuildEntry>(collection.Count)
-                : new List<UKeyIndex.BuildEntry>();
+                ? new List<BuildEntry>(collection.Count)
+                : new List<BuildEntry>();
 
             foreach (var element in flow)
             {
@@ -88,11 +88,11 @@ namespace Polar.Universal
 
                 var offset = sequence.AppendElement(element);
                 var key = keyFunc(element);
-                loadedEntries.Add(new UKeyIndex.BuildEntry(hashOfKey(key), key, offset, isEmpty: false));
+                loadedEntries.Add(new BuildEntry(hashOfKey(key), key, offset, isEmpty: false));
             }
 
             loadedPrimaryBuildEntries = loadedEntries.Count == 0
-                ? Array.Empty<UKeyIndex.BuildEntry>()
+                ? Array.Empty<BuildEntry>()
                 : loadedEntries.ToArray();
 
             Flush();
