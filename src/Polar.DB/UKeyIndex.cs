@@ -96,9 +96,6 @@ namespace Polar.Universal
             {
                 sequence.ScanPhysical((off, obj) =>
                 {
-                    if (entryCount == entries.Length)
-                        Array.Resize(ref entries, ArrayHelper.GrowCapacity(entries.Length));
-
                     var key = keyFunc(obj);
                     entries[entryCount++] = new BuildEntry(hashOfKey(key), key, off, sequence.IsEmpty(obj));
                     return true;
