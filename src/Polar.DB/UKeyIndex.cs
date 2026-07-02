@@ -88,7 +88,7 @@ namespace Polar.Universal
             var writeOffsetsMs = 0.0;
             var gcMs = 0.0;
 
-            var capacity = GetBuildCapacityUpperBound(sequence.Count());
+            var capacity = ArrayHelper.GetBuildCapacityUpperBound(sequence.Count());
             var entries = capacity == 0 ? Array.Empty<BuildEntry>() : new BuildEntry[capacity];
             var entryCount = 0;
 
@@ -97,7 +97,7 @@ namespace Polar.Universal
                 sequence.ScanPhysical((off, obj) =>
                 {
                     if (entryCount == entries.Length)
-                        Array.Resize(ref entries, GrowCapacity(entries.Length));
+                        Array.Resize(ref entries, ArrayHelper.GrowCapacity(entries.Length));
 
                     var key = keyFunc(obj);
                     entries[entryCount++] = new BuildEntry(hashOfKey(key), key, off, sequence.IsEmpty(obj));
@@ -407,60 +407,12 @@ namespace Polar.Universal
             return left;
         }
 
-        private static int GetBuildCapacityUpperBound(long count)
-        {
-            if (count > int.MaxValue)
-                throw new InvalidOperationException("UKeyIndex.Build cannot materialize more than Int32.MaxValue physical records.");
-            return count > 0 ? (int)count : 0;
-        }
-
-        private static int GrowCapacity(int currentCapacity)
-        {
-            if (currentCapacity == int.MaxValue)
-                throw new InvalidOperationException("UKeyIndex.Build cannot materialize more than Int32.MaxValue physical records.");
-
-            if (currentCapacity == 0) return 4;
-            return currentCapacity <= int.MaxValue / 2 ? currentCapacity * 2 : int.MaxValue;
-        }
-
         private static double Measure(Action action)
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             action();
             stopwatch.Stop();
             return stopwatch.Elapsed.TotalMilliseconds;
-        }
-
-        private readonly struct BuildEntry
-        {
-            public BuildEntry(int hashKey, IComparable key, long offset, bool isEmpty)
-            {
-                HashKey = hashKey;
-                Key = key;
-                Offset = offset;
-                IsEmpty = isEmpty;
-            }
-
-            public int HashKey { get; }
-            public IComparable Key { get; }
-            public long Offset { get; }
-            public bool IsEmpty { get; }
-        }
-
-        private sealed class BuildEntryComparer : IComparer<BuildEntry>
-        {
-            public static readonly BuildEntryComparer Instance = new();
-
-            public int Compare(BuildEntry left, BuildEntry right)
-            {
-                var hashComparison = left.HashKey.CompareTo(right.HashKey);
-                if (hashComparison != 0) return hashComparison;
-
-                var keyComparison = left.Key.CompareTo(right.Key);
-                if (keyComparison != 0) return keyComparison;
-
-                return left.Offset.CompareTo(right.Offset);
-            }
         }
 
         public void Dispose()
