@@ -82,11 +82,6 @@ namespace Polar.Universal
         {
             var totalWatch = System.Diagnostics.Stopwatch.StartNew();
             var scanMs = 0.0;
-            var toArrayMs = 0.0;
-            var sortMs = 0.0;
-            var writeHashKeysMs = 0.0;
-            var writeOffsetsMs = 0.0;
-            var gcMs = 0.0;
 
             var capacity = ArrayHelper.GetBuildCapacityUpperBound(sequence.Count());
             var entries = capacity == 0 ? Array.Empty<BuildEntry>() : new BuildEntry[capacity];
@@ -101,6 +96,26 @@ namespace Polar.Universal
                     return true;
                 });
             });
+
+            BuildFromEntries(entries, entryCount, scanMs, totalWatch);
+        }
+
+        internal void BuildFromLoadedEntries(BuildEntry[] entries, int entryCount)
+        {
+            if (entries == null) throw new ArgumentNullException(nameof(entries));
+            if (entryCount < 0 || entryCount > entries.Length) throw new ArgumentOutOfRangeException(nameof(entryCount));
+
+            var totalWatch = System.Diagnostics.Stopwatch.StartNew();
+            BuildFromEntries(entries, entryCount, scanMs: 0.0, totalWatch);
+        }
+
+        private void BuildFromEntries(BuildEntry[] entries, int entryCount, double scanMs, System.Diagnostics.Stopwatch totalWatch)
+        {
+            var toArrayMs = 0.0;
+            var sortMs = 0.0;
+            var writeHashKeysMs = 0.0;
+            var writeOffsetsMs = 0.0;
+            var gcMs = 0.0;
 
             sortMs = Measure(() =>
             {
@@ -410,6 +425,38 @@ namespace Polar.Universal
             action();
             stopwatch.Stop();
             return stopwatch.Elapsed.TotalMilliseconds;
+        }
+
+        internal readonly struct BuildEntry
+        {
+            internal BuildEntry(int hashKey, IComparable key, long offset, bool isEmpty)
+            {
+                HashKey = hashKey;
+                Key = key;
+                Offset = offset;
+                IsEmpty = isEmpty;
+            }
+
+            public int HashKey { get; }
+            public IComparable Key { get; }
+            public long Offset { get; }
+            public bool IsEmpty { get; }
+        }
+
+        private sealed class BuildEntryComparer : IComparer<BuildEntry>
+        {
+            public static readonly BuildEntryComparer Instance = new();
+
+            public int Compare(BuildEntry left, BuildEntry right)
+            {
+                var hashComparison = left.HashKey.CompareTo(right.HashKey);
+                if (hashComparison != 0) return hashComparison;
+
+                var keyComparison = left.Key.CompareTo(right.Key);
+                if (keyComparison != 0) return keyComparison;
+
+                return left.Offset.CompareTo(right.Offset);
+            }
         }
 
         public void Dispose()
