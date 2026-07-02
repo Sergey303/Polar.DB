@@ -96,9 +96,6 @@ namespace Polar.Universal
             {
                 sequence.ScanPhysical((off, obj) =>
                 {
-                    if (entryCount == entries.Length)
-                        Array.Resize(ref entries, GrowCapacity(entries.Length));
-
                     var key = keyFunc(obj);
                     entries[entryCount++] = new BuildEntry(hashOfKey(key), key, off, sequence.IsEmpty(obj));
                     return true;
@@ -412,15 +409,6 @@ namespace Polar.Universal
             if (count > int.MaxValue)
                 throw new InvalidOperationException("UKeyIndex.Build cannot materialize more than Int32.MaxValue physical records.");
             return count > 0 ? (int)count : 0;
-        }
-
-        private static int GrowCapacity(int currentCapacity)
-        {
-            if (currentCapacity == int.MaxValue)
-                throw new InvalidOperationException("UKeyIndex.Build cannot materialize more than Int32.MaxValue physical records.");
-
-            if (currentCapacity == 0) return 4;
-            return currentCapacity <= int.MaxValue / 2 ? currentCapacity * 2 : int.MaxValue;
         }
 
         private static double Measure(Action action)
