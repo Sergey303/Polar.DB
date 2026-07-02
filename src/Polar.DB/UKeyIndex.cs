@@ -89,42 +89,43 @@ namespace Polar.Universal
             var gcMs = 0.0;
 
             var capacity = GetBuildCapacityUpperBound(sequence.Count());
-            var latestByKey = new Dictionary<IComparable, BuildEntry>(capacity);
+            var entries = capacity == 0 ? Array.Empty<BuildEntry>() : new BuildEntry[capacity];
+            var entryCount = 0;
+
             scanMs = Measure(() =>
             {
                 sequence.ScanPhysical((off, obj) =>
                 {
+                    if (entryCount == entries.Length)
+                        Array.Resize(ref entries, GrowCapacity(entries.Length));
+
                     var key = keyFunc(obj);
-                    latestByKey[key] = new BuildEntry(hashOfKey(key), off, sequence.IsEmpty(obj));
+                    entries[entryCount++] = new BuildEntry(hashOfKey(key), key, off, sequence.IsEmpty(obj));
                     return true;
                 });
+            });
+
+            sortMs = Measure(() =>
+            {
+                if (entryCount > 1)
+                    Array.Sort(entries, 0, entryCount, BuildEntryComparer.Instance);
             });
 
             long[] offsets_arr = Array.Empty<long>();
             toArrayMs = Measure(() =>
             {
-                var liveCount = 0;
-                foreach (var entry in latestByKey.Values)
-                {
-                    if (!entry.IsEmpty) liveCount++;
-                }
-
+                var liveCount = CompactLatestLiveEntries(entries, entryCount);
                 hkeys_arr = new int[liveCount];
                 offsets_arr = new long[liveCount];
 
-                var index = 0;
-                foreach (var entry in latestByKey.Values)
+                for (var i = 0; i < liveCount; i++)
                 {
-                    if (entry.IsEmpty) continue;
-                    hkeys_arr[index] = entry.HashKey;
-                    offsets_arr[index] = entry.Offset;
-                    index++;
+                    hkeys_arr[i] = entries[i].HashKey;
+                    offsets_arr[i] = entries[i].Offset;
                 }
 
-                latestByKey.Clear();
+                entries = Array.Empty<BuildEntry>();
             });
-
-            sortMs = Measure(() => Array.Sort(hkeys_arr, offsets_arr));
 
             writeHashKeysMs = Measure(() =>
             {
@@ -370,6 +371,27 @@ namespace Polar.Universal
             return false;
         }
 
+        private static int CompactLatestLiveEntries(BuildEntry[] entries, int entryCount)
+        {
+            var liveCount = 0;
+            var index = 0;
+
+            while (index < entryCount)
+            {
+                var latest = entries[index++];
+                while (index < entryCount && IsSameLogicalKey(latest, entries[index]))
+                    latest = entries[index++];
+
+                if (!latest.IsEmpty)
+                    entries[liveCount++] = latest;
+            }
+
+            return liveCount;
+        }
+
+        private static bool IsSameLogicalKey(BuildEntry left, BuildEntry right) =>
+            left.HashKey == right.HashKey && left.Key.CompareTo(right.Key) == 0;
+
         private static int LowerBound(int[] values, int value)
         {
             int left = 0;
@@ -392,6 +414,15 @@ namespace Polar.Universal
             return count > 0 ? (int)count : 0;
         }
 
+        private static int GrowCapacity(int currentCapacity)
+        {
+            if (currentCapacity == int.MaxValue)
+                throw new InvalidOperationException("UKeyIndex.Build cannot materialize more than Int32.MaxValue physical records.");
+
+            if (currentCapacity == 0) return 4;
+            return currentCapacity <= int.MaxValue / 2 ? currentCapacity * 2 : int.MaxValue;
+        }
+
         private static double Measure(Action action)
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -402,16 +433,34 @@ namespace Polar.Universal
 
         private readonly struct BuildEntry
         {
-            public BuildEntry(int hashKey, long offset, bool isEmpty)
+            public BuildEntry(int hashKey, IComparable key, long offset, bool isEmpty)
             {
                 HashKey = hashKey;
+                Key = key;
                 Offset = offset;
                 IsEmpty = isEmpty;
             }
 
             public int HashKey { get; }
+            public IComparable Key { get; }
             public long Offset { get; }
             public bool IsEmpty { get; }
+        }
+
+        private sealed class BuildEntryComparer : IComparer<BuildEntry>
+        {
+            public static readonly BuildEntryComparer Instance = new();
+
+            public int Compare(BuildEntry left, BuildEntry right)
+            {
+                var hashComparison = left.HashKey.CompareTo(right.HashKey);
+                if (hashComparison != 0) return hashComparison;
+
+                var keyComparison = left.Key.CompareTo(right.Key);
+                if (keyComparison != 0) return keyComparison;
+
+                return left.Offset.CompareTo(right.Offset);
+            }
         }
 
         public void Dispose()
