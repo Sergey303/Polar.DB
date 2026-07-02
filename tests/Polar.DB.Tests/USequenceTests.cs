@@ -77,6 +77,25 @@ public class USequenceTests
     }
 
     [Fact]
+    public void Load_Then_Build_Deduplicates_Primary_Key_Using_Loaded_Entries()
+    {
+        using var scope = new USequenceScope(PersonType);
+
+        scope.Sequence.Load(new object[]
+        {
+            new object[] { 1, "Old" },
+            new object[] { 2, "Bob" },
+            new object[] { 1, "New" }
+        });
+
+        scope.Sequence.Build();
+
+        var byDuplicateKey = Assert.IsType<object[]>(scope.Sequence.GetByKey(1));
+        Assert.Equal("New", Assert.IsType<string>(byDuplicateKey[1]));
+        Assert.Equal(0.0, scope.Sequence.LastPrimaryBuildProfile.ScanMs);
+    }
+
+    [Fact]
     public void ElementValues_And_Scan_Use_Only_Latest_Duplicate_Key()
     {
         using var scope = new USequenceScope(PersonType);
