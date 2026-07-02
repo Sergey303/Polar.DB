@@ -427,38 +427,6 @@ namespace Polar.Universal
             return stopwatch.Elapsed.TotalMilliseconds;
         }
 
-        internal readonly struct BuildEntry
-        {
-            internal BuildEntry(int hashKey, IComparable key, long offset, bool isEmpty)
-            {
-                HashKey = hashKey;
-                Key = key;
-                Offset = offset;
-                IsEmpty = isEmpty;
-            }
-
-            public int HashKey { get; }
-            public IComparable Key { get; }
-            public long Offset { get; }
-            public bool IsEmpty { get; }
-        }
-
-        private sealed class BuildEntryComparer : IComparer<BuildEntry>
-        {
-            public static readonly BuildEntryComparer Instance = new();
-
-            public int Compare(BuildEntry left, BuildEntry right)
-            {
-                var hashComparison = left.HashKey.CompareTo(right.HashKey);
-                if (hashComparison != 0) return hashComparison;
-
-                var keyComparison = left.Key.CompareTo(right.Key);
-                if (keyComparison != 0) return keyComparison;
-
-                return left.Offset.CompareTo(right.Offset);
-            }
-        }
-
         public void Dispose()
         {
             Dispose(true);
