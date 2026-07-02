@@ -77,6 +77,13 @@ namespace Polar.Universal
             }
         }
 
+        internal bool IsEmpty(object element) => isEmpty(element);
+
+        internal void ScanPhysical(Func<long, object, bool> handler)
+        {
+            sequence.Scan(handler);
+        }
+
         internal bool IsOriginalAndNotEmpty(object element, long off) =>
             primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
 
