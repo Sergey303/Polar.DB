@@ -24,7 +24,7 @@ namespace mag_experiments
             int cnt = 0;
             Func<Stream> GenStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
-            UniversalSequence sequence = new (tp, dbPath + "state.bin", GenStream,
+            USequence sequence = new (tp, dbPath + "state.bin", GenStream,
                 obj => accessor.Get<bool>(obj, "deleted"), 
                 obj => accessor.Get<int>(obj, "id"), 
                 key => (int)key);

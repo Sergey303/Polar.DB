@@ -49,6 +49,34 @@ public class USequenceTests
     }
 
     [Fact]
+    public void Build_Deduplicates_Primary_Key_And_Indexes_Latest_Physical_Record()
+    {
+        using var scope = new USequenceScope(PersonType);
+
+        scope.Sequence.AppendElement(new object[] { 1, "Old" });
+        scope.Sequence.AppendElement(new object[] { 2, "Bob" });
+        scope.Sequence.AppendElement(new object[] { 1, "New" });
+
+        scope.Sequence.Build();
+
+        var byDuplicateKey = Assert.IsType<object[]>(scope.Sequence.GetByKey(1));
+        Assert.Equal("New", Assert.IsType<string>(byDuplicateKey[1]));
+
+        var byOtherKey = Assert.IsType<object[]>(scope.Sequence.GetByKey(2));
+        Assert.Equal("Bob", Assert.IsType<string>(byOtherKey[1]));
+
+        var values = scope.Sequence.ElementValues()
+            .Cast<object[]>()
+            .Select(r => ((int)r[0], (string)r[1]))
+            .ToArray();
+
+        Assert.Equal(2, values.Length);
+        Assert.DoesNotContain(values, x => x == (1, "Old"));
+        Assert.Contains(values, x => x == (1, "New"));
+        Assert.Contains(values, x => x == (2, "Bob"));
+    }
+
+    [Fact]
     public void ElementValues_And_Scan_Use_Only_Latest_Duplicate_Key()
     {
         using var scope = new USequenceScope(PersonType);

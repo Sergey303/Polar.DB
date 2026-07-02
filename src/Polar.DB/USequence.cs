@@ -77,6 +77,13 @@ namespace Polar.Universal
             }
         }
 
+        internal bool IsEmpty(object element) => isEmpty(element);
+
+        internal void ScanPhysical(Func<long, object, bool> handler)
+        {
+            sequence.Scan(handler);
+        }
+
         internal bool IsOriginalAndNotEmpty(object element, long off) =>
             primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
 
@@ -116,7 +123,18 @@ namespace Polar.Universal
 
         public object GetByKey(IComparable keysample) => primaryKeyIndex.GetByKey(keysample);
 
-        internal object GetByOffset(long off) => sequence.GetElement(off);
+        internal object GetByOffset(long off)
+        {
+            var position = sequence.Media.Position;
+            try
+            {
+                return sequence.GetElement(off);
+            }
+            finally
+            {
+                sequence.Media.Position = Math.Min(position, sequence.Media.Length);
+            }
+        }
 
         public IEnumerable<object> GetAllByValue(int nom, IComparable value,
             Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)
