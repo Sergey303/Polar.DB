@@ -13,6 +13,7 @@ namespace Polar.Universal
         internal bool ElementChanged(IComparable key) { return keyoff_dic.ContainsKey(key); }
         private bool keysinmemory;
         private int[] hkeys_arr = null;
+        private bool hasBuiltSnapshot;
         private bool disposed;
 
         public UIndexBuildProfile LastBuildProfile { get; private set; } = UIndexBuildProfile.Empty;
@@ -42,6 +43,7 @@ namespace Polar.Universal
             hkeys_arr = null;
             offsets.Clear();
             keyoff_dic.Clear();
+            hasBuiltSnapshot = false;
             LastBuildProfile = UIndexBuildProfile.Empty;
         }
 
@@ -60,7 +62,9 @@ namespace Polar.Universal
         {
             hkeys.Refresh();
             offsets.Refresh();
+            var persistedKeyCount = hkeys.Count();
             hkeys_arr = keysinmemory ? hkeys.ElementValues().Cast<int>().ToArray() : null;
+            hasBuiltSnapshot = persistedKeyCount > 0;
         }
 
         public void Build()
@@ -73,14 +77,13 @@ namespace Polar.Universal
             var writeOffsetsMs = 0.0;
             var gcMs = 0.0;
 
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
+            var latestByKey = new Dictionary<IComparable, BuildEntry>();
             scanMs = Measure(() =>
             {
                 sequence.Scan((off, obj) =>
                 {
-                    offsets_list.Add(off);
-                    hkeys_list.Add(hashOfKey(keyFunc(obj)));
+                    var key = keyFunc(obj);
+                    latestByKey[key] = new BuildEntry(hashOfKey(key), off);
                     return true;
                 });
             });
@@ -88,10 +91,19 @@ namespace Polar.Universal
             long[] offsets_arr = Array.Empty<long>();
             toArrayMs = Measure(() =>
             {
-                hkeys_arr = hkeys_list.ToArray();
-                hkeys_list = null;
-                offsets_arr = offsets_list.ToArray();
-                offsets_list = null;
+                var count = latestByKey.Count;
+                hkeys_arr = new int[count];
+                offsets_arr = new long[count];
+
+                var index = 0;
+                foreach (var entry in latestByKey.Values)
+                {
+                    hkeys_arr[index] = entry.HashKey;
+                    offsets_arr[index] = entry.Offset;
+                    index++;
+                }
+
+                latestByKey.Clear();
             });
 
             gcMs += Measure(() => GC.Collect());
@@ -110,6 +122,8 @@ namespace Polar.Universal
                 offsets.ReplaceWithFixedInt64Array(offsets_arr);
             });
 
+            keyoff_dic.Clear();
+            hasBuiltSnapshot = true;
             offsets_arr = null;
             gcMs += Measure(() => GC.Collect());
             totalWatch.Stop();
@@ -123,45 +137,18 @@ namespace Polar.Universal
         {
             if (keyoff_dic.TryGetValue(keysample, out long off))
             {
-                return sequence.GetByOffset(off);
+                var dynamicValue = sequence.GetByOffset(off);
+                return dynamicValue != null && sequence.IsOriginalAndNotEmpty(dynamicValue, off)
+                    ? dynamicValue
+                    : null;
             }
 
-            int hkey = hashOfKey(keysample);
-
-            if (hkeys_arr != null)
+            if (TryGetIndexedOffsetByKey(keysample, out var indexedOffset))
             {
-                int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
-                if (pos < 0) return null;
-                int p = pos;
-                while (p >= 0 && hkeys_arr[p] == hkey)
-                {
-                    pos = p;
-                    p--;
-                }
-
-                while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
-                {
-                    long offset = (long)offsets.GetByIndex(pos);
-                    object val = sequence.GetByOffset(offset);
-                    if (val == null) return null;
-                    var k = keyFunc(val);
-                    if (k.CompareTo(keysample) == 0) return val;
-                    pos++;
-                }
-
-                return null;
-            }
-
-            long first = GetFirstNom(hkey);
-            if (first == -1) return null;
-            for (long nom = first; nom < hkeys.Count(); nom++)
-            {
-                long offset = (long)offsets.GetByIndex(nom);
-                object val = sequence.GetByOffset(offset);
-                if (val == null) break;
-                var k = keyFunc(val);
-                if (hashOfKey(k) != hkey) break;
-                if (k.CompareTo(keysample) == 0) return val;
+                var value = sequence.GetByOffset(indexedOffset);
+                return value != null && sequence.IsOriginalAndNotEmpty(value, indexedOffset)
+                    ? value
+                    : null;
             }
 
             return null;
@@ -188,7 +175,8 @@ namespace Polar.Universal
         public bool IsOriginal(IComparable key, long offset)
         {
             if (keyoff_dic.TryGetValue(key, out long off)) return off == offset;
-            return true;
+            if (TryGetIndexedOffsetByKey(key, out var indexedOffset)) return indexedOffset == offset;
+            return !hasBuiltSnapshot;
         }
 
         public object GetExactlyOneByKey(IComparable keysample)
@@ -263,9 +251,7 @@ namespace Polar.Universal
 
             if (hkeys_arr != null)
             {
-                int pos = Array.BinarySearch(hkeys_arr, hkey);
-                if (pos < 0) return result;
-                while (pos > 0 && hkeys_arr[pos - 1] == hkey) pos--;
+                int pos = LowerBound(hkeys_arr, hkey);
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
@@ -298,14 +284,97 @@ namespace Polar.Universal
             return result;
         }
 
+        private bool TryGetIndexedOffsetByKey(IComparable keysample, out long offset)
+        {
+            int hkey = hashOfKey(keysample);
+
+            if (hkeys_arr != null)
+            {
+                int pos = LowerBound(hkeys_arr, hkey);
+                while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
+                {
+                    var candidateOffset = (long)offsets.GetByIndex(pos);
+                    var value = sequence.GetByOffset(candidateOffset);
+                    if (value != null)
+                    {
+                        var candidateKey = keyFunc(value);
+                        if (candidateKey.CompareTo(keysample) == 0)
+                        {
+                            offset = candidateOffset;
+                            return true;
+                        }
+                    }
+
+                    pos++;
+                }
+
+                offset = default;
+                return false;
+            }
+
+            long first = GetFirstNom(hkey);
+            if (first == -1)
+            {
+                offset = default;
+                return false;
+            }
+
+            for (long nom = first; nom < hkeys.Count(); nom++)
+            {
+                int currentHash = (int)hkeys.GetByIndex(nom);
+                if (currentHash != hkey) break;
+
+                var candidateOffset = (long)offsets.GetByIndex(nom);
+                var value = sequence.GetByOffset(candidateOffset);
+                if (value == null) continue;
+
+                var candidateKey = keyFunc(value);
+                if (candidateKey.CompareTo(keysample) == 0)
+                {
+                    offset = candidateOffset;
+                    return true;
+                }
+            }
+
+            offset = default;
+            return false;
+        }
+
+        private static int LowerBound(int[] values, int value)
+        {
+            int left = 0;
+            int right = values.Length;
+
+            while (left < right)
+            {
+                int middle = left + (right - left) / 2;
+                if (values[middle] < value) left = middle + 1;
+                else right = middle;
+            }
+
+            return left;
+        }
+
         private static double Measure(Action action)
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             action();
             stopwatch.Stop();
             return stopwatch.Elapsed.TotalMilliseconds;
-        }
-        
+        }
+
+        private readonly struct BuildEntry
+        {
+            public BuildEntry(int hashKey, long offset)
+            {
+                HashKey = hashKey;
+                Offset = offset;
+            }
+
+            public int HashKey { get; }
+            public long Offset { get; }
+        }
+
         public void Dispose()
         {
             Dispose(true);
@@ -319,6 +388,5 @@ namespace Polar.Universal
             offsets.Dispose();
             disposed = true;
         }
-
     }
 }
