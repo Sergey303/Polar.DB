@@ -24,7 +24,7 @@ namespace mag_experiments
             int cnt = 0;
             Func<Stream> GenStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
-            UniversalSequence sequence = new (tp, dbPath + "state.bin", GenStream,
+            USequence sequence = new (tp, dbPath + "state.bin", GenStream,
                 obj => accessor.Get<bool>(obj, "deleted"), 
                 obj => accessor.Get<int>(obj, "id"), 
                 key => (int)key);
@@ -33,6 +33,8 @@ namespace mag_experiments
 [
     new object[] { 5, "five", 55, false },
                 new object[] { 4, "4", 44, false },
+                new object[] { 4, "41", 41, false },
+                new object[] { 4, "42", 42, false },
                 new object[] { 3, "3", 31, false },
                 new object[] { 2, "2", 33, false },
                 new object[] { 1, "1___0", 32, false },

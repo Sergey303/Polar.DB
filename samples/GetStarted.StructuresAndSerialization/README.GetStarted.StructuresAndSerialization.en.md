@@ -11,7 +11,7 @@ Use it to understand the basic building blocks of Polar values before moving to 
 - how `Interpret(...)` helps inspect values;
 - how text and binary serialization work;
 - how schema-aware helpers such as `RecordAccessor` improve readability and safety.
-- how object-like and RecordAccessor-like record access stay logically equivalent for the same schema/data.
+- how object-like and RecordAccessor-like record access stay logically equиваlent for the same schema/data.
 
 ## Recommended reading order
 

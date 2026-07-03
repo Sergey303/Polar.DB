@@ -1,4 +1,4 @@
-﻿using Polar.DB;
+using Polar.DB;
 
 namespace Polar.Universal
 {
@@ -12,6 +12,8 @@ namespace Polar.Universal
         // Статическая часть индекса
         private UniversalSequenceBase values;
         private UniversalSequenceBase offsets;
+        private bool disposed;
+
         // Динамическая часть состоит из списка первичный_ключ - (локальный_)ключ-величина - офсет
         struct PVO
         {
@@ -34,6 +36,7 @@ namespace Polar.Universal
 
             pvo_arr = new PVO[0];
         }
+
         public void OnAppendElement(object element, long offset)
         {
             var vals = valuesFunc(element);//
@@ -54,7 +57,8 @@ namespace Polar.Universal
 
         public void Clear() { values.Clear(); values_arr = new int[0]; offsets.Clear(); pvo_arr = new PVO[0]; }
         public void Flush() { values.Flush(); offsets.Flush(); }
-        public void Close() { values.Close(); offsets.Close(); }
+        public void Close() { Dispose(); }
+
         public void Refresh()
         {
             values_arr = values.ElementValues().Cast<int>().ToArray();
@@ -64,8 +68,8 @@ namespace Polar.Universal
         public void Build()
         {
             // сканируем опорную последовательность, формируем массивы
-            List<int> values_list = new ();
-            List<long> offsets_list = new ();
+            List<int> values_list = new();
+            List<long> offsets_list = new();
 
             sequence.Scan((off, obj) =>
             {
@@ -108,15 +112,12 @@ namespace Polar.Universal
             int pos = Array.BinarySearch<int>(values_arr, value, comp);
 
             // Список статически найденных элементов
-            List<object> objects = new ();
+            List<object> objects = new();
             if (pos >= 0)
             {
                 //  ищем самую левую позицию 
                 int p = pos;
                 while (p >= 0 && CEQU(values_arr[p], value)) { pos = p; p--; }
-
-                // Создаем множество офсетов объектов objects
-                //HashSet<long> offhash = new ();
 
                 // движемся вправо
                 for (int i = pos; i < values_arr.Length && CEQU(values_arr[i], value); i++)
@@ -131,19 +132,13 @@ namespace Polar.Universal
                     var p_key = sequence.keyFunc(elem_obj);
                     // Этот ключ мог быть перемещен в динамическую область. Проверим
                     if (pvo_arr.Any(plo => plo.primary == p_key)) continue; // Этот не берем
-                    
+
                     // элемент может быть пустым, такие не берем
                     if (sequence.isEmpty(elem_obj)) continue;
-                    
-                    // Элемент должен содержать искомый локальный ключ  -- Возможно, эта проверка не нужна в силу свойств массива values_arr
-                    // if (! valuesFunc(elem_obj).Any(v => CEQU(v, value))) continue;
 
-                    // Теперь этот элемент надо попробовать накопить, элементы разные если офсеты разные
                     // Проверим на то, что первичный ключ изменен, в этом случае элемент пропускаем
                     if (sequence.ElementChanged(p_key)) continue; // пропускаем
-                    
-                    // Добавим в offhash и objects
-                    //offhash.Add(offset);
+
                     objects.Add(elem_obj);
                 }
             }
@@ -155,6 +150,20 @@ namespace Polar.Universal
                     .Where(ob => !sequence.isEmpty(ob)) // убрали пустые
                     .Concat(objects)
                     ;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            values.Dispose();
+            offsets.Dispose();
+            disposed = true;
         }
     }
 }

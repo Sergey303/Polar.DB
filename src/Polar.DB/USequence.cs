@@ -8,11 +8,14 @@ namespace Polar.Universal
         private UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
         internal Func<object, IComparable> keyFunc;
+        private readonly Func<IComparable, int> hashOfKey;
         private UKeyIndex primaryKeyIndex;
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
         private string? stateFileName;
+        private BuildEntry[]? loadedPrimaryBuildEntries;
+        private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
@@ -20,6 +23,7 @@ namespace Polar.Universal
             sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
             this.keyFunc = keyFunc;
+            this.hashOfKey = hashOfKey;
             this.optimise = optimise;
             this.stateFileName = stateFileName;
             primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
@@ -45,18 +49,52 @@ namespace Polar.Universal
             }
         }
 
-        public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
+        public void Clear()
+        {
+            sequence.Clear();
+            primaryKeyIndex.Clear();
+            loadedPrimaryBuildEntries = null;
+            if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
+        }
+
         public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
-        public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
-        public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
+        public void Close()
+        {
+            if (disposed) return;
+            sequence.Close();
+            primaryKeyIndex.Close();
+            if (uindexes != null) foreach (var ui in uindexes) ui.Close();
+            disposed = true;
+        }
+
+        public void Refresh()
+        {
+            sequence.Refresh();
+            primaryKeyIndex.Refresh();
+            loadedPrimaryBuildEntries = null;
+            if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
+        }
 
         public void Load(IEnumerable<object> flow)
         {
             Clear();
+            var loadedEntries = flow is ICollection<object> collection
+                ? new List<BuildEntry>(collection.Count)
+                : new List<BuildEntry>();
+
             foreach (var element in flow)
             {
-                if (!isEmpty(element)) sequence.AppendElement(element);
+                if (isEmpty(element)) continue;
+
+                var offset = sequence.AppendElement(element);
+                var key = keyFunc(element);
+                loadedEntries.Add(new BuildEntry(hashOfKey(key), key, offset, isEmpty: false));
             }
+
+            loadedPrimaryBuildEntries = loadedEntries.Count == 0
+                ? Array.Empty<BuildEntry>()
+                : loadedEntries.ToArray();
+
             Flush();
 
             if (stateFileName != null)
@@ -67,6 +105,13 @@ namespace Polar.Universal
                 writer.Write(sequence.ElementOffset());
                 statefile.Close();
             }
+        }
+
+        internal bool IsEmpty(object element) => isEmpty(element);
+
+        internal void ScanPhysical(Func<long, object, bool> handler)
+        {
+            sequence.Scan(handler);
         }
 
         internal bool IsOriginalAndNotEmpty(object element, long off) =>
@@ -94,6 +139,7 @@ namespace Polar.Universal
 
         public void AppendElement(object element)
         {
+            loadedPrimaryBuildEntries = null;
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -101,6 +147,7 @@ namespace Polar.Universal
 
         public void CorrectOnAppendElement(long off)
         {
+            loadedPrimaryBuildEntries = null;
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -108,7 +155,18 @@ namespace Polar.Universal
 
         public object GetByKey(IComparable keysample) => primaryKeyIndex.GetByKey(keysample);
 
-        internal object GetByOffset(long off) => sequence.GetElement(off);
+        internal object GetByOffset(long off)
+        {
+            var position = sequence.Media.Position;
+            try
+            {
+                return sequence.GetElement(off);
+            }
+            finally
+            {
+                sequence.Media.Position = Math.Min(position, sequence.Media.Length);
+            }
+        }
 
         public IEnumerable<object> GetAllByValue(int nom, IComparable value,
             Func<object, IEnumerable<IComparable>> keysFunc, bool ignorecase = false)
@@ -164,17 +222,38 @@ namespace Polar.Universal
 
         public void Build()
         {
-            primaryKeyIndex.Build();
+            var loadedEntries = loadedPrimaryBuildEntries;
+            if (loadedEntries != null)
+            {
+                primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
+                loadedPrimaryBuildEntries = null;
+            }
+            else
+            {
+                primaryKeyIndex.Build();
+            }
+
             foreach (var ind in uindexes) ind.Build();
         }
 
         public UIndexBuildProfile LastPrimaryBuildProfile => primaryKeyIndex.LastBuildProfile;
 
         public long Count() => sequence.Count();
+
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
             Flush();
-            Close();
+            sequence.Dispose();
+            primaryKeyIndex.Dispose();
+            if (uindexes != null) foreach (var ui in uindexes) ui.Dispose();
+            disposed = true;
         }
     }
 }

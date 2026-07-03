@@ -41,6 +41,7 @@ namespace Polar.Universal
         }
 
         private IComparable[] values_arr = null;
+        private bool disposed;
 
         public void Clear()
         {
@@ -58,8 +59,7 @@ namespace Polar.Universal
 
         public void Close()
         {
-            values.Close();
-            element_offsets.Close();
+            Dispose();
         }
 
         public void Refresh()
@@ -139,6 +139,21 @@ namespace Polar.Universal
                 yield return new ObjOff(ob, offset);
                 pos++;
             }
+        }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            values.Dispose();
+            element_offsets.Dispose();
+            disposed = true;
+        }
+
     }
 }

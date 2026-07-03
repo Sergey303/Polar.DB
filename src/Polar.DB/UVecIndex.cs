@@ -91,6 +91,7 @@ namespace Polar.Universal
         private bool keysinmemory;
         private bool ignorecase;
         private int[]? hkeys_arr = null;
+        private bool disposed;
 
         public UVecIndex(Func<Stream> streamGen, USequence sequence,
             Func<object, IEnumerable<IComparable>> keysFunc, Func<IComparable, int> hashOfKey,
@@ -123,8 +124,7 @@ namespace Polar.Universal
 
         public void Close()
         {
-            hkeys.Close();
-            offsets.Close();
+            Dispose();
         }
 
         public void Refresh()
@@ -230,6 +230,21 @@ namespace Polar.Universal
                 if (emittedOffsets.Add(off)) yield return new ObjOff(rec, off);
                 i++;
             }
+        }
+        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposing || disposed) return;
+            hkeys.Dispose();
+            offsets.Dispose();
+            disposed = true;
+        }
+
     }
 }

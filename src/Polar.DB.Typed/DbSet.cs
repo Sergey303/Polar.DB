@@ -1,0 +1,282 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
+using Polar.DB.SchedulingOptimization;
+using Polar.DB.Typed.Concurrency;
+using Polar.DB.Typed.Runtime;
+using Polar.DB.Typed.Schema;
+using Polar.Universal;
+
+namespace Polar.DB.Typed;
+
+public sealed class DbSet<T> : IDbSet<T>
+{
+    private readonly Scheme<T> _scheme;
+    private readonly string _tablePath;
+    private readonly DbSetGate _gate = new();
+    private readonly AppendCollector _appendCollector = new();
+    private readonly IPrimaryKeyMap<T> _primaryKeyMap;
+    private readonly IExternalKeyIndexRegistry<T> _externalKeyIndexes = new ExternalKeyIndexRegistry<T>();
+    private readonly ActiveSequenceOwner _owner;
+    private readonly IExternalKeyIndexFactory<T> _externalKeyIndexFactory;
+    private bool _disposed;
+
+    public DbSet(string rootPath)
+        : this(rootPath, _ => { })
+    {
+    }
+
+    public DbSet(string rootPath, Action<DbSetOptions<T>> configure)
+    {
+        if (string.IsNullOrWhiteSpace(rootPath))
+            throw new ArgumentException("Root path is required.", nameof(rootPath));
+        if (configure == null) throw new ArgumentNullException(nameof(configure));
+
+        var options = new DbSetOptions<T>();
+        configure(options);
+
+        _scheme = SchemeBuilder.Build(options);
+        _tablePath = Path.Combine(rootPath, _scheme.StorageName);
+        _scheme.SaveOrValidate(_tablePath);
+        _owner = new ActiveSequenceOwner(OpenSequence(_tablePath));
+        _primaryKeyMap = new PrimaryKeyMap<T>(
+            new USequencePrimaryKeyIndex<T>(_owner.Active, _scheme.FromRecord));
+        _externalKeyIndexFactory = new ExternalKeyIndexFactory<T>(_tablePath, _owner.Active, _scheme.FromRecord);
+        BuildPrimaryKeyMap();
+    }
+
+    public int Count
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _gate.Read(() => _primaryKeyMap.Count);
+        }
+    }
+
+    internal int PendingAppendCount => _appendCollector.Count;
+    internal int PrimaryKeyCount => _primaryKeyMap.Count;
+    internal int ExternalKeyIndexCount => _externalKeyIndexes.Count;
+
+    public DbSetDiagnostics Diagnostics()
+    {
+        ThrowIfDisposed();
+        return _gate.Read(() => new DbSetDiagnostics(
+            _scheme.StorageName,
+            _tablePath,
+            _scheme.KeyName,
+            _scheme.KeyClrTypeName,
+            _scheme.FieldNames,
+            _scheme.ExternalKeyNames,
+            _externalKeyIndexes.BuiltFieldNames,
+            _primaryKeyMap.Count,
+            _appendCollector.Count));
+    }
+
+    public void Append(T value)
+    {
+        ThrowIfDisposed();
+        object record = _scheme.ToRecord(value);
+        IComparable key = _scheme.GetRecordKey(record);
+        AppendRecords(new[] { new PendingRecord(record, key) });
+    }
+
+    public void AddRange(IEnumerable<T> values)
+    {
+        ThrowIfDisposed();
+        if (values == null) throw new ArgumentNullException(nameof(values));
+
+        PendingRecord[] records = values
+            .Select(value =>
+            {
+                object record = _scheme.ToRecord(value);
+                IComparable key = _scheme.GetRecordKey(record);
+                return new PendingRecord(record, key);
+            })
+            .ToArray();
+
+        if (records.Length == 0)
+            return;
+
+        AppendRecords(records);
+    }
+
+    public T GetByKey(IComparable key)
+    {
+        if (TryGetByKey(key, out T? value))
+            return value;
+
+        throw new KeyNotFoundException(
+            $"No {typeof(T).Name} record was found for key '{key}'.");
+    }
+
+    public bool TryGetByKey(
+        IComparable key,
+        [MaybeNullWhen(false)] out T value)
+    {
+        ThrowIfDisposed();
+        if (key == null) throw new ArgumentNullException(nameof(key));
+
+        IComparable storageKey = _scheme.NormalizeKey(key);
+        T? foundValue = default;
+        bool found = _gate.Read(() =>
+        {
+            bool ok = _primaryKeyMap.TryGet(storageKey, out T record);
+            foundValue = record;
+            return ok;
+        });
+
+        if (!found)
+        {
+            value = default;
+            return false;
+        }
+
+        value = foundValue!;
+        return true;
+    }
+
+    public bool ContainsKey(IComparable key)
+    {
+        ThrowIfDisposed();
+        if (key == null) throw new ArgumentNullException(nameof(key));
+        IComparable storageKey = _scheme.NormalizeKey(key);
+        return _gate.Read(() => _primaryKeyMap.Contains(storageKey));
+    }
+
+    public IReadOnlyList<T> All()
+    {
+        ThrowIfDisposed();
+        return _gate.SequenceRead(() => _owner.Active
+            .ElementValues()
+            .Where(record => record != null)
+            .Select(record => _scheme.FromRecord(record!))
+            .ToArray());
+    }
+
+    public IReadOnlyList<T> Find<TKey>(Expression<Func<T, TKey>> field, TKey value)
+        where TKey : IComparable<TKey>
+    {
+        ThrowIfDisposed();
+        string fieldName = ExpressionField.Name(field);
+        FieldScheme fieldScheme = _scheme.GetExternalKey(fieldName);
+        fieldScheme.EnsureClrType<TKey>();
+
+        IExternalKeyIndexTyped<T, TKey> index = EnsureExternalKeyIndex<TKey>(fieldName, fieldScheme);
+        return _gate.Read(() => index.Find(value));
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _owner.Dispose();
+        _gate.Dispose();
+    }
+
+    private void AppendRecords(IReadOnlyList<PendingRecord> records)
+    {
+        _gate.Write(() =>
+        {
+            var keysInBatch = new HashSet<IComparable>();
+            foreach (PendingRecord item in records)
+            {
+                _primaryKeyMap.EnsureMissing(item.Key);
+
+                if (!keysInBatch.Add(item.Key))
+                    throw new InvalidOperationException($"Duplicate primary key '{item.Key}' inside AddRange batch.");
+            }
+
+            foreach (PendingRecord item in records)
+                _externalKeyIndexes.ValidateAddToBuiltIndexes(item.Record);
+
+            bool activeSequenceChanged = false;
+            try
+            {
+                foreach (PendingRecord item in records)
+                {
+                    _owner.AppendElement(item.Record);
+                    activeSequenceChanged = true;
+
+                    _appendCollector.Append(item.Record);
+                }
+            }
+            catch
+            {
+                if (activeSequenceChanged)
+                    TryRecoverInMemoryMaps();
+
+                throw;
+            }
+        });
+    }
+
+    private IExternalKeyIndexTyped<T, TKey> EnsureExternalKeyIndex<TKey>(
+        string fieldName,
+        FieldScheme fieldScheme)
+        where TKey : IComparable<TKey>
+    {
+        IExternalKeyIndexTyped<T, TKey>? found = null;
+        if (_gate.Read(() => _externalKeyIndexes.TryGet(fieldName, out found)))
+            return found!;
+
+        _gate.Write(() =>
+        {
+            if (_externalKeyIndexes.TryGet(fieldName, out found))
+                return;
+
+            IExternalKeyIndexTyped<T, TKey> index = _externalKeyIndexFactory.Create<TKey>(fieldScheme);
+            index.Build();
+            _externalKeyIndexes.Add(index);
+            UpdateActiveExternalKeyIndexes();
+            found = index;
+        });
+
+        return found!;
+    }
+
+    private void UpdateActiveExternalKeyIndexes()
+    {
+        _owner.Active.uindexes = _externalKeyIndexes.StorageIndexes.ToArray();
+    }
+
+    private void BuildPrimaryKeyMap()
+    {
+        _primaryKeyMap.Build();
+    }
+
+    private void TryRecoverInMemoryMaps()
+    {
+        _primaryKeyMap.Build();
+        _externalKeyIndexes.RebuildExisting();
+    }
+
+    private USequence OpenSequence(string tablePath)
+    {
+        Directory.CreateDirectory(tablePath);
+        int fileNumber = 0;
+
+        Stream StreamGen()
+        {
+            string path = Path.Combine(tablePath, $"data-{fileNumber++:00}.bin");
+            return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+        }
+
+        var sequence = new USequence(
+            _scheme.RecordType,
+            Path.Combine(tablePath, "state.bin"),
+            StreamGen,
+            _ => false,
+            _scheme.GetRecordKey,
+            _scheme.HashKey);
+
+        sequence.Refresh();
+        return sequence;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(DbSet<T>));
+    }
+
+    private readonly record struct PendingRecord(object Record, IComparable Key);
+}

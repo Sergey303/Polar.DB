@@ -4,6 +4,12 @@ namespace PolarDbBenchmarks;
 
 internal static class BenchmarkReportFormat
 {
+    private static readonly NumberFormatInfo NumberFormat = new()
+    {
+        NumberDecimalSeparator = ".",
+        NumberGroupSeparator = " "
+    };
+
     public static string Css() =>
         "body{font-family:Segoe UI,Arial,sans-serif;margin:32px}" +
         "table{border-collapse:collapse;margin:12px 0}td,th{border:1px solid #ddd;padding:6px 10px}" +
@@ -12,27 +18,27 @@ internal static class BenchmarkReportFormat
     public static string Cell(double value, double best, string suffix)
     {
         if (double.IsNaN(value)) return "<td>N/A</td>";
-        if (IsBest(value, best)) return "<td class=\"win\">" + Number(value) + suffix + " best</td>";
+        if (IsBest(value, best)) return "<td class=\"win\">" + Number(value) + suffix + "</td>";
         return "<td>" + Number(value) + suffix + " ×" + Number(value / best) + "</td>";
     }
 
     public static string HigherBetterCell(double value, double best, string suffix)
     {
         if (double.IsNaN(value)) return "<td>N/A</td>";
-        if (IsBest(value, best)) return "<td class=\"win\">" + Number(value) + suffix + " best</td>";
-        return "<td>" + Number(value) + suffix + " ×" + Number(best / value) + " lower</td>";
+        if (IsBest(value, best)) return "<td class=\"win\">" + Number(value) + suffix + "</td>";
+        return "<td>" + Number(value) + suffix + " ×" + Number(best / value) + "</td>";
     }
 
     public static string ByteCell(long value, long best)
     {
-        if (best <= 0 || value <= best) return "<td class=\"win\">" + Bytes(value) + " best</td>";
+        if (best <= 0 || value <= best) return "<td class=\"win\">" + Bytes(value) + "</td>";
         return "<td>" + Bytes(value) + " ×" + Number((double)value / best) + "</td>";
     }
 
     public static string HigherBetterLongCell(long value, long best, string suffix)
     {
-        if (value == best) return "<td class=\"win\">" + value + suffix + " best</td>";
-        return "<td>" + value + suffix + " ×" + Number((double)best / value) + " lower</td>";
+        if (value == best) return "<td class=\"win\">" + Long(value) + suffix + "</td>";
+        return "<td>" + Long(value) + suffix + " ×" + Number((double)best / value) + "</td>";
     }
 
     public static string RatioCell(long value, long available)
@@ -59,7 +65,11 @@ internal static class BenchmarkReportFormat
     public static string Escape(string value) =>
         value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
-    public static string Number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+    public static string Number(double value) => value.ToString("#,0.###", NumberFormat);
+
+    public static string Long(long value) => value.ToString("#,0", NumberFormat);
+
+    public static string Unsigned(ulong value) => value.ToString("#,0", NumberFormat);
 
     private static bool IsBest(double value, double best) =>
         Math.Abs(value - best) <= Math.Max(0.000001, Math.Abs(best) * 0.000001);
