@@ -33,14 +33,14 @@ internal static class BenchmarkReport
         builder.AppendLine("<style>" + BenchmarkReportFormat.Css() + "</style>");
         builder.AppendLine("</head><body><h1>" + BenchmarkReportFormat.Escape(options.Title) + "</h1>");
         builder.AppendLine("<p><b>Experiment:</b> " + BenchmarkReportFormat.Escape(options.ExperimentId) + "</p>");
-        builder.AppendLine("<p><b>Row orders:</b> " + string.Join(", ", options.RowCounts) + "</p>");
-        builder.AppendLine("<p>Lower is better. Green cells are column winners.</p>");
+        builder.AppendLine("<p><b>Row orders:</b> " + string.Join(", ", options.RowCounts.Select(count => BenchmarkReportFormat.Long(count))) + "</p>");
+        builder.AppendLine("<p>Green cells are column winners.</p>");
         return builder;
     }
 
     private static void AppendLifecycleRun(StringBuilder builder, BenchmarkRunResult run)
     {
-        builder.AppendLine("<h2>Rows: " + run.SetupRows + "</h2>");
+        builder.AppendLine("<h2>Rows: " + BenchmarkReportFormat.Long(run.SetupRows) + "</h2>");
         BenchmarkReportTables.AppendTiming(builder, run.Engines);
         BenchmarkReportTables.AppendMemoryPressure(builder, run.Engines);
         BenchmarkReportTables.AppendCorrectness(builder, run.Expected, run.Engines);
@@ -48,7 +48,7 @@ internal static class BenchmarkReport
 
     private static void AppendLookupRun(StringBuilder builder, LookupRunResult run)
     {
-        builder.AppendLine("<h2>Rows: " + run.SetupRows + "</h2>");
+        builder.AppendLine("<h2>Rows: " + BenchmarkReportFormat.Long(run.SetupRows) + "</h2>");
         foreach (var phase in run.Phases)
             SearchBenchmarkReportTables.AppendPhase(builder, phase);
     }
