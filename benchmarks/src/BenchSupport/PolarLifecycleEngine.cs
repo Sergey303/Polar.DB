@@ -13,6 +13,7 @@ internal static class PolarLifecycleEngine
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
+        var loadSamples = new List<double>();
         var buildSamples = new List<double>();
         var flushSamples = new List<double>();
         var stages = new MutablePrimaryBuildStages();
@@ -22,7 +23,7 @@ internal static class PolarLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
-            store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
+            var loadMs = Measure(() => store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row))));
             var total = Stopwatch.StartNew();
             var buildMs = Measure(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
@@ -32,6 +33,7 @@ internal static class PolarLifecycleEngine
             if (i >= 0)
             {
                 totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                loadSamples.Add(loadMs);
                 buildSamples.Add(buildMs);
                 flushSamples.Add(flushMs);
                 stages.Add(profile);
@@ -40,7 +42,7 @@ internal static class PolarLifecycleEngine
         }
         var rows = PolarMaterializer.ReadAll(artifactDir, ExperimentKind.BuildPrimaryIntOnly);
         return Result("polar-db-current", totalSamples, rows, artifactDir, before,
-            buildSamples, flushSamples, stages.ToImmutable());
+            buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
     }
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
     {
@@ -114,9 +116,10 @@ internal static class PolarLifecycleEngine
     private static EngineResult Result(
         string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir,
         ResourceSnapshot before, IReadOnlyList<double>? build = null,
-        IReadOnlyList<double>? flush = null, PrimaryBuildStageSamples? stages = null) =>
+        IReadOnlyList<double>? flush = null, PrimaryBuildStageSamples? stages = null,
+        IReadOnlyList<double>? load = null) =>
         new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush, stages);
+            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush, stages, load);
 
     private sealed class MutablePrimaryBuildStages
     {
