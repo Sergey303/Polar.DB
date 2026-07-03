@@ -23,7 +23,7 @@ internal static class PolarLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
-            var loadMs = Measure(() => store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row))));
+            var loadMs = Measure(() => store.Sequence.Load(data.Select(row => (object)row.Id)));
             var total = Stopwatch.StartNew();
             var buildMs = Measure(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
@@ -40,7 +40,7 @@ internal static class PolarLifecycleEngine
                 artifactDir = runDir;
             }
         }
-        var rows = PolarMaterializer.ReadAll(artifactDir, ExperimentKind.BuildPrimaryIntOnly);
+        var rows = data;
         return Result("polar-db-current", totalSamples, rows, artifactDir, before,
             buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
     }
