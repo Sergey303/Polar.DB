@@ -33,6 +33,8 @@ namespace mag_experiments
 [
     new object[] { 5, "five", 55, false },
                 new object[] { 4, "4", 44, false },
+                new object[] { 4, "41", 41, false },
+                new object[] { 4, "42", 42, false },
                 new object[] { 3, "3", 31, false },
                 new object[] { 2, "2", 33, false },
                 new object[] { 1, "1___0", 32, false },
