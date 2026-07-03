@@ -7,7 +7,7 @@ internal static class BenchmarkReportTables
     public static void AppendTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
     {
         AppendMainTiming(builder, engines);
-        if (engines.Any(engine => engine.BuildSamplesMs != null)) AppendBuildBreakdown(builder, engines);
+        if (engines.Any(engine => engine.BuildSamplesMs != null || engine.LoadSamplesMs != null)) AppendBuildBreakdown(builder, engines);
         if (engines.Any(engine => engine.PrimaryBuildStages != null)) AppendPrimaryBuildInternals(builder, engines);
     }
 
@@ -47,8 +47,15 @@ internal static class BenchmarkReportTables
 
     private static void AppendBuildBreakdown(StringBuilder builder, IReadOnlyList<EngineResult> engines)
     {
-        var rows = engines.Select(e => (Engine: e, Build: BenchmarkStats.From(e.BuildSamplesMs ?? Array.Empty<double>()),
-            Flush: BenchmarkStats.From(e.FlushSamplesMs ?? Array.Empty<double>()), Total: BenchmarkStats.From(e.SamplesMs))).ToArray();
+        var rows = engines.Select(e => (Engine: e,
+            Load: BenchmarkStats.From(e.LoadSamplesMs ?? Array.Empty<double>()),
+            Build: BenchmarkStats.From(e.BuildSamplesMs ?? Array.Empty<double>()),
+            Flush: BenchmarkStats.From(e.FlushSamplesMs ?? Array.Empty<double>()),
+            Total: BenchmarkStats.From(e.SamplesMs))).ToArray();
+        var bestLoadMedian = rows.Min(row => row.Load.Median);
+        var bestLoadP95 = rows.Min(row => row.Load.P95);
+        var bestLoadTrimmed = rows.Min(row => row.Load.TrimmedMean);
+        var bestLoadRowsSec = rows.Max(row => RowsPerSecond(row.Engine.Rows, row.Load.TrimmedMean));
         var bestBuildMedian = rows.Min(row => row.Build.Median);
         var bestBuildP95 = rows.Min(row => row.Build.P95);
         var bestBuildTrimmed = rows.Min(row => row.Build.TrimmedMean);
@@ -59,10 +66,14 @@ internal static class BenchmarkReportTables
         var bestTotalMedian = rows.Min(row => row.Total.Median);
 
         builder.AppendLine("<h3>Build stage breakdown</h3>");
-        builder.AppendLine("<table><tr><th>Engine</th><th>Build median</th><th>Build p95</th><th>Build trimmed</th><th>Build rows/sec by trimmed</th><th>Flush median</th><th>Flush p95</th><th>Flush trimmed</th><th>Total median</th><th>Build share</th></tr>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Load median</th><th>Load p95</th><th>Load trimmed</th><th>Load rows/sec by trimmed</th><th>Build median</th><th>Build p95</th><th>Build trimmed</th><th>Build rows/sec by trimmed</th><th>Flush median</th><th>Flush p95</th><th>Flush trimmed</th><th>Total median</th><th>Build share</th></tr>");
         foreach (var row in rows)
         {
             builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(row.Engine.Engine) + "</td>");
+            builder.Append(BenchmarkReportFormat.Cell(row.Load.Median, bestLoadMedian, " ms"));
+            builder.Append(BenchmarkReportFormat.Cell(row.Load.P95, bestLoadP95, " ms"));
+            builder.Append(BenchmarkReportFormat.Cell(row.Load.TrimmedMean, bestLoadTrimmed, " ms"));
+            builder.Append(BenchmarkReportFormat.HigherBetterCell(RowsPerSecond(row.Engine.Rows, row.Load.TrimmedMean), bestLoadRowsSec, ""));
             builder.Append(BenchmarkReportFormat.Cell(row.Build.Median, bestBuildMedian, " ms"));
             builder.Append(BenchmarkReportFormat.Cell(row.Build.P95, bestBuildP95, " ms"));
             builder.Append(BenchmarkReportFormat.Cell(row.Build.TrimmedMean, bestBuildTrimmed, " ms"));
