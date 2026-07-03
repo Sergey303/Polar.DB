@@ -17,6 +17,7 @@ internal static class SqliteLifecycleEngine
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
+        var loadSamples = new List<double>();
         var buildSamples = new List<double>();
         var flushSamples = new List<double>();
         var artifactDir = dir;
@@ -26,7 +27,7 @@ internal static class SqliteLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var db = Path.Combine(runDir, "data.sqlite");
-            SqliteStore.CreateForPrimaryIntBuild(db, data);
+            var loadMs = Measure(() => SqliteStore.CreateForPrimaryIntBuild(db, data));
             using var connection = new SqliteConnection($"Data Source={db}");
             connection.Open();
 
@@ -38,6 +39,7 @@ internal static class SqliteLifecycleEngine
             if (i >= 0)
             {
                 totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                loadSamples.Add(loadMs);
                 buildSamples.Add(buildMs);
                 flushSamples.Add(flushMs);
                 artifactDir = runDir;
@@ -45,7 +47,7 @@ internal static class SqliteLifecycleEngine
         }
 
         var actualRows = SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite"));
-        return Result("sqlite", totalSamples, actualRows, artifactDir, before, buildSamples, flushSamples);
+        return Result("sqlite", totalSamples, actualRows, artifactDir, before, buildSamples, flushSamples, loadSamples);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -80,7 +82,8 @@ internal static class SqliteLifecycleEngine
         var samples = MeasureInTransaction(connection, appendRows, InsertOne);
         return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
     }
-private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
+
+    private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -140,7 +143,8 @@ private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, st
 
     private static EngineResult Result(
         string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir,
-        ResourceSnapshot before, IReadOnlyList<double>? build = null, IReadOnlyList<double>? flush = null) =>
+        ResourceSnapshot before, IReadOnlyList<double>? build = null,
+        IReadOnlyList<double>? flush = null, IReadOnlyList<double>? load = null) =>
         new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush);
+            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush, LoadSamplesMs: load);
 }
