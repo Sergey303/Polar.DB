@@ -1,4 +1,5 @@
 ﻿using Polar.DB;
+using System.Net.Http.Headers;
 //using Polar.Universal;
 
 namespace mag_series
@@ -54,20 +55,34 @@ namespace mag_series
             Console.WriteLine($"Выборка 10 тыс. элементов по ключу. duration={sw.ElapsedMilliseconds} ms");
 
 
-            useq.Clear();
             Console.WriteLine("\nЭксперименты со слабой динамикой");
 
             // Загрузка малыми данными для проверки слабой динамики
-            npersons = 10;
-            useq.Load(Enumerable.Range(0, npersons)
-                .Select(i => new object[] { npersons - i - 1, false, i.ToString(), 33 }));
+            //npersons = 10;
+            useq.Clear();
+
+            var flow2 = new object[]
+            {
+                new object[] { 3, false, "3", 4 },
+                new object[] { 2, false, "2", 4 },
+                new object[] { 1, false, "1", 4 },
+                new object[] { 0, false, "__0__", 4 },
+                new object[] { 1, false, "__1__", 5 },
+            };
+                
             // Построение индекса
+            useq.Load(flow2);
             useq.Build();
             // Испытание 
-            int key = npersons * 2 / 3;
+
+            Console.WriteLine($"Всего: {useq.ElementValues().Count()}(4)");
+            int key = 1;
             object? valu = useq.GetByKey(key);
             if (valu != null) Console.WriteLine($"Проверка выборки по ключу {key} " + tp_pers.Interpret(valu));
 
+
+
+            return;
             Console.WriteLine($"В последовательность записано {npersons} элементов:");
             foreach (var v in useq.ElementValues()) Console.WriteLine(tp_pers.Interpret(v));
             Console.WriteLine();

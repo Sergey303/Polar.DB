@@ -1,4 +1,5 @@
 ﻿using Polar.DB;
+using static mag_series.USequence;
 
 namespace mag_series
 {
@@ -85,82 +86,68 @@ namespace mag_series
                 hkeys_arr = null;
             }
         }
-
-        public void Build()
+        public void Build(List<KOHTriple> koh_list)
         {
-            // сканируем опорную последовательность, формируем массивы
-            List<int> hkeys_list = new List<int>();
-            List<long> offsets_list = new List<long>();
-            sequence.Scan((off, obj) =>
+            // Результаты: 
+            List<long> offset_res = new List<long>();
+            List<int> hkey_res = new List<int>();
+
+            var sorted = koh_list.OrderBy(koh => koh.hkey).ToArray();
+            int hkey = int.MinValue;
+            Dictionary<IComparable, KOHTriple> key_dic = new Dictionary<IComparable, KOHTriple>(); 
+            foreach (var koh in sorted) 
+            { 
+                // Текущий h (hkey)
+                int h = koh.hkey;
+                IComparable k = koh.key;
+                long o = koh.offset;
+                // Есть два варианта - продолжение накапливания под текущим hkey и смена текущего hkey
+                if (h == hkey)
+                {  // Продолжаем накапливать 
+                    if (key_dic.TryGetValue(k, out KOHTriple triple)) // Если такой код уже есть, надо попробовать заменить триплет
+                    {
+                        if ( o > triple.offset) key_dic[k] = koh; 
+                    }
+                    else // Если кода нет - добавим
+                    {
+                        key_dic[k] = koh;
+                    }
+                }
+                else
+                {  // Сбрасываем накопленное и фиксируем новое
+                    foreach (var pair in key_dic)
+                    {
+                        offset_res.Add(pair.Value.offset);
+                        hkey_res.Add(pair.Value.hkey);
+                    }
+                    key_dic.Clear();
+                    hkey = h;
+                    key_dic[k] = koh;
+                }
+            }
+            foreach (var pair in key_dic)
             {
-                offsets_list.Add(off);
-                hkeys_list.Add(hashOfKey(keyFunc(obj)));
-                return true;
-            });
-            hkeys_arr = hkeys_list.ToArray();
-            hkeys_list = null;
-            long[] offsets_arr = offsets_list.ToArray();
-            offsets_list = null;
-            GC.Collect();
+                offset_res.Add(pair.Value.offset);
+                hkey_res.Add(pair.Value.hkey);
+            }
 
-            Array.Sort(hkeys_arr, offsets_arr);
-
+            hkeys_arr = hkey_res.ToArray();
             hkeys.Clear();
-            foreach (var hkey in hkeys_arr)
+            foreach (var hk in hkeys_arr)
             {
-                hkeys.AppendElement(hkey);
+                hkeys.AppendElement(hk);
             }
-
             hkeys.Flush();
-            if (!keysinmemory)
-            {
-                hkeys_arr = null;
-                GC.Collect();
-            }
-
 
             offsets.Clear();
-            foreach (var off in offsets_arr)
+            foreach (var os in offset_res)
             {
-                offsets.AppendElement(off);
+                offsets.AppendElement(os);
             }
-
             offsets.Flush();
 
-            offsets_arr = null;
-            GC.Collect();
         }
-        public void Build(int[] keys_arr, long[] offsets_arr)
-        {
-            hkeys_arr = keys_arr;
 
-            Array.Sort(hkeys_arr, offsets_arr);
-
-            hkeys.Clear();
-            foreach (var hkey in hkeys_arr)
-            {
-                hkeys.AppendElement(hkey);
-            }
-
-            hkeys.Flush();
-            if (!keysinmemory)
-            {
-                hkeys_arr = null;
-                GC.Collect();
-            }
-
-
-            offsets.Clear();
-            foreach (var off in offsets_arr)
-            {
-                offsets.AppendElement(off);
-            }
-
-            offsets.Flush();
-
-            offsets_arr = null;
-            GC.Collect();
-        }
 
         public object GetByKey(IComparable keysample)
         {

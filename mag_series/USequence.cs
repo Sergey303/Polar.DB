@@ -28,7 +28,7 @@ namespace mag_series
             this.hashOfKey = hashOfKey;
             //this.optimise = optimise;
             this.stateFileName = stateFileName;
-            primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
+            primaryKeyIndex = new (streamGen, this, keyFunc, hashOfKey, optimise);
         }
 
         // Файл для сохранения параметров состояния. Команда сохранения выполняется в конце Load()
@@ -58,24 +58,32 @@ namespace mag_series
             }
         }
 
-        public void Clear() { sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
+        public void Clear() { koh_list = new List<KOHTriple>(); sequence.Clear(); primaryKeyIndex.Clear(); if (uindexes != null) foreach (var ui in uindexes) ui.Clear(); }
         public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
         public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
         public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
 
         private List<int> key_list = new List<int>();
         private List<long> offset_list = new List<long>();
+        //public struct KeyOffsetPair { internal IComparable key; internal long offset; };
+        //public struct HKeyOffsetPair { internal int hkey; internal long offset; };
+        //private List<KeyOffsetPair> kop_list = new List<KeyOffsetPair>();
+        //private List<HKeyOffsetPair> hop_list = new List<HKeyOffsetPair>();
+
+        public struct KOHTriple { internal IComparable key; internal long offset; internal int hkey; };
+        private List<KOHTriple> koh_list = new List<KOHTriple>();
         public void Load(IEnumerable<object> flow)
         {
+            koh_list = new List<KOHTriple>();
             Clear();
             foreach (var element in flow)
             {
                 if (!isEmpty(element))
                 {
                     long offset = sequence.AppendElement(element);
-                    int key = hashOfKey(keyFunc(element));
-                    key_list.Add(key);
-                    offset_list.Add(offset);
+                    IComparable key = keyFunc(element);
+                    int hkey = hashOfKey(key);
+                    koh_list.Add(new KOHTriple() { key = key, offset = offset, hkey = hkey });
                 }
             }
             Flush();
@@ -154,10 +162,8 @@ namespace mag_series
 
         public void Build()
         {
-            int[] keys_arr = key_list.ToArray(); key_list.Clear();
-            long[] offsets_arr = offset_list.ToArray(); offset_list.Clear();
+            this.primaryKeyIndex.Build(koh_list);
 
-            this.primaryKeyIndex.Build(keys_arr, offsets_arr);
             foreach (var ind in uindexes) ind.Build();
         }
 
