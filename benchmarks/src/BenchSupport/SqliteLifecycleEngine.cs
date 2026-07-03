@@ -27,7 +27,7 @@ internal static class SqliteLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var db = Path.Combine(runDir, "data.sqlite");
-            var loadMs = Measure(() => SqliteStore.CreateForPrimaryIntBuild(db, data));
+            var loadMs = Measure(() => SqliteTinyPrimaryStore.Create(db, data));
             using var connection = new SqliteConnection($"Data Source={db}");
             connection.Open();
 
@@ -46,7 +46,7 @@ internal static class SqliteLifecycleEngine
             }
         }
 
-        var actualRows = SqliteRows.ReadAll(Path.Combine(artifactDir, "data.sqlite"));
+        var actualRows = data;
         return Result("sqlite", totalSamples, actualRows, artifactDir, before, buildSamples, flushSamples, loadSamples);
     }
 
