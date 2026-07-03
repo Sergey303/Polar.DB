@@ -66,7 +66,8 @@ internal sealed record EngineResult(
     ResourceSnapshot ResourcesAfter,
     IReadOnlyList<double>? BuildSamplesMs = null,
     IReadOnlyList<double>? FlushSamplesMs = null,
-    PrimaryBuildStageSamples? PrimaryBuildStages = null);
+    PrimaryBuildStageSamples? PrimaryBuildStages = null,
+    IReadOnlyList<double>? LoadSamplesMs = null);
 
 internal sealed record LookupEngineResult(
     string Engine, string Status, IReadOnlyList<double> BatchAvgSamplesMs,
