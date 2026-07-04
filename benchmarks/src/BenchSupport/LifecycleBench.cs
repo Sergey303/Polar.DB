@@ -50,6 +50,8 @@ internal static class LifecycleBench
                 options, data, Path.Combine(caseDir, "polar-preboxed")));
             engines.Add(PolarLifecycleEngine.RunFixedInt64BulkPrimaryIntOnly(
                 options, data, Path.Combine(caseDir, "polar-fixed64-bulk")));
+            engines.Add(PolarLifecycleEngine.RunFixedInt64StorageOnlyPrimaryIntOnly(
+                options, data, Path.Combine(caseDir, "polar-fixed64-storage-only")));
         }
 
         return engines;
