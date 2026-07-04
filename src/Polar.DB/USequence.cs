@@ -118,6 +118,17 @@ namespace Polar.Universal
             SaveState();
         }
 
+        public void LoadFixedInt64StorageOnlyForBenchmark(long[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+
+            Clear();
+            sequence.ReplaceWithFixedInt64Array(values);
+            loadedPrimaryBuildEntries = null;
+            Flush();
+            SaveState();
+        }
+
         private void SaveState()
         {
             if (stateFileName == null) return;
