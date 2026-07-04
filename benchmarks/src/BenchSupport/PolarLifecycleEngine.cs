@@ -100,6 +100,8 @@ internal static class PolarLifecycleEngine
             }
         }
 
+        Int64TypedPrimaryBuildProbeSemantics.VerifyDuplicateKeys(Path.Combine(dir, "duplicate-key-semantics"));
+
         return Result("polar-db-fixed64-typed-build-probe", totalSamples, data, artifactDir, before,
             buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
     }
