@@ -16,16 +16,28 @@ internal static class PolarLifecycleEngine
             throw new ArgumentException("Preboxed primary benchmark is only valid for BuildPrimaryIntOnly.", nameof(options));
 
         var preboxedIds = data.Select(row => (object)row.Id).ToArray();
-        return BuildPrimaryIntOnly(options, data, dir, preboxedIds, "polar-db-preboxed-load");
+        return BuildPrimaryIntOnly(options, data, dir,
+            store => store.Sequence.Load(preboxedIds), "polar-db-preboxed-load");
+    }
+
+    public static EngineResult RunFixedInt64BulkPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        if (options.Kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("Fixed Int64 bulk benchmark is only valid for BuildPrimaryIntOnly.", nameof(options));
+
+        var ids = data.Select(row => row.Id).ToArray();
+        return BuildPrimaryIntOnly(options, data, dir,
+            store => store.Sequence.LoadFixedInt64ForBenchmark(ids), "polar-db-fixed64-bulk-load");
     }
 
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
-        return BuildPrimaryIntOnly(options, data, dir, null, "polar-db-current");
+        return BuildPrimaryIntOnly(options, data, dir,
+            store => store.Sequence.Load(data.Select(row => (object)row.Id)), "polar-db-current");
     }
 
     private static EngineResult BuildPrimaryIntOnly(
-        ExperimentOptions options, Row[] data, string dir, object[]? preboxedIds, string engineName)
+        ExperimentOptions options, Row[] data, string dir, Action<PolarStore> load, string engineName)
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
@@ -39,8 +51,7 @@ internal static class PolarLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
-            var loadInput = preboxedIds ?? data.Select(row => (object)row.Id);
-            var loadMs = Measure(() => store.Sequence.Load(loadInput));
+            var loadMs = Measure(() => load(store));
             var total = Stopwatch.StartNew();
             var buildMs = Measure(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
