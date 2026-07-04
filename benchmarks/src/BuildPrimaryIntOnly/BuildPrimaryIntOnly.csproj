@@ -42,6 +42,7 @@
 <Compile Include="../BenchSupport/PolarLookupSession.cs" Link="PolarLookupSession.cs" />
 <Compile Include="../BenchSupport/PolarLifecycleEngine.cs" Link="PolarLifecycleEngine.cs" />
 <Compile Include="../BenchSupport/Int64TypedPrimaryBuildProbe.cs" Link="Int64TypedPrimaryBuildProbe.cs" />
+<Compile Include="../BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs" Link="Int64TypedPrimaryBuildProbeSemantics.cs" />
 <Compile Include="../BenchSupport/LookupBench.cs" Link="LookupBench.cs" />
 <Compile Include="../BenchSupport/LifecycleBench.cs" Link="LifecycleBench.cs" />
   </ItemGroup>
