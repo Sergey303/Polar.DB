@@ -84,7 +84,9 @@ internal static class PolarLifecycleEngine
             var flushMs = Measure(() => store.Sequence.Flush());
             total.Stop();
 
-            VerifyTypedBuildProbeLookups(store.Sequence, ids);
+            if (i == options.MeasuredOps - 1)
+                VerifyTypedBuildProbe(store.Sequence, ids);
+
             store.Sequence.Close();
 
             if (i >= 0)
@@ -206,16 +208,34 @@ internal static class PolarLifecycleEngine
         return store;
     }
 
-    private static void VerifyTypedBuildProbeLookups(USequence sequence, long[] ids)
+    private static void VerifyTypedBuildProbe(USequence sequence, long[] ids)
     {
-        if (ids.Length == 0) return;
+        if (sequence.Count() != ids.LongLength)
+            throw new InvalidDataException(
+                $"Typed Int64 primary build probe count mismatch. Expected {ids.LongLength}, actual {sequence.Count()}.");
 
-        Verify(ids[0]);
-        Verify(ids[ids.Length / 2]);
-        Verify(ids[^1]);
-
-        void Verify(long key)
+        var index = 0;
+        foreach (var value in sequence.ElementValues())
         {
+            if (index >= ids.Length)
+                throw new InvalidDataException("Typed Int64 primary build probe materialized more values than expected.");
+            if (value is not long actual || actual != ids[index])
+                throw new InvalidDataException(
+                    $"Typed Int64 primary build probe materialization mismatch at index {index}.");
+            index++;
+        }
+
+        if (index != ids.Length)
+            throw new InvalidDataException(
+                $"Typed Int64 primary build probe materialized {index} values, expected {ids.Length}.");
+
+        var sampleCount = Math.Min(257, ids.Length);
+        for (var sample = 0; sample < sampleCount; sample++)
+        {
+            var position = sampleCount == 1
+                ? 0
+                : (int)((long)sample * (ids.Length - 1) / (sampleCount - 1));
+            var key = ids[position];
             var value = sequence.GetByKey(key);
             if (value is not long actual || actual != key)
                 throw new InvalidDataException($"Typed Int64 primary build probe lookup failed for key {key}.");
