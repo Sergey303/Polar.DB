@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using Polar.Universal;
+
 namespace PolarDbBenchmarks;
+
 internal static class PolarLifecycleEngine
 {
     public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
@@ -52,6 +55,53 @@ internal static class PolarLifecycleEngine
             "polar-db-fixed64-typed-metadata-probe");
     }
 
+    public static EngineResult RunFixedInt64TypedBuildProbePrimaryIntOnly(
+        ExperimentOptions options, Row[] data, string dir)
+    {
+        if (options.Kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("Fixed Int64 typed build probe is only valid for BuildPrimaryIntOnly.", nameof(options));
+
+        var ids = data.Select(row => row.Id).ToArray();
+        var before = BenchmarkResources.Capture();
+        var totalSamples = new List<double>();
+        var loadSamples = new List<double>();
+        var buildSamples = new List<double>();
+        var flushSamples = new List<double>();
+        var stages = new MutablePrimaryBuildStages();
+        var artifactDir = dir;
+
+        for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
+        {
+            var runDir = Path.Combine(dir, "run-" + i);
+            Directory.CreateDirectory(runDir);
+            var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
+            Int64TypedPrimaryBuildProbeEntry[]? entries = null;
+
+            var loadMs = Measure(() => entries = Int64TypedPrimaryBuildProbe.Load(store.Sequence, ids));
+            var total = Stopwatch.StartNew();
+            var profile = UIndexBuildProfile.Empty;
+            var buildMs = Measure(() => profile = Int64TypedPrimaryBuildProbe.Build(store.Sequence, entries!));
+            var flushMs = Measure(() => store.Sequence.Flush());
+            total.Stop();
+
+            VerifyTypedBuildProbeLookups(store.Sequence, ids);
+            store.Sequence.Close();
+
+            if (i >= 0)
+            {
+                totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                loadSamples.Add(loadMs);
+                buildSamples.Add(buildMs);
+                flushSamples.Add(flushMs);
+                stages.Add(profile);
+                artifactDir = runDir;
+            }
+        }
+
+        return Result("polar-db-fixed64-typed-build-probe", totalSamples, data, artifactDir, before,
+            buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
+    }
+
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
         return BuildPrimaryIntOnly(options, data, dir,
@@ -94,6 +144,7 @@ internal static class PolarLifecycleEngine
         return Result(engineName, totalSamples, rows, artifactDir, before,
             buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
     }
+
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
@@ -155,6 +206,22 @@ internal static class PolarLifecycleEngine
         return store;
     }
 
+    private static void VerifyTypedBuildProbeLookups(USequence sequence, long[] ids)
+    {
+        if (ids.Length == 0) return;
+
+        Verify(ids[0]);
+        Verify(ids[ids.Length / 2]);
+        Verify(ids[^1]);
+
+        void Verify(long key)
+        {
+            var value = sequence.GetByKey(key);
+            if (value is not long actual || actual != key)
+                throw new InvalidDataException($"Typed Int64 primary build probe lookup failed for key {key}.");
+        }
+    }
+
     private static double Measure(Action action)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -181,7 +248,7 @@ internal static class PolarLifecycleEngine
         private readonly List<double> _gc = new();
         private readonly List<double> _total = new();
 
-        public void Add(Polar.Universal.UIndexBuildProfile profile)
+        public void Add(UIndexBuildProfile profile)
         {
             _scan.Add(profile.ScanMs);
             _toArray.Add(profile.ToArrayMs);
