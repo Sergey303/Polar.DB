@@ -45,8 +45,12 @@ internal static class LifecycleBench
         };
 
         if (options.Kind == ExperimentKind.BuildPrimaryIntOnly)
+        {
             engines.Add(PolarLifecycleEngine.RunPreboxedPrimaryIntOnly(
                 options, data, Path.Combine(caseDir, "polar-preboxed")));
+            engines.Add(PolarLifecycleEngine.RunFixedInt64BulkPrimaryIntOnly(
+                options, data, Path.Combine(caseDir, "polar-fixed64-bulk")));
+        }
 
         return engines;
     }
