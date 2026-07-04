@@ -15,6 +15,7 @@ namespace Polar.Universal
         private bool optimise = true;
         private string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
+        private Int64PrimaryBuildEntryExperiment[]? loadedPrimaryInt64MetadataProbe;
         private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
@@ -54,6 +55,7 @@ namespace Polar.Universal
             sequence.Clear();
             primaryKeyIndex.Clear();
             loadedPrimaryBuildEntries = null;
+            loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
         }
 
@@ -72,6 +74,7 @@ namespace Polar.Universal
             sequence.Refresh();
             primaryKeyIndex.Refresh();
             loadedPrimaryBuildEntries = null;
+            loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
         }
 
@@ -129,6 +132,25 @@ namespace Polar.Universal
             SaveState();
         }
 
+        public void LoadFixedInt64TypedMetadataProbeForBenchmark(long[] values, Func<long, int> hashOfInt64)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (hashOfInt64 == null) throw new ArgumentNullException(nameof(hashOfInt64));
+
+            Clear();
+            sequence.ReplaceWithFixedInt64Array(values);
+
+            var entries = new Int64PrimaryBuildEntryExperiment[values.Length];
+            for (var i = 0; i < values.Length; i++)
+                entries[i] = new Int64PrimaryBuildEntryExperiment(
+                    hashOfInt64(values[i]), values[i], 8L + i * sizeof(long));
+
+            loadedPrimaryBuildEntries = null;
+            loadedPrimaryInt64MetadataProbe = entries;
+            Flush();
+            SaveState();
+        }
+
         private void SaveState()
         {
             if (stateFileName == null) return;
@@ -173,6 +195,7 @@ namespace Polar.Universal
         public void AppendElement(object element)
         {
             loadedPrimaryBuildEntries = null;
+            loadedPrimaryInt64MetadataProbe = null;
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -181,6 +204,7 @@ namespace Polar.Universal
         public void CorrectOnAppendElement(long off)
         {
             loadedPrimaryBuildEntries = null;
+            loadedPrimaryInt64MetadataProbe = null;
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -255,15 +279,23 @@ namespace Polar.Universal
 
         public void Build()
         {
-            var loadedEntries = loadedPrimaryBuildEntries;
-            if (loadedEntries != null)
+            if (loadedPrimaryInt64MetadataProbe != null)
             {
-                primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
-                loadedPrimaryBuildEntries = null;
+                loadedPrimaryInt64MetadataProbe = null;
+                primaryKeyIndex.Build();
             }
             else
             {
-                primaryKeyIndex.Build();
+                var loadedEntries = loadedPrimaryBuildEntries;
+                if (loadedEntries != null)
+                {
+                    primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
+                    loadedPrimaryBuildEntries = null;
+                }
+                else
+                {
+                    primaryKeyIndex.Build();
+                }
             }
 
             foreach (var ind in uindexes) ind.Build();
