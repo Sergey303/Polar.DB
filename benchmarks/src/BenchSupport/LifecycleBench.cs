@@ -54,6 +54,8 @@ internal static class LifecycleBench
                 options, data, Path.Combine(caseDir, "polar-fixed64-storage-only")));
             engines.Add(PolarLifecycleEngine.RunFixedInt64TypedMetadataProbePrimaryIntOnly(
                 options, data, Path.Combine(caseDir, "polar-fixed64-typed-metadata-probe")));
+            engines.Add(PolarLifecycleEngine.RunFixedInt64TypedBuildProbePrimaryIntOnly(
+                options, data, Path.Combine(caseDir, "polar-fixed64-typed-build-probe")));
         }
 
         return engines;
