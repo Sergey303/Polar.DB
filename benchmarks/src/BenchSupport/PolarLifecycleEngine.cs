@@ -30,6 +30,16 @@ internal static class PolarLifecycleEngine
             store => store.Sequence.LoadFixedInt64ForBenchmark(ids), "polar-db-fixed64-bulk-load");
     }
 
+    public static EngineResult RunFixedInt64StorageOnlyPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        if (options.Kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("Fixed Int64 storage-only benchmark is only valid for BuildPrimaryIntOnly.", nameof(options));
+
+        var ids = data.Select(row => row.Id).ToArray();
+        return BuildPrimaryIntOnly(options, data, dir,
+            store => store.Sequence.LoadFixedInt64StorageOnlyForBenchmark(ids), "polar-db-fixed64-storage-only-load");
+    }
+
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
         return BuildPrimaryIntOnly(options, data, dir,
