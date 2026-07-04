@@ -9,7 +9,23 @@ internal static class PolarLifecycleEngine
         if (options.Kind == ExperimentKind.AppendOnly) return AppendOnly(options, data, dir);
         return DeleteOnly(options, data, dir);
     }
+
+    public static EngineResult RunPreboxedPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        if (options.Kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("Preboxed primary benchmark is only valid for BuildPrimaryIntOnly.", nameof(options));
+
+        var preboxedIds = data.Select(row => (object)row.Id).ToArray();
+        return BuildPrimaryIntOnly(options, data, dir, preboxedIds, "polar-db-preboxed-load");
+    }
+
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        return BuildPrimaryIntOnly(options, data, dir, null, "polar-db-current");
+    }
+
+    private static EngineResult BuildPrimaryIntOnly(
+        ExperimentOptions options, Row[] data, string dir, object[]? preboxedIds, string engineName)
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
@@ -23,7 +39,8 @@ internal static class PolarLifecycleEngine
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
-            var loadMs = Measure(() => store.Sequence.Load(data.Select(row => (object)row.Id)));
+            var loadInput = preboxedIds ?? data.Select(row => (object)row.Id);
+            var loadMs = Measure(() => store.Sequence.Load(loadInput));
             var total = Stopwatch.StartNew();
             var buildMs = Measure(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
@@ -41,7 +58,7 @@ internal static class PolarLifecycleEngine
             }
         }
         var rows = data;
-        return Result("polar-db-current", totalSamples, rows, artifactDir, before,
+        return Result(engineName, totalSamples, rows, artifactDir, before,
             buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
     }
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
