@@ -96,15 +96,37 @@ namespace Polar.Universal
                 : loadedEntries.ToArray();
 
             Flush();
+            SaveState();
+        }
 
-            if (stateFileName != null)
+        public void LoadFixedInt64ForBenchmark(long[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+
+            Clear();
+            sequence.ReplaceWithFixedInt64Array(values);
+
+            var entries = new BuildEntry[values.Length];
+            for (var i = 0; i < values.Length; i++)
             {
-                FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
-                BinaryWriter writer = new(statefile);
-                writer.Write(sequence.Count());
-                writer.Write(sequence.ElementOffset());
-                statefile.Close();
+                IComparable key = values[i];
+                entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);
             }
+
+            loadedPrimaryBuildEntries = entries;
+            Flush();
+            SaveState();
+        }
+
+        private void SaveState()
+        {
+            if (stateFileName == null) return;
+
+            FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
+            BinaryWriter writer = new(statefile);
+            writer.Write(sequence.Count());
+            writer.Write(sequence.ElementOffset());
+            statefile.Close();
         }
 
         internal bool IsEmpty(object element) => isEmpty(element);
@@ -178,46 +200,29 @@ namespace Polar.Universal
                     .Select(obof => obof.obj);
             }
             if (uindexes[nom] is IExternalKeyIndex external) return external.GetManyByValue(value);
-            if (uindexes[nom] is UVectorIndex uind)
-            {
-                return uind.GetAllByValue(value)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
-            }
-            if (uindexes[nom] is UVecIndex uvind)
-            {
-                return uvind.GetAllByValue(value)
-                    .Where(obof => keysFunc(obof.obj)
-                        .Select(w => ignorecase ? ((string)w).ToUpper() : w)
-                        .Any(W => W.CompareTo(value) == 0))
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj)
-                    .ToArray();
-            }
-            throw new Exception("93394");
+
+            var offsets = ((EKeyIndex)uindexes[nom]).GetAllByKey(value);
+            return offsets.Select(off => new { obj = sequence.GetElement(off), off })
+                .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                .Select(obof => obof.obj);
         }
 
         public IEnumerable<object> GetAllBySample(int nom, object osample)
         {
-            if (uindexes[nom] is UIndex uind)
-            {
-                return uind.GetAllBySample(osample)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
-            }
-            throw new Exception("93394");
+            if (uindexes[nom] is IExternalKeyIndex external) return external.GetManyBySample(osample);
+            var offsets = ((EKeyIndex)uindexes[nom]).GetAllBySample(osample);
+            return offsets.Select(off => new { obj = sequence.GetElement(off), off })
+                .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                .Select(obof => obof.obj);
         }
 
         public IEnumerable<object> GetAllByLike(int nom, object sample)
         {
-            var uind = uindexes[nom];
-            if (uind is SVectorIndex sVectorIndex)
-            {
-                return sVectorIndex.GetAllByLike((string)sample)
-                    .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
-                    .Select(obof => obof.obj);
-            }
-            throw new NotImplementedException("Err: 292121");
+            if (uindexes[nom] is IExternalKeyIndex external) return external.GetManyByLike(sample);
+            var offsets = ((EKeyIndex)uindexes[nom]).GetAllByLike(sample);
+            return offsets.Select(off => new { obj = sequence.GetElement(off), off })
+                .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
+                .Select(obof => obof.obj);
         }
 
         public void Build()
@@ -240,20 +245,8 @@ namespace Polar.Universal
 
         public long Count() => sequence.Count();
 
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
+        public long ElementOffset() => sequence.ElementOffset();
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposing || disposed) return;
-            Flush();
-            sequence.Dispose();
-            primaryKeyIndex.Dispose();
-            if (uindexes != null) foreach (var ui in uindexes) ui.Dispose();
-            disposed = true;
-        }
+        public void Dispose() => Close();
     }
 }
