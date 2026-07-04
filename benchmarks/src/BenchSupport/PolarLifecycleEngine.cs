@@ -40,6 +40,18 @@ internal static class PolarLifecycleEngine
             store => store.Sequence.LoadFixedInt64StorageOnlyForBenchmark(ids), "polar-db-fixed64-storage-only-load");
     }
 
+    public static EngineResult RunFixedInt64TypedMetadataProbePrimaryIntOnly(
+        ExperimentOptions options, Row[] data, string dir)
+    {
+        if (options.Kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("Fixed Int64 typed metadata probe is only valid for BuildPrimaryIntOnly.", nameof(options));
+
+        var ids = data.Select(row => row.Id).ToArray();
+        return BuildPrimaryIntOnly(options, data, dir,
+            store => store.Sequence.LoadFixedInt64TypedMetadataProbeForBenchmark(ids, BenchmarkChecksum.StableHash),
+            "polar-db-fixed64-typed-metadata-probe");
+    }
+
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
         return BuildPrimaryIntOnly(options, data, dir,
