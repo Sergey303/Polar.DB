@@ -27,16 +27,27 @@ internal static class LifecycleBench
             var data = BenchmarkData.Dataset(rowCount, options.Kind);
             var caseDir = Path.Combine(work, "rows-" + rowCount);
             var expected = BenchmarkExpected.ForLifecycle(options, data);
-            var engines = new[]
-            {
-                SqliteLifecycleEngine.Run(options, data, Path.Combine(caseDir, "sqlite")),
-                PolarLifecycleEngine.Run(options, data, Path.Combine(caseDir, "polar"))
-            };
+            var engines = LifecycleEngines(options, data, caseDir);
             runs.Add(new BenchmarkRunResult(rowCount, expected, engines));
         }
 
         var output = BenchmarkPaths.ResultPath(options.ExperimentId);
         File.WriteAllText(output, BenchmarkReport.Render(options, runs), Encoding.UTF8);
         Console.WriteLine(output);
+    }
+
+    private static IReadOnlyList<EngineResult> LifecycleEngines(ExperimentOptions options, Row[] data, string caseDir)
+    {
+        var engines = new List<EngineResult>
+        {
+            SqliteLifecycleEngine.Run(options, data, Path.Combine(caseDir, "sqlite")),
+            PolarLifecycleEngine.Run(options, data, Path.Combine(caseDir, "polar"))
+        };
+
+        if (options.Kind == ExperimentKind.BuildPrimaryIntOnly)
+            engines.Add(PolarLifecycleEngine.RunPreboxedPrimaryIntOnly(
+                options, data, Path.Combine(caseDir, "polar-preboxed")));
+
+        return engines;
     }
 }
