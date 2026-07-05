@@ -72,9 +72,12 @@ internal static class PrimaryKeyHasherDefaults<TKey>
 
     private static int StableGuidHash(Guid value)
     {
+        Span<byte> bytes = stackalloc byte[16];
+        if (!value.TryWriteBytes(bytes))
+            throw new InvalidOperationException("Could not write Guid bytes for stable primary-key hashing.");
+
         unchecked
         {
-            var bytes = value.ToByteArray();
             var hash = (int)2166136261;
             for (var i = 0; i < bytes.Length; i++)
             {
