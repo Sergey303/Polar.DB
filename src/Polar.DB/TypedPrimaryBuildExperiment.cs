@@ -7,18 +7,24 @@ namespace Polar.Universal;
 internal readonly struct PrimaryBuildEntry<TKey>
     where TKey : struct
 {
+    private const long EmptyFlag = long.MinValue;
+    private const long OffsetMask = long.MaxValue;
+
+    private readonly long offsetAndFlags;
+
     public PrimaryBuildEntry(int hashKey, TKey key, long offset, bool isEmpty)
     {
+        if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset));
+
         HashKey = hashKey;
         Key = key;
-        Offset = offset;
-        IsEmpty = isEmpty;
+        offsetAndFlags = isEmpty ? offset | EmptyFlag : offset;
     }
 
     public int HashKey { get; }
     public TKey Key { get; }
-    public long Offset { get; }
-    public bool IsEmpty { get; }
+    public long Offset => offsetAndFlags & OffsetMask;
+    public bool IsEmpty => offsetAndFlags < 0;
 }
 
 internal sealed class PrimaryBuildEntryComparer<TKey> : IComparer<PrimaryBuildEntry<TKey>>
