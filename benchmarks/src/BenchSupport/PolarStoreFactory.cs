@@ -34,6 +34,28 @@ internal static class PolarStoreFactory
         return new PolarStore(sequence, intIndex, longIndex, guidIndex, stringIndex);
     }
 
+    public static PolarStore OpenWithSetPrimaryKey(string dir, ExperimentKind kind)
+    {
+        if (kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("SetPrimaryKey benchmark store is only valid for BuildPrimaryIntOnly.", nameof(kind));
+
+        var counter = 0;
+        Stream StreamGen()
+        {
+            var path = Path.Combine(dir, "f" + counter++ + ".bin");
+            return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+        }
+
+        var sequence = new USequence(
+            ElementType(kind),
+            Path.Combine(dir, "state.bin"),
+            StreamGen,
+            DeletedFlag(kind));
+        sequence.SetPrimaryKey(value => (long)value);
+
+        return new PolarStore(sequence, null, null, null, null);
+    }
+
     private static PType ElementType(ExperimentKind kind)
     {
         if (kind == ExperimentKind.BuildPrimaryIntOnly)
