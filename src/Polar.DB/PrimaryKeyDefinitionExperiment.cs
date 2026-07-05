@@ -54,21 +54,21 @@ internal static class PrimaryKeyHasherDefaults<TKey>
     public static Func<TKey, int> Create()
     {
         if (typeof(TKey) == typeof(int))
-            return key => (int)(object)key;
+            return (Func<TKey, int>)(object)(Func<int, int>)HashInt32;
 
         if (typeof(TKey) == typeof(long))
-            return key =>
-            {
-                var value = (long)(object)key;
-                return unchecked((int)(value ^ (value >> 32)));
-            };
+            return (Func<TKey, int>)(object)(Func<long, int>)HashInt64;
 
         if (typeof(TKey) == typeof(Guid))
-            return key => StableGuidHash((Guid)(object)key);
+            return (Func<TKey, int>)(object)(Func<Guid, int>)StableGuidHash;
 
         throw new NotSupportedException(
             $"Primary key type '{typeof(TKey)}' has no default stable hash. Pass an explicit hasher to SetPrimaryKey.");
     }
+
+    private static int HashInt32(int value) => value;
+
+    private static int HashInt64(long value) => unchecked((int)(value ^ (value >> 32)));
 
     private static int StableGuidHash(Guid value)
     {
