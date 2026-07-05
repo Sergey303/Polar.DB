@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Polar.DB;
 using Polar.DB.ExternalKey;
 
@@ -8,30 +9,67 @@ namespace Polar.Universal
         private UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
         internal Func<object, IComparable> keyFunc;
-        private readonly Func<IComparable, int> hashOfKey;
+        private Func<IComparable, int> hashOfKey;
         private UKeyIndex primaryKeyIndex;
+        private IPrimaryKeyDefinition? primaryKeyDefinition;
+        private bool primaryKeyConfigured;
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         private bool optimise = true;
         private string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
+        private ILoadedTypedPrimaryBuild? loadedTypedPrimaryBuild;
         private Int64PrimaryBuildEntryExperiment[]? loadedPrimaryInt64MetadataProbe;
         private bool disposed;
 
-        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
-            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
+        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen,
+            Func<object, bool> isEmpty, bool optimise = true)
         {
             sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
-            this.keyFunc = keyFunc;
-            this.hashOfKey = hashOfKey;
             this.optimise = optimise;
             this.stateFileName = stateFileName;
-            primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
+
+            keyFunc = _ => throw new InvalidOperationException(
+                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+            hashOfKey = _ => throw new InvalidOperationException(
+                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+
+            primaryKeyIndex = new UKeyIndex(
+                streamGen,
+                this,
+                element => keyFunc(element),
+                key => hashOfKey(key),
+                optimise);
+        }
+
+        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
+            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
+            : this(tp_el, stateFileName, streamGen, isEmpty, optimise)
+        {
+            this.keyFunc = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
+            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
+            primaryKeyConfigured = true;
+        }
+
+        public void SetPrimaryKey<TKey>(
+            Expression<Func<object, TKey>> keyExpression,
+            Func<TKey, int>? hashOfKey = null)
+            where TKey : struct, IComparable, IComparable<TKey>, IEquatable<TKey>
+        {
+            if (primaryKeyConfigured)
+                throw new InvalidOperationException("Primary key is already configured for this sequence.");
+
+            var definition = new PrimaryKeyDefinition<TKey>(keyExpression, hashOfKey);
+            primaryKeyDefinition = definition;
+            keyFunc = definition.LegacyKeySelector;
+            this.hashOfKey = definition.LegacyHasher;
+            primaryKeyConfigured = true;
         }
 
         public void RestoreDynamic()
         {
+            EnsurePrimaryKeyConfigured();
             FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
             BinaryReader reader = new(statefile);
             long statenelements = reader.ReadInt64();
@@ -55,6 +93,7 @@ namespace Polar.Universal
             sequence.Clear();
             primaryKeyIndex.Clear();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
             loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
         }
@@ -74,12 +113,14 @@ namespace Polar.Universal
             sequence.Refresh();
             primaryKeyIndex.Refresh();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
             loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
         }
 
         public void Load(IEnumerable<object> flow)
         {
+            EnsurePrimaryKeyConfigured();
             Clear();
             var loadedEntries = flow is ICollection<object> collection
                 ? new List<BuildEntry>(collection.Count)
@@ -98,6 +139,7 @@ namespace Polar.Universal
                 ? Array.Empty<BuildEntry>()
                 : loadedEntries.ToArray();
 
+            loadedTypedPrimaryBuild = null;
             Flush();
             SaveState();
         }
@@ -105,18 +147,37 @@ namespace Polar.Universal
         public void LoadFixedInt64ForBenchmark(long[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
+            EnsurePrimaryKeyConfigured();
 
             Clear();
             sequence.ReplaceWithFixedInt64Array(values);
 
-            var entries = new BuildEntry[values.Length];
-            for (var i = 0; i < values.Length; i++)
+            if (primaryKeyDefinition is PrimaryKeyDefinition<long> definition && definition.IsScalarIdentity)
             {
-                IComparable key = values[i];
-                entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);
+                var typedEntries = new PrimaryBuildEntry<long>[values.Length];
+                for (var i = 0; i < values.Length; i++)
+                {
+                    var value = values[i];
+                    typedEntries[i] = new PrimaryBuildEntry<long>(
+                        definition.Hash(value), value, 8L + i * sizeof(long), isEmpty: false);
+                }
+
+                loadedTypedPrimaryBuild = new LoadedTypedPrimaryBuild<long>(typedEntries);
+                loadedPrimaryBuildEntries = null;
+            }
+            else
+            {
+                var entries = new BuildEntry[values.Length];
+                for (var i = 0; i < values.Length; i++)
+                {
+                    IComparable key = values[i];
+                    entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);
+                }
+
+                loadedPrimaryBuildEntries = entries;
+                loadedTypedPrimaryBuild = null;
             }
 
-            loadedPrimaryBuildEntries = entries;
             Flush();
             SaveState();
         }
@@ -128,6 +189,7 @@ namespace Polar.Universal
             Clear();
             sequence.ReplaceWithFixedInt64Array(values);
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
             Flush();
             SaveState();
         }
@@ -146,6 +208,7 @@ namespace Polar.Universal
                     hashOfInt64(values[i]), values[i], 8L + i * sizeof(long));
 
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
             loadedPrimaryInt64MetadataProbe = entries;
             Flush();
             SaveState();
@@ -162,6 +225,13 @@ namespace Polar.Universal
             statefile.Close();
         }
 
+        private void EnsurePrimaryKeyConfigured()
+        {
+            if (!primaryKeyConfigured)
+                throw new InvalidOperationException(
+                    "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+        }
+
         internal bool IsEmpty(object element) => isEmpty(element);
 
         internal void ScanPhysical(Func<long, object, bool> handler)
@@ -169,8 +239,11 @@ namespace Polar.Universal
             sequence.Scan(handler);
         }
 
-        internal bool IsOriginalAndNotEmpty(object element, long off) =>
-            primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+        internal bool IsOriginalAndNotEmpty(object element, long off)
+        {
+            EnsurePrimaryKeyConfigured();
+            return primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+        }
 
         public IEnumerable<object> ElementValues()
         {
@@ -194,7 +267,9 @@ namespace Polar.Universal
 
         public void AppendElement(object element)
         {
+            EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
             loadedPrimaryInt64MetadataProbe = null;
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
@@ -203,14 +278,20 @@ namespace Polar.Universal
 
         public void CorrectOnAppendElement(long off)
         {
+            EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
             loadedPrimaryInt64MetadataProbe = null;
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
 
-        public object GetByKey(IComparable keysample) => primaryKeyIndex.GetByKey(keysample);
+        public object GetByKey(IComparable keysample)
+        {
+            EnsurePrimaryKeyConfigured();
+            return primaryKeyIndex.GetByKey(keysample);
+        }
 
         internal object GetByOffset(long off)
         {
@@ -279,7 +360,15 @@ namespace Polar.Universal
 
         public void Build()
         {
-            if (loadedPrimaryInt64MetadataProbe != null)
+            EnsurePrimaryKeyConfigured();
+
+            var typedBuild = loadedTypedPrimaryBuild;
+            if (typedBuild != null)
+            {
+                typedBuild.Build(primaryKeyIndex);
+                loadedTypedPrimaryBuild = null;
+            }
+            else if (loadedPrimaryInt64MetadataProbe != null)
             {
                 loadedPrimaryInt64MetadataProbe = null;
                 primaryKeyIndex.Build();
