@@ -48,6 +48,8 @@ internal static class SetPrimaryKeyLifecycleEngine
             }
         }
 
+        VerifyDuplicateKeys(Path.Combine(dir, "set-primary-key-duplicate-semantics"));
+
         return new EngineResult(
             "polar-db-set-primary-key-fixed64-load",
             "Measured",
@@ -77,6 +79,35 @@ internal static class SetPrimaryKeyLifecycleEngine
             var value = sequence.GetByKey(key);
             if (value is not long actual || actual != key)
                 throw new InvalidDataException($"SetPrimaryKey typed build lookup failed for key {key}.");
+        }
+    }
+
+    private static void VerifyDuplicateKeys(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        var store = PolarStoreFactory.OpenWithSetPrimaryKey(dir, ExperimentKind.BuildPrimaryIntOnly);
+        try
+        {
+            long[] values = { 11, 22, 11, 33, 22 };
+            store.Sequence.LoadFixedInt64ForBenchmark(values);
+            store.Sequence.Build();
+
+            var materialized = store.Sequence.ElementValues().Cast<long>().ToArray();
+            long[] expected = { 11, 33, 22 };
+            if (!materialized.SequenceEqual(expected))
+                throw new InvalidDataException(
+                    "SetPrimaryKey typed build did not preserve latest physical duplicate-key entries.");
+
+            foreach (var key in expected)
+            {
+                var value = store.Sequence.GetByKey(key);
+                if (value is not long actual || actual != key)
+                    throw new InvalidDataException($"SetPrimaryKey duplicate-key lookup failed for key {key}.");
+            }
+        }
+        finally
+        {
+            store.Sequence.Close();
         }
     }
 
