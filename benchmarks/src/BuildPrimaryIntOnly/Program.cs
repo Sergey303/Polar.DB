@@ -6,7 +6,7 @@ var options = new ExperimentOptions(
     Kind: ExperimentKind.BuildPrimaryIntOnly,
     RowCounts: BenchmarkDefaults.RowCounts,
     WarmupOps: BenchmarkDefaults.BuildPrimaryIntWarmupOps,
-    MeasuredOps: BenchmarkDefaults.BuildPrimaryIntMeasuredOps);
+    MeasuredOps: 10);
 
 if (options.Kind.IsLookup())
     LookupBench.Run(options);
