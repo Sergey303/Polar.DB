@@ -56,8 +56,10 @@ internal static class LifecycleBench
                 options, data, Path.Combine(caseDir, "polar-fixed64-typed-metadata-probe")));
             engines.Add(PolarLifecycleEngine.RunFixedInt64TypedBuildProbePrimaryIntOnly(
                 options, data, Path.Combine(caseDir, "polar-fixed64-typed-build-probe")));
-            engines.Add(SetPrimaryKeyLifecycleEngine.Run(
+            engines.Add(SetPrimaryKeyLifecycleEngine.RunParallel(
                 options, data, Path.Combine(caseDir, "polar-set-primary-key-fixed64")));
+            engines.Add(SetPrimaryKeyLifecycleEngine.RunSequential(
+                options, data, Path.Combine(caseDir, "polar-set-primary-key-fixed64-sequential-offset-set")));
         }
 
         return engines;
