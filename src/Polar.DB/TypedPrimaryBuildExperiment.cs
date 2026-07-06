@@ -9,24 +9,21 @@ namespace Polar.Universal;
 internal readonly struct PrimaryBuildEntry<TKey>
     where TKey : struct
 {
-    private const long EmptyFlag = long.MinValue;
-    private const long OffsetMask = long.MaxValue;
-
-    private readonly long offsetAndFlags;
-
     public PrimaryBuildEntry(int hashKey, TKey key, long offset, bool isEmpty)
     {
         if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset));
+        if (isEmpty)
+            throw new ArgumentException(
+                "Loaded typed primary build entries must already exclude empty elements.", nameof(isEmpty));
 
         HashKey = hashKey;
         Key = key;
-        offsetAndFlags = isEmpty ? offset | EmptyFlag : offset;
+        Offset = offset;
     }
 
     public int HashKey { get; }
     public TKey Key { get; }
-    public long Offset => offsetAndFlags & OffsetMask;
-    public bool IsEmpty => offsetAndFlags < 0;
+    public long Offset { get; }
 }
 
 internal sealed class PrimaryBuildEntryComparer<TKey> : IComparer<PrimaryBuildEntry<TKey>>
@@ -116,7 +113,7 @@ internal static class TypedPrimaryBuildExperiment
             offsets = new long[entries.Length];
             originalOffsets = keysInMemory ? new HashSet<long>(entries.Length) : null;
 
-            var liveCount = MaterializeLatestLiveEntries(entries, hashKeys, offsets, originalOffsets);
+            var liveCount = MaterializeLatestEntries(entries, hashKeys, offsets, originalOffsets);
             if (liveCount != entries.Length)
             {
                 Array.Resize(ref hashKeys, liveCount);
@@ -144,7 +141,7 @@ internal static class TypedPrimaryBuildExperiment
             totalWatch.Elapsed.TotalMilliseconds));
     }
 
-    private static int MaterializeLatestLiveEntries<TKey>(
+    private static int MaterializeLatestEntries<TKey>(
         PrimaryBuildEntry<TKey>[] entries,
         int[] hashKeys,
         long[] offsets,
@@ -163,8 +160,6 @@ internal static class TypedPrimaryBuildExperiment
             {
                 latest = entries[index++];
             }
-
-            if (latest.IsEmpty) continue;
 
             hashKeys[liveCount] = latest.HashKey;
             offsets[liveCount] = latest.Offset;
