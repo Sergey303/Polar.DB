@@ -53,9 +53,12 @@ internal sealed class LoadedTypedPrimaryBuild<TKey> : ILoadedTypedPrimaryBuild
 {
     private PrimaryBuildEntry<TKey>[] entries;
 
-    public LoadedTypedPrimaryBuild(PrimaryBuildEntry<TKey>[] entries)
+    public LoadedTypedPrimaryBuild(
+        PrimaryBuildEntry<TKey>[] entries,
+        bool parallelOriginalOffsets = false)
     {
         this.entries = entries ?? throw new ArgumentNullException(nameof(entries));
+        _ = parallelOriginalOffsets;
     }
 
     public void Build(UKeyIndex index)
