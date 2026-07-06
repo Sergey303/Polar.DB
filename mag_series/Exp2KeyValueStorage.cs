@@ -27,32 +27,35 @@ namespace mag_series
             USequence useq = new(tp_pers, dbpath + "state.bin", GenStream, ob => (bool)((object[])ob)[1],
                 ob => (int)((object[])ob)[0], ic => (int)ic);
             
-            sw.Restart();
-
-            // Загрузка данными
-            int npersons = 5_000_000;
-
-            useq.Clear();
-
-            var flow = Enumerable.Range(0, npersons)
-                .Select(i => new object[] { npersons - i - 1, false, i.ToString(), 22 });
-            useq.Load(flow);
-            useq.Build();
-
-            sw.Stop();
-            int ke = npersons * 2 / 3;
-            var res = useq.GetByKey(ke);
-            Console.WriteLine(tp_pers.Interpret(res));
-            Console.WriteLine($"Проба ok. duration={sw.ElapsedMilliseconds} ms");
-
-            sw.Restart();
-            for (int i = 0; i < 10_000; i++)
+            bool bigtest = true;
+            if (bigtest)
             {
-                int k = rnd.Next(npersons);
-                var result = useq.GetByKey(k);
+                sw.Restart();
+                // Загрузка данными
+                int npersons = 5_000_000;
+
+                useq.Clear();
+
+                var flow = Enumerable.Range(0, npersons)
+                    .Select(i => new object[] { npersons - i - 1, false, i.ToString(), 22 });
+                useq.Load(flow);
+                useq.Build();
+
+                sw.Stop();
+                int ke = npersons * 2 / 3;
+                var res = useq.GetByKey(ke);
+                Console.WriteLine(tp_pers.Interpret(res));
+                Console.WriteLine($"Проба ok. duration={sw.ElapsedMilliseconds} ms");
+
+                sw.Restart();
+                for (int i = 0; i < 10_000; i++)
+                {
+                    int k = rnd.Next(npersons);
+                    var result = useq.GetByKey(k);
+                }
+                sw.Stop();
+                Console.WriteLine($"Выборка 10 тыс. элементов по ключу. duration={sw.ElapsedMilliseconds} ms");
             }
-            sw.Stop();
-            Console.WriteLine($"Выборка 10 тыс. элементов по ключу. duration={sw.ElapsedMilliseconds} ms");
 
 
             Console.WriteLine("\nЭксперименты со слабой динамикой");
@@ -66,8 +69,10 @@ namespace mag_series
                 new object[] { 3, false, "3", 4 },
                 new object[] { 2, false, "2", 4 },
                 new object[] { 1, false, "1", 4 },
-                new object[] { 0, false, "__0__", 4 },
+                new object[] { 0, false, "0", 4 },
                 new object[] { 1, false, "__1__", 5 },
+                new object[] { 1, true, "__5__", 55 },
+                new object[] { 99, false, "__91__", 91 },
             };
                 
             // Построение индекса
@@ -75,22 +80,19 @@ namespace mag_series
             useq.Build();
             // Испытание 
 
-            Console.WriteLine($"Всего: {useq.ElementValues().Count()}(4)");
+            //foreach(var e in useq.ElementValues()) Console.WriteLine($"Всего: {tp_pers.Interpret(e)}(4)");
             int key = 1;
             object? valu = useq.GetByKey(key);
-            if (valu != null) Console.WriteLine($"Проверка выборки по ключу {key} " + tp_pers.Interpret(valu));
+            Console.Write($"Проверка выборки по ключу {key} ");
+            if (valu != null) Console.WriteLine("ЕСТЬ: " + tp_pers.Interpret(valu));
+            else Console.WriteLine("НЕТ!");
 
-
-
-            return;
-            Console.WriteLine($"В последовательность записано {npersons} элементов:");
+            //Console.WriteLine($"В последовательность записано {npersons} элементов:");
             foreach (var v in useq.ElementValues()) Console.WriteLine(tp_pers.Interpret(v));
             Console.WriteLine();
 
             Console.WriteLine($"Добавлю пуcтой элемент под существующим индексом 0");
             useq.AppendElement(new object[] { 0, true, "Пупкин", 22 });
-
-            Console.WriteLine($"Осталось nelementvalues={useq.ElementValues().Count()}");
 
             key = 0; valu = useq.GetByKey(key);
             Console.Write($"Запрашиваем запись с ключом 0 ... ");
@@ -117,10 +119,20 @@ namespace mag_series
             nelementvalues = useq.ElementValues().Count();
             Console.WriteLine($"Осталось nelementvalues={nelementvalues}");
 
-            Console.WriteLine("Все  элементы последовательности:");
+            Console.WriteLine("\nВсе  элементы последовательности:");
             foreach (var v in useq.ElementValues()) Console.WriteLine(tp_pers.Interpret(v));
-            Console.WriteLine(); useq.Close();
+            Console.WriteLine(); 
 
+            Console.WriteLine($"Добавлю Пупкина строго (7), и Пупкина нового 2 (2023334445)");
+            useq.AppendElement(new object[] { 7, true, "Пупкин Старый", 44 });
+            useq.AppendElement(new object[] { 2023334445, true, "Пупкин Новый 2", 66 });
+            useq.Flush();
+
+            Console.WriteLine("\nВсе  элементы последовательности:");
+            foreach (var v in useq.ElementValues()) Console.WriteLine(tp_pers.Interpret(v));
+            Console.WriteLine();
+
+            useq.Close();
         }
     }
 }

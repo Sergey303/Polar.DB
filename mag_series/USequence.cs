@@ -78,13 +78,10 @@ namespace mag_series
             Clear();
             foreach (var element in flow)
             {
-                if (!isEmpty(element))
-                {
-                    long offset = sequence.AppendElement(element);
-                    IComparable key = keyFunc(element);
-                    int hkey = hashOfKey(key);
-                    koh_list.Add(new KOHTriple() { key = key, offset = offset, hkey = hkey });
-                }
+                long offset = sequence.AppendElement(element);
+                IComparable key = keyFunc(element);
+                int hkey = hashOfKey(key);
+                koh_list.Add(new KOHTriple() { key = key, offset = offset, hkey = hkey });
             }
             Flush();
 
@@ -104,10 +101,12 @@ namespace mag_series
 
         public IEnumerable<object> ElementValues()
         {
-            return sequence.ElementOffsetValuePairs()
-                // Оставляем оригиналы и непустые
-                .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
-                .Select(pair => pair.Item2);
+            var pairs = sequence.ElementOffsetValuePairs().ToArray();
+            foreach (var pair in pairs)
+            {
+                var ioane = IsOriginalAndNotEmpty(pair.Item2, pair.Item1);
+                if (ioane) yield return pair.Item2;
+            }
         }
         public void Scan(Func<long, object, bool> handler)
         {
@@ -136,9 +135,10 @@ namespace mag_series
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
 
-        public object GetByKey(IComparable keysample)
+        public object? GetByKey(IComparable keysample)
         {
-            return primaryKeyIndex.GetByKey(keysample);
+            var val = primaryKeyIndex.GetByKey(keysample);
+            return val == null || isEmpty(val) ? null : val;
         }
 
         internal object GetByOffset(long off)

@@ -86,11 +86,13 @@ namespace mag_series
                 hkeys_arr = null;
             }
         }
+        private  HashSet<int> not_single_element_hcodes = new HashSet<int>();
         public void Build(List<KOHTriple> koh_list)
         {
             // Результаты: 
             List<long> offset_res = new List<long>();
             List<int> hkey_res = new List<int>();
+            not_single_element_hcodes = new HashSet<int>();
 
             var sorted = koh_list.OrderBy(koh => koh.hkey).ToArray();
             int hkey = int.MinValue;
@@ -103,7 +105,8 @@ namespace mag_series
                 long o = koh.offset;
                 // Есть два варианта - продолжение накапливания под текущим hkey и смена текущего hkey
                 if (h == hkey)
-                {  // Продолжаем накапливать 
+                {  // Накапливаем
+                    if (!not_single_element_hcodes.Contains(h)) not_single_element_hcodes.Add(h);
                     if (key_dic.TryGetValue(k, out KOHTriple triple)) // Если такой код уже есть, надо попробовать заменить триплет
                     {
                         if ( o > triple.offset) key_dic[k] = koh; 
@@ -246,7 +249,25 @@ namespace mag_series
                 if (off == offset) return true;
                 return false;
             }
-
+            var hkey = hashOfKey(key);
+            if (not_single_element_hcodes.Contains(hkey)) // Если содержит, то надо проверить эти офсеты
+            {
+                // Ищем позицию решения
+                var pos = hkeys_arr.BinarySearch(hkey);
+                if (pos == -1) return false; // Вообще нет такого. Может, ошибка?
+                while ( pos-1 > -1 && hkeys_arr[pos-1] == hkey ) pos --; // переход на начало цепочки
+                // Цикл по элементам цепочки одинаковых hkey
+                while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
+                {
+                    // Получим офсет
+                    long offs = (long)offsets.GetByIndex(pos);
+                    if (offs != offset) return false;
+                    object mat = sequence.GetByOffset(offs);
+                    IComparable k = keyFunc(mat); 
+                    if (k  == key) return true;
+                    pos++;
+                }
+            }
             return true; //TODO: здесь предполагается, что в основном индексе есть такое значение
         }
 
