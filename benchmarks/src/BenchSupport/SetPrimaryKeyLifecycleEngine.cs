@@ -5,28 +5,7 @@ namespace PolarDbBenchmarks;
 
 internal static class SetPrimaryKeyLifecycleEngine
 {
-    public static EngineResult RunParallel(ExperimentOptions options, Row[] data, string dir) =>
-        Run(
-            options,
-            data,
-            dir,
-            engineName: "polar-db-set-primary-key-fixed64-load",
-            parallelOriginalOffsets: true);
-
-    public static EngineResult RunSequential(ExperimentOptions options, Row[] data, string dir) =>
-        Run(
-            options,
-            data,
-            dir,
-            engineName: "polar-db-set-primary-key-fixed64-sequential-offset-set",
-            parallelOriginalOffsets: false);
-
-    private static EngineResult Run(
-        ExperimentOptions options,
-        Row[] data,
-        string dir,
-        string engineName,
-        bool parallelOriginalOffsets)
+    public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
     {
         if (options.Kind != ExperimentKind.BuildPrimaryIntOnly)
             throw new ArgumentException("SetPrimaryKey benchmark is only valid for BuildPrimaryIntOnly.", nameof(options));
@@ -46,7 +25,7 @@ internal static class SetPrimaryKeyLifecycleEngine
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.OpenWithSetPrimaryKey(runDir, ExperimentKind.BuildPrimaryIntOnly);
 
-            var loadMs = Measure(() => store.Sequence.LoadFixedInt64ForBenchmark(ids, parallelOriginalOffsets));
+            var loadMs = Measure(() => store.Sequence.LoadFixedInt64ForBenchmark(ids, parallelOriginalOffsets: false));
             var total = Stopwatch.StartNew();
             var buildMs = Measure(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
@@ -69,12 +48,10 @@ internal static class SetPrimaryKeyLifecycleEngine
             }
         }
 
-        VerifyDuplicateKeys(
-            Path.Combine(dir, "set-primary-key-duplicate-semantics"),
-            parallelOriginalOffsets);
+        VerifyDuplicateKeys(Path.Combine(dir, "set-primary-key-duplicate-semantics"));
 
         return new EngineResult(
-            engineName,
+            "polar-db-set-primary-key-fixed64-load",
             "Measured",
             totalSamples,
             data.LongLength,
@@ -105,14 +82,14 @@ internal static class SetPrimaryKeyLifecycleEngine
         }
     }
 
-    private static void VerifyDuplicateKeys(string dir, bool parallelOriginalOffsets)
+    private static void VerifyDuplicateKeys(string dir)
     {
         Directory.CreateDirectory(dir);
         var store = PolarStoreFactory.OpenWithSetPrimaryKey(dir, ExperimentKind.BuildPrimaryIntOnly);
         try
         {
             long[] values = { 11, 22, 11, 33, 22 };
-            store.Sequence.LoadFixedInt64ForBenchmark(values, parallelOriginalOffsets);
+            store.Sequence.LoadFixedInt64ForBenchmark(values, parallelOriginalOffsets: false);
             store.Sequence.Build();
 
             var materialized = store.Sequence.ElementValues().Cast<long>().ToArray();
