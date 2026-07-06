@@ -21,8 +21,8 @@ internal static class PolarStoreFactory
             return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
         }
 
-        var sequence = new USequence(ElementType(), Path.Combine(dir, "state.bin"), StreamGen,
-            IsDeleted, PrimaryKey(kind), BenchmarkChecksum.StableHash);
+        var sequence = new USequence(ElementType(kind), Path.Combine(dir, "state.bin"), StreamGen,
+            DeletedFlag(kind), PrimaryKey(kind), BenchmarkChecksum.StableHash);
 
         var intIndex = NeedsIntIndex(kind) ? CreateIntIndex(StreamGen, sequence) : null;
         var longIndex = NeedsLongIndex(kind) ? CreateLongIndex(StreamGen, sequence) : null;
@@ -34,24 +34,59 @@ internal static class PolarStoreFactory
         return new PolarStore(sequence, intIndex, longIndex, guidIndex, stringIndex);
     }
 
-    private static PType ElementType() => new PTypeRecord(
-        new NamedType("id", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("long_key", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("guid_low", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("guid_high", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("skey", new PType(PTypeEnumeration.sstring)),
-        new NamedType("external_id", new PType(PTypeEnumeration.integer)),
-        new NamedType("external_long", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("external_guid_low", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("external_guid_high", new PType(PTypeEnumeration.longinteger)),
-        new NamedType("external_key", new PType(PTypeEnumeration.sstring)),
-        new NamedType("payload", new PType(PTypeEnumeration.sstring)),
-        new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
+    public static PolarStore OpenWithSetPrimaryKey(string dir, ExperimentKind kind)
+    {
+        if (kind != ExperimentKind.BuildPrimaryIntOnly)
+            throw new ArgumentException("SetPrimaryKey benchmark store is only valid for BuildPrimaryIntOnly.", nameof(kind));
 
-    private static bool IsDeleted(object value) => (bool)((object[])value)[11];
+        var counter = 0;
+        Stream StreamGen()
+        {
+            var path = Path.Combine(dir, "f" + counter++ + ".bin");
+            return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+        }
+
+        var sequence = new USequence(
+            ElementType(kind),
+            Path.Combine(dir, "state.bin"),
+            StreamGen,
+            DeletedFlag(kind));
+        sequence.SetPrimaryKey(value => (long)value);
+
+        return new PolarStore(sequence, null, null, null, null);
+    }
+
+    private static PType ElementType(ExperimentKind kind)
+    {
+        if (kind == ExperimentKind.BuildPrimaryIntOnly)
+            return new PType(PTypeEnumeration.longinteger);
+
+        return new PTypeRecord(
+            new NamedType("id", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("long_key", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("guid_low", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("guid_high", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("skey", new PType(PTypeEnumeration.sstring)),
+            new NamedType("external_id", new PType(PTypeEnumeration.integer)),
+            new NamedType("external_long", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("external_guid_low", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("external_guid_high", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("external_key", new PType(PTypeEnumeration.sstring)),
+            new NamedType("payload", new PType(PTypeEnumeration.sstring)),
+            new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
+    }
+
+    private static Func<object, bool> DeletedFlag(ExperimentKind kind)
+    {
+        if (kind == ExperimentKind.BuildPrimaryIntOnly)
+            return value => false;
+
+        return value => (bool)((object[])value)[11];
+    }
 
     private static Func<object, IComparable> PrimaryKey(ExperimentKind kind) => kind switch
     {
+        ExperimentKind.BuildPrimaryIntOnly => value => (long)value,
         ExperimentKind.PkLongLookup => value => (long)((object[])value)[1],
         ExperimentKind.PkGuidLookup => value => ReadGuid(value, 2),
         ExperimentKind.PkStringLookup => value => (string)((object[])value)[4],

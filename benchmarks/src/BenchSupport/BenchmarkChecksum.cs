@@ -44,13 +44,15 @@ internal static class BenchmarkChecksum
             return key switch
             {
                 int value => value,
-                long value => (int)(value ^ (value >> 32)),
+                long value => StableHash(value),
                 Guid value => StableGuidHash(value),
                 string value => StableStringHash(value),
                 _ => key.GetHashCode()
             };
         }
     }
+
+    public static int StableHash(long value) => unchecked((int)(value ^ (value >> 32)));
 
     private static int StableGuidHash(Guid value)
     {
