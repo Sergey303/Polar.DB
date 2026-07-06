@@ -1,5 +1,7 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Polar.DB;
 
 namespace Polar.Universal;
@@ -68,6 +70,7 @@ internal sealed class LoadedTypedPrimaryBuild<TKey> : ILoadedTypedPrimaryBuild
 
 internal static class TypedPrimaryBuildExperiment
 {
+    private const long HeaderSize = sizeof(long);
     private const BindingFlags InstancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
 
     private static readonly FieldInfo HashKeysField = RequireField(typeof(UKeyIndex), "hkeys");
@@ -77,6 +80,9 @@ internal static class TypedPrimaryBuildExperiment
     private static readonly FieldInfo DynamicOffsetsField = RequireField(typeof(UKeyIndex), "keyoff_dic");
     private static readonly FieldInfo HasBuiltSnapshotField = RequireField(typeof(UKeyIndex), "hasBuiltSnapshot");
     private static readonly FieldInfo KeysInMemoryField = RequireField(typeof(UKeyIndex), "keysinmemory");
+    private static readonly FieldInfo ElementSizeField = RequireField(typeof(UniversalSequenceBase), "elem_size");
+    private static readonly FieldInfo ElementCountField = RequireField(typeof(UniversalSequenceBase), "nelements");
+    private static readonly FieldInfo AppendOffsetField = RequireField(typeof(UniversalSequenceBase), "append_offset");
     private static readonly PropertyInfo LastBuildProfileProperty =
         typeof(UKeyIndex).GetProperty(nameof(UKeyIndex.LastBuildProfile))
         ?? throw new MissingMemberException(typeof(UKeyIndex).FullName, nameof(UKeyIndex.LastBuildProfile));
@@ -116,8 +122,8 @@ internal static class TypedPrimaryBuildExperiment
         var keysInMemory = (bool)(KeysInMemoryField.GetValue(index)
             ?? throw new InvalidOperationException("Primary index memory mode is not available."));
 
-        var writeHashKeysMs = Measure(() => hashKeyStore.ReplaceWithFixedInt32Array(hashKeys));
-        var writeOffsetsMs = Measure(() => offsetStore.ReplaceWithFixedInt64Array(offsets));
+        var writeHashKeysMs = Measure(() => ReplaceWithFixedArrayDirect(hashKeyStore, hashKeys, sizeof(int)));
+        var writeOffsetsMs = Measure(() => ReplaceWithFixedArrayDirect(offsetStore, offsets, sizeof(long)));
 
         HashKeysArrayField.SetValue(index, keysInMemory ? hashKeys : null);
         OriginalOffsetsField.SetValue(index, keysInMemory ? new HashSet<long>(offsets) : null);
@@ -157,6 +163,35 @@ internal static class TypedPrimaryBuildExperiment
         }
 
         return liveCount;
+    }
+
+    private static void ReplaceWithFixedArrayDirect<T>(
+        UniversalSequenceBase sequence,
+        T[] values,
+        int expectedElementSize)
+        where T : struct
+    {
+        var elementSize = (int)(ElementSizeField.GetValue(sequence)
+            ?? throw new InvalidOperationException("Fixed element size is not available."));
+        if (elementSize != expectedElementSize)
+            throw new InvalidOperationException(
+                $"Direct fixed-array write requires element size {expectedElementSize}, actual {elementSize}.");
+
+        var payload = MemoryMarshal.AsBytes(values.AsSpan());
+        var media = sequence.Media;
+        media.Position = 0L;
+        media.SetLength(0L);
+
+        Span<byte> header = stackalloc byte[sizeof(long)];
+        BinaryPrimitives.WriteInt64LittleEndian(header, values.LongLength);
+        media.Write(header);
+        media.Write(payload);
+
+        var appendOffset = HeaderSize + payload.Length;
+        ElementCountField.SetValue(sequence, values.LongLength);
+        AppendOffsetField.SetValue(sequence, appendOffset);
+        media.Position = appendOffset;
+        media.Flush();
     }
 
     private static FieldInfo RequireField(Type type, string name) =>
