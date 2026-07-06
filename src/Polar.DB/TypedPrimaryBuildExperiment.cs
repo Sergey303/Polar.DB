@@ -100,21 +100,6 @@ internal static class TypedPrimaryBuildExperiment
                 Array.Sort(entries, PrimaryBuildEntryComparer<TKey>.Instance);
         });
 
-        int[] hashKeys = Array.Empty<int>();
-        long[] offsets = Array.Empty<long>();
-        var toArrayMs = Measure(() =>
-        {
-            var liveCount = CompactLatestLiveEntries(entries);
-            hashKeys = new int[liveCount];
-            offsets = new long[liveCount];
-
-            for (var i = 0; i < liveCount; i++)
-            {
-                hashKeys[i] = entries[i].HashKey;
-                offsets[i] = entries[i].Offset;
-            }
-        });
-
         var hashKeyStore = (UniversalSequenceBase)(HashKeysField.GetValue(index)
             ?? throw new InvalidOperationException("Primary hash-key store is not available."));
         var offsetStore = (UniversalSequenceBase)(OffsetsField.GetValue(index)
@@ -122,11 +107,28 @@ internal static class TypedPrimaryBuildExperiment
         var keysInMemory = (bool)(KeysInMemoryField.GetValue(index)
             ?? throw new InvalidOperationException("Primary index memory mode is not available."));
 
+        int[] hashKeys = Array.Empty<int>();
+        long[] offsets = Array.Empty<long>();
+        HashSet<long>? originalOffsets = null;
+        var toArrayMs = Measure(() =>
+        {
+            hashKeys = new int[entries.Length];
+            offsets = new long[entries.Length];
+            originalOffsets = keysInMemory ? new HashSet<long>(entries.Length) : null;
+
+            var liveCount = MaterializeLatestLiveEntries(entries, hashKeys, offsets, originalOffsets);
+            if (liveCount != entries.Length)
+            {
+                Array.Resize(ref hashKeys, liveCount);
+                Array.Resize(ref offsets, liveCount);
+            }
+        });
+
         var writeHashKeysMs = Measure(() => ReplaceWithFixedArrayDirect(hashKeyStore, hashKeys, sizeof(int)));
         var writeOffsetsMs = Measure(() => ReplaceWithFixedArrayDirect(offsetStore, offsets, sizeof(long)));
 
         HashKeysArrayField.SetValue(index, keysInMemory ? hashKeys : null);
-        OriginalOffsetsField.SetValue(index, keysInMemory ? new HashSet<long>(offsets) : null);
+        OriginalOffsetsField.SetValue(index, originalOffsets);
         ((Dictionary<IComparable, long>)(DynamicOffsetsField.GetValue(index)
             ?? throw new InvalidOperationException("Dynamic primary offsets are not available."))).Clear();
         HasBuiltSnapshotField.SetValue(index, true);
@@ -142,7 +144,11 @@ internal static class TypedPrimaryBuildExperiment
             totalWatch.Elapsed.TotalMilliseconds));
     }
 
-    private static int CompactLatestLiveEntries<TKey>(PrimaryBuildEntry<TKey>[] entries)
+    private static int MaterializeLatestLiveEntries<TKey>(
+        PrimaryBuildEntry<TKey>[] entries,
+        int[] hashKeys,
+        long[] offsets,
+        HashSet<long>? originalOffsets)
         where TKey : struct, IEquatable<TKey>
     {
         var liveCount = 0;
@@ -158,8 +164,12 @@ internal static class TypedPrimaryBuildExperiment
                 latest = entries[index++];
             }
 
-            if (!latest.IsEmpty)
-                entries[liveCount++] = latest;
+            if (latest.IsEmpty) continue;
+
+            hashKeys[liveCount] = latest.HashKey;
+            offsets[liveCount] = latest.Offset;
+            originalOffsets?.Add(latest.Offset);
+            liveCount++;
         }
 
         return liveCount;
