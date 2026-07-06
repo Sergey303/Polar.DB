@@ -68,6 +68,7 @@ internal sealed class LoadedTypedPrimaryBuild<TKey> : ILoadedTypedPrimaryBuild
 internal static class TypedPrimaryBuildExperiment
 {
     private const long HeaderSize = sizeof(long);
+    private const int ParallelOriginalOffsetsThreshold = 250_000;
     private const BindingFlags InstancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
 
     private static readonly FieldInfo HashKeysField = RequireField(typeof(UKeyIndex), "hkeys");
@@ -106,14 +107,12 @@ internal static class TypedPrimaryBuildExperiment
 
         int[] hashKeys = Array.Empty<int>();
         long[] offsets = Array.Empty<long>();
-        HashSet<long>? originalOffsets = null;
         var toArrayMs = Measure(() =>
         {
             hashKeys = new int[entries.Length];
             offsets = new long[entries.Length];
-            originalOffsets = keysInMemory ? new HashSet<long>(entries.Length) : null;
 
-            var liveCount = MaterializeLatestEntries(entries, hashKeys, offsets, originalOffsets);
+            var liveCount = MaterializeLatestEntries(entries, hashKeys, offsets);
             if (liveCount != entries.Length)
             {
                 Array.Resize(ref hashKeys, liveCount);
@@ -121,8 +120,21 @@ internal static class TypedPrimaryBuildExperiment
             }
         });
 
+        Task<HashSet<long>>? originalOffsetsTask = null;
+        HashSet<long>? originalOffsets = null;
+        if (keysInMemory)
+        {
+            if (offsets.Length >= ParallelOriginalOffsetsThreshold)
+                originalOffsetsTask = Task.Run(() => new HashSet<long>(offsets));
+            else
+                originalOffsets = new HashSet<long>(offsets);
+        }
+
         var writeHashKeysMs = Measure(() => ReplaceWithFixedArrayDirect(hashKeyStore, hashKeys, sizeof(int)));
         var writeOffsetsMs = Measure(() => ReplaceWithFixedArrayDirect(offsetStore, offsets, sizeof(long)));
+
+        if (originalOffsetsTask != null)
+            originalOffsets = originalOffsetsTask.GetAwaiter().GetResult();
 
         HashKeysArrayField.SetValue(index, keysInMemory ? hashKeys : null);
         OriginalOffsetsField.SetValue(index, originalOffsets);
@@ -144,8 +156,7 @@ internal static class TypedPrimaryBuildExperiment
     private static int MaterializeLatestEntries<TKey>(
         PrimaryBuildEntry<TKey>[] entries,
         int[] hashKeys,
-        long[] offsets,
-        HashSet<long>? originalOffsets)
+        long[] offsets)
         where TKey : struct, IEquatable<TKey>
     {
         var liveCount = 0;
@@ -163,7 +174,6 @@ internal static class TypedPrimaryBuildExperiment
 
             hashKeys[liveCount] = latest.HashKey;
             offsets[liveCount] = latest.Offset;
-            originalOffsets?.Add(latest.Offset);
             liveCount++;
         }
 
