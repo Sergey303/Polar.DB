@@ -52,19 +52,15 @@ internal sealed class LoadedTypedPrimaryBuild<TKey> : ILoadedTypedPrimaryBuild
     where TKey : struct, IComparable<TKey>, IEquatable<TKey>
 {
     private PrimaryBuildEntry<TKey>[] entries;
-    private readonly bool parallelOriginalOffsets;
 
-    public LoadedTypedPrimaryBuild(
-        PrimaryBuildEntry<TKey>[] entries,
-        bool parallelOriginalOffsets = true)
+    public LoadedTypedPrimaryBuild(PrimaryBuildEntry<TKey>[] entries)
     {
         this.entries = entries ?? throw new ArgumentNullException(nameof(entries));
-        this.parallelOriginalOffsets = parallelOriginalOffsets;
     }
 
     public void Build(UKeyIndex index)
     {
-        TypedPrimaryBuildExperiment.Build(index, entries, parallelOriginalOffsets);
+        TypedPrimaryBuildExperiment.Build(index, entries);
         entries = Array.Empty<PrimaryBuildEntry<TKey>>();
     }
 }
@@ -72,7 +68,6 @@ internal sealed class LoadedTypedPrimaryBuild<TKey> : ILoadedTypedPrimaryBuild
 internal static class TypedPrimaryBuildExperiment
 {
     private const long HeaderSize = sizeof(long);
-    private const int ParallelOriginalOffsetsThreshold = 250_000;
     private const BindingFlags InstancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
 
     private static readonly FieldInfo HashKeysField = RequireField(typeof(UKeyIndex), "hkeys");
@@ -89,10 +84,7 @@ internal static class TypedPrimaryBuildExperiment
         typeof(UKeyIndex).GetProperty(nameof(UKeyIndex.LastBuildProfile))
         ?? throw new MissingMemberException(typeof(UKeyIndex).FullName, nameof(UKeyIndex.LastBuildProfile));
 
-    public static void Build<TKey>(
-        UKeyIndex index,
-        PrimaryBuildEntry<TKey>[] entries,
-        bool parallelOriginalOffsets = true)
+    public static void Build<TKey>(UKeyIndex index, PrimaryBuildEntry<TKey>[] entries)
         where TKey : struct, IComparable<TKey>, IEquatable<TKey>
     {
         if (index == null) throw new ArgumentNullException(nameof(index));
@@ -127,21 +119,9 @@ internal static class TypedPrimaryBuildExperiment
             }
         });
 
-        Task<HashSet<long>>? originalOffsetsTask = null;
-        HashSet<long>? originalOffsets = null;
-        if (keysInMemory)
-        {
-            if (parallelOriginalOffsets && offsets.Length >= ParallelOriginalOffsetsThreshold)
-                originalOffsetsTask = Task.Run(() => new HashSet<long>(offsets));
-            else
-                originalOffsets = new HashSet<long>(offsets);
-        }
-
+        var originalOffsets = keysInMemory ? new HashSet<long>(offsets) : null;
         var writeHashKeysMs = Measure(() => ReplaceWithFixedArrayDirect(hashKeyStore, hashKeys, sizeof(int)));
         var writeOffsetsMs = Measure(() => ReplaceWithFixedArrayDirect(offsetStore, offsets, sizeof(long)));
-
-        if (originalOffsetsTask != null)
-            originalOffsets = originalOffsetsTask.GetAwaiter().GetResult();
 
         HashKeysArrayField.SetValue(index, keysInMemory ? hashKeys : null);
         OriginalOffsetsField.SetValue(index, originalOffsets);
