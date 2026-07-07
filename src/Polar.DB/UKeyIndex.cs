@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using Polar.DB;
 
 namespace Polar.Universal
@@ -107,6 +109,53 @@ namespace Polar.Universal
 
             var totalWatch = System.Diagnostics.Stopwatch.StartNew();
             BuildFromEntries(entries, entryCount, scanMs: 0.0, totalWatch);
+        }
+
+        internal void BuildFromLoadedTypedEntries<TKey>(PrimaryBuildEntry<TKey>[] entries)
+            where TKey : struct, IComparable<TKey>, IEquatable<TKey>
+        {
+            if (entries == null) throw new ArgumentNullException(nameof(entries));
+
+            var totalWatch = System.Diagnostics.Stopwatch.StartNew();
+            var sortMs = Measure(() =>
+            {
+                if (entries.Length > 1)
+                    Array.Sort(entries, PrimaryBuildEntryComparer<TKey>.Instance);
+            });
+
+            int[] hashKeys = Array.Empty<int>();
+            long[] typedOffsets = Array.Empty<long>();
+            var toArrayMs = Measure(() =>
+            {
+                hashKeys = new int[entries.Length];
+                typedOffsets = new long[entries.Length];
+
+                var liveCount = MaterializeLatestEntries(entries, hashKeys, typedOffsets);
+                if (liveCount != entries.Length)
+                {
+                    Array.Resize(ref hashKeys, liveCount);
+                    Array.Resize(ref typedOffsets, liveCount);
+                }
+            });
+
+            var originalOffsets = keysinmemory ? new HashSet<long>(typedOffsets) : null;
+            var writeHashKeysMs = Measure(() => ReplaceWithFixedArrayDirect(hkeys, hashKeys));
+            var writeOffsetsMs = Measure(() => ReplaceWithFixedArrayDirect(offsets, typedOffsets));
+
+            hkeys_arr = keysinmemory ? hashKeys : null;
+            original_offsets_set = originalOffsets;
+            keyoff_dic.Clear();
+            hasBuiltSnapshot = true;
+
+            totalWatch.Stop();
+            LastBuildProfile = new UIndexBuildProfile(
+                scanMs: 0.0,
+                toArrayMs,
+                sortMs,
+                writeHashKeysMs,
+                writeOffsetsMs,
+                gcMs: 0.0,
+                totalWatch.Elapsed.TotalMilliseconds);
         }
 
         private void BuildFromEntries(BuildEntry[] entries, int entryCount, double scanMs, System.Diagnostics.Stopwatch totalWatch)
@@ -399,6 +448,50 @@ namespace Polar.Universal
             }
 
             return liveCount;
+        }
+
+        private static int MaterializeLatestEntries<TKey>(
+            PrimaryBuildEntry<TKey>[] entries,
+            int[] hashKeys,
+            long[] typedOffsets)
+            where TKey : struct, IEquatable<TKey>
+        {
+            var liveCount = 0;
+            var index = 0;
+
+            while (index < entries.Length)
+            {
+                var latest = entries[index++];
+                while (index < entries.Length &&
+                       latest.HashKey == entries[index].HashKey &&
+                       latest.Key.Equals(entries[index].Key))
+                {
+                    latest = entries[index++];
+                }
+
+                hashKeys[liveCount] = latest.HashKey;
+                typedOffsets[liveCount] = latest.Offset;
+                liveCount++;
+            }
+
+            return liveCount;
+        }
+
+        private static void ReplaceWithFixedArrayDirect<T>(UniversalSequenceBase target, T[] values)
+            where T : struct
+        {
+            var payload = MemoryMarshal.AsBytes(values.AsSpan());
+            var media = target.Media;
+            media.Position = 0L;
+            media.SetLength(0L);
+
+            Span<byte> header = stackalloc byte[sizeof(long)];
+            BinaryPrimitives.WriteInt64LittleEndian(header, values.LongLength);
+            media.Write(header);
+            media.Write(payload);
+            media.Flush();
+
+            target.Refresh();
         }
 
         private static bool IsSameLogicalKey(BuildEntry left, BuildEntry right) =>
