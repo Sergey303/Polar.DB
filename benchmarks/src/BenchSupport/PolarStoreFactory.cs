@@ -21,8 +21,12 @@ internal static class PolarStoreFactory
             return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
         }
 
-        var sequence = new USequence(ElementType(kind), Path.Combine(dir, "state.bin"), StreamGen,
-            DeletedFlag(kind), PrimaryKey(kind), BenchmarkChecksum.StableHash);
+        var sequence = new USequence(
+            ElementType(kind),
+            Path.Combine(dir, "state.bin"),
+            StreamGen,
+            DeletedFlag(kind));
+        ConfigurePrimaryKey(sequence, kind);
 
         var intIndex = NeedsIntIndex(kind) ? CreateIntIndex(StreamGen, sequence) : null;
         var longIndex = NeedsLongIndex(kind) ? CreateLongIndex(StreamGen, sequence) : null;
@@ -39,21 +43,41 @@ internal static class PolarStoreFactory
         if (kind != ExperimentKind.BuildPrimaryIntOnly)
             throw new ArgumentException("SetPrimaryKey benchmark store is only valid for BuildPrimaryIntOnly.", nameof(kind));
 
-        var counter = 0;
-        Stream StreamGen()
+        return Open(dir, kind);
+    }
+
+    private static void ConfigurePrimaryKey(USequence sequence, ExperimentKind kind)
+    {
+        switch (kind)
         {
-            var path = Path.Combine(dir, "f" + counter++ + ".bin");
-            return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+            case ExperimentKind.BuildPrimaryIntOnly:
+                sequence.SetPrimaryKey<long>(value => (long)value, BenchmarkChecksum.StableHash);
+                return;
+
+            case ExperimentKind.PkLongLookup:
+                sequence.SetPrimaryKey<long>(
+                    value => (long)((object[])value)[1],
+                    BenchmarkChecksum.StableHash);
+                return;
+
+            case ExperimentKind.PkGuidLookup:
+                sequence.SetPrimaryKey<Guid>(
+                    value => ReadGuid(value, 2),
+                    BenchmarkChecksum.StableHash);
+                return;
+
+            case ExperimentKind.PkStringLookup:
+                sequence.SetPrimaryKey<string>(
+                    value => (string)((object[])value)[4],
+                    BenchmarkChecksum.StableHash);
+                return;
+
+            default:
+                sequence.SetPrimaryKey<long>(
+                    value => (long)((object[])value)[0],
+                    BenchmarkChecksum.StableHash);
+                return;
         }
-
-        var sequence = new USequence(
-            ElementType(kind),
-            Path.Combine(dir, "state.bin"),
-            StreamGen,
-            DeletedFlag(kind));
-        sequence.SetPrimaryKey(value => (long)value);
-
-        return new PolarStore(sequence, null, null, null, null);
     }
 
     private static PType ElementType(ExperimentKind kind)
@@ -83,15 +107,6 @@ internal static class PolarStoreFactory
 
         return value => (bool)((object[])value)[11];
     }
-
-    private static Func<object, IComparable> PrimaryKey(ExperimentKind kind) => kind switch
-    {
-        ExperimentKind.BuildPrimaryIntOnly => value => (long)value,
-        ExperimentKind.PkLongLookup => value => (long)((object[])value)[1],
-        ExperimentKind.PkGuidLookup => value => ReadGuid(value, 2),
-        ExperimentKind.PkStringLookup => value => (string)((object[])value)[4],
-        _ => value => (long)((object[])value)[0]
-    };
 
     private static bool NeedsIntIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup
