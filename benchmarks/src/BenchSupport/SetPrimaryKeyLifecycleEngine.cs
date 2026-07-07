@@ -23,7 +23,7 @@ internal static class SetPrimaryKeyLifecycleEngine
         {
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
-            var store = PolarStoreFactory.OpenWithSetPrimaryKey(runDir, ExperimentKind.BuildPrimaryIntOnly);
+            var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
 
             var loadMs = Measure(() => store.Sequence.LoadFixedInt64ForBenchmark(ids, parallelOriginalOffsets: false));
             var total = Stopwatch.StartNew();
@@ -85,7 +85,7 @@ internal static class SetPrimaryKeyLifecycleEngine
     private static void VerifyDuplicateKeys(string dir)
     {
         Directory.CreateDirectory(dir);
-        var store = PolarStoreFactory.OpenWithSetPrimaryKey(dir, ExperimentKind.BuildPrimaryIntOnly);
+        var store = PolarStoreFactory.Open(dir, ExperimentKind.BuildPrimaryIntOnly);
         try
         {
             long[] values = { 11, 22, 11, 33, 22 };
