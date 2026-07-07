@@ -4,13 +4,17 @@ internal static class StableHash
 {
     public static int OfKey(IComparable key)
     {
-        if (key is int intValue) return intValue;
+        if (key is int intValue) return OfInt32(intValue);
         if (key is string text) return OfString(text);
         return key.GetHashCode();
     }
 
-    private static int OfString(string text)
+    public static int OfInt32(int value) => value;
+
+    public static int OfString(string text)
     {
+        if (text == null) throw new ArgumentNullException(nameof(text));
+
         unchecked
         {
             var hash = (int)2166136261;
