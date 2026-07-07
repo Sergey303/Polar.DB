@@ -55,14 +55,14 @@ internal static class TagAndPrefixSearch
     private static USequence CreateSequence(string dbPath)
     {
         var nextStreamIndex = 0;
-        return new USequence(
+        var sequence = new USequence(
             ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => ExtendPeopleScheme.Id(record),
-            hashOfKey: key => Convert.ToInt32(key),
             optimise: true);
+        sequence.SetPrimaryKey<int>(record => ExtendPeopleScheme.Id(record));
+        return sequence;
     }
 
     private static Func<Stream> CreateStreamFactory(string dbPath, string prefix)
