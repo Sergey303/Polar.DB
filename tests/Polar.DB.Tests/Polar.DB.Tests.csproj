@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Polar.DB\Polar.DB.csproj" />
+    <ProjectReference Include="..\..\src\Polar.DB.Typed\Polar.DB.Typed.csproj" />
   </ItemGroup>
 
   <ItemGroup>
