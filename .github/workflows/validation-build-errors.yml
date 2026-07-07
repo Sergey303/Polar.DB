@@ -1,0 +1,35 @@
+name: Validation build diagnostics
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore Polar.DB.slnx
+      - name: Capture build errors
+        shell: bash
+        run: |
+          set +e
+          dotnet build Polar.DB.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true /warnaserror --verbosity quiet > build.log 2>&1
+          code=$?
+          grep -E "error [A-Z]+[0-9]+|Build FAILED|[0-9]+ Error\(s\)" build.log > build-errors.txt || true
+          echo "exit_code=$code" >> build-errors.txt
+          exit 0
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-build-errors
+          path: build-errors.txt
+          if-no-files-found: error
