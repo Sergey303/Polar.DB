@@ -62,7 +62,7 @@ public static class PersonSchema
             Path.Combine(dbPath, "state.bin"),
             genStream,
             Deleted);
-        sequence.SetPrimaryKey<int>(GetId);
+        sequence.SetPrimaryKey<int>(record => GetId(record));
 
         ExternalKeyIndex<int> ageIndex = new ExternalKeyIndex<int>(genStream, sequence,
             obj => Enumerable.Repeat(GetAge(obj), 1));
