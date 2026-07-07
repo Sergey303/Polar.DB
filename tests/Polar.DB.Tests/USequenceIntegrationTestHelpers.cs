@@ -57,9 +57,8 @@ internal static class USequenceIntegrationTestHelpers
                 StateFilePath,
                 StreamGen,
                 isEmpty: record => string.IsNullOrEmpty((string)((object[])record)[1]),
-                keyFunc: value => (int)((object[])value)[0],
-                hashOfKey: key => (int)key,
                 optimise: optimise);
+            sequence.SetPrimaryKey<int>(value => (int)((object[])value)[0]);
 
             var sIndex = new SVectorIndex(StreamGen, sequence, r => new[] { (string)((object[])r)[1] });
             var exactNameIndex = new UIndex(
