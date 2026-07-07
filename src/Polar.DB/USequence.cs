@@ -150,9 +150,7 @@ namespace Polar.Universal
             SaveState();
         }
 
-        public void LoadFixedInt64ForBenchmark(
-            long[] values,
-            bool parallelOriginalOffsets = true)
+        public void LoadFixedInt64ForBenchmark(long[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             EnsurePrimaryKeyConfigured();
@@ -170,9 +168,7 @@ namespace Polar.Universal
                         definition.Hash(value), value, 8L + i * sizeof(long), isEmpty: false);
                 }
 
-                loadedTypedPrimaryBuild = new LoadedTypedPrimaryBuild<long>(
-                    typedEntries,
-                    parallelOriginalOffsets);
+                loadedTypedPrimaryBuild = new LoadedTypedPrimaryBuild<long>(typedEntries);
                 loadedPrimaryBuildEntries = null;
             }
             else
