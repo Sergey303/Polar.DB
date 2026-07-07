@@ -38,14 +38,6 @@ internal static class PolarStoreFactory
         return new PolarStore(sequence, intIndex, longIndex, guidIndex, stringIndex);
     }
 
-    public static PolarStore OpenWithSetPrimaryKey(string dir, ExperimentKind kind)
-    {
-        if (kind != ExperimentKind.BuildPrimaryIntOnly)
-            throw new ArgumentException("SetPrimaryKey benchmark store is only valid for BuildPrimaryIntOnly.", nameof(kind));
-
-        return Open(dir, kind);
-    }
-
     private static void ConfigurePrimaryKey(USequence sequence, ExperimentKind kind)
     {
         switch (kind)
