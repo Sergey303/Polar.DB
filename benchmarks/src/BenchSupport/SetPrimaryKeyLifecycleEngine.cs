@@ -25,7 +25,7 @@ internal static class SetPrimaryKeyLifecycleEngine
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
 
-            var loadMs = Measure(() => store.Sequence.LoadFixedInt64ForBenchmark(ids, parallelOriginalOffsets: false));
+            var loadMs = Measure(() => store.Sequence.LoadFixedInt64ForBenchmark(ids));
             var total = Stopwatch.StartNew();
             var buildMs = Measure(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
@@ -89,7 +89,7 @@ internal static class SetPrimaryKeyLifecycleEngine
         try
         {
             long[] values = { 11, 22, 11, 33, 22 };
-            store.Sequence.LoadFixedInt64ForBenchmark(values, parallelOriginalOffsets: false);
+            store.Sequence.LoadFixedInt64ForBenchmark(values);
             store.Sequence.Build();
 
             var materialized = store.Sequence.ElementValues().Cast<long>().ToArray();
