@@ -39,14 +39,14 @@ internal static class PrimaryKeyLookup
     private static USequence CreateSequence(string dbPath)
     {
         var nextStreamIndex = 0;
-        return new USequence(
+        var sequence = new USequence(
             ExtendPeopleScheme.RecordType,
             stateFileName: null,
             streamGen: () => OpenStream(dbPath, $"primary-{nextStreamIndex++:00}.bin"),
             isEmpty: _ => false,
-            keyFunc: record => ExtendPeopleScheme.Id(record),
-            hashOfKey: Convert.ToInt32,
             optimise: true);
+        sequence.SetPrimaryKey<int>(record => ExtendPeopleScheme.Id(record));
+        return sequence;
     }
 
     private static FileStream OpenStream(string dbPath, string fileName)
