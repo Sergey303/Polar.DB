@@ -42,12 +42,13 @@ jobs:
         id: locate_solution
         shell: pwsh
         run: |
-          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -File -Recurse |
+            Where-Object { $_.Extension -in '.sln', '.slnx' } |
             Sort-Object FullName |
             Select-Object -First 1 -ExpandProperty FullName
 
           if (-not $solution) {
-            throw 'No .sln file was found in the repository.'
+            throw 'No .sln or .slnx file was found in the repository.'
           }
 
           "solution=$solution" >> $env:GITHUB_OUTPUT
@@ -91,12 +92,13 @@ jobs:
         id: locate_solution
         shell: pwsh
         run: |
-          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -File -Recurse |
+            Where-Object { $_.Extension -in '.sln', '.slnx' } |
             Sort-Object FullName |
             Select-Object -First 1 -ExpandProperty FullName
 
           if (-not $solution) {
-            throw 'No .sln file was found in the repository.'
+            throw 'No .sln or .slnx file was found in the repository.'
           }
 
           "solution=$solution" >> $env:GITHUB_OUTPUT
