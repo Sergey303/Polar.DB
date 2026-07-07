@@ -1,0 +1,20 @@
+name: Validation export Types.cs
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-types-source
+          path: src/Polar.DB/Types.cs
+          if-no-files-found: error
