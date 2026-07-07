@@ -1,0 +1,33 @@
+name: Validation SetPrimaryKey audit
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit USequence construction and experiment leftovers
+        shell: bash
+        run: |
+          {
+            echo '=== ALL new USequence sites with context ==='
+            rg -n -U -B 1 -A 12 'new USequence\s*\(' --glob '*.cs' . || true
+            echo
+            echo '=== OLD/EXPERIMENT SYMBOLS ==='
+            rg -n 'OpenWithSetPrimaryKey|parallelOriginalOffsets|PrimaryKeyDefinitionExperiment|TypedPrimaryBuildExperiment' --glob '*.{cs,csproj,props}' . || true
+            echo
+            echo '=== SET PRIMARY KEY SITES ==='
+            rg -n 'SetPrimaryKey' --glob '*.cs' . || true
+          } > set-primary-key-audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: set-primary-key-audit
+          path: set-primary-key-audit.txt
+          if-no-files-found: error
