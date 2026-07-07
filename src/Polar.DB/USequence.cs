@@ -4,7 +4,7 @@ using Polar.DB.ExternalKey;
 
 namespace Polar.Universal
 {
-    public class USequence: IDisposable
+    public class USequence : IDisposable
     {
         private UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
@@ -14,7 +14,7 @@ namespace Polar.Universal
         private IPrimaryKeyDefinition? primaryKeyDefinition;
         private bool primaryKeyConfigured;
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
-        public IUIndex[] uindexes { get; set; } = new IUIndex[0];
+        public IUIndex[] uindexes { get; set; } = Array.Empty<IUIndex>();
         private bool optimise = true;
         private string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
@@ -55,7 +55,7 @@ namespace Polar.Universal
         public void SetPrimaryKey<TKey>(
             Expression<Func<object, TKey>> keyExpression,
             Func<TKey, int>? hashOfKey = null)
-            where TKey : struct, IComparable, IComparable<TKey>, IEquatable<TKey>
+            where TKey : IComparable, IComparable<TKey>, IEquatable<TKey>
         {
             if (primaryKeyConfigured)
                 throw new InvalidOperationException("Primary key is already configured for this sequence.");
@@ -98,7 +98,13 @@ namespace Polar.Universal
             if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
         }
 
-        public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
+        public void Flush()
+        {
+            sequence.Flush();
+            primaryKeyIndex.Flush();
+            if (uindexes != null) foreach (var ui in uindexes) ui.Flush();
+        }
+
         public void Close()
         {
             if (disposed) return;
@@ -331,7 +337,7 @@ namespace Polar.Universal
                 return uvind.GetAllByValue(value)
                     .Where(obof => keysFunc(obof.obj)
                         .Select(w => ignorecase ? ((string)w).ToUpper() : w)
-                        .Any(W => W.CompareTo(value) == 0))
+                        .Any(w => w.CompareTo(value) == 0))
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
                     .Select(obof => obof.obj)
                     .ToArray();
