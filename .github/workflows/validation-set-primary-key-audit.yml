@@ -16,16 +16,50 @@ jobs:
       - name: Audit USequence construction and experiment leftovers
         shell: bash
         run: |
-          {
-            echo '=== ALL new USequence sites with context ==='
-            rg -n -U -B 1 -A 12 'new USequence\s*\(' --glob '*.cs' . || true
-            echo
-            echo '=== OLD/EXPERIMENT SYMBOLS ==='
-            rg -n 'OpenWithSetPrimaryKey|parallelOriginalOffsets|PrimaryKeyDefinitionExperiment|TypedPrimaryBuildExperiment' --glob '*.{cs,csproj,props}' . || true
-            echo
-            echo '=== SET PRIMARY KEY SITES ==='
-            rg -n 'SetPrimaryKey' --glob '*.cs' . || true
-          } > set-primary-key-audit.txt
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          cs_files = sorted(p for p in root.rglob('*.cs') if '.git' not in p.parts)
+          text_files = sorted(
+              p for pattern in ('*.cs', '*.csproj', '*.props')
+              for p in root.rglob(pattern)
+              if '.git' not in p.parts
+          )
+
+          with Path('set-primary-key-audit.txt').open('w', encoding='utf-8') as out:
+              out.write('=== ALL new USequence sites with context ===\n')
+              for path in cs_files:
+                  lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+                  for index, line in enumerate(lines):
+                      if 'new USequence' not in line:
+                          continue
+                      out.write(f'\n--- {path}:{index + 1} ---\n')
+                      start = max(0, index - 1)
+                      end = min(len(lines), index + 14)
+                      for line_index in range(start, end):
+                          out.write(f'{line_index + 1:5}: {lines[line_index]}\n')
+
+              out.write('\n=== OLD/EXPERIMENT SYMBOLS ===\n')
+              symbols = (
+                  'OpenWithSetPrimaryKey',
+                  'parallelOriginalOffsets',
+                  'PrimaryKeyDefinitionExperiment',
+                  'TypedPrimaryBuildExperiment',
+              )
+              for path in text_files:
+                  lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+                  for index, line in enumerate(lines):
+                      if any(symbol in line for symbol in symbols):
+                          out.write(f'{path}:{index + 1}: {line}\n')
+
+              out.write('\n=== SET PRIMARY KEY SITES ===\n')
+              for path in cs_files:
+                  lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+                  for index, line in enumerate(lines):
+                      if 'SetPrimaryKey' in line:
+                          out.write(f'{path}:{index + 1}: {line}\n')
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: set-primary-key-audit
