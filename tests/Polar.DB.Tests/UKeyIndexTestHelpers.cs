@@ -23,9 +23,8 @@ public static class UKeyIndexTestHelpers
                 Path.Combine(_tempDir, "state.bin"),
                 StreamGen,
                 _ => false,
-                value => (int)((object[])value)[0],
-                key => (int)key,
                 optimise: false);
+            Sequence.SetPrimaryKey<int>(value => (int)((object[])value)[0]);
         }
 
         public USequence Sequence { get; }
@@ -42,20 +41,14 @@ public static class UKeyIndexTestHelpers
         public void Dispose()
         {
             try { Sequence.Close(); }
-            catch
-            {
-                // ignored
-            }
+            catch { }
 
             try
             {
                 if (Directory.Exists(_tempDir))
                     Directory.Delete(_tempDir, recursive: true);
             }
-            catch
-            {
-                // ignored
-            }
+            catch { }
         }
     }
 
@@ -70,5 +63,4 @@ public static class UKeyIndexTestHelpers
         scope.Sequence.Load(rows.Cast<object>().ToArray());
         index.Build();
     }
-
 }
