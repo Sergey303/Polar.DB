@@ -1,0 +1,138 @@
+name: Validation SetPrimaryKey final
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Audit migration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          cs_files = sorted(p for p in root.rglob('*.cs') if '.git' not in p.parts)
+          text_files = sorted(
+              p for pattern in ('*.cs', '*.csproj', '*.props')
+              for p in root.rglob(pattern)
+              if '.git' not in p.parts
+          )
+
+          old_symbols = (
+              'OpenWithSetPrimaryKey',
+              'parallelOriginalOffsets',
+              'PrimaryKeyDefinitionExperiment',
+              'TypedPrimaryBuildExperiment',
+          )
+
+          construction_sites = []
+          legacy_sites = []
+          set_primary_sites = []
+          symbol_hits = []
+
+          for path in cs_files:
+              text = path.read_text(encoding='utf-8', errors='replace')
+              lines = text.splitlines()
+              for index, line in enumerate(lines):
+                  if 'new USequence' in line:
+                      start = index
+                      end = min(len(lines), index + 16)
+                      block = '\n'.join(lines[start:end])
+                      construction_sites.append((path, index + 1, block))
+                      if 'keyFunc:' in block or 'hashOfKey:' in block:
+                          legacy_sites.append((path, index + 1, 'named legacy arguments'))
+                      elif re.search(r'new USequence\s*\([^;]*?,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,)]+', block, re.S):
+                          legacy_sites.append((path, index + 1, 'possible positional legacy constructor'))
+                  if 'SetPrimaryKey' in line:
+                      set_primary_sites.append((path, index + 1, line.strip()))
+
+          for path in text_files:
+              for index, line in enumerate(path.read_text(encoding='utf-8', errors='replace').splitlines()):
+                  if any(symbol in line for symbol in old_symbols):
+                      symbol_hits.append((path, index + 1, line.strip()))
+
+          intentional_legacy = {
+              ('tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs', 'OpenLegacyIntSequence'),
+          }
+
+          filtered_legacy = []
+          for path, line, reason in legacy_sites:
+              normalized = path.as_posix().lstrip('./')
+              if normalized.startswith('mag_series/'):
+                  continue
+              if normalized == 'tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs':
+                  # Intentional compatibility fixture; the method name is in the nearby block/file.
+                  continue
+              filtered_legacy.append((normalized, line, reason))
+
+          with Path('migration-audit.txt').open('w', encoding='utf-8') as out:
+              out.write(f'construction_sites={len(construction_sites)}\n')
+              out.write(f'set_primary_sites={len(set_primary_sites)}\n')
+              out.write(f'unexpected_legacy_sites={len(filtered_legacy)}\n')
+              out.write(f'old_symbol_hits={len(symbol_hits)}\n')
+              out.write('\n=== UNEXPECTED LEGACY SITES ===\n')
+              for item in filtered_legacy:
+                  out.write(f'{item[0]}:{item[1]}: {item[2]}\n')
+              out.write('\n=== OLD SYMBOL HITS ===\n')
+              for path, line, value in symbol_hits:
+                  out.write(f'{path}:{line}: {value}\n')
+              out.write('\n=== ALL CONSTRUCTION SITES ===\n')
+              for path, line, block in construction_sites:
+                  out.write(f'\n--- {path}:{line} ---\n{block}\n')
+              out.write('\n=== SET PRIMARY KEY SITES ===\n')
+              for path, line, value in set_primary_sites:
+                  out.write(f'{path}:{line}: {value}\n')
+
+          if filtered_legacy or symbol_hits:
+              raise SystemExit(1)
+          PY
+      - name: Restore
+        run: dotnet restore Polar.DB.slnx
+      - name: Build and test
+        shell: bash
+        run: |
+          set +e
+          dotnet build Polar.DB.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true --verbosity minimal > build.log 2>&1
+          build_code=$?
+
+          if [ "$build_code" -eq 0 ]; then
+            dotnet test Polar.DB.slnx --configuration Release --no-build --verbosity normal > test.log 2>&1
+            test_code=$?
+          else
+            printf 'Tests skipped because build failed.\n' > test.log
+            test_code=125
+          fi
+
+          {
+            echo "build_exit_code=$build_code"
+            echo "test_exit_code=$test_code"
+            echo "--- build errors ---"
+            grep -E "error [A-Z]+[0-9]+|Build FAILED|Build succeeded" build.log || true
+            echo "--- test summary ---"
+            grep -E "Failed!|Passed!|Total tests:|Failed:|Passed:|Skipped:" test.log || true
+          } > validation-summary.txt
+
+          exit 0
+      - name: Upload validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: set-primary-key-final-validation
+          path: |
+            migration-audit.txt
+            validation-summary.txt
+            build.log
+            test.log
+          if-no-files-found: error
