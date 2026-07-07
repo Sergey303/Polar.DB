@@ -60,7 +60,6 @@ public class ExternalKeyIndexTests
         Assert.Equal(new[] { 1 }, QueryIds(env.Sequence, 0, "carol"));
     }
 
-
     private static object[] Row(int id, string name, long score, Guid guid)
     {
         return new object[] { id, name, score, guid.ToString("D") };
@@ -90,9 +89,8 @@ public class ExternalKeyIndexTests
                 null,
                 StreamGen,
                 _ => false,
-                r => (int)((object[])r)[0],
-                key => (int)key,
                 optimise: false);
+            Sequence.SetPrimaryKey<int>(r => (int)((object[])r)[0]);
         }
 
         public USequence Sequence { get; }
