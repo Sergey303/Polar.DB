@@ -1,0 +1,296 @@
+name: Apply USequence state recovery fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'fix/usequence-state-recovery'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/usequence-state-recovery
+          fetch-depth: 0
+      - name: Patch USequence state lifecycle
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/Polar.DB/USequence.cs')
+          raw = path.read_bytes()
+          bom = raw.startswith(b'\xef\xbb\xbf')
+          text = raw.decode('utf-8-sig')
+
+          replacements = [
+              (
+          '''        public void RestoreDynamic()
+                  {
+                      EnsurePrimaryKeyConfigured();
+                      FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
+                      BinaryReader reader = new(statefile);
+                      long statenelements = reader.ReadInt64();
+                      long elementoffset = reader.ReadInt64();
+                      statefile.Close();
+                      long nelements = sequence.Count();
+                      Console.WriteLine($"{nelements - statenelements} elements added");
+                      if (nelements > statenelements)
+                      {
+                          var additional = sequence.ElementOffsetValuePairs(elementoffset, nelements - statenelements);
+                          foreach (var pair in additional)
+                          {
+                              primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+                              if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
+                          }
+                      }
+                  }
+          ''',
+          '''        public void RestoreDynamic()
+                  {
+                      RefreshCore(persistRecoveredIndexes: true);
+                  }
+          '''
+              ),
+              (
+          '''        public void Refresh()
+                  {
+                      sequence.Refresh();
+                      primaryKeyIndex.Refresh();
+                      loadedPrimaryBuildEntries = null;
+                      loadedTypedPrimaryBuild = null;
+                      loadedPrimaryInt64MetadataProbe = null;
+                      if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
+                  }
+          ''',
+          '''        public void Refresh()
+                  {
+                      RefreshCore(persistRecoveredIndexes: false);
+                  }
+
+                  private void RefreshCore(bool persistRecoveredIndexes)
+                  {
+                      EnsurePrimaryKeyConfigured();
+                      sequence.Refresh();
+                      primaryKeyIndex.Refresh();
+                      loadedPrimaryBuildEntries = null;
+                      loadedTypedPrimaryBuild = null;
+                      loadedPrimaryInt64MetadataProbe = null;
+                      if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
+
+                      bool replayedFromState = TryReplayDynamicTailFromState();
+                      if (!replayedFromState || persistRecoveredIndexes)
+                          Build();
+                  }
+
+                  private bool TryReplayDynamicTailFromState()
+                  {
+                      if (!TryReadState(out long stateCount, out long stateAppendOffset))
+                          return false;
+
+                      long currentCount = sequence.Count();
+                      if (stateCount == currentCount)
+                          return stateAppendOffset == sequence.ElementOffset();
+
+                      try
+                      {
+                          long replayCount = currentCount - stateCount;
+                          long replayed = 0L;
+                          foreach (var pair in sequence.ElementOffsetValuePairs(stateAppendOffset, replayCount))
+                          {
+                              primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+                              if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
+                              replayed++;
+                          }
+
+                          return replayed == replayCount && sequence.Media.Position == sequence.ElementOffset();
+                      }
+                      catch (ArgumentOutOfRangeException)
+                      {
+                          return false;
+                      }
+                      catch (EndOfStreamException)
+                      {
+                          return false;
+                      }
+                      catch (InvalidDataException)
+                      {
+                          return false;
+                      }
+                  }
+
+                  private bool TryReadState(out long stateCount, out long stateAppendOffset)
+                  {
+                      stateCount = 0L;
+                      stateAppendOffset = 8L;
+
+                      if (stateFileName == null || !File.Exists(stateFileName))
+                          return false;
+
+                      try
+                      {
+                          using var statefile = new FileStream(
+                              stateFileName,
+                              FileMode.Open,
+                              FileAccess.Read,
+                              FileShare.ReadWrite);
+                          if (statefile.Length < sizeof(long) * 2)
+                              return false;
+
+                          using var reader = new BinaryReader(statefile);
+                          stateCount = reader.ReadInt64();
+                          stateAppendOffset = reader.ReadInt64();
+                      }
+                      catch (IOException)
+                      {
+                          return false;
+                      }
+
+                      long currentCount = sequence.Count();
+                      long logicalTail = sequence.ElementOffset();
+
+                      if (stateCount < 0L || stateCount > currentCount)
+                          return false;
+                      if (stateAppendOffset < 8L || stateAppendOffset > logicalTail)
+                          return false;
+                      if (stateCount == 0L && stateAppendOffset != 8L)
+                          return false;
+                      if (stateCount == currentCount && stateAppendOffset != logicalTail)
+                          return false;
+                      if (stateCount < currentCount && stateAppendOffset >= logicalTail)
+                          return false;
+
+                      return true;
+                  }
+          '''
+              ),
+              (
+          '''        private void SaveState()
+                  {
+                      if (stateFileName == null) return;
+
+                      FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
+                      BinaryWriter writer = new(statefile);
+                      writer.Write(sequence.Count());
+                      writer.Write(sequence.ElementOffset());
+                      statefile.Close();
+                  }
+          ''',
+          '''        private void SaveState()
+                  {
+                      if (stateFileName == null) return;
+
+                      using var statefile = new FileStream(
+                          stateFileName,
+                          FileMode.Create,
+                          FileAccess.Write,
+                          FileShare.ReadWrite);
+                      using var writer = new BinaryWriter(statefile);
+                      writer.Write(sequence.Count());
+                      writer.Write(sequence.ElementOffset());
+                      writer.Flush();
+                  }
+          '''
+              ),
+              (
+          '''        public void Build()
+                  {
+                      EnsurePrimaryKeyConfigured();
+
+                      var typedBuild = loadedTypedPrimaryBuild;
+                      if (typedBuild != null)
+                      {
+                          typedBuild.Build(primaryKeyIndex);
+                          loadedTypedPrimaryBuild = null;
+                      }
+                      else if (loadedPrimaryInt64MetadataProbe != null)
+                      {
+                          loadedPrimaryInt64MetadataProbe = null;
+                          primaryKeyIndex.Build();
+                      }
+                      else
+                      {
+                          var loadedEntries = loadedPrimaryBuildEntries;
+                          if (loadedEntries != null)
+                          {
+                              primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
+                              loadedPrimaryBuildEntries = null;
+                          }
+                          else
+                          {
+                              primaryKeyIndex.Build();
+                          }
+                      }
+
+                      foreach (var ind in uindexes) ind.Build();
+                  }
+          ''',
+          '''        public void Build()
+                  {
+                      EnsurePrimaryKeyConfigured();
+                      sequence.Flush();
+
+                      var typedBuild = loadedTypedPrimaryBuild;
+                      if (typedBuild != null)
+                      {
+                          typedBuild.Build(primaryKeyIndex);
+                          loadedTypedPrimaryBuild = null;
+                      }
+                      else if (loadedPrimaryInt64MetadataProbe != null)
+                      {
+                          loadedPrimaryInt64MetadataProbe = null;
+                          primaryKeyIndex.Build();
+                      }
+                      else
+                      {
+                          var loadedEntries = loadedPrimaryBuildEntries;
+                          if (loadedEntries != null)
+                          {
+                              primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
+                              loadedPrimaryBuildEntries = null;
+                          }
+                          else
+                          {
+                              primaryKeyIndex.Build();
+                          }
+                      }
+
+                      foreach (var ind in uindexes) ind.Build();
+
+                      primaryKeyIndex.Flush();
+                      foreach (var ind in uindexes) ind.Flush();
+                      SaveState();
+                  }
+          '''
+              ),
+          ]
+
+          changed = False
+          for old, new in replacements:
+              if new in text:
+                  continue
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'Expected one replacement target, found {count}.')
+              text = text.replace(old, new)
+              changed = True
+
+          if changed:
+              path.write_bytes((b'\xef\xbb\xbf' if bom else b'') + text.encode('utf-8'))
+      - name: Commit state recovery fix
+        shell: bash
+        run: |
+          if git diff --quiet -- src/Polar.DB/USequence.cs; then
+            echo 'No production diff to commit.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Polar.DB/USequence.cs
+          git commit -m 'Fix USequence state recovery lifecycle'
+          git push origin HEAD:fix/usequence-state-recovery
