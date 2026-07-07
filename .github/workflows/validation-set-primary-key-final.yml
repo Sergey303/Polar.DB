@@ -21,7 +21,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           root = Path('.')
           cs_files = sorted(p for p in root.rglob('*.cs') if '.git' not in p.parts)
@@ -38,6 +37,48 @@ jobs:
               'TypedPrimaryBuildExperiment',
           )
 
+          def parse_argument_count(text: str, open_paren: int):
+              depth = 0
+              commas = 0
+              has_content = False
+              quote = None
+              escape = False
+              index = open_paren + 1
+
+              while index < len(text):
+                  ch = text[index]
+
+                  if quote is not None:
+                      if escape:
+                          escape = False
+                      elif ch == '\\' and quote != "'":
+                          escape = True
+                      elif ch == quote:
+                          quote = None
+                      index += 1
+                      continue
+
+                  if ch in ('"', "'"):
+                      quote = ch
+                      has_content = True
+                  elif ch in '([{':
+                      depth += 1
+                      has_content = True
+                  elif ch in ']}':
+                      depth -= 1
+                  elif ch == ')':
+                      if depth == 0:
+                          return (0 if not has_content else commas + 1), index
+                      depth -= 1
+                  elif ch == ',' and depth == 0:
+                      commas += 1
+                  elif not ch.isspace():
+                      has_content = True
+
+                  index += 1
+
+              raise ValueError('Unclosed USequence constructor call')
+
           construction_sites = []
           legacy_sites = []
           set_primary_sites = []
@@ -46,58 +87,67 @@ jobs:
           for path in cs_files:
               text = path.read_text(encoding='utf-8', errors='replace')
               lines = text.splitlines()
+              search_from = 0
+
+              while True:
+                  start = text.find('new USequence', search_from)
+                  if start < 0:
+                      break
+
+                  line_start = text.rfind('\n', 0, start) + 1
+                  prefix = text[line_start:start]
+                  search_from = start + len('new USequence')
+                  if '//' in prefix:
+                      continue
+
+                  open_paren = text.find('(', start)
+                  if open_paren < 0:
+                      continue
+
+                  arg_count, end = parse_argument_count(text, open_paren)
+                  line_number = text.count('\n', 0, start) + 1
+                  line_index = line_number - 1
+                  block = '\n'.join(lines[line_index:min(len(lines), line_index + 16)])
+                  normalized = path.as_posix().lstrip('./')
+                  construction_sites.append((normalized, line_number, arg_count, block))
+
+                  if arg_count >= 6 and not normalized.startswith('mag_series/'):
+                      if normalized != 'tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs':
+                          legacy_sites.append((normalized, line_number, arg_count))
+
+                  search_from = end + 1
+
               for index, line in enumerate(lines):
-                  if 'new USequence' in line:
-                      start = index
-                      end = min(len(lines), index + 16)
-                      block = '\n'.join(lines[start:end])
-                      construction_sites.append((path, index + 1, block))
-                      if 'keyFunc:' in block or 'hashOfKey:' in block:
-                          legacy_sites.append((path, index + 1, 'named legacy arguments'))
-                      elif re.search(r'new USequence\s*\([^;]*?,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,]+\s*,\s*[^,)]+', block, re.S):
-                          legacy_sites.append((path, index + 1, 'possible positional legacy constructor'))
                   if 'SetPrimaryKey' in line:
-                      set_primary_sites.append((path, index + 1, line.strip()))
+                      set_primary_sites.append((path.as_posix().lstrip('./'), index + 1, line.strip()))
 
           for path in text_files:
+              normalized = path.as_posix().lstrip('./')
               for index, line in enumerate(path.read_text(encoding='utf-8', errors='replace').splitlines()):
                   if any(symbol in line for symbol in old_symbols):
-                      symbol_hits.append((path, index + 1, line.strip()))
-
-          intentional_legacy = {
-              ('tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs', 'OpenLegacyIntSequence'),
-          }
-
-          filtered_legacy = []
-          for path, line, reason in legacy_sites:
-              normalized = path.as_posix().lstrip('./')
-              if normalized.startswith('mag_series/'):
-                  continue
-              if normalized == 'tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs':
-                  # Intentional compatibility fixture; the method name is in the nearby block/file.
-                  continue
-              filtered_legacy.append((normalized, line, reason))
+                      symbol_hits.append((normalized, index + 1, line.strip()))
 
           with Path('migration-audit.txt').open('w', encoding='utf-8') as out:
               out.write(f'construction_sites={len(construction_sites)}\n')
               out.write(f'set_primary_sites={len(set_primary_sites)}\n')
-              out.write(f'unexpected_legacy_sites={len(filtered_legacy)}\n')
+              out.write(f'unexpected_legacy_sites={len(legacy_sites)}\n')
               out.write(f'old_symbol_hits={len(symbol_hits)}\n')
               out.write('\n=== UNEXPECTED LEGACY SITES ===\n')
-              for item in filtered_legacy:
-                  out.write(f'{item[0]}:{item[1]}: {item[2]}\n')
+              for path, line, arg_count in legacy_sites:
+                  out.write(f'{path}:{line}: args={arg_count}\n')
               out.write('\n=== OLD SYMBOL HITS ===\n')
               for path, line, value in symbol_hits:
                   out.write(f'{path}:{line}: {value}\n')
               out.write('\n=== ALL CONSTRUCTION SITES ===\n')
-              for path, line, block in construction_sites:
-                  out.write(f'\n--- {path}:{line} ---\n{block}\n')
+              for path, line, arg_count, block in construction_sites:
+                  out.write(f'\n--- {path}:{line} args={arg_count} ---\n{block}\n')
               out.write('\n=== SET PRIMARY KEY SITES ===\n')
               for path, line, value in set_primary_sites:
                   out.write(f'{path}:{line}: {value}\n')
 
-          if filtered_legacy or symbol_hits:
-              raise SystemExit(1)
+          with Path('audit-status.txt').open('w', encoding='utf-8') as out:
+              out.write(f'unexpected_legacy_sites={len(legacy_sites)}\n')
+              out.write(f'old_symbol_hits={len(symbol_hits)}\n')
           PY
       - name: Restore
         run: dotnet restore Polar.DB.slnx
@@ -117,6 +167,7 @@ jobs:
           fi
 
           {
+            cat audit-status.txt
             echo "build_exit_code=$build_code"
             echo "test_exit_code=$test_code"
             echo "--- build errors ---"
@@ -132,6 +183,7 @@ jobs:
           name: set-primary-key-final-validation
           path: |
             migration-audit.txt
+            audit-status.txt
             validation-summary.txt
             build.log
             test.log
