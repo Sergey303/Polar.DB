@@ -265,10 +265,9 @@ public sealed class DbSet<T> : IDbSet<T>
             _scheme.RecordType,
             Path.Combine(tablePath, "state.bin"),
             StreamGen,
-            _ => false,
-            _scheme.GetRecordKey,
-            _scheme.HashKey);
+            _ => false);
 
+        _scheme.ConfigurePrimaryKey(sequence);
         sequence.Refresh();
         return sequence;
     }
