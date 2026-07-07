@@ -41,6 +41,9 @@
     <File Path="benchmarks/src/BenchSupport/PolarLookupEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLookupSession.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLifecycleEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/SetPrimaryKeyLifecycleEngine.cs" />
+    <File Path="benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbe.cs" />
+    <File Path="benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs" />
     <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />
     <File Path="benchmarks/src/BenchSupport/LifecycleBench.cs" />
   </Folder>
@@ -80,9 +83,7 @@
     <Project Path="mag_series/mag_series.csproj" Id="f6325e1f-af3f-4b6f-9e63-835d30af541f" />
   </Folder>
   <Folder Name="/samples/">
-    <Project Path="samples/Common/Common.csproj">
-      <Build Solution="Release|*" Project="false" />
-    </Project>
+    <Project Path="samples/Common/Common.csproj" />
     <Project Path="samples/GetStarted.IndexesAndSearch/GetStarted.IndexesAndSearch.csproj" />
     <Project Path="samples/GetStarted.SequencesAndStorage/GetStarted.SequencesAndStorage.csproj" />
     <Project Path="samples/GetStarted.StructuresAndSerialization/GetStarted.StructuresAndSerialization.csproj" />
@@ -91,9 +92,7 @@
     </Project>
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Polar.DB.Typed/Polar.DB.Typed.csproj">
-      <Build Solution="Release|*" Project="false" />
-    </Project>
+    <Project Path="src/Polar.DB.Typed/Polar.DB.Typed.csproj" />
     <Project Path="src/Polar.DB/Polar.DB.csproj" />
   </Folder>
   <Folder Name="/tests/">
