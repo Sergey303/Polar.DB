@@ -23,7 +23,8 @@ namespace mag_experiments
             Func<Stream> GenStream = () => new System.IO.FileStream(dbpath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
             USequence sequence = new USequence(tp, dbpath + "state.bin", GenStream,
-                obj => (bool)((object[])obj)[3], obj => (int)((object[])obj)[0], key => (int)key);
+                obj => (bool)((object[])obj)[3]);
+            sequence.SetPrimaryKey<int>(obj => (int)((object[])obj)[0]);
             Polar.Universal.EKeyIndex ageIndex = new EKeyIndex(GenStream, sequence,
                 ob => Enumerable.Repeat<IComparable>((int)((object[])ob)[2], 1),
                 com => (int)com);
