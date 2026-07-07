@@ -75,9 +75,8 @@ public class USequenceCompactIndexesTests
                 null,
                 StreamGen,
                 record => string.IsNullOrEmpty((string)((object[])record)[1]),
-                record => (int)((object[])record)[0],
-                key => (int)key,
                 optimise: false);
+            Sequence.SetPrimaryKey<int>(record => (int)((object[])record)[0]);
         }
 
         public USequence Sequence { get; }
