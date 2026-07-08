@@ -1,0 +1,59 @@
+name: Apply USequence RestoreDynamic dedup fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'fix/usequence-state-recovery'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/usequence-state-recovery
+          fetch-depth: 0
+      - name: Avoid replay before persistent recovery build
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/Polar.DB/USequence.cs')
+          raw = path.read_bytes()
+          bom = raw.startswith(b'\xef\xbb\xbf')
+          text = raw.decode('utf-8-sig')
+
+          old = '''            bool replayedFromState = TryReplayDynamicTailFromState();
+                      if (!replayedFromState || persistRecoveredIndexes)
+                          Build();'''
+          new = '''            if (persistRecoveredIndexes)
+                      {
+                          Build();
+                          return;
+                      }
+
+                      if (!TryReplayDynamicTailFromState())
+                          Build();'''
+
+          if new not in text:
+              if text.count(old) != 1:
+                  raise RuntimeError(f'Expected exactly one recovery block, found {text.count(old)}.')
+              text = text.replace(old, new)
+              path.write_bytes((b'\xef\xbb\xbf' if bom else b'') + text.encode('utf-8'))
+      - name: Commit RestoreDynamic dedup fix
+        shell: bash
+        run: |
+          if git diff --quiet -- src/Polar.DB/USequence.cs; then
+            echo 'No production diff to commit.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Polar.DB/USequence.cs
+          git commit -m 'Avoid duplicate dynamic replay before recovery build'
+          git push origin HEAD:fix/usequence-state-recovery
