@@ -100,6 +100,7 @@ namespace Polar.Universal
 
         public void Refresh()
         {
+            sequence.Flush();
             RefreshCore(persistRecoveredIndexes: false);
         }
 
