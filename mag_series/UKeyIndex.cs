@@ -44,18 +44,18 @@ namespace mag_series
             if (keyoff_dic.ContainsKey(key))
             {
                 keyoff_dic.Remove(key);
+                //TODO: можно и по-другому типа: keyoff_dic[key] = offset; с соответствующей коррекцией логики 
             }
-
             keyoff_dic.Add(key, offset);
         }
 
         // Массив оптимизации поиска по значению хеша
-        private int[] hkeys_arr = null;
+        private int[] hkeys_arr = new int[0];
 
         public void Clear()
         {
             hkeys.Clear();
-            hkeys_arr = null;
+            hkeys_arr = new int[0];
             offsets.Clear();
             keyoff_dic.Clear();
         }
@@ -83,7 +83,7 @@ namespace mag_series
             }
             else
             {
-                hkeys_arr = null;
+                hkeys_arr = new int[0];
             }
         }
         private  HashSet<int> not_single_element_hcodes = new HashSet<int>();
@@ -152,7 +152,7 @@ namespace mag_series
         }
 
 
-        public object GetByKey(IComparable keysample)
+        public object? GetByKey(IComparable keysample)
         {
             if (keyoff_dic.TryGetValue(keysample, out long off))
             {
@@ -161,7 +161,7 @@ namespace mag_series
 
             int hkey = hashOfKey(keysample);
 
-            if (hkeys_arr != null)
+            if (keysinmemory)
             {
                 int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
                 if (pos < 0) return null;

@@ -100,7 +100,8 @@ namespace mag_series
         public IEnumerable<object> GetManyByKey(IComparable localkey)
         {
             // Посмотрим в динамическом множестве. Надо убрать пустые, остальные годятся
-            var dyn_candidates = plo_list.Where(plo => plo.local == localkey);
+            var dyn_candidates = plo_list.Where(plo => plo.local == localkey)
+                .ToArray();
 
             int hkey = hashOfKey(localkey);
 
@@ -132,7 +133,8 @@ namespace mag_series
                     // Получаем первичный ключ
                     var p_key = sequence.keyFunc(elem_obj);
                     // Этот ключ мог быть перемещен в динамическую область. Проверим
-                    if (plo_list.Any(plo => plo.primary == p_key)) continue; // Этот не берем
+
+                    if (plo_list.Any(plo => plo.primary.CompareTo(p_key) == 0)) continue; // Этот не берем
                                                                              // элемент может быть пустым, такие не берем
                     if (sequence.isEmpty(elem_obj)) continue;
                     // Элемент должен содержать искомый локальный ключ

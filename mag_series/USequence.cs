@@ -14,10 +14,9 @@ namespace mag_series
         internal Func<object, IComparable> keyFunc;
         internal Func<IComparable, int> hashOfKey;
         private UKeyIndex primaryKeyIndex;
-        //internal HashSet<IComparable> changedIdSet = new HashSet<IComparable>();
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
-        private bool optimise = true;
+        //private bool optimise = true;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey)
@@ -28,7 +27,7 @@ namespace mag_series
             this.hashOfKey = hashOfKey;
             //this.optimise = optimise;
             this.stateFileName = stateFileName;
-            primaryKeyIndex = new (streamGen, this, keyFunc, hashOfKey, optimise);
+            primaryKeyIndex = new (streamGen, this, keyFunc, hashOfKey);
         }
 
         // Файл для сохранения параметров состояния. Команда сохранения выполняется в конце Load()
@@ -63,13 +62,6 @@ namespace mag_series
         public void Close() { sequence.Close(); primaryKeyIndex.Close(); if (uindexes != null) foreach (var ui in uindexes) ui.Close(); }
         public void Refresh() { sequence.Refresh(); primaryKeyIndex.Refresh(); if (uindexes != null) foreach (var ui in uindexes) ui.Refresh(); }
 
-        private List<int> key_list = new List<int>();
-        private List<long> offset_list = new List<long>();
-        //public struct KeyOffsetPair { internal IComparable key; internal long offset; };
-        //public struct HKeyOffsetPair { internal int hkey; internal long offset; };
-        //private List<KeyOffsetPair> kop_list = new List<KeyOffsetPair>();
-        //private List<HKeyOffsetPair> hop_list = new List<HKeyOffsetPair>();
-
         public struct KOHTriple { internal IComparable key; internal long offset; internal int hkey; };
         private List<KOHTriple> koh_list = new List<KOHTriple>();
         public void Load(IEnumerable<object> flow)
@@ -98,10 +90,16 @@ namespace mag_series
         internal bool IsOriginalAndNotEmpty(object element, long off) =>
             primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element); // сначала на оригинал, потом на пустое, может можно и иначе 
 
+        public void Build()
+        {
+            this.primaryKeyIndex.Build(koh_list);
+
+            foreach (var ind in uindexes) ind.Build();
+        }
 
         public IEnumerable<object> ElementValues()
         {
-            var pairs = sequence.ElementOffsetValuePairs().ToArray();
+            var pairs = sequence.ElementOffsetValuePairs();
             foreach (var pair in pairs)
             {
                 var ioane = IsOriginalAndNotEmpty(pair.Item2, pair.Item1);
@@ -127,13 +125,13 @@ namespace mag_series
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
-        public void CorrectOnAppendElement(long off)
-        {
-            object element = sequence.GetElement(off);
-            // Корректировка индексов
-            primaryKeyIndex.OnAppendElement(element, off);
-            if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
-        }
+        //public void CorrectOnAppendElement(long off)
+        //{
+        //    object element = sequence.GetElement(off);
+        //    // Корректировка индексов
+        //    primaryKeyIndex.OnAppendElement(element, off);
+        //    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
+        //}
 
         public object? GetByKey(IComparable keysample)
         {
@@ -160,12 +158,7 @@ namespace mag_series
             throw new Exception("Unimplemented method GetAllByLike 93389");
         }
 
-        public void Build()
-        {
-            this.primaryKeyIndex.Build(koh_list);
 
-            foreach (var ind in uindexes) ind.Build();
-        }
 
         public long Count()
         {

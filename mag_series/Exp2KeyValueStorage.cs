@@ -70,9 +70,10 @@ namespace mag_series
                 new object[] { 2, false, "2", 4 },
                 new object[] { 1, false, "1", 4 },
                 new object[] { 0, false, "0", 4 },
-                new object[] { 1, false, "__1__", 5 },
-                new object[] { 1, true, "__5__", 55 },
-                new object[] { 99, false, "__91__", 91 },
+                new object[] { 1, false, "1", 4 },
+                //new object[] { 1, false, "__1__", 5 },
+                //new object[] { 1, true, "__5__", 55 },
+                //new object[] { 99, false, "__91__", 91 },
             };
                 
             // Построение индекса
