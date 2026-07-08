@@ -1,0 +1,99 @@
+name: Validation cleanup audit
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan naming legacy and suspicious API patterns
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          roots = [Path('src'), Path('tests'), Path('benchmarks'), Path('samples'), Path('mag_experiments')]
+          files = sorted(
+              p for root in roots if root.exists()
+              for p in root.rglob('*.cs')
+          )
+
+          sections = {
+              'legacy_experiment_probe_benchmark_identifiers': [],
+              'public_benchmark_api': [],
+              'todo_fixme_hack': [],
+              'generic_exception': [],
+              'numeric_exception_message': [],
+              'public_lowercase_members': [],
+              'empty_interfaces': [],
+              'suspicious_short_parameter_names': [],
+              'nullable_checks_on_uindexes': [],
+              'usequence_legacy_constructor': [],
+          }
+
+          id_words = re.compile(r'\b[A-Za-z_][A-Za-z0-9_]*(?:Legacy|Experiment|Probe|ForBenchmark)[A-Za-z0-9_]*\b|\b(?:Legacy|Experiment|Probe)[A-Za-z0-9_]*\b')
+          public_bench = re.compile(r'\bpublic\s+[^;{\n]+\b[A-Za-z_][A-Za-z0-9_]*ForBenchmark\s*\(')
+          public_lower = re.compile(r'^\s*public\s+(?:(?:static|readonly|virtual|override|sealed|abstract|async)\s+)*(?:[A-Za-z0-9_<>,.?\[\]]+\s+)+([a-z][A-Za-z0-9_]*)\b')
+          short_params = re.compile(r'\(([^)]*)\)')
+          empty_iface = re.compile(r'\binterface\s+([A-Za-z_][A-Za-z0-9_]*)[^\{]*\{\s*\}', re.S)
+
+          for path in files:
+              text = path.read_text(encoding='utf-8', errors='replace')
+              lines = text.splitlines()
+              normalized = path.as_posix()
+
+              for match in empty_iface.finditer(text):
+                  line = text.count('\n', 0, match.start()) + 1
+                  sections['empty_interfaces'].append((normalized, line, match.group(1)))
+
+              for i, line in enumerate(lines, 1):
+                  stripped = line.strip()
+
+                  if id_words.search(line):
+                      sections['legacy_experiment_probe_benchmark_identifiers'].append((normalized, i, stripped))
+                  if public_bench.search(line):
+                      sections['public_benchmark_api'].append((normalized, i, stripped))
+                  if re.search(r'\b(?:TODO|FIXME|HACK)\b', line, re.I):
+                      sections['todo_fixme_hack'].append((normalized, i, stripped))
+                  if 'throw new Exception(' in line:
+                      sections['generic_exception'].append((normalized, i, stripped))
+                  if re.search(r'throw\s+new\s+\w+(?:Exception)?\s*\(\s*"\d+"\s*\)', line):
+                      sections['numeric_exception_message'].append((normalized, i, stripped))
+                  m = public_lower.search(line)
+                  if m and m.group(1) not in {'operator'}:
+                      sections['public_lowercase_members'].append((normalized, i, stripped))
+                  if 'uindexes != null' in line or 'uindexes == null' in line:
+                      sections['nullable_checks_on_uindexes'].append((normalized, i, stripped))
+
+                  if '(' in line and any(name in line for name in ('GetAllByValue(', 'GetAllBySample(', 'GetAllByLike(')):
+                      mparams = short_params.search(line)
+                      if mparams:
+                          params = mparams.group(1)
+                          if re.search(r'\b(?:nom|ob|obj|osample|mess|qu\d*)\b', params):
+                              sections['suspicious_short_parameter_names'].append((normalized, i, stripped))
+
+                  if normalized == 'src/Polar.DB/USequence.cs' and 'public USequence(' in line:
+                      block = '\n'.join(lines[i-1:min(len(lines), i+5)])
+                      if 'keyFunc' in block and 'hashOfKey' in block:
+                          sections['usequence_legacy_constructor'].append((normalized, i, block.replace('\n', ' | ')))
+
+          with Path('cleanup-audit.txt').open('w', encoding='utf-8') as out:
+              for name, items in sections.items():
+                  out.write(f'=== {name} ({len(items)}) ===\n')
+                  for path, line, value in items:
+                      out.write(f'{path}:{line}: {value}\n')
+                  out.write('\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cleanup-audit
+          path: cleanup-audit.txt
+          if-no-files-found: error
