@@ -62,8 +62,8 @@ namespace Polar.Universal
 
             var definition = new PrimaryKeyDefinition<TKey>(keyExpression, hashOfKey);
             primaryKeyDefinition = definition;
-            keyFunc = definition.LegacyKeySelector;
-            this.hashOfKey = definition.LegacyHasher;
+            keyFunc = value => definition.GetKey(value);
+            this.hashOfKey = key => definition.Hash((TKey)key);
             primaryKeyConfigured = true;
         }
 
