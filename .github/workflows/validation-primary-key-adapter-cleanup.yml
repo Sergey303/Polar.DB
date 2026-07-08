@@ -1,0 +1,53 @@
+name: Validation primary key adapter cleanup
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore Polar.DB.slnx
+      - name: Build and test
+        shell: bash
+        run: |
+          set +e
+          dotnet build Polar.DB.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true --verbosity minimal > build.log 2>&1
+          build_code=$?
+
+          if [ "$build_code" -eq 0 ]; then
+            dotnet test Polar.DB.slnx --configuration Release --no-build --verbosity normal > test.log 2>&1
+            test_code=$?
+          else
+            printf 'Tests skipped because build failed.\n' > test.log
+            test_code=125
+          fi
+
+          {
+            echo "build_exit_code=$build_code"
+            echo "test_exit_code=$test_code"
+            echo "--- build errors ---"
+            grep -E "error [A-Z]+[0-9]+|Build FAILED|Build succeeded" build.log || true
+            echo "--- test summary/failures ---"
+            grep -E "Failed!|Passed!|Total tests:|Failed:|Passed:|Skipped:|\[FAIL\]|Error Message:" test.log || true
+          } > validation-summary.txt
+
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: primary-key-adapter-cleanup-validation
+          path: |
+            validation-summary.txt
+            build.log
+            test.log
+          if-no-files-found: error
