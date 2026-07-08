@@ -4,7 +4,6 @@ namespace Polar.Universal;
 
 internal interface IPrimaryKeyDefinition
 {
-    Type KeyType { get; }
 }
 
 internal sealed class PrimaryKeyDefinition<TKey> : IPrimaryKeyDefinition
@@ -24,7 +23,6 @@ internal sealed class PrimaryKeyDefinition<TKey> : IPrimaryKeyDefinition
         IsScalarIdentity = IsScalarIdentityExpression(keyExpression);
     }
 
-    public Type KeyType => typeof(TKey);
     public bool IsScalarIdentity { get; }
 
     public TKey GetKey(object value) => selector(value);
