@@ -113,8 +113,13 @@ namespace Polar.Universal
             loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
 
-            bool replayedFromState = TryReplayDynamicTailFromState();
-            if (!replayedFromState || persistRecoveredIndexes)
+            if (persistRecoveredIndexes)
+            {
+                Build();
+                return;
+            }
+
+            if (!TryReplayDynamicTailFromState())
                 Build();
         }
 
