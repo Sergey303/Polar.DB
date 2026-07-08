@@ -5,8 +5,6 @@ namespace Polar.Universal;
 internal interface IPrimaryKeyDefinition
 {
     Type KeyType { get; }
-    Func<object, IComparable> LegacyKeySelector { get; }
-    Func<IComparable, int> LegacyHasher { get; }
 }
 
 internal sealed class PrimaryKeyDefinition<TKey> : IPrimaryKeyDefinition
@@ -24,15 +22,10 @@ internal sealed class PrimaryKeyDefinition<TKey> : IPrimaryKeyDefinition
         selector = keyExpression.Compile();
         this.hasher = hasher ?? PrimaryKeyHasherDefaults<TKey>.Create();
         IsScalarIdentity = IsScalarIdentityExpression(keyExpression);
-
-        LegacyKeySelector = value => selector(value);
-        LegacyHasher = key => this.hasher((TKey)key);
     }
 
     public Type KeyType => typeof(TKey);
     public bool IsScalarIdentity { get; }
-    public Func<object, IComparable> LegacyKeySelector { get; }
-    public Func<IComparable, int> LegacyHasher { get; }
 
     public TKey GetKey(object value) => selector(value);
     public int Hash(TKey key) => hasher(key);
