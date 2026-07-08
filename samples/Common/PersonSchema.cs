@@ -57,10 +57,12 @@ public static class PersonSchema
         Func<Stream> genStream = () =>
             new FileStream(Path.Combine(dbPath, "f" + (cnt++) + ".bin"), FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
-        USequence sequence = new USequence(Type, Path.Combine(dbPath, "state.bin"), genStream,
-            Deleted,
-            obj => GetId(obj),
-            key => (int)key);
+        USequence sequence = new USequence(
+            Type,
+            Path.Combine(dbPath, "state.bin"),
+            genStream,
+            Deleted);
+        sequence.SetPrimaryKey<int>(record => GetId(record));
 
         ExternalKeyIndex<int> ageIndex = new ExternalKeyIndex<int>(genStream, sequence,
             obj => Enumerable.Repeat(GetAge(obj), 1));

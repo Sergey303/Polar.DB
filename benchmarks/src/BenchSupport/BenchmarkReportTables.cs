@@ -60,9 +60,10 @@ internal static class BenchmarkReportTables
         var bestFlushP95 = rows.Min(row => row.Flush.P95);
         var bestFlushTrimmed = rows.Min(row => row.Flush.TrimmedMean);
         var bestTotalMedian = rows.Min(row => row.Total.Median);
+        var bestEndToEndMedian = rows.Min(row => EndToEnd(row.Load.Median, row.Total.Median));
 
         builder.AppendLine("<h3>Build stage breakdown</h3>");
-        builder.AppendLine("<table><tr><th>Engine</th><th>Load median</th><th>Load p95</th><th>Load trimmed</th><th>Build median</th><th>Build p95</th><th>Build trimmed</th><th>Flush median</th><th>Flush p95</th><th>Flush trimmed</th><th>Total median</th><th>Build share</th></tr>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Load median</th><th>Load p95</th><th>Load trimmed</th><th>Build median</th><th>Build p95</th><th>Build trimmed</th><th>Flush median</th><th>Flush p95</th><th>Flush trimmed</th><th>Total median</th><th>Load + total median</th><th>Build share</th></tr>");
         foreach (var row in rows)
         {
             builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(row.Engine.Engine) + "</td>");
@@ -76,6 +77,7 @@ internal static class BenchmarkReportTables
             builder.Append(BenchmarkReportFormat.Cell(row.Flush.P95, bestFlushP95, " ms"));
             builder.Append(BenchmarkReportFormat.Cell(row.Flush.TrimmedMean, bestFlushTrimmed, " ms"));
             builder.Append(BenchmarkReportFormat.Cell(row.Total.Median, bestTotalMedian, " ms"));
+            builder.Append(BenchmarkReportFormat.Cell(EndToEnd(row.Load.Median, row.Total.Median), bestEndToEndMedian, " ms"));
             builder.Append("<td>" + BenchmarkReportFormat.Number(Share(row.Build.Median, row.Total.Median)) + "%</td></tr>");
         }
         builder.AppendLine("</table>");
@@ -143,6 +145,9 @@ internal static class BenchmarkReportTables
 
     private static string StageCell(IReadOnlyList<double> values, double best) =>
         BenchmarkReportFormat.Cell(BenchmarkStats.From(values).Median, best, " ms");
+
+    private static double EndToEnd(double load, double total) =>
+        double.IsNaN(load) || double.IsNaN(total) ? double.NaN : load + total;
 
     private static double Share(double part, double total) =>
         double.IsNaN(part) || total <= 0 ? double.NaN : part * 100.0 / total;

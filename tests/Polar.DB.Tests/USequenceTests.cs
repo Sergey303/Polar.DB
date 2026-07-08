@@ -160,9 +160,8 @@ public class USequenceTests
                 StateFilePath,
                 StreamGen,
                 isEmpty ?? (_ => false),
-                value => (int)((object[])value)[0],
-                key => (int)key,
                 optimise: false);
+            Sequence.SetPrimaryKey<int>(value => (int)((object[])value)[0]);
         }
 
         public USequence Sequence { get; }
@@ -180,20 +179,14 @@ public class USequenceTests
         public void Dispose()
         {
             try { Sequence.Close(); }
-            catch
-            {
-                // ignored
-            }
+            catch { }
 
             try
             {
                 if (Directory.Exists(_tempDir))
                     Directory.Delete(_tempDir, recursive: true);
             }
-            catch
-            {
-                // ignored
-            }
+            catch { }
         }
     }
 }

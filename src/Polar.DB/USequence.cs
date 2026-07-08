@@ -1,52 +1,75 @@
+using System.Linq.Expressions;
 using Polar.DB;
 using Polar.DB.ExternalKey;
 
 namespace Polar.Universal
 {
-    public class USequence: IDisposable
+    public class USequence : IDisposable
     {
         private UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
         internal Func<object, IComparable> keyFunc;
-        private readonly Func<IComparable, int> hashOfKey;
+        private Func<IComparable, int> hashOfKey;
         private UKeyIndex primaryKeyIndex;
+        private IPrimaryKeyDefinition? primaryKeyDefinition;
+        private bool primaryKeyConfigured;
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
-        public IUIndex[] uindexes { get; set; } = new IUIndex[0];
+        public IUIndex[] uindexes { get; set; } = Array.Empty<IUIndex>();
         private bool optimise = true;
         private string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
+        private ILoadedTypedPrimaryBuild? loadedTypedPrimaryBuild;
+        private Int64PrimaryBuildEntryExperiment[]? loadedPrimaryInt64MetadataProbe;
         private bool disposed;
 
-        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
-            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
+        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen,
+            Func<object, bool> isEmpty, bool optimise = true)
         {
             sequence = new UniversalSequenceBase(tp_el, streamGen());
             this.isEmpty = isEmpty;
-            this.keyFunc = keyFunc;
-            this.hashOfKey = hashOfKey;
             this.optimise = optimise;
             this.stateFileName = stateFileName;
-            primaryKeyIndex = new UKeyIndex(streamGen, this, keyFunc, hashOfKey, optimise);
+
+            keyFunc = _ => throw new InvalidOperationException(
+                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+            hashOfKey = _ => throw new InvalidOperationException(
+                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+
+            primaryKeyIndex = new UKeyIndex(
+                streamGen,
+                this,
+                element => keyFunc(element),
+                key => hashOfKey(key),
+                optimise);
+        }
+
+        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
+            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
+            : this(tp_el, stateFileName, streamGen, isEmpty, optimise)
+        {
+            this.keyFunc = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
+            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
+            primaryKeyConfigured = true;
+        }
+
+        public void SetPrimaryKey<TKey>(
+            Expression<Func<object, TKey>> keyExpression,
+            Func<TKey, int>? hashOfKey = null)
+            where TKey : IComparable, IComparable<TKey>, IEquatable<TKey>
+        {
+            if (primaryKeyConfigured)
+                throw new InvalidOperationException("Primary key is already configured for this sequence.");
+
+            var definition = new PrimaryKeyDefinition<TKey>(keyExpression, hashOfKey);
+            primaryKeyDefinition = definition;
+            keyFunc = value => definition.GetKey(value);
+            this.hashOfKey = key => definition.Hash((TKey)key);
+            primaryKeyConfigured = true;
         }
 
         public void RestoreDynamic()
         {
-            FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Read);
-            BinaryReader reader = new(statefile);
-            long statenelements = reader.ReadInt64();
-            long elementoffset = reader.ReadInt64();
-            statefile.Close();
-            long nelements = sequence.Count();
-            Console.WriteLine($"{nelements - statenelements} elements added");
-            if (nelements > statenelements)
-            {
-                var additional = sequence.ElementOffsetValuePairs(elementoffset, nelements - statenelements);
-                foreach (var pair in additional)
-                {
-                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
-                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
-                }
-            }
+            RefreshCore(persistRecoveredIndexes: true);
         }
 
         public void Clear()
@@ -54,10 +77,18 @@ namespace Polar.Universal
             sequence.Clear();
             primaryKeyIndex.Clear();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
+            loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
         }
 
-        public void Flush() { sequence.Flush(); primaryKeyIndex.Flush(); if (uindexes != null) foreach (var ui in uindexes) ui.Flush(); }
+        public void Flush()
+        {
+            sequence.Flush();
+            primaryKeyIndex.Flush();
+            if (uindexes != null) foreach (var ui in uindexes) ui.Flush();
+        }
+
         public void Close()
         {
             if (disposed) return;
@@ -69,14 +100,113 @@ namespace Polar.Universal
 
         public void Refresh()
         {
+            sequence.Flush();
+            RefreshCore(persistRecoveredIndexes: false);
+        }
+
+        private void RefreshCore(bool persistRecoveredIndexes)
+        {
+            EnsurePrimaryKeyConfigured();
             sequence.Refresh();
             primaryKeyIndex.Refresh();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
+            loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
+
+            if (persistRecoveredIndexes)
+            {
+                Build();
+                return;
+            }
+
+            if (!TryReplayDynamicTailFromState())
+                Build();
+        }
+
+        private bool TryReplayDynamicTailFromState()
+        {
+            if (!TryReadState(out long stateCount, out long stateAppendOffset))
+                return false;
+
+            long currentCount = sequence.Count();
+            if (stateCount == currentCount)
+                return stateAppendOffset == sequence.ElementOffset();
+
+            try
+            {
+                long replayCount = currentCount - stateCount;
+                long replayed = 0L;
+                foreach (var pair in sequence.ElementOffsetValuePairs(stateAppendOffset, replayCount))
+                {
+                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
+                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
+                    replayed++;
+                }
+
+                return replayed == replayCount && sequence.Media.Position == sequence.ElementOffset();
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return false;
+            }
+            catch (EndOfStreamException)
+            {
+                return false;
+            }
+            catch (InvalidDataException)
+            {
+                return false;
+            }
+        }
+
+        private bool TryReadState(out long stateCount, out long stateAppendOffset)
+        {
+            stateCount = 0L;
+            stateAppendOffset = 8L;
+
+            if (stateFileName == null || !File.Exists(stateFileName))
+                return false;
+
+            try
+            {
+                using var statefile = new FileStream(
+                    stateFileName,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite);
+                if (statefile.Length < sizeof(long) * 2)
+                    return false;
+
+                using var reader = new BinaryReader(statefile);
+                stateCount = reader.ReadInt64();
+                stateAppendOffset = reader.ReadInt64();
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+
+            long currentCount = sequence.Count();
+            long logicalTail = sequence.ElementOffset();
+
+            if (stateCount < 0L || stateCount > currentCount)
+                return false;
+            if (stateAppendOffset < 8L || stateAppendOffset > logicalTail)
+                return false;
+            if (stateCount == 0L && stateAppendOffset != 8L)
+                return false;
+            if (stateCount == currentCount && stateAppendOffset != logicalTail)
+                return false;
+            if (stateCount < currentCount && stateAppendOffset >= logicalTail)
+                return false;
+
+            return true;
         }
 
         public void Load(IEnumerable<object> flow)
         {
+            EnsurePrimaryKeyConfigured();
             Clear();
             var loadedEntries = flow is ICollection<object> collection
                 ? new List<BuildEntry>(collection.Count)
@@ -95,16 +225,101 @@ namespace Polar.Universal
                 ? Array.Empty<BuildEntry>()
                 : loadedEntries.ToArray();
 
+            loadedTypedPrimaryBuild = null;
             Flush();
+            SaveState();
+        }
 
-            if (stateFileName != null)
+        public void LoadFixedInt64ForBenchmark(long[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            EnsurePrimaryKeyConfigured();
+
+            Clear();
+            sequence.ReplaceWithFixedInt64Array(values);
+
+            if (primaryKeyDefinition is PrimaryKeyDefinition<long> definition && definition.IsScalarIdentity)
             {
-                FileStream statefile = new(stateFileName, FileMode.OpenOrCreate, FileAccess.Write);
-                BinaryWriter writer = new(statefile);
-                writer.Write(sequence.Count());
-                writer.Write(sequence.ElementOffset());
-                statefile.Close();
+                var typedEntries = new PrimaryBuildEntry<long>[values.Length];
+                for (var i = 0; i < values.Length; i++)
+                {
+                    var value = values[i];
+                    typedEntries[i] = new PrimaryBuildEntry<long>(
+                        definition.Hash(value), value, 8L + i * sizeof(long), isEmpty: false);
+                }
+
+                loadedTypedPrimaryBuild = new LoadedTypedPrimaryBuild<long>(typedEntries);
+                loadedPrimaryBuildEntries = null;
             }
+            else
+            {
+                var entries = new BuildEntry[values.Length];
+                for (var i = 0; i < values.Length; i++)
+                {
+                    IComparable key = values[i];
+                    entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);
+                }
+
+                loadedPrimaryBuildEntries = entries;
+                loadedTypedPrimaryBuild = null;
+            }
+
+            Flush();
+            SaveState();
+        }
+
+        public void LoadFixedInt64StorageOnlyForBenchmark(long[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+
+            Clear();
+            sequence.ReplaceWithFixedInt64Array(values);
+            loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
+            Flush();
+            SaveState();
+        }
+
+        public void LoadFixedInt64TypedMetadataProbeForBenchmark(long[] values, Func<long, int> hashOfInt64)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (hashOfInt64 == null) throw new ArgumentNullException(nameof(hashOfInt64));
+
+            Clear();
+            sequence.ReplaceWithFixedInt64Array(values);
+
+            var entries = new Int64PrimaryBuildEntryExperiment[values.Length];
+            for (var i = 0; i < values.Length; i++)
+                entries[i] = new Int64PrimaryBuildEntryExperiment(
+                    hashOfInt64(values[i]), values[i], 8L + i * sizeof(long));
+
+            loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
+            loadedPrimaryInt64MetadataProbe = entries;
+            Flush();
+            SaveState();
+        }
+
+        private void SaveState()
+        {
+            if (stateFileName == null) return;
+
+            using var statefile = new FileStream(
+                stateFileName,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.ReadWrite);
+            using var writer = new BinaryWriter(statefile);
+            writer.Write(sequence.Count());
+            writer.Write(sequence.ElementOffset());
+            writer.Flush();
+        }
+
+        private void EnsurePrimaryKeyConfigured()
+        {
+            if (!primaryKeyConfigured)
+                throw new InvalidOperationException(
+                    "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
         }
 
         internal bool IsEmpty(object element) => isEmpty(element);
@@ -114,8 +329,11 @@ namespace Polar.Universal
             sequence.Scan(handler);
         }
 
-        internal bool IsOriginalAndNotEmpty(object element, long off) =>
-            primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+        internal bool IsOriginalAndNotEmpty(object element, long off)
+        {
+            EnsurePrimaryKeyConfigured();
+            return primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+        }
 
         public IEnumerable<object> ElementValues()
         {
@@ -139,7 +357,10 @@ namespace Polar.Universal
 
         public void AppendElement(object element)
         {
+            EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
+            loadedPrimaryInt64MetadataProbe = null;
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -147,13 +368,20 @@ namespace Polar.Universal
 
         public void CorrectOnAppendElement(long off)
         {
+            EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
+            loadedTypedPrimaryBuild = null;
+            loadedPrimaryInt64MetadataProbe = null;
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
 
-        public object GetByKey(IComparable keysample) => primaryKeyIndex.GetByKey(keysample);
+        public object GetByKey(IComparable keysample)
+        {
+            EnsurePrimaryKeyConfigured();
+            return primaryKeyIndex.GetByKey(keysample);
+        }
 
         internal object GetByOffset(long off)
         {
@@ -189,7 +417,7 @@ namespace Polar.Universal
                 return uvind.GetAllByValue(value)
                     .Where(obof => keysFunc(obof.obj)
                         .Select(w => ignorecase ? ((string)w).ToUpper() : w)
-                        .Any(W => W.CompareTo(value) == 0))
+                        .Any(w => w.CompareTo(value) == 0))
                     .Where(obof => IsOriginalAndNotEmpty(obof.obj, obof.off))
                     .Select(obof => obof.obj)
                     .ToArray();
@@ -222,18 +450,39 @@ namespace Polar.Universal
 
         public void Build()
         {
-            var loadedEntries = loadedPrimaryBuildEntries;
-            if (loadedEntries != null)
+            EnsurePrimaryKeyConfigured();
+            sequence.Flush();
+
+            var typedBuild = loadedTypedPrimaryBuild;
+            if (typedBuild != null)
             {
-                primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
-                loadedPrimaryBuildEntries = null;
+                typedBuild.Build(primaryKeyIndex);
+                loadedTypedPrimaryBuild = null;
+            }
+            else if (loadedPrimaryInt64MetadataProbe != null)
+            {
+                loadedPrimaryInt64MetadataProbe = null;
+                primaryKeyIndex.Build();
             }
             else
             {
-                primaryKeyIndex.Build();
+                var loadedEntries = loadedPrimaryBuildEntries;
+                if (loadedEntries != null)
+                {
+                    primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
+                    loadedPrimaryBuildEntries = null;
+                }
+                else
+                {
+                    primaryKeyIndex.Build();
+                }
             }
 
             foreach (var ind in uindexes) ind.Build();
+
+            primaryKeyIndex.Flush();
+            foreach (var ind in uindexes) ind.Flush();
+            SaveState();
         }
 
         public UIndexBuildProfile LastPrimaryBuildProfile => primaryKeyIndex.LastBuildProfile;

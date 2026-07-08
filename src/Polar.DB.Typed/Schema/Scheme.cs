@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Polar.Universal;
 
 namespace Polar.DB.Typed.Schema;
 
@@ -66,6 +67,31 @@ internal sealed class Scheme<T>
     public IComparable NormalizeKey(IComparable key) => _keyField.ToComparableStorageKey(key);
 
     public int HashKey(IComparable key) => StableHash.OfKey(key);
+
+    public void ConfigurePrimaryKey(USequence sequence)
+    {
+        if (sequence == null) throw new ArgumentNullException(nameof(sequence));
+
+        var keyIndex = _keyField.Index;
+        switch (_keyField.PolarType.Vid)
+        {
+            case PTypeEnumeration.integer:
+                sequence.SetPrimaryKey<int>(
+                    record => (int)((object[])record)[keyIndex],
+                    StableHash.OfInt32);
+                return;
+
+            case PTypeEnumeration.sstring:
+                sequence.SetPrimaryKey<string>(
+                    record => (string)((object[])record)[keyIndex],
+                    StableHash.OfString);
+                return;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Primary key field '{_keyField.Name}' uses unsupported storage type '{_keyField.PolarType.Vid}'.");
+        }
+    }
 
     public FieldScheme GetField(string name)
     {

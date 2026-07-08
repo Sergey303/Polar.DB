@@ -140,9 +140,8 @@ public class SecondaryIndexesLifecycleTests
                 Path.Combine(TempDir, "state.bin"),
                 StreamGen,
                 _ => false,
-                value => (int)((object[])value)[0],
-                key => (int)key,
                 optimise: false);
+            Sequence.SetPrimaryKey<int>(value => (int)((object[])value)[0]);
 
             var sIndex = new SVectorIndex(StreamGen, Sequence, r => new[] { (string)((object[])r)[1] }, ignorecase: true);
             var exactNameIndex = new UIndex(
@@ -176,10 +175,7 @@ public class SecondaryIndexesLifecycleTests
         public void Dispose()
         {
             try { Sequence.Close(); }
-            catch
-            {
-                // ignored
-            }
+            catch { }
 
             if (_deleteOnDispose)
                 TryDeleteDirectory(TempDir);

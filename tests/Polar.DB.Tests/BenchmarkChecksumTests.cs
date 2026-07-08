@@ -1,6 +1,7 @@
+using PolarDbBenchmarks;
 using Xunit;
 
-namespace PolarDbBenchmarks;
+namespace Polar.DB.Tests;
 
 public class BenchmarkChecksumTests
 {

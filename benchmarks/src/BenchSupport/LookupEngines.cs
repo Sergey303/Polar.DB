@@ -136,7 +136,7 @@ internal static class LookupEngines
         return new QueryResult(rows, checksum);
     }
 
-private static QueryResult QueryPolar(PolarStore store, LookupKind kind, object key)
+    private static QueryResult QueryPolar(PolarStore store, LookupKind kind, object key)
     {
         IEnumerable<object> values = kind switch
         {
@@ -174,17 +174,24 @@ private static QueryResult QueryPolar(PolarStore store, LookupKind kind, object 
             new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
 
         Func<object, bool> isEmpty = o => (bool)((object[])o)[5];
-        Func<object, IComparable> primary = kind == LookupKind.PrimaryString
-            ? o => (string)((object[])o)[1]
-            : o => (long)((object[])o)[0];
-
         var sequence = new USequence(
             type,
             Path.Combine(dir, "state.bin"),
             StreamGen,
-            isEmpty,
-            primary,
-            StableHash);
+            isEmpty);
+
+        if (kind == LookupKind.PrimaryString)
+        {
+            sequence.SetPrimaryKey<string>(
+                value => (string)((object[])value)[1],
+                StableHash);
+        }
+        else
+        {
+            sequence.SetPrimaryKey<long>(
+                value => (long)((object[])value)[0],
+                StableHash);
+        }
 
         EKeyIndex? external = null;
         if (kind is LookupKind.ExternalInt or LookupKind.ExternalString)
@@ -228,12 +235,16 @@ private static QueryResult QueryPolar(PolarStore store, LookupKind kind, object 
             return key switch
             {
                 int i => i,
-                long l => (int)(l ^ (l >> 32)),
-                string s => StableStringHash(s),
+                long l => StableHash(l),
+                string s => StableHash(s),
                 _ => key.GetHashCode()
             };
         }
     }
+
+    private static int StableHash(long value) => unchecked((int)(value ^ (value >> 32)));
+
+    private static int StableHash(string value) => StableStringHash(value);
 
     private static int StableStringHash(string value)
     {

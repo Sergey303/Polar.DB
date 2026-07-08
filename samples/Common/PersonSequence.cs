@@ -19,9 +19,8 @@ public static class PersonSequence
             PersonSchema.Type,
             Path.Combine(dbPath, "state.bin"),
             StreamGen,
-            PersonSchema.Deleted,
-            record => PersonSchema.GetId(record),
-            key => Convert.ToInt32(key));
+            PersonSchema.Deleted);
+        sequence.SetPrimaryKey<int>(record => PersonSchema.GetId(record));
 
         sequence.Refresh();
         return sequence;

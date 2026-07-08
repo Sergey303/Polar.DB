@@ -19,6 +19,7 @@ internal static class BenchmarkReportFormat
     {
         if (double.IsNaN(value)) return "<td>N/A</td>";
         if (IsBest(value, best)) return "<td class=\"win\">" + Number(value) + suffix + "</td>";
+        if (best == 0.0) return "<td>" + Number(value) + suffix + "</td>";
         return "<td>" + Number(value) + suffix + " ×" + Number(value / best) + "</td>";
     }
 

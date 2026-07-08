@@ -12,14 +12,14 @@ public class USequenceStateRecoveryTests
 
         try
         {
-            var writer = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var writer = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             writer.AppendElement(1);
             writer.AppendElement(2);
             writer.Build();
             writer.AppendElement(3);
             writer.Close();
 
-            var reopened = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var reopened = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             reopened.Refresh();
 
             Assert.Equal(3, reopened.GetByKey(3));
@@ -41,14 +41,14 @@ public class USequenceStateRecoveryTests
 
         try
         {
-            var writer = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var writer = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             writer.AppendElement(10);
             writer.AppendElement(20);
             writer.Build();
             writer.AppendElement(30);
             writer.Close();
 
-            var reopened = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var reopened = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             reopened.RestoreDynamic();
 
             Assert.Equal(30, reopened.GetByKey(30));
@@ -73,7 +73,7 @@ public class USequenceStateRecoveryTests
 
         try
         {
-            var writer = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var writer = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             writer.AppendElement(5);
             writer.AppendElement(6);
             writer.Build();
@@ -82,7 +82,7 @@ public class USequenceStateRecoveryTests
 
             StorageCorruptionHelpers.WriteTooShortState(statePath);
 
-            var reopened = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var reopened = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             reopened.Refresh();
 
             Assert.Equal(5, reopened.GetByKey(5));
@@ -105,7 +105,7 @@ public class USequenceStateRecoveryTests
 
         try
         {
-            var sequence = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var sequence = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             sequence.AppendElement(100);
             sequence.AppendElement(200);
             sequence.AppendElement(300);
@@ -131,26 +131,24 @@ public class USequenceStateRecoveryTests
 
         try
         {
-            var sequence = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var sequence = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             sequence.AppendElement(1);
             sequence.Build();
             sequence.Close();
 
             for (int value = 2; value <= 6; value++)
             {
-                var reopened = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+                var reopened = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
                 reopened.RestoreDynamic();
                 reopened.AppendElement(value);
                 reopened.Close();
             }
 
-            var final = StorageCorruptionHelpers.CreateIntegerSequence(tempDir, statePath, optimise: false);
+            var final = ConfiguredUSequenceTestFactory.CreateIntegerSequence(tempDir, statePath, optimise: false);
             final.RestoreDynamic();
 
             for (int value = 1; value <= 6; value++)
-            {
                 Assert.Equal(value, final.GetByKey(value));
-            }
 
             Assert.Equal(new object[] { 1, 2, 3, 4, 5, 6 }, final.ElementValues().ToArray());
             final.Close();

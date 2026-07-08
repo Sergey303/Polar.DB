@@ -43,22 +43,26 @@ internal static class BenchmarkChecksum
         {
             return key switch
             {
-                int value => value,
-                long value => (int)(value ^ (value >> 32)),
-                Guid value => StableGuidHash(value),
-                string value => StableStringHash(value),
+                int value => StableHash(value),
+                long value => StableHash(value),
+                Guid value => StableHash(value),
+                string value => StableHash(value),
                 _ => key.GetHashCode()
             };
         }
     }
 
-    private static int StableGuidHash(Guid value)
+    public static int StableHash(int value) => value;
+
+    public static int StableHash(long value) => unchecked((int)(value ^ (value >> 32)));
+
+    public static int StableHash(Guid value)
     {
         var split = BenchmarkGuid.Split(value);
         return StableHash(split.Low) ^ (int)RotateLeft((uint)StableHash(split.High), 17);
     }
 
-    private static int StableStringHash(string value)
+    public static int StableHash(string value)
     {
         unchecked
         {

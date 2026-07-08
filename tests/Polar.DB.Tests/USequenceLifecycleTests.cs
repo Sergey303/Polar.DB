@@ -18,10 +18,6 @@ public class USequenceLifecycleTests
         new NamedType("id", new PType(PTypeEnumeration.integer)),
         new NamedType("name", new PType(PTypeEnumeration.sstring)));
 
-    /// <summary>
-    /// Verifies that <see cref="USequence.Load"/> respects the configured
-    /// emptiness predicate and does not persist tombstone-like elements.
-    /// </summary>
     [Fact]
     public void Load_SkipsEmptyElements_And_ElementValues_ReturnOnlyNonEmptyRecords()
     {
@@ -43,10 +39,6 @@ public class USequenceLifecycleTests
         Assert.Equal(new[] { 1, 3 }, ids);
     }
 
-    /// <summary>
-    /// Verifies that <see cref="USequence.Build"/> stores the current count and
-    /// logical append offset in the external state file.
-    /// </summary>
     [Fact]
     public void Build_WritesStateFile_WithCurrentCountAndLogicalTail()
     {
@@ -69,10 +61,6 @@ public class USequenceLifecycleTests
         Assert.True(appendOffset > 8L);
     }
 
-    /// <summary>
-    /// Verifies that <see cref="USequence.RestoreDynamic"/> can rebuild dynamic
-    /// primary and secondary indexes from the current sequence tail after restart.
-    /// </summary>
     [Fact]
     public void RestoreDynamic_ReplaysDynamicTail_AfterRestart()
     {
@@ -111,11 +99,6 @@ public class USequenceLifecycleTests
         }
     }
 
-    /// <summary>
-    /// Verifies the public visibility rules of the facade:
-    /// the latest duplicate key shadows the old value, and an empty replacement
-    /// behaves like a tombstone that hides both the old and the new record.
-    /// </summary>
     [Fact]
     public void ElementValues_And_Scan_HideShadowedAndEmptyEntries()
     {
@@ -150,11 +133,6 @@ public class USequenceLifecycleTests
         Assert.Equal(values, scanned.ToArray());
     }
 
-    /// <summary>
-    /// Reads the private storage sequence used by the facade.
-    /// This is intentionally test-only: it lets the public recovery hook be
-    /// exercised against a realistic external append scenario.
-    /// </summary>
     private static UniversalSequenceBase GetInnerSequence(USequence sequence)
     {
         var field = typeof(USequence).GetField("sequence", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -163,9 +141,6 @@ public class USequenceLifecycleTests
         return Assert.IsType<UniversalSequenceBase>(field.GetValue(sequence));
     }
 
-    /// <summary>
-    /// Best-effort cleanup helper for temporary test directories.
-    /// </summary>
     private static void TryDeleteDirectory(string path)
     {
         try
@@ -179,10 +154,6 @@ public class USequenceLifecycleTests
         }
     }
 
-    /// <summary>
-    /// Disk-backed scope with deterministic stream allocation order, which makes
-    /// restart tests possible without hard-coding concrete index file names.
-    /// </summary>
     private sealed class SequenceScope : IDisposable
     {
         private int _fileNo;
@@ -204,9 +175,8 @@ public class USequenceLifecycleTests
                 StateFilePath,
                 StreamGen,
                 IsEmpty,
-                value => (int)((object[])value)[0],
-                key => (int)key,
                 optimise: false);
+            Sequence.SetPrimaryKey<int>(value => (int)((object[])value)[0]);
 
             if (withNameIndex)
             {
@@ -243,10 +213,7 @@ public class USequenceLifecycleTests
         public void Dispose()
         {
             try { Sequence.Close(); }
-            catch
-            {
-                // ignored
-            }
+            catch { }
 
             if (_deleteOnDispose)
                 TryDeleteDirectory(TempDir);
