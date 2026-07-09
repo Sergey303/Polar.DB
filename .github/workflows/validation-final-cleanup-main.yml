@@ -1,0 +1,109 @@
+name: Validation final cleanup main
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Audit cleanup invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mag_changes=$(git diff --name-only 1ce6a37c89c6ae82b7f90063ed443228af340733..HEAD | grep -E '^(mag_experiments|mag_series)/' || true)
+          test -z "$mag_changes"
+
+          forbidden=$(grep -R -n -E 'ForBenchmark|Int64PrimaryBuildEntryExperiment|TypedPrimaryBuild|IsIdentityKeySelector|HashTyped|SetPrimaryKeyLifecycleEngine|Int64TypedPrimaryBuildProbe|IPrimaryKeyDefinition|PrimaryKeyDefinition<|IsScalarIdentity' \
+            src tests benchmarks samples --include='*.cs' --include='*.csproj' --include='*.props' || true)
+          test -z "$forbidden"
+
+          test ! -e benchmarks/src/Directory.Build.props
+          test ! -e src/Polar.DB/TypedPrimaryBuild.cs
+          test ! -e src/Polar.DB/Int64PrimaryBuildEntryExperiment.cs
+          test ! -e benchmarks/src/BenchSupport/SetPrimaryKeyLifecycleEngine.cs
+          test ! -e benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbe.cs
+          test ! -e benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs
+
+          grep -F -n 'internal interface IPrimaryKeyAccessor' src/Polar.DB/PrimaryKeyAccessor.cs
+          grep -F -n 'IComparable GetKey(object value);' src/Polar.DB/PrimaryKeyAccessor.cs
+          grep -F -n 'int Hash(IComparable key);' src/Polar.DB/PrimaryKeyAccessor.cs
+          grep -F -n '[Obsolete("Use the USequence constructor without primary-key delegates and call SetPrimaryKey<TKey>.")]' src/Polar.DB/USequence.cs
+
+          python - <<'PY'
+          from pathlib import Path
+
+          lifecycle = Path('benchmarks/src/BenchSupport/LifecycleBench.cs').read_text(encoding='utf-8')
+          sqlite = lifecycle.count('SqliteLifecycleEngine.Run(')
+          polar = lifecycle.count('PolarLifecycleEngine.Run(')
+          if sqlite != 1 or polar != 1:
+              raise SystemExit(f'Expected one SQLite and one Polar engine call, got sqlite={sqlite}, polar={polar}.')
+          if 'options.Kind == ExperimentKind.BuildPrimaryIntOnly' in lifecycle:
+              raise SystemExit('BuildPrimaryIntOnly still has an engine add-on block.')
+
+          normal = Path('benchmarks/src/BenchSupport/PolarLifecycleEngine.cs').read_text(encoding='utf-8')
+          expected_load = 'store => store.Sequence.Load(data.Select(row => (object)row.Id)), "polar-db-current"'
+          if expected_load not in normal:
+              raise SystemExit('Normal Polar Load path was not found.')
+
+          factory = Path('benchmarks/src/BenchSupport/PolarStoreFactory.cs').read_text(encoding='utf-8')
+          expected_key = 'sequence.SetPrimaryKey<long>(value => (long)value, BenchmarkChecksum.StableHash);'
+          if expected_key not in factory:
+              raise SystemExit('SetPrimaryKey<long> default benchmark path was not found.')
+          PY
+      - name: Verify evaluated benchmark Compile items
+        shell: bash
+        run: |
+          dotnet restore benchmarks/src/PkIntLookup/PkIntLookup.csproj
+          dotnet msbuild benchmarks/src/PkIntLookup/PkIntLookup.csproj -getItem:Compile > compile-items.json
+          if grep -E 'SetPrimaryKeyLifecycleEngine|Int64TypedPrimaryBuildProbe' compile-items.json; then
+            echo 'Deleted benchmark laboratory source remains in evaluated Compile items.'
+            exit 1
+          fi
+      - name: Restore solution
+        run: dotnet restore Polar.DB.slnx
+      - name: Build and test
+        shell: bash
+        run: |
+          set +e
+          dotnet build Polar.DB.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true --verbosity minimal > build.log 2>&1
+          build_code=$?
+          if [ "$build_code" -eq 0 ]; then
+            dotnet test Polar.DB.slnx --configuration Release --no-build --verbosity normal > test.log 2>&1
+            test_code=$?
+          else
+            printf 'Tests skipped because build failed.\n' > test.log
+            test_code=125
+          fi
+          {
+            echo "build_exit_code=$build_code"
+            echo "test_exit_code=$test_code"
+            echo '--- build summary ---'
+            grep -E 'Build FAILED|Build succeeded|[0-9]+ Error\(s\)' build.log || true
+            echo '--- test summary ---'
+            grep -E 'Failed!|Passed!|Total tests:|Failed:|Passed:|Skipped:|\[FAIL\]|Error Message:' test.log || true
+          } > validation-summary.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-cleanup-main-validation
+          path: |
+            compile-items.json
+            validation-summary.txt
+            build.log
+            test.log
+          if-no-files-found: warn
+      - name: Enforce build and test verdict
+        shell: bash
+        run: |
+          grep -F 'build_exit_code=0' validation-summary.txt
+          grep -F 'test_exit_code=0' validation-summary.txt
