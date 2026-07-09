@@ -10,7 +10,6 @@ namespace Polar.DB
     {
         none, boolean, character, integer, longinteger, real, fstring, sstring, record, sequence, union,
         @byte
-        , objPair
     }
     /// <summary>
     /// Базовый класс, задающий тип
@@ -48,7 +47,6 @@ namespace Polar.DB
                     case PTypeEnumeration.sequence: return 24; // длина (число элементов), выделенный объем, ссылка
                     case PTypeEnumeration.union: return 9; // тег, ссылка
                     case PTypeEnumeration.@byte: return 1;
-                    case PTypeEnumeration.objPair: return 16; // ссылка, ссылка
                     default: return -1;
                 }
             }
@@ -74,7 +72,6 @@ namespace Polar.DB
                     case PTypeEnumeration.sequence: return false; // длина (число элементов), выделенный объем, ссылка
                     case PTypeEnumeration.union: return false; // тег, ссылка
                     case PTypeEnumeration.@byte: return true;
-                    case PTypeEnumeration.objPair: return false; // ссылка, ссылка
                     default: return false;
                 }
             }
@@ -100,7 +97,6 @@ namespace Polar.DB
                     case PTypeEnumeration.sequence: return false; // длина (число элементов), выделенный объем, ссылка
                     case PTypeEnumeration.union: return false; // тег, ссылка
                     case PTypeEnumeration.@byte: return true;
-                    case PTypeEnumeration.objPair: return false; // ссылка, ссылка
                     default: return false;
                 }
             }
@@ -121,7 +117,6 @@ namespace Polar.DB
                 case PTypeEnumeration.sequence: return 9;
                 case PTypeEnumeration.union: return 10;
                 case PTypeEnumeration.@byte: return 11;
-                case PTypeEnumeration.objPair: return 12;
                 default: return -1;
             }
         }
@@ -243,10 +238,6 @@ namespace Polar.DB
                         new NamedType("Name", new PType(PTypeEnumeration.sstring)),
                         new NamedType("Type", ttype)))),
             new NamedType("byte", new PType(PTypeEnumeration.@byte))
-                //,
-                //new NamedType("objpair", new PTypeRecord(
-                //    )),
-                // Нет объектной пары
             };
         }
         public string Interpret(object? v, bool withfieldnames = false)
@@ -309,7 +300,6 @@ namespace Polar.DB
                     }
                 case PTypeEnumeration.@byte:
                     return ((byte)v).ToString();
-                // не реализован вариант объектной парыЫ
                 default: throw new Exception("Can't interpret value by type");
             }
         }

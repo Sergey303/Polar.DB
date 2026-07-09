@@ -103,11 +103,11 @@ public class TypesRoundTripTests
     }
 
     [Fact]
-    public void FromPObject_For_ObjPair_Tag_Throws_As_Unimplemented()
+    public void FromPObject_For_Unknown_Tag_Throws()
     {
-        var objPairTag = new Object [] { 12, null };
+        var unknownTag = new object[] { 99, null };
 
-        var ex = Assert.Throws<Exception>(() => PType.FromPObject(objPairTag));
+        var ex = Assert.Throws<Exception>(() => PType.FromPObject(unknownTag));
         Assert.Equal("unknown tag for pobject", ex.Message);
     }
 }
