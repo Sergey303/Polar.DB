@@ -1,0 +1,62 @@
+name: Apply deleted benchmark support link cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'validation/set-primary-key-main-ci'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Remove deleted support links from benchmark projects
+        shell: python
+        run: |
+          from pathlib import Path
+
+          removed = (
+              '<Compile Include="../BenchSupport/SetPrimaryKeyLifecycleEngine.cs" Link="SetPrimaryKeyLifecycleEngine.cs" />',
+              '<Compile Include="../BenchSupport/Int64TypedPrimaryBuildProbe.cs" Link="Int64TypedPrimaryBuildProbe.cs" />',
+              '<Compile Include="../BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs" Link="Int64TypedPrimaryBuildProbeSemantics.cs" />',
+          )
+
+          changed = 0
+          for path in sorted(Path('benchmarks/src').rglob('*.csproj')):
+              text = path.read_text(encoding='utf-8')
+              new_lines = [
+                  line for line in text.splitlines()
+                  if not any(marker in line for marker in removed)
+              ]
+              new_text = '\n'.join(new_lines) + ('\n' if text.endswith('\n') else '')
+              if new_text != text:
+                  path.write_text(new_text, encoding='utf-8')
+                  changed += 1
+
+          if changed == 0:
+              raise RuntimeError('No remaining benchmark project links were removed.')
+
+          for path in sorted(Path('benchmarks/src').rglob('*.csproj')):
+              text = path.read_text(encoding='utf-8')
+              if any(marker in text for marker in removed):
+                  raise RuntimeError(f'Deleted benchmark support link remains in {path}')
+
+          print(f'changed_projects={changed}')
+      - name: Commit project link cleanup
+        shell: bash
+        run: |
+          if git diff --name-only | grep -E '^(mag_experiments|mag_series)/'; then
+            echo 'Historical mag projects must not be changed.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add benchmarks/src/*.csproj benchmarks/src/*/*.csproj
+          git commit -m 'Remove deleted benchmark support links from all projects'
+          git push origin HEAD:main
