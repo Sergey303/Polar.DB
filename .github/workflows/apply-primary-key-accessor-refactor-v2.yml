@@ -1,0 +1,102 @@
+name: Apply guarded primary key accessor refactor
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'validation/set-primary-key-main-ci'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Refactor primary key bridge to a type-erased accessor
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(text, old, new, count=1):
+              actual = text.count(old)
+              if actual != count:
+                  raise RuntimeError(f'Expected {count} occurrences, found {actual}: {old[:100]!r}')
+              return text.replace(old, new, count)
+
+          old_definition = Path('src/Polar.DB/PrimaryKeyDefinition.cs')
+          accessor = Path('src/Polar.DB/PrimaryKeyAccessor.cs')
+          accessor.write_text('''using System.Linq.Expressions;\n\nnamespace Polar.Universal;\n\ninternal interface IPrimaryKeyAccessor\n{\n    IComparable GetKey(object value);\n    int Hash(IComparable key);\n}\n\ninternal sealed class TypedPrimaryKeyAccessor<TKey> : IPrimaryKeyAccessor\n    where TKey : IComparable, IComparable<TKey>, IEquatable<TKey>\n{\n    private readonly Func<object, TKey> _selector;\n    private readonly Func<TKey, int> _hasher;\n\n    public TypedPrimaryKeyAccessor(\n        Expression<Func<object, TKey>> keyExpression,\n        Func<TKey, int>? hasher)\n    {\n        if (keyExpression == null) throw new ArgumentNullException(nameof(keyExpression));\n        _selector = keyExpression.Compile();\n        _hasher = hasher ?? PrimaryKeyHasherDefaults<TKey>.Create();\n        IsIdentityKeySelector = IsIdentitySelector(keyExpression);\n    }\n\n    internal bool IsIdentityKeySelector { get; }\n    internal int HashTyped(TKey key) => _hasher(key);\n\n    IComparable IPrimaryKeyAccessor.GetKey(object value) => _selector(value);\n    int IPrimaryKeyAccessor.Hash(IComparable key) => _hasher((TKey)key);\n\n    private static bool IsIdentitySelector(Expression<Func<object, TKey>> expression)\n    {\n        if (expression.Body is not UnaryExpression conversion) return false;\n        if (conversion.NodeType != ExpressionType.Convert && conversion.NodeType != ExpressionType.ConvertChecked)\n            return false;\n        return ReferenceEquals(conversion.Operand, expression.Parameters[0]) && conversion.Type == typeof(TKey);\n    }\n}\n\ninternal sealed class DelegatePrimaryKeyAccessor : IPrimaryKeyAccessor\n{\n    private readonly Func<object, IComparable> _selector;\n    private readonly Func<IComparable, int> _hasher;\n\n    public DelegatePrimaryKeyAccessor(\n        Func<object, IComparable> selector,\n        Func<IComparable, int> hasher)\n    {\n        _selector = selector ?? throw new ArgumentNullException(nameof(selector));\n        _hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));\n    }\n\n    public IComparable GetKey(object value) => _selector(value);\n    public int Hash(IComparable key) => _hasher(key);\n}\n\ninternal static class PrimaryKeyHasherDefaults<TKey>\n{\n    public static Func<TKey, int> Create()\n    {\n        if (typeof(TKey) == typeof(int))\n            return (Func<TKey, int>)(object)(Func<int, int>)(value => value);\n        if (typeof(TKey) == typeof(long))\n            return (Func<TKey, int>)(object)(Func<long, int>)(value => unchecked((int)(value ^ (value >> 32))));\n        if (typeof(TKey) == typeof(Guid))\n            return (Func<TKey, int>)(object)(Func<Guid, int>)StableGuidHash;\n        if (typeof(TKey) == typeof(string))\n            return (Func<TKey, int>)(object)(Func<string, int>)StableStringHash;\n        throw new NotSupportedException(\n            $"Primary key type '{typeof(TKey)}' has no default stable hash. Pass an explicit hasher to SetPrimaryKey.");\n    }\n\n    private static int StableGuidHash(Guid value)\n    {\n        Span<byte> bytes = stackalloc byte[16];\n        if (!value.TryWriteBytes(bytes))\n            throw new InvalidOperationException("Could not write Guid bytes for stable primary-key hashing.");\n        unchecked\n        {\n            var hash = (int)2166136261;\n            foreach (byte valueByte in bytes)\n            {\n                hash ^= valueByte;\n                hash *= 16777619;\n            }\n            return hash;\n        }\n    }\n\n    private static int StableStringHash(string value)\n    {\n        if (value == null) throw new ArgumentNullException(nameof(value));\n        unchecked\n        {\n            var hash = (int)2166136261;\n            foreach (char ch in value)\n            {\n                hash ^= ch;\n                hash *= 16777619;\n            }\n            return hash;\n        }\n    }\n}\n''', encoding='utf-8')
+          old_definition.unlink()
+
+          path = Path('src/Polar.DB/USequence.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace(text, '''        internal Func<object, bool> isEmpty;\n        internal Func<object, IComparable> keyFunc;\n        private Func<IComparable, int> hashOfKey;\n        private UKeyIndex primaryKeyIndex;\n        private IPrimaryKeyDefinition? primaryKeyDefinition;\n        private bool primaryKeyConfigured;''', '''        internal Func<object, bool> isEmpty;\n        private UKeyIndex primaryKeyIndex;\n        private IPrimaryKeyAccessor? _primaryKeyAccessor;''')
+          text = replace(text, '''            keyFunc = _ => throw new InvalidOperationException(\n                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");\n            hashOfKey = _ => throw new InvalidOperationException(\n                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");\n\n            primaryKeyIndex = new UKeyIndex(\n                streamGen,\n                this,\n                element => keyFunc(element),\n                key => hashOfKey(key),\n                optimise);''', '''            primaryKeyIndex = new UKeyIndex(streamGen, this, optimise);''')
+          text = replace(text, '''        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,\n            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)\n            : this(tp_el, stateFileName, streamGen, isEmpty, optimise)\n        {\n            this.keyFunc = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));\n            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));\n            primaryKeyConfigured = true;\n        }''', '''        [Obsolete("Use the USequence constructor without primary-key delegates and call SetPrimaryKey<TKey>.")]\n        public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,\n            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)\n            : this(tp_el, stateFileName, streamGen, isEmpty, optimise)\n        {\n            ConfigurePrimaryKey(new DelegatePrimaryKeyAccessor(keyFunc, hashOfKey));\n        }''')
+          text = replace(text, '''            if (primaryKeyConfigured)\n                throw new InvalidOperationException("Primary key is already configured for this sequence.");\n\n            var definition = new PrimaryKeyDefinition<TKey>(keyExpression, hashOfKey);\n            primaryKeyDefinition = definition;\n            keyFunc = value => definition.GetKey(value);\n            this.hashOfKey = key => definition.Hash((TKey)key);\n            primaryKeyConfigured = true;''', '''            if (_primaryKeyAccessor != null)\n                throw new InvalidOperationException("Primary key is already configured for this sequence.");\n\n            ConfigurePrimaryKey(new TypedPrimaryKeyAccessor<TKey>(keyExpression, hashOfKey));''')
+          text = replace(text, '''        public void RestoreDynamic()\n        {\n            RefreshCore(persistRecoveredIndexes: true);\n        }''', '''        private IPrimaryKeyAccessor PrimaryKeyAccessor =>\n            _primaryKeyAccessor ?? throw new InvalidOperationException(\n                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");\n\n        internal IComparable GetPrimaryKey(object value) => PrimaryKeyAccessor.GetKey(value);\n\n        private void ConfigurePrimaryKey(IPrimaryKeyAccessor accessor)\n        {\n            _primaryKeyAccessor = accessor ?? throw new ArgumentNullException(nameof(accessor));\n            primaryKeyIndex.SetPrimaryKeyAccessor(accessor);\n        }\n\n        public void RestoreDynamic()\n        {\n            RefreshCore(persistRecoveredIndexes: true);\n        }''')
+          text = replace(text, '''            foreach (var element in flow)\n            {\n                if (isEmpty(element)) continue;\n\n                var offset = sequence.AppendElement(element);\n                var key = keyFunc(element);\n                loadedEntries.Add(new BuildEntry(hashOfKey(key), key, offset, isEmpty: false));\n            }''', '''            var primaryKey = PrimaryKeyAccessor;\n            foreach (var element in flow)\n            {\n                if (isEmpty(element)) continue;\n\n                var offset = sequence.AppendElement(element);\n                var key = primaryKey.GetKey(element);\n                loadedEntries.Add(new BuildEntry(primaryKey.Hash(key), key, offset, isEmpty: false));\n            }''')
+          text = replace(text, '            if (primaryKeyDefinition is PrimaryKeyDefinition<long> definition && definition.IsScalarIdentity)', '            if (_primaryKeyAccessor is TypedPrimaryKeyAccessor<long> accessor && accessor.IsIdentityKeySelector)')
+          text = replace(text, '                        definition.Hash(value), value, 8L + i * sizeof(long), isEmpty: false);', '                        accessor.HashTyped(value), value, 8L + i * sizeof(long), isEmpty: false);')
+          text = replace(text, '''                    IComparable key = values[i];\n                    entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);''', '''                    IComparable key = values[i];\n                    entries[i] = new BuildEntry(PrimaryKeyAccessor.Hash(key), key, 8L + i * sizeof(long), isEmpty: false);''')
+          text = replace(text, '''        private void EnsurePrimaryKeyConfigured()\n        {\n            if (!primaryKeyConfigured)\n                throw new InvalidOperationException(\n                    "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");\n        }''', '''        private void EnsurePrimaryKeyConfigured()\n        {\n            _ = PrimaryKeyAccessor;\n        }''')
+          text = replace(text, '            return primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);', '            return primaryKeyIndex.IsOriginal(GetPrimaryKey(element), off) && !isEmpty(element);')
+          forbidden_usequence = (\n              'internal Func<object, IComparable> keyFunc;',\n              'private Func<IComparable, int> hashOfKey;',\n              'primaryKeyDefinition',\n              'primaryKeyConfigured',\n              'keyFunc(element)',\n              'hashOfKey(key)')
+          if any(symbol in text for symbol in forbidden_usequence):
+              raise RuntimeError('Legacy primary-key bridge implementation remains in USequence.cs')
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('src/Polar.DB/UKeyIndex.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace(text, '''        private readonly USequence sequence;\n        private Func<object, IComparable> keyFunc;\n        private Func<IComparable, int> hashOfKey;''', '''        private readonly USequence sequence;\n        private IPrimaryKeyAccessor? _primaryKeyAccessor;\n\n        private IPrimaryKeyAccessor PrimaryKeyAccessor =>\n            _primaryKeyAccessor ?? throw new InvalidOperationException("Primary key accessor is not configured.");''')
+          text = replace(text, '''        public UKeyIndex(Func<Stream> streamGen, USequence sequence,\n            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)\n        {\n            this.sequence = sequence;\n            this.keyFunc = keyFunc;\n            this.hashOfKey = hashOfKey;\n            this.keysinmemory = keysinmemory;\n            hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());\n            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());\n            keyoff_dic = new Dictionary<IComparable, long>();\n        }''', '''        public UKeyIndex(Func<Stream> streamGen, USequence sequence,\n            Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)\n            : this(streamGen, sequence, keysinmemory)\n        {\n            SetPrimaryKeyAccessor(new DelegatePrimaryKeyAccessor(keyFunc, hashOfKey));\n        }\n\n        internal UKeyIndex(Func<Stream> streamGen, USequence sequence, bool keysinmemory = true)\n        {\n            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));\n            this.keysinmemory = keysinmemory;\n            hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());\n            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());\n            keyoff_dic = new Dictionary<IComparable, long>();\n        }\n\n        internal void SetPrimaryKeyAccessor(IPrimaryKeyAccessor accessor)\n        {\n            if (_primaryKeyAccessor != null)\n                throw new InvalidOperationException("Primary key accessor is already configured.");\n            _primaryKeyAccessor = accessor ?? throw new ArgumentNullException(nameof(accessor));\n        }''')
+          text = text.replace('keyFunc(', 'PrimaryKeyAccessor.GetKey(')
+          text = text.replace('hashOfKey(', 'PrimaryKeyAccessor.Hash(')
+          remaining = [line for line in text.splitlines() if 'keyFunc' in line or 'hashOfKey' in line]
+          allowed = [line for line in remaining if 'Func<object, IComparable> keyFunc' in line or 'new DelegatePrimaryKeyAccessor(keyFunc, hashOfKey)' in line]
+          if len(remaining) != len(allowed):
+              raise RuntimeError('Unexpected delegate bridge use remains in UKeyIndex.cs: ' + repr(remaining))
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('src/Polar.DB/UKeyIndexCompaction.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace(text, '''        USequence sequence,\n        Func<object, IComparable> keyFunc,\n        Func<IComparable, int> hashOfKey,\n        CancellationToken cancellationToken)''', '''        USequence sequence,\n        IPrimaryKeyAccessor primaryKeyAccessor,\n        CancellationToken cancellationToken)''')
+          text = replace(text, '            hashes.Add(hashOfKey(keyFunc(obj)));', '            hashes.Add(primaryKeyAccessor.Hash(primaryKeyAccessor.GetKey(obj)));')
+          path.write_text(text, encoding='utf-8')
+
+          for file_name in ('src/Polar.DB/EKeyIndex.cs', 'src/Polar.DB/ESortIndex32.cs', 'src/Polar.DB/ESortIndexStr.cs', 'src/Polar.DB/ExternalKey/ExternalKeyIndex.cs'):
+              path = Path(file_name)
+              text = path.read_text(encoding='utf-8')
+              text = text.replace('sequence.keyFunc(', 'sequence.GetPrimaryKey(').replace('_sequence.keyFunc(', '_sequence.GetPrimaryKey(')
+              if 'sequence.keyFunc' in text or '_sequence.keyFunc' in text:
+                  raise RuntimeError(f'Primary key delegate access remains in {file_name}')
+              path.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs')
+          text = test_path.read_text(encoding='utf-8')
+          text = replace(text, '''        public USequence OpenLegacyIntSequence()\n        {\n            return new USequence(''', '''        public USequence OpenLegacyIntSequence()\n        {\n#pragma warning disable CS0618 // Intentional compatibility coverage for the obsolete constructor.\n            return new USequence(''')
+          text = replace(text, '''                key => (int)key,\n                optimise: false);\n        }''', '''                key => (int)key,\n                optimise: false);\n#pragma warning restore CS0618\n        }''')
+          test_path.write_text(text, encoding='utf-8')
+
+          forbidden = ('IPrimaryKeyDefinition', 'PrimaryKeyDefinition<', 'IsScalarIdentity')
+          for root in (Path('src'), Path('tests'), Path('benchmarks'), Path('samples')):
+              for source in root.rglob('*.cs'):
+                  source_text = source.read_text(encoding='utf-8', errors='replace')
+                  if any(symbol in source_text for symbol in forbidden):
+                      raise RuntimeError(f'Old primary-key definition symbol remains in {source}')
+      - name: Commit primary key accessor refactor
+        shell: bash
+        run: |
+          if git diff --name-only | grep -E '^(mag_experiments|mag_series)/'; then
+            echo 'Historical mag projects must not be changed.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Polar.DB tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs
+          git commit -m 'Replace primary key marker with type-erased accessor'
+          git push origin HEAD:main
