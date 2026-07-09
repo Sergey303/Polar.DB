@@ -1,0 +1,45 @@
+name: Repair primary key refactor guard block
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'validation/set-primary-key-main-ci'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: validation/set-primary-key-main-ci
+          fetch-depth: 0
+      - name: Replace malformed guard block by boundaries
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('.github/workflows/apply-primary-key-accessor-refactor-v2.yml')
+          text = path.read_text(encoding='utf-8')
+          start = text.index('          forbidden_usequence = (')
+          end = text.index('          if any(symbol in text for symbol in forbidden_usequence):', start)
+          block = '''          forbidden_usequence = (
+              'internal Func<object, IComparable> keyFunc;',
+              'private Func<IComparable, int> hashOfKey;',
+              'primaryKeyDefinition',
+              'primaryKeyConfigured',
+              'keyFunc(element)',
+              'hashOfKey(key)')
+'''
+          text = text[:start] + block + text[end:]
+          path.write_text(text, encoding='utf-8')
+      - name: Commit repaired guard block
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/apply-primary-key-accessor-refactor-v2.yml
+          git commit -m 'Repair primary key refactor guard block'
+          git push origin HEAD:validation/set-primary-key-main-ci
