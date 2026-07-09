@@ -69,7 +69,7 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
 
     public void OnAppendElement(object element, long offset)
     {
-        IComparable primary = _sequence.keyFunc(element);
+        IComparable primary = _sequence.GetPrimaryKey(element);
         long revision = ++_revision;
 
         _dynamic.RemoveAll(entry => Equals(entry.Primary, primary));

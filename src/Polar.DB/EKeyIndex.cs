@@ -41,7 +41,7 @@ namespace Polar.Universal
         {
             var keys = keysFunc(element);//.Distinct(); // Возможно, надо так...
 
-            var primary_key = sequence.keyFunc(element);
+            var primary_key = sequence.GetPrimaryKey(element);
             var query = plo_list
                 .Where(plo => plo.primary != primary_key)
                 .Concat(keys.Select(k => new PLO()
@@ -132,7 +132,7 @@ namespace Polar.Universal
                     // Десериализуем элемент (объект)
                     object elem_obj = sequence.GetByOffset(offset);
                     // Получаем первичный ключ
-                    var p_key = sequence.keyFunc(elem_obj);
+                    var p_key = sequence.GetPrimaryKey(elem_obj);
                     // Этот ключ мог быть перемещен в динамическую область. Проверим
                     if (plo_list.Any(plo => plo.primary == p_key)) continue; // Этот не берем
                                                                              // элемент может быть пустым, такие не берем

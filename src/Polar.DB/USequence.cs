@@ -8,11 +8,8 @@ namespace Polar.Universal
     {
         private UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
-        internal Func<object, IComparable> keyFunc;
-        private Func<IComparable, int> hashOfKey;
         private UKeyIndex primaryKeyIndex;
-        private IPrimaryKeyDefinition? primaryKeyDefinition;
-        private bool primaryKeyConfigured;
+        private IPrimaryKeyAccessor? _primaryKeyAccessor;
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = Array.Empty<IUIndex>();
         private bool optimise = true;
@@ -30,26 +27,15 @@ namespace Polar.Universal
             this.optimise = optimise;
             this.stateFileName = stateFileName;
 
-            keyFunc = _ => throw new InvalidOperationException(
-                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
-            hashOfKey = _ => throw new InvalidOperationException(
-                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
-
-            primaryKeyIndex = new UKeyIndex(
-                streamGen,
-                this,
-                element => keyFunc(element),
-                key => hashOfKey(key),
-                optimise);
+            primaryKeyIndex = new UKeyIndex(streamGen, this, optimise);
         }
 
+        [Obsolete("Use the USequence constructor without primary-key delegates and call SetPrimaryKey<TKey>.")]
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen, Func<object, bool> isEmpty,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool optimise = true)
             : this(tp_el, stateFileName, streamGen, isEmpty, optimise)
         {
-            this.keyFunc = keyFunc ?? throw new ArgumentNullException(nameof(keyFunc));
-            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
-            primaryKeyConfigured = true;
+            ConfigurePrimaryKey(new DelegatePrimaryKeyAccessor(keyFunc, hashOfKey));
         }
 
         public void SetPrimaryKey<TKey>(
@@ -57,14 +43,22 @@ namespace Polar.Universal
             Func<TKey, int>? hashOfKey = null)
             where TKey : IComparable, IComparable<TKey>, IEquatable<TKey>
         {
-            if (primaryKeyConfigured)
+            if (_primaryKeyAccessor != null)
                 throw new InvalidOperationException("Primary key is already configured for this sequence.");
 
-            var definition = new PrimaryKeyDefinition<TKey>(keyExpression, hashOfKey);
-            primaryKeyDefinition = definition;
-            keyFunc = value => definition.GetKey(value);
-            this.hashOfKey = key => definition.Hash((TKey)key);
-            primaryKeyConfigured = true;
+            ConfigurePrimaryKey(new TypedPrimaryKeyAccessor<TKey>(keyExpression, hashOfKey));
+        }
+
+        private IPrimaryKeyAccessor PrimaryKeyAccessor =>
+            _primaryKeyAccessor ?? throw new InvalidOperationException(
+                "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+
+        internal IComparable GetPrimaryKey(object value) => PrimaryKeyAccessor.GetKey(value);
+
+        private void ConfigurePrimaryKey(IPrimaryKeyAccessor accessor)
+        {
+            _primaryKeyAccessor = accessor ?? throw new ArgumentNullException(nameof(accessor));
+            primaryKeyIndex.SetPrimaryKeyAccessor(accessor);
         }
 
         public void RestoreDynamic()
@@ -212,13 +206,14 @@ namespace Polar.Universal
                 ? new List<BuildEntry>(collection.Count)
                 : new List<BuildEntry>();
 
+            var primaryKey = PrimaryKeyAccessor;
             foreach (var element in flow)
             {
                 if (isEmpty(element)) continue;
 
                 var offset = sequence.AppendElement(element);
-                var key = keyFunc(element);
-                loadedEntries.Add(new BuildEntry(hashOfKey(key), key, offset, isEmpty: false));
+                var key = primaryKey.GetKey(element);
+                loadedEntries.Add(new BuildEntry(primaryKey.Hash(key), key, offset, isEmpty: false));
             }
 
             loadedPrimaryBuildEntries = loadedEntries.Count == 0
@@ -238,14 +233,14 @@ namespace Polar.Universal
             Clear();
             sequence.ReplaceWithFixedInt64Array(values);
 
-            if (primaryKeyDefinition is PrimaryKeyDefinition<long> definition && definition.IsScalarIdentity)
+            if (_primaryKeyAccessor is TypedPrimaryKeyAccessor<long> accessor && accessor.IsIdentityKeySelector)
             {
                 var typedEntries = new PrimaryBuildEntry<long>[values.Length];
                 for (var i = 0; i < values.Length; i++)
                 {
                     var value = values[i];
                     typedEntries[i] = new PrimaryBuildEntry<long>(
-                        definition.Hash(value), value, 8L + i * sizeof(long), isEmpty: false);
+                        accessor.HashTyped(value), value, 8L + i * sizeof(long), isEmpty: false);
                 }
 
                 loadedTypedPrimaryBuild = new LoadedTypedPrimaryBuild<long>(typedEntries);
@@ -257,7 +252,7 @@ namespace Polar.Universal
                 for (var i = 0; i < values.Length; i++)
                 {
                     IComparable key = values[i];
-                    entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);
+                    entries[i] = new BuildEntry(PrimaryKeyAccessor.Hash(key), key, 8L + i * sizeof(long), isEmpty: false);
                 }
 
                 loadedPrimaryBuildEntries = entries;
@@ -317,9 +312,7 @@ namespace Polar.Universal
 
         private void EnsurePrimaryKeyConfigured()
         {
-            if (!primaryKeyConfigured)
-                throw new InvalidOperationException(
-                    "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");
+            _ = PrimaryKeyAccessor;
         }
 
         internal bool IsEmpty(object element) => isEmpty(element);
@@ -332,7 +325,7 @@ namespace Polar.Universal
         internal bool IsOriginalAndNotEmpty(object element, long off)
         {
             EnsurePrimaryKeyConfigured();
-            return primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);
+            return primaryKeyIndex.IsOriginal(GetPrimaryKey(element), off) && !isEmpty(element);
         }
 
         public IEnumerable<object> ElementValues()

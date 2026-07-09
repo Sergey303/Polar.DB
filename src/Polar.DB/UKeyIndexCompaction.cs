@@ -6,8 +6,7 @@ internal static class UKeyIndexCompaction
 {
     internal static UKeyIndexSnapshot BuildSnapshot(
         USequence sequence,
-        Func<object, IComparable> keyFunc,
-        Func<IComparable, int> hashOfKey,
+        IPrimaryKeyAccessor primaryKeyAccessor,
         CancellationToken cancellationToken)
     {
         var hashes = new List<int>();
@@ -16,7 +15,7 @@ internal static class UKeyIndexCompaction
         sequence.Scan((offset, obj) =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            hashes.Add(hashOfKey(keyFunc(obj)));
+            hashes.Add(primaryKeyAccessor.Hash(primaryKeyAccessor.GetKey(obj)));
             offsets.Add(offset);
             return true;
         });

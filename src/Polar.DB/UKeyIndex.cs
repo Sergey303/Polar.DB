@@ -7,8 +7,10 @@ namespace Polar.Universal
     public class UKeyIndex : IDisposable
     {
         private readonly USequence sequence;
-        private Func<object, IComparable> keyFunc;
-        private Func<IComparable, int> hashOfKey;
+        private IPrimaryKeyAccessor? _primaryKeyAccessor;
+
+        private IPrimaryKeyAccessor PrimaryKeyAccessor =>
+            _primaryKeyAccessor ?? throw new InvalidOperationException("Primary key accessor is not configured.");
         private UniversalSequenceBase hkeys;
         private UniversalSequenceBase offsets;
         private Dictionary<IComparable, long> keyoff_dic;
@@ -23,19 +25,30 @@ namespace Polar.Universal
 
         public UKeyIndex(Func<Stream> streamGen, USequence sequence,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)
+            : this(streamGen, sequence, keysinmemory)
         {
-            this.sequence = sequence;
-            this.keyFunc = keyFunc;
-            this.hashOfKey = hashOfKey;
+            SetPrimaryKeyAccessor(new DelegatePrimaryKeyAccessor(keyFunc, hashOfKey));
+        }
+
+        internal UKeyIndex(Func<Stream> streamGen, USequence sequence, bool keysinmemory = true)
+        {
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
             this.keysinmemory = keysinmemory;
             hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
             offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
             keyoff_dic = new Dictionary<IComparable, long>();
         }
 
+        internal void SetPrimaryKeyAccessor(IPrimaryKeyAccessor accessor)
+        {
+            if (_primaryKeyAccessor != null)
+                throw new InvalidOperationException("Primary key accessor is already configured.");
+            _primaryKeyAccessor = accessor ?? throw new ArgumentNullException(nameof(accessor));
+        }
+
         public void OnAppendElement(object element, long offset)
         {
-            var key = keyFunc(element);
+            var key = PrimaryKeyAccessor.GetKey(element);
             keyoff_dic[key] = offset;
         }
 
@@ -93,8 +106,8 @@ namespace Polar.Universal
             {
                 sequence.ScanPhysical((off, obj) =>
                 {
-                    var key = keyFunc(obj);
-                    entries[entryCount++] = new BuildEntry(hashOfKey(key), key, off, sequence.IsEmpty(obj));
+                    var key = PrimaryKeyAccessor.GetKey(obj);
+                    entries[entryCount++] = new BuildEntry(PrimaryKeyAccessor.Hash(key), key, off, sequence.IsEmpty(obj));
                     return true;
                 });
             });
@@ -259,7 +272,7 @@ namespace Polar.Universal
                 throw new InvalidOperationException(
                     $"Expected exactly one Polar.DB element for key '{keysample}', but payload at offset {offset} is null.");
 
-            var key = keyFunc(value);
+            var key = PrimaryKeyAccessor.GetKey(value);
             if (key.CompareTo(keysample) != 0 || !sequence.IsOriginalAndNotEmpty(value, offset))
                 throw new InvalidOperationException(
                     $"Expected exactly one Polar.DB element for key '{keysample}', but payload at offset {offset} did not validate.");
@@ -274,7 +287,7 @@ namespace Polar.Universal
             {
                 var value = sequence.GetByOffset(offset);
                 if (value == null) continue;
-                var key = keyFunc(value);
+                var key = PrimaryKeyAccessor.GetKey(value);
                 if (key.CompareTo(keysample) == 0 && sequence.IsOriginalAndNotEmpty(value, offset))
                     yield return value;
             }
@@ -318,7 +331,7 @@ namespace Polar.Universal
         private IReadOnlyList<long> GetOffsetsByHashCompatiblePath(IComparable keysample)
         {
             var result = new List<long>();
-            int hkey = hashOfKey(keysample);
+            int hkey = PrimaryKeyAccessor.Hash(keysample);
 
             if (hkeys_arr != null)
             {
@@ -329,7 +342,7 @@ namespace Polar.Universal
                     long offset = (long)offsets.GetByIndex(pos);
                     object val = sequence.GetByOffset(offset);
                     if (val == null) break;
-                    var key = keyFunc(val);
+                    var key = PrimaryKeyAccessor.GetKey(val);
                     if (key.CompareTo(keysample) == 0)
                         result.Add(offset);
                     pos++;
@@ -348,7 +361,7 @@ namespace Polar.Universal
                 long offset = (long)offsets.GetByIndex(nom);
                 object val = sequence.GetByOffset(offset);
                 if (val == null) break;
-                var key = keyFunc(val);
+                var key = PrimaryKeyAccessor.GetKey(val);
                 if (key.CompareTo(keysample) == 0)
                     result.Add(offset);
             }
@@ -372,7 +385,7 @@ namespace Polar.Universal
 
         private bool TryGetIndexedValueAndOffsetByKey(IComparable keysample, out object value, out long offset)
         {
-            int hkey = hashOfKey(keysample);
+            int hkey = PrimaryKeyAccessor.Hash(keysample);
 
             if (hkeys_arr != null)
             {
@@ -383,7 +396,7 @@ namespace Polar.Universal
                     var candidateValue = sequence.GetByOffset(candidateOffset);
                     if (candidateValue != null)
                     {
-                        var candidateKey = keyFunc(candidateValue);
+                        var candidateKey = PrimaryKeyAccessor.GetKey(candidateValue);
                         if (candidateKey.CompareTo(keysample) == 0)
                         {
                             value = candidateValue;
@@ -418,7 +431,7 @@ namespace Polar.Universal
                 var candidateValue = sequence.GetByOffset(candidateOffset);
                 if (candidateValue == null) continue;
 
-                var candidateKey = keyFunc(candidateValue);
+                var candidateKey = PrimaryKeyAccessor.GetKey(candidateValue);
                 if (candidateKey.CompareTo(keysample) == 0)
                 {
                     value = candidateValue;

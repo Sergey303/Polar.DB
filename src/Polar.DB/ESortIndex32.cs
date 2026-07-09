@@ -40,7 +40,7 @@ namespace Polar.Universal
         public void OnAppendElement(object element, long offset)
         {
             var vals = valuesFunc(element);//
-            var primary_key = sequence.keyFunc(element);
+            var primary_key = sequence.GetPrimaryKey(element);
             var query = pvo_arr
                 .Where(pvo => pvo.primary != primary_key)
                 .Concat(vals.Select(k => new PVO()
@@ -129,7 +129,7 @@ namespace Polar.Universal
                     // Десериализуем элемент (объект)
                     object elem_obj = sequence.GetByOffset(offset);
                     // Получаем первичный ключ
-                    var p_key = sequence.keyFunc(elem_obj);
+                    var p_key = sequence.GetPrimaryKey(elem_obj);
                     // Этот ключ мог быть перемещен в динамическую область. Проверим
                     if (pvo_arr.Any(plo => plo.primary == p_key)) continue; // Этот не берем
 

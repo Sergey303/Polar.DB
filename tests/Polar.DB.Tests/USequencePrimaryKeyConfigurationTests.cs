@@ -92,6 +92,7 @@ public class USequencePrimaryKeyConfigurationTests
 
         public USequence OpenLegacyIntSequence()
         {
+#pragma warning disable CS0618 // Intentional compatibility coverage for the obsolete constructor.
             return new USequence(
                 new PType(PTypeEnumeration.integer),
                 Path.Combine(root, "state.bin"),
@@ -100,6 +101,7 @@ public class USequencePrimaryKeyConfigurationTests
                 value => (int)value,
                 key => (int)key,
                 optimise: false);
+#pragma warning restore CS0618
         }
 
         public USequence OpenConfiguredIntSequence()
