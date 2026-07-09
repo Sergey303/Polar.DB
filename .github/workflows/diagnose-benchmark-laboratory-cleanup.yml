@@ -1,0 +1,47 @@
+name: Diagnose benchmark laboratory cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Execute cleanup patch with traceback capture
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          import textwrap
+          import traceback
+
+          workflow = subprocess.check_output([
+              'git', 'show',
+              'origin/validation/set-primary-key-main-ci:.github/workflows/apply-benchmark-laboratory-cleanup.yml'
+          ], text=True)
+          start_marker = '      - name: Remove benchmark laboratory from production and benchmark graph\n        shell: python\n        run: |\n'
+          end_marker = '      - name: Commit benchmark laboratory cleanup\n'
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          script = textwrap.dedent(workflow[start:end])
+
+          try:
+              exec(compile(script, '<benchmark-cleanup>', 'exec'), {'__name__': '__main__'})
+              result = 'PATCH SCRIPT SUCCEEDED\n'
+          except Exception:
+              result = traceback.format_exc()
+
+          Path('benchmark-cleanup-diagnostic.txt').write_text(result, encoding='utf-8')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-cleanup-diagnostic
+          path: benchmark-cleanup-diagnostic.txt
+          if-no-files-found: error
