@@ -16,6 +16,14 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { bw.Write((int)v); return; }
                 case PTypeEnumeration.longinteger: { bw.Write((long)v); return; }
                 case PTypeEnumeration.real: { bw.Write((double)v); return; }
+                case PTypeEnumeration.fstring:
+                    {
+                        var type = (PTypeFString)tp;
+                        string value = (string)v;
+                        if (value.Length > type.Length) throw new ArgumentException("Fixed string value exceeds declared length.", nameof(v));
+                        for (int i = 0; i < type.Length; i++) bw.Write((ushort)(i < value.Length ? value[i] : '\0'));
+                        return;
+                    }
                 case PTypeEnumeration.sstring: { if (v == null) v = ""; bw.Write((string)v); return; }
                 case PTypeEnumeration.record:
                     {
@@ -47,6 +55,7 @@ namespace Polar.DB
                         Serialize(bw, subval, tp_uni.Variants[tag].Type);
                         return;
                     }
+                default: throw new NotSupportedException($"Binary serialization does not support type {tp.Vid}.");
             }
         }
         public static object Deserialize(BinaryReader br, PType tp)
@@ -60,6 +69,13 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { return br.ReadInt32(); }
                 case PTypeEnumeration.longinteger: { return br.ReadInt64(); }
                 case PTypeEnumeration.real: { return br.ReadDouble(); }
+                case PTypeEnumeration.fstring:
+                    {
+                        var type = (PTypeFString)tp;
+                        var chars = new char[type.Length];
+                        for (int i = 0; i < chars.Length; i++) chars[i] = (char)br.ReadUInt16();
+                        return new string(chars).TrimEnd('\0');
+                    }
                 case PTypeEnumeration.sstring: { return br.ReadString(); }
                 case PTypeEnumeration.record:
                     {

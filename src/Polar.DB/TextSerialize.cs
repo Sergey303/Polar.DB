@@ -16,6 +16,16 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { tw.Write((int)v); return; }
                 case PTypeEnumeration.longinteger: { tw.Write((long)v); return; }
                 case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }
+                case PTypeEnumeration.fstring:
+                    {
+                        var type = (PTypeFString)tp;
+                        string value = (string)v;
+                        if (value.Length > type.Length) throw new ArgumentException("Fixed string value exceeds declared length.", nameof(v));
+                        tw.Write('\"');
+                        tw.Write(value.Replace("\\", "\\\\").Replace("\"", "\\\""));
+                        tw.Write('\"');
+                        return;
+                    }
                 case PTypeEnumeration.sstring:
                     {
                         tw.Write('\"');
@@ -63,6 +73,7 @@ namespace Polar.DB
                         Serialize(tw, subval, tp_uni.Variants[tag].Type);
                         return;
                     }
+                default: throw new NotSupportedException($"Text serialization does not support type {tp.Vid}.");
             }
         }
         private static int intend = 4;
@@ -99,6 +110,16 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { tw.Write((int)v); return; }
                 case PTypeEnumeration.longinteger: { tw.Write((long)v); return; }
                 case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }
+                case PTypeEnumeration.fstring:
+                    {
+                        var type = (PTypeFString)tp;
+                        string value = (string)v;
+                        if (value.Length > type.Length) throw new ArgumentException("Fixed string value exceeds declared length.", nameof(v));
+                        tw.Write('\"');
+                        tw.Write(value.Replace("\\", "\\\\").Replace("\"", "\\\""));
+                        tw.Write('\"');
+                        return;
+                    }
                 case PTypeEnumeration.sstring:
                     {
                         tw.Write('\"');
@@ -156,6 +177,7 @@ namespace Polar.DB
                         SerializeFormatted(tw, subval, tp_uni.Variants[tag].Type, level+1);
                         return;
                     }
+                default: throw new NotSupportedException($"Formatted text serialization does not support type {tp.Vid}.");
             }
         }
         public static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)
@@ -224,7 +246,13 @@ namespace Polar.DB
         public bool ReadBoolean()
         {
             int c = tr.Read();
-            return c == 't' ? true : false;
+            return c switch
+            {
+                't' => true,
+                'f' => false,
+                -1 => throw new EndOfStreamException("Unexpected end of boolean value."),
+                _ => throw new InvalidDataException($"Invalid boolean token '{(char)c}'.")
+            };
         }
         private string ReadWhile(Func<char, bool> yesFunc)
         {
@@ -239,8 +267,9 @@ namespace Polar.DB
         }
         public byte ReadByte()
         {
-            string s = ReadWhile(c => { if (char.IsDigit(c)) return true; char cc = char.ToLower(c); return cc >= 'a' && cc <= 'f'; });
-            return byte.Parse(s);
+            string s = ReadWhile(char.IsDigit);
+            if (s.Length == 0) throw new InvalidDataException("Byte value must contain decimal digits.");
+            return byte.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
         }
         public char ReadChar() { return (char)tr.Read(); }
         public int ReadInt32()
@@ -268,33 +297,24 @@ namespace Polar.DB
         }
         public string ReadString()
         {
+            if (tr.Read() != '"') throw new InvalidDataException("String value must start with a quote.");
             StringBuilder sb = new StringBuilder();
-            // Маленький конечный автомат
-            // начальная точка, сюда уже не вернемся
-            if (tr.Peek() != '\"') throw new Exception("Err: wrong string construction");
-            int c = tr.Read();
-            // Внутри строки очередной символ прочитан
-            c = tr.Read();
-            while (c != '\"')
+            while (true)
             {
+                int c = tr.Read();
+                if (c == -1) throw new EndOfStreamException("String value is missing a closing quote.");
+                if (c == '"') return sb.ToString();
                 if (c == '\\')
                 {
                     c = tr.Read();
+                    if (c == -1) throw new EndOfStreamException("String escape sequence is incomplete.");
                     if (c == 'n') sb.Append('\n');
                     else if (c == 'r') sb.Append('\r');
                     else if (c == 't') sb.Append('\t');
-                    else
-                    {
-                        sb.Append((char)c);
-                    }
+                    else sb.Append((char)c);
                 }
-                else
-                {
-                    sb.Append((char)c);
-                }
-                c = tr.Read();
+                else sb.Append((char)c);
             }
-            return sb.ToString();
         }
 
         private object Des(PType tp)
@@ -308,6 +328,13 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { return ReadInt32(); }
                 case PTypeEnumeration.longinteger: { return ReadInt64(); }
                 case PTypeEnumeration.real: { return ReadDouble(); }
+                case PTypeEnumeration.fstring:
+                    {
+                        string value = ReadString();
+                        var type = (PTypeFString)tp;
+                        if (value.Length > type.Length) throw new InvalidDataException("Fixed string value exceeds declared length.");
+                        return value;
+                    }
                 case PTypeEnumeration.sstring: { return ReadString(); }
                 case PTypeEnumeration.record:
                     {
