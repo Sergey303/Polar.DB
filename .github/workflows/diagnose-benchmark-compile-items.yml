@@ -1,0 +1,51 @@
+name: Diagnose benchmark compile items
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Inspect repository occurrences and evaluated Compile items
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== HEAD ==='
+            git rev-parse HEAD
+            echo
+            echo '=== repository occurrences ==='
+            grep -R -n -E 'SetPrimaryKeyLifecycleEngine|Int64TypedPrimaryBuildProbe' . \
+              --exclude-dir=.git --exclude-dir=bin --exclude-dir=obj || true
+            echo
+            echo '=== relevant props/targets ==='
+            find . -type f \( -name '*.props' -o -name '*.targets' -o -name 'Directory.Build.*' \) -print
+            echo
+            echo '=== PkIntLookup project ==='
+            cat benchmarks/src/PkIntLookup/PkIntLookup.csproj
+            echo
+            echo '=== evaluated Compile items before restore ==='
+            dotnet msbuild benchmarks/src/PkIntLookup/PkIntLookup.csproj -getItem:Compile || true
+            echo
+            echo '=== restore ==='
+            dotnet restore benchmarks/src/PkIntLookup/PkIntLookup.csproj
+            echo
+            echo '=== evaluated Compile items after restore ==='
+            dotnet msbuild benchmarks/src/PkIntLookup/PkIntLookup.csproj -getItem:Compile || true
+          } > benchmark-compile-items-diagnostic.txt 2>&1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-compile-items-diagnostic
+          path: benchmark-compile-items-diagnostic.txt
+          if-no-files-found: error
