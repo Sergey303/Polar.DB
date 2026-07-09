@@ -1,0 +1,38 @@
+name: Validation objPair history
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inspect objPair history
+        shell: bash
+        run: |
+          {
+            echo '=== commits touching objPair ==='
+            git log --all --oneline -SobjPair -- src/Polar.DB || true
+            echo
+            echo '=== Types history diff ==='
+            git log --all -p -SobjPair -- src/Polar.DB/Types.cs || true
+            echo
+            echo '=== Binary serializer history diff ==='
+            git log --all -p -SobjPair -- src/Polar.DB/BinarySerialize.cs || true
+            echo
+            echo '=== Text serializer history diff ==='
+            git log --all -p -SobjPair -- src/Polar.DB/TextSerialize.cs || true
+          } > objpair-history.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: objpair-history
+          path: objpair-history.txt
+          if-no-files-found: error
