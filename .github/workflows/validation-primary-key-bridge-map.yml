@@ -1,0 +1,43 @@
+name: Validation primary key bridge map
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Map primary key bridge usages
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roots = [Path('src'), Path('tests'), Path('benchmarks'), Path('samples')]
+          terms = ('keyFunc', 'hashOfKey', 'primaryKeyDefinition')
+          with Path('primary-key-bridge-map.txt').open('w', encoding='utf-8') as out:
+              for root in roots:
+                  if not root.exists():
+                      continue
+                  for path in sorted(root.rglob('*.cs')):
+                      hits = []
+                      for i, line in enumerate(path.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
+                          if any(term in line for term in terms):
+                              hits.append((i, line))
+                      if hits:
+                          out.write(f'=== {path.as_posix()} ===\n')
+                          for line_number, line in hits:
+                              out.write(f'{line_number}: {line}\n')
+                          out.write('\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: primary-key-bridge-map
+          path: primary-key-bridge-map.txt
+          if-no-files-found: error
