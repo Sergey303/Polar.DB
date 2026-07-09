@@ -1,0 +1,51 @@
+name: Validation targeted cleanup map
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Map exact cleanup targets
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roots = [Path('src'), Path('tests'), Path('benchmarks'), Path('samples')]
+          terms = (
+              'objPair', 'PTypeFString', 'fstring', 'ForBenchmark',
+              'Int64PrimaryBuildEntryExperiment', 'IPrimaryKeyDefinition',
+              'IsScalarIdentity', 'RunPreboxedPrimaryIntOnly',
+              'RunFixedInt64', 'SetPrimaryKeyLifecycleEngine',
+              'Int64TypedPrimaryBuildProbe'
+          )
+
+          with Path('targeted-cleanup-map.txt').open('w', encoding='utf-8') as out:
+              for root in roots:
+                  if not root.exists():
+                      continue
+                  for path in sorted(root.rglob('*')):
+                      if not path.is_file() or path.suffix not in {'.cs', '.csproj', '.slnx'}:
+                          continue
+                      lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+                      hits = [(i, line) for i, line in enumerate(lines, 1) if any(term in line for term in terms)]
+                      if not hits:
+                          continue
+                      out.write(f'=== {path.as_posix()} ===\n')
+                      for line_number, line in hits:
+                          out.write(f'{line_number}: {line}\n')
+                      out.write('\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: targeted-cleanup-map
+          path: targeted-cleanup-map.txt
+          if-no-files-found: error
