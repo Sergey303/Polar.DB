@@ -1,0 +1,48 @@
+name: Diagnose primary key accessor refactor
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'validation/set-primary-key-main-ci'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Execute patch script with traceback capture
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          import textwrap
+          import traceback
+
+          workflow = subprocess.check_output([
+              'git', 'show',
+              'origin/validation/set-primary-key-main-ci:.github/workflows/apply-primary-key-accessor-refactor-v2.yml'
+          ], text=True)
+          start_marker = '      - name: Refactor primary key bridge to a type-erased accessor\n        shell: python\n        run: |\n'
+          end_marker = '      - name: Commit primary key accessor refactor\n'
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          script = textwrap.dedent(workflow[start:end])
+
+          try:
+              exec(compile(script, '<primary-key-refactor>', 'exec'), {'__name__': '__main__'})
+              result = 'PATCH SCRIPT SUCCEEDED\n'
+          except Exception:
+              result = traceback.format_exc()
+
+          Path('primary-key-refactor-diagnostic.txt').write_text(result, encoding='utf-8')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: primary-key-refactor-diagnostic
+          path: primary-key-refactor-diagnostic.txt
+          if-no-files-found: error
