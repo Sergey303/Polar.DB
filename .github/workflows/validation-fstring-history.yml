@@ -1,0 +1,32 @@
+name: Validation fstring history
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inspect fstring serializer history
+        shell: bash
+        run: |
+          {
+            echo '=== Binary fstring history ==='
+            git log --all -p -Sfstring -- src/Polar.DB/BinarySerialize.cs || true
+            echo
+            echo '=== Text fstring history ==='
+            git log --all -p -Sfstring -- src/Polar.DB/TextSerialize.cs || true
+          } > fstring-history.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fstring-history
+          path: fstring-history.txt
+          if-no-files-found: error
