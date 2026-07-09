@@ -1,0 +1,37 @@
+name: Fix benchmark cleanup transformation order
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: validation/set-primary-key-main-ci
+          fetch-depth: 0
+      - name: Update Build marker after null-assignment cleanup
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('.github/workflows/apply-benchmark-laboratory-cleanup.yml')
+          text = path.read_text(encoding='utf-8')
+          old = """          old_build = '''            var typedBuild = loadedTypedPrimaryBuild;\\n            if (typedBuild != null)\\n            {\\n                typedBuild.Build(primaryKeyIndex);\\n                loadedTypedPrimaryBuild = null;\\n            }\\n            else if (loadedPrimaryInt64MetadataProbe != null)\\n            {\\n                loadedPrimaryInt64MetadataProbe = null;\\n                primaryKeyIndex.Build();\\n            }\\n            else\\n            {\\n                var loadedEntries = loadedPrimaryBuildEntries;\\n                if (loadedEntries != null)\\n                {\\n                    primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);\\n                    loadedPrimaryBuildEntries = null;\\n                }\\n                else\\n                {\\n                    primaryKeyIndex.Build();\\n                }\\n            }'''"""
+          new = """          old_build = '''            var typedBuild = loadedTypedPrimaryBuild;\\n            if (typedBuild != null)\\n            {\\n                typedBuild.Build(primaryKeyIndex);\\n            }\\n            else if (loadedPrimaryInt64MetadataProbe != null)\\n            {\\n                primaryKeyIndex.Build();\\n            }\\n            else\\n            {\\n                var loadedEntries = loadedPrimaryBuildEntries;\\n                if (loadedEntries != null)\\n                {\\n                    primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);\\n                    loadedPrimaryBuildEntries = null;\\n                }\\n                else\\n                {\\n                    primaryKeyIndex.Build();\\n                }\\n            }'''"""
+          if text.count(old) != 1:
+              raise RuntimeError(f'Expected one old Build marker, found {text.count(old)}.')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+      - name: Commit cleanup workflow fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/apply-benchmark-laboratory-cleanup.yml
+          git commit -m 'Fix benchmark cleanup Build marker'
+          git push origin HEAD:validation/set-primary-key-main-ci
