@@ -1,0 +1,47 @@
+name: Validation serializer patch markers
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Count exact serializer patch markers
+        shell: python
+        run: |
+          from pathlib import Path
+
+          binary = Path('src/Polar.DB/BinarySerialize.cs').read_text(encoding='utf-8-sig')
+          text = Path('src/Polar.DB/TextSerialize.cs').read_text(encoding='utf-8-sig')
+          markers = {
+              'binary_serialize_real': '                case PTypeEnumeration.real: { bw.Write((double)v); return; }\n                case PTypeEnumeration.sstring:',
+              'binary_deserialize_real': '                case PTypeEnumeration.real: { return br.ReadDouble(); }\n                case PTypeEnumeration.sstring:',
+              'binary_default': '            }\n        }\n        public static object Deserialize',
+              'text_real': '                case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }\n                case PTypeEnumeration.sstring:',
+              'read_boolean': "        public bool ReadBoolean()\n        {\n            int c = tr.Read();\n            return c == 't' ? true : false;\n        }",
+              'read_byte': "        public byte ReadByte()\n        {\n            string s = ReadWhile(c => { if (char.IsDigit(c)) return true; char cc = char.ToLower(c); return cc >= 'a' && cc <= 'f'; });\n            return byte.Parse(s);\n        }",
+              'text_default': '                    }\n            }\n        }\n        private static int intend = 4;',
+              'formatted_default': '                    }\n            }\n        }\n        public static void SerializeFlowToSequense',
+              'deserialize_real': '                case PTypeEnumeration.real: { return ReadDouble(); }\n                case PTypeEnumeration.sstring: { return ReadString(); }',
+          }
+          with Path('serializer-marker-counts.txt').open('w', encoding='utf-8') as out:
+              for name, marker in markers.items():
+                  source = binary if name.startswith('binary_') else text
+                  out.write(f'{name}={source.count(marker)}\n')
+              start = text.index('        public string ReadString()')
+              end = text.index('        private object Des(PType tp)', start)
+              out.write('\n=== READ STRING BLOCK ===\n')
+              out.write(repr(text[start:end]))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: serializer-patch-markers
+          path: serializer-marker-counts.txt
+          if-no-files-found: error
