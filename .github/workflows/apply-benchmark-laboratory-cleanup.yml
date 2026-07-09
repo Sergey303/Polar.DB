@@ -1,0 +1,136 @@
+name: Apply benchmark laboratory cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'validation/set-primary-key-main-ci'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Remove benchmark laboratory from production and benchmark graph
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(text, old, new, count=1):
+              actual = text.count(old)
+              if actual != count:
+                  raise RuntimeError(f'Expected {count} occurrences, found {actual}: {old[:100]!r}')
+              return text.replace(old, new, count)
+
+          path = Path('src/Polar.DB/PrimaryKeyAccessor.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace(text, '''        _selector = keyExpression.Compile();\n        _hasher = hasher ?? PrimaryKeyHasherDefaults<TKey>.Create();\n        IsIdentityKeySelector = IsIdentitySelector(keyExpression);\n    }\n\n    internal bool IsIdentityKeySelector { get; }\n    internal int HashTyped(TKey key) => _hasher(key);\n\n    IComparable IPrimaryKeyAccessor.GetKey(object value) => _selector(value);\n    int IPrimaryKeyAccessor.Hash(IComparable key) => _hasher((TKey)key);\n\n    private static bool IsIdentitySelector(Expression<Func<object, TKey>> expression)\n    {\n        if (expression.Body is not UnaryExpression conversion) return false;\n        if (conversion.NodeType != ExpressionType.Convert && conversion.NodeType != ExpressionType.ConvertChecked)\n            return false;\n        return ReferenceEquals(conversion.Operand, expression.Parameters[0]) && conversion.Type == typeof(TKey);\n    }''', '''        _selector = keyExpression.Compile();\n        _hasher = hasher ?? PrimaryKeyHasherDefaults<TKey>.Create();\n    }\n\n    IComparable IPrimaryKeyAccessor.GetKey(object value) => _selector(value);\n    int IPrimaryKeyAccessor.Hash(IComparable key) => _hasher((TKey)key);''')
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('src/Polar.DB/USequence.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace(text, '''        private BuildEntry[]? loadedPrimaryBuildEntries;\n        private ILoadedTypedPrimaryBuild? loadedTypedPrimaryBuild;\n        private Int64PrimaryBuildEntryExperiment[]? loadedPrimaryInt64MetadataProbe;''', '''        private BuildEntry[]? loadedPrimaryBuildEntries;''')
+          text = text.replace('            loadedTypedPrimaryBuild = null;\n', '')
+          text = text.replace('            loadedPrimaryInt64MetadataProbe = null;\n', '')
+          start = text.index('        public void LoadFixedInt64ForBenchmark(long[] values)')
+          end = text.index('        private void SaveState()', start)
+          text = text[:start] + text[end:]
+          old_build = '''            var typedBuild = loadedTypedPrimaryBuild;\n            if (typedBuild != null)\n            {\n                typedBuild.Build(primaryKeyIndex);\n                loadedTypedPrimaryBuild = null;\n            }\n            else if (loadedPrimaryInt64MetadataProbe != null)\n            {\n                loadedPrimaryInt64MetadataProbe = null;\n                primaryKeyIndex.Build();\n            }\n            else\n            {\n                var loadedEntries = loadedPrimaryBuildEntries;\n                if (loadedEntries != null)\n                {\n                    primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);\n                    loadedPrimaryBuildEntries = null;\n                }\n                else\n                {\n                    primaryKeyIndex.Build();\n                }\n            }'''
+          new_build = '''            var loadedEntries = loadedPrimaryBuildEntries;\n            if (loadedEntries != null)\n            {\n                primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);\n                loadedPrimaryBuildEntries = null;\n            }\n            else\n            {\n                primaryKeyIndex.Build();\n            }'''
+          text = replace(text, old_build, new_build)
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('src/Polar.DB/UKeyIndex.cs')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('using System.Buffers.Binary;\n', '')
+          text = text.replace('using System.Runtime.InteropServices;\n', '')
+          start = text.index('        internal void BuildFromLoadedTypedEntries<TKey>')
+          end = text.index('        private void BuildFromEntries(', start)
+          text = text[:start] + text[end:]
+          start = text.index('        private static int MaterializeLatestEntries<TKey>(')
+          end = text.index('        private static bool IsSameLogicalKey(', start)
+          text = text[:start] + text[end:]
+          path.write_text(text, encoding='utf-8')
+
+          for file_name in ('src/Polar.DB/TypedPrimaryBuild.cs', 'src/Polar.DB/Int64PrimaryBuildEntryExperiment.cs'):
+              Path(file_name).unlink()
+
+          path = Path('benchmarks/src/BenchSupport/LifecycleBench.cs')
+          text = path.read_text(encoding='utf-8')
+          start = text.index('        if (options.Kind == ExperimentKind.BuildPrimaryIntOnly)')
+          end = text.index('        return engines;', start)
+          text = text[:start] + text[end:]
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('benchmarks/src/BenchSupport/PolarLifecycleEngine.cs')
+          text = path.read_text(encoding='utf-8')
+          start = text.index('    public static EngineResult RunPreboxedPrimaryIntOnly')
+          end = text.index('    private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)', start)
+          text = text[:start] + text[end:]
+          start = text.index('    private static void VerifyTypedBuildProbe(')
+          end = text.index('    private static double Measure(', start)
+          text = text[:start] + text[end:]
+          path.write_text(text, encoding='utf-8')
+
+          for file_name in (
+              'benchmarks/src/BenchSupport/SetPrimaryKeyLifecycleEngine.cs',
+              'benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbe.cs',
+              'benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs'):
+              Path(file_name).unlink()
+
+          path = Path('benchmarks/src/BuildPrimaryIntOnly/BuildPrimaryIntOnly.csproj')
+          text = path.read_text(encoding='utf-8')
+          for line in (
+              '<Compile Include="../BenchSupport/SetPrimaryKeyLifecycleEngine.cs" Link="SetPrimaryKeyLifecycleEngine.cs" />\n',
+              '<Compile Include="../BenchSupport/Int64TypedPrimaryBuildProbe.cs" Link="Int64TypedPrimaryBuildProbe.cs" />\n',
+              '<Compile Include="../BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs" Link="Int64TypedPrimaryBuildProbeSemantics.cs" />\n'):
+              text = replace(text, line, '')
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('Polar.DB.slnx')
+          text = path.read_text(encoding='utf-8')
+          for line in (
+              '    <File Path="benchmarks/src/BenchSupport/SetPrimaryKeyLifecycleEngine.cs" />\n',
+              '    <File Path="benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbe.cs" />\n',
+              '    <File Path="benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs" />\n'):
+              text = replace(text, line, '')
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('tests/Polar.DB.Tests/USequencePrimaryKeyConfigurationTests.cs')
+          text = path.read_text(encoding='utf-8')
+          text = replace(text, '    public void TypedFixedInt64Build_PreservesLookupAfterReopen()', '    public void SetPrimaryKey_LongScalar_PreservesLookupAfterReopen()')
+          text = replace(text, '        sequence.LoadFixedInt64ForBenchmark(values);', '        sequence.Load(values.Cast<object>());')
+          path.write_text(text, encoding='utf-8')
+
+          forbidden = (
+              'ForBenchmark', 'Int64PrimaryBuildEntryExperiment', 'TypedPrimaryBuild',
+              'IsIdentityKeySelector', 'HashTyped', 'SetPrimaryKeyLifecycleEngine',
+              'Int64TypedPrimaryBuildProbe')
+          for root in (Path('src'), Path('tests'), Path('benchmarks'), Path('samples')):
+              for source in root.rglob('*'):
+                  if not source.is_file() or source.suffix not in {'.cs', '.csproj'}:
+                      continue
+                  source_text = source.read_text(encoding='utf-8', errors='replace')
+                  if any(symbol in source_text for symbol in forbidden):
+                      raise RuntimeError(f'Benchmark laboratory symbol remains in {source}')
+
+          lifecycle = Path('benchmarks/src/BenchSupport/LifecycleBench.cs').read_text(encoding='utf-8')
+          if lifecycle.count('SqliteLifecycleEngine.Run(') != 1 or lifecycle.count('PolarLifecycleEngine.Run(') != 1:
+              raise RuntimeError('Lifecycle benchmark must retain exactly SQLite and normal Polar engines.')
+      - name: Commit benchmark laboratory cleanup
+        shell: bash
+        run: |
+          if git diff --name-only | grep -E '^(mag_experiments|mag_series)/'; then
+            echo 'Historical mag projects must not be changed.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A src tests benchmarks Polar.DB.slnx
+          git commit -m 'Remove primary build benchmark laboratory from production'
+          git push origin HEAD:main
