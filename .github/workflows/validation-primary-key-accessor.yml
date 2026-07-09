@@ -27,7 +27,7 @@ jobs:
             exit 1
           fi
           grep -n 'interface IPrimaryKeyAccessor' src/Polar.DB/PrimaryKeyAccessor.cs
-          grep -n '\[Obsolete("Use the USequence constructor without primary-key delegates and call SetPrimaryKey<TKey>\."\)\]' src/Polar.DB/USequence.cs
+          grep -F -n '[Obsolete("Use the USequence constructor without primary-key delegates and call SetPrimaryKey<TKey>.")]' src/Polar.DB/USequence.cs
       - name: Restore
         run: dotnet restore Polar.DB.slnx
       - name: Build and test
