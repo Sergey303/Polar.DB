@@ -1,0 +1,97 @@
+name: Validation final cleanup
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Audit cleanup invariants
+        shell: bash
+        run: |
+          set -e
+          {
+            echo '=== historical mag project diff ==='
+            mag_changes=$(git diff --name-only 1ce6a37c89c6ae82b7f90063ed443228af340733..HEAD | grep -E '^(mag_experiments|mag_series)/' || true)
+            printf '%s\n' "$mag_changes"
+            test -z "$mag_changes"
+
+            echo '=== forbidden laboratory symbols ==='
+            forbidden=$(grep -R -n -E 'ForBenchmark|Int64PrimaryBuildEntryExperiment|TypedPrimaryBuild|IsIdentityKeySelector|HashTyped|SetPrimaryKeyLifecycleEngine|Int64TypedPrimaryBuildProbe|IPrimaryKeyDefinition|PrimaryKeyDefinition<|IsScalarIdentity' src tests benchmarks samples --include='*.cs' --include='*.csproj' || true)
+            printf '%s\n' "$forbidden"
+            test -z "$forbidden"
+
+            echo '=== deleted laboratory files ==='
+            for file in \
+              src/Polar.DB/TypedPrimaryBuild.cs \
+              src/Polar.DB/Int64PrimaryBuildEntryExperiment.cs \
+              benchmarks/src/BenchSupport/SetPrimaryKeyLifecycleEngine.cs \
+              benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbe.cs \
+              benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs; do
+              test ! -e "$file"
+              echo "absent: $file"
+            done
+
+            echo '=== primary key contract ==='
+            grep -F -n 'internal interface IPrimaryKeyAccessor' src/Polar.DB/PrimaryKeyAccessor.cs
+            grep -F -n 'IComparable GetKey(object value);' src/Polar.DB/PrimaryKeyAccessor.cs
+            grep -F -n 'int Hash(IComparable key);' src/Polar.DB/PrimaryKeyAccessor.cs
+            grep -F -n '[Obsolete("Use the USequence constructor without primary-key delegates and call SetPrimaryKey<TKey>.")]' src/Polar.DB/USequence.cs
+
+            echo '=== BuildPrimaryIntOnly lifecycle engines ==='
+            python - <<'PY'
+          from pathlib import Path
+          text = Path('benchmarks/src/BenchSupport/LifecycleBench.cs').read_text(encoding='utf-8')
+          sqlite = text.count('SqliteLifecycleEngine.Run(')
+          polar = text.count('PolarLifecycleEngine.Run(')
+          print(f'sqlite_calls={sqlite}')
+          print(f'polar_calls={polar}')
+          if sqlite != 1 or polar != 1:
+              raise SystemExit(1)
+          if 'options.Kind == ExperimentKind.BuildPrimaryIntOnly' in text:
+              raise SystemExit('BuildPrimaryIntOnly still has an engine add-on block.')
+          PY
+
+            echo '=== normal Polar default path ==='
+            grep -F -n 'store => store.Sequence.Load(data.Select(row => (object)row.Id)), "polar-db-current"' benchmarks/src/BenchSupport/PolarLifecycleEngine.cs
+            grep -F -n 'sequence.SetPrimaryKey<long>(value => (long)value, BenchmarkChecksum.StableHash);' benchmarks/src/BenchSupport/PolarStoreFactory.cs
+          } > cleanup-audit.txt
+      - name: Restore
+        run: dotnet restore Polar.DB.slnx
+      - name: Build and test
+        shell: bash
+        run: |
+          set +e
+          dotnet build Polar.DB.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true --verbosity minimal > build.log 2>&1
+          build_code=$?
+          if [ "$build_code" -eq 0 ]; then
+            dotnet test Polar.DB.slnx --configuration Release --no-build --verbosity normal > test.log 2>&1
+            test_code=$?
+          else
+            printf 'Tests skipped because build failed.\n' > test.log
+            test_code=125
+          fi
+          {
+            echo "build_exit_code=$build_code"
+            echo "test_exit_code=$test_code"
+            grep -E "Build FAILED|Build succeeded|Failed!|Passed!|Total tests:|Failed:|Passed:|Skipped:|\[FAIL\]|Error Message:|error [A-Z]+[0-9]+" build.log test.log || true
+          } > validation-summary.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-cleanup-validation
+          path: |
+            cleanup-audit.txt
+            validation-summary.txt
+            build.log
+            test.log
+          if-no-files-found: error
