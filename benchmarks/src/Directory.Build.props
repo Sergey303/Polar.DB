@@ -1,7 +1,0 @@
-<Project>
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'BuildPrimaryIntOnly'">
-    <Compile Include="$(MSBuildThisFileDirectory)BenchSupport\Int64TypedPrimaryBuildProbe.cs" Link="Int64TypedPrimaryBuildProbe.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)BenchSupport\Int64TypedPrimaryBuildProbeSemantics.cs" Link="Int64TypedPrimaryBuildProbeSemantics.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)BenchSupport\SetPrimaryKeyLifecycleEngine.cs" Link="SetPrimaryKeyLifecycleEngine.cs" />
-  </ItemGroup>
-</Project>
