@@ -45,7 +45,13 @@ jobs:
           text = replace(text, '''                    IComparable key = values[i];\n                    entries[i] = new BuildEntry(hashOfKey(key), key, 8L + i * sizeof(long), isEmpty: false);''', '''                    IComparable key = values[i];\n                    entries[i] = new BuildEntry(PrimaryKeyAccessor.Hash(key), key, 8L + i * sizeof(long), isEmpty: false);''')
           text = replace(text, '''        private void EnsurePrimaryKeyConfigured()\n        {\n            if (!primaryKeyConfigured)\n                throw new InvalidOperationException(\n                    "Primary key is not configured. Call SetPrimaryKey before using primary-key operations.");\n        }''', '''        private void EnsurePrimaryKeyConfigured()\n        {\n            _ = PrimaryKeyAccessor;\n        }''')
           text = replace(text, '            return primaryKeyIndex.IsOriginal(keyFunc(element), off) && !isEmpty(element);', '            return primaryKeyIndex.IsOriginal(GetPrimaryKey(element), off) && !isEmpty(element);')
-          forbidden_usequence = (\n              'internal Func<object, IComparable> keyFunc;',\n              'private Func<IComparable, int> hashOfKey;',\n              'primaryKeyDefinition',\n              'primaryKeyConfigured',\n              'keyFunc(element)',\n              'hashOfKey(key)')
+          forbidden_usequence = (
+              'internal Func<object, IComparable> keyFunc;',
+              'private Func<IComparable, int> hashOfKey;',
+              'primaryKeyDefinition',
+              'primaryKeyConfigured',
+              'keyFunc(element)',
+              'hashOfKey(key)')
           if any(symbol in text for symbol in forbidden_usequence):
               raise RuntimeError('Legacy primary-key bridge implementation remains in USequence.cs')
           path.write_text(text, encoding='utf-8')
