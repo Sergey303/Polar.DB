@@ -21,22 +21,10 @@ internal sealed class TypedPrimaryKeyAccessor<TKey> : IPrimaryKeyAccessor
         if (keyExpression == null) throw new ArgumentNullException(nameof(keyExpression));
         _selector = keyExpression.Compile();
         _hasher = hasher ?? PrimaryKeyHasherDefaults<TKey>.Create();
-        IsIdentityKeySelector = IsIdentitySelector(keyExpression);
     }
-
-    internal bool IsIdentityKeySelector { get; }
-    internal int HashTyped(TKey key) => _hasher(key);
 
     IComparable IPrimaryKeyAccessor.GetKey(object value) => _selector(value);
     int IPrimaryKeyAccessor.Hash(IComparable key) => _hasher((TKey)key);
-
-    private static bool IsIdentitySelector(Expression<Func<object, TKey>> expression)
-    {
-        if (expression.Body is not UnaryExpression conversion) return false;
-        if (conversion.NodeType != ExpressionType.Convert && conversion.NodeType != ExpressionType.ConvertChecked)
-            return false;
-        return ReferenceEquals(conversion.Operand, expression.Parameters[0]) && conversion.Type == typeof(TKey);
-    }
 }
 
 internal sealed class DelegatePrimaryKeyAccessor : IPrimaryKeyAccessor

@@ -49,14 +49,14 @@ public class USequencePrimaryKeyConfigurationTests
     }
 
     [Fact]
-    public void TypedFixedInt64Build_PreservesLookupAfterReopen()
+    public void SetPrimaryKey_LongScalar_PreservesLookupAfterReopen()
     {
         using var scope = new FileSequenceScope();
         long[] values = { 11L, 22L, 33L, 44L };
 
         using (var sequence = scope.OpenConfiguredInt64Sequence())
         {
-            sequence.LoadFixedInt64ForBenchmark(values);
+            sequence.Load(values.Cast<object>());
             sequence.Build();
         }
 

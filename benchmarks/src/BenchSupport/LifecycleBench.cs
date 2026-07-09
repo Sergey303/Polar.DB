@@ -44,22 +44,6 @@ internal static class LifecycleBench
             PolarLifecycleEngine.Run(options, data, Path.Combine(caseDir, "polar"))
         };
 
-        if (options.Kind == ExperimentKind.BuildPrimaryIntOnly)
-        {
-            engines.Add(PolarLifecycleEngine.RunPreboxedPrimaryIntOnly(
-                options, data, Path.Combine(caseDir, "polar-preboxed")));
-            engines.Add(PolarLifecycleEngine.RunFixedInt64BulkPrimaryIntOnly(
-                options, data, Path.Combine(caseDir, "polar-fixed64-bulk")));
-            engines.Add(PolarLifecycleEngine.RunFixedInt64StorageOnlyPrimaryIntOnly(
-                options, data, Path.Combine(caseDir, "polar-fixed64-storage-only")));
-            engines.Add(PolarLifecycleEngine.RunFixedInt64TypedMetadataProbePrimaryIntOnly(
-                options, data, Path.Combine(caseDir, "polar-fixed64-typed-metadata-probe")));
-            engines.Add(PolarLifecycleEngine.RunFixedInt64TypedBuildProbePrimaryIntOnly(
-                options, data, Path.Combine(caseDir, "polar-fixed64-typed-build-probe")));
-            engines.Add(SetPrimaryKeyLifecycleEngine.Run(
-                options, data, Path.Combine(caseDir, "polar-set-primary-key-fixed64")));
-        }
-
         return engines;
     }
 }

@@ -15,8 +15,6 @@ namespace Polar.Universal
         private bool optimise = true;
         private string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
-        private ILoadedTypedPrimaryBuild? loadedTypedPrimaryBuild;
-        private Int64PrimaryBuildEntryExperiment[]? loadedPrimaryInt64MetadataProbe;
         private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen,
@@ -71,8 +69,6 @@ namespace Polar.Universal
             sequence.Clear();
             primaryKeyIndex.Clear();
             loadedPrimaryBuildEntries = null;
-            loadedTypedPrimaryBuild = null;
-            loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
         }
 
@@ -104,8 +100,6 @@ namespace Polar.Universal
             sequence.Refresh();
             primaryKeyIndex.Refresh();
             loadedPrimaryBuildEntries = null;
-            loadedTypedPrimaryBuild = null;
-            loadedPrimaryInt64MetadataProbe = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
 
             if (persistRecoveredIndexes)
@@ -220,77 +214,6 @@ namespace Polar.Universal
                 ? Array.Empty<BuildEntry>()
                 : loadedEntries.ToArray();
 
-            loadedTypedPrimaryBuild = null;
-            Flush();
-            SaveState();
-        }
-
-        public void LoadFixedInt64ForBenchmark(long[] values)
-        {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-            EnsurePrimaryKeyConfigured();
-
-            Clear();
-            sequence.ReplaceWithFixedInt64Array(values);
-
-            if (_primaryKeyAccessor is TypedPrimaryKeyAccessor<long> accessor && accessor.IsIdentityKeySelector)
-            {
-                var typedEntries = new PrimaryBuildEntry<long>[values.Length];
-                for (var i = 0; i < values.Length; i++)
-                {
-                    var value = values[i];
-                    typedEntries[i] = new PrimaryBuildEntry<long>(
-                        accessor.HashTyped(value), value, 8L + i * sizeof(long), isEmpty: false);
-                }
-
-                loadedTypedPrimaryBuild = new LoadedTypedPrimaryBuild<long>(typedEntries);
-                loadedPrimaryBuildEntries = null;
-            }
-            else
-            {
-                var entries = new BuildEntry[values.Length];
-                for (var i = 0; i < values.Length; i++)
-                {
-                    IComparable key = values[i];
-                    entries[i] = new BuildEntry(PrimaryKeyAccessor.Hash(key), key, 8L + i * sizeof(long), isEmpty: false);
-                }
-
-                loadedPrimaryBuildEntries = entries;
-                loadedTypedPrimaryBuild = null;
-            }
-
-            Flush();
-            SaveState();
-        }
-
-        public void LoadFixedInt64StorageOnlyForBenchmark(long[] values)
-        {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-
-            Clear();
-            sequence.ReplaceWithFixedInt64Array(values);
-            loadedPrimaryBuildEntries = null;
-            loadedTypedPrimaryBuild = null;
-            Flush();
-            SaveState();
-        }
-
-        public void LoadFixedInt64TypedMetadataProbeForBenchmark(long[] values, Func<long, int> hashOfInt64)
-        {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-            if (hashOfInt64 == null) throw new ArgumentNullException(nameof(hashOfInt64));
-
-            Clear();
-            sequence.ReplaceWithFixedInt64Array(values);
-
-            var entries = new Int64PrimaryBuildEntryExperiment[values.Length];
-            for (var i = 0; i < values.Length; i++)
-                entries[i] = new Int64PrimaryBuildEntryExperiment(
-                    hashOfInt64(values[i]), values[i], 8L + i * sizeof(long));
-
-            loadedPrimaryBuildEntries = null;
-            loadedTypedPrimaryBuild = null;
-            loadedPrimaryInt64MetadataProbe = entries;
             Flush();
             SaveState();
         }
@@ -352,8 +275,6 @@ namespace Polar.Universal
         {
             EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
-            loadedTypedPrimaryBuild = null;
-            loadedPrimaryInt64MetadataProbe = null;
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -363,8 +284,6 @@ namespace Polar.Universal
         {
             EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
-            loadedTypedPrimaryBuild = null;
-            loadedPrimaryInt64MetadataProbe = null;
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -446,29 +365,15 @@ namespace Polar.Universal
             EnsurePrimaryKeyConfigured();
             sequence.Flush();
 
-            var typedBuild = loadedTypedPrimaryBuild;
-            if (typedBuild != null)
+            var loadedEntries = loadedPrimaryBuildEntries;
+            if (loadedEntries != null)
             {
-                typedBuild.Build(primaryKeyIndex);
-                loadedTypedPrimaryBuild = null;
-            }
-            else if (loadedPrimaryInt64MetadataProbe != null)
-            {
-                loadedPrimaryInt64MetadataProbe = null;
-                primaryKeyIndex.Build();
+                primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
+                loadedPrimaryBuildEntries = null;
             }
             else
             {
-                var loadedEntries = loadedPrimaryBuildEntries;
-                if (loadedEntries != null)
-                {
-                    primaryKeyIndex.BuildFromLoadedEntries(loadedEntries, loadedEntries.Length);
-                    loadedPrimaryBuildEntries = null;
-                }
-                else
-                {
-                    primaryKeyIndex.Build();
-                }
+                primaryKeyIndex.Build();
             }
 
             foreach (var ind in uindexes) ind.Build();

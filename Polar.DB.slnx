@@ -41,9 +41,6 @@
     <File Path="benchmarks/src/BenchSupport/PolarLookupEngine.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLookupSession.cs" />
     <File Path="benchmarks/src/BenchSupport/PolarLifecycleEngine.cs" />
-    <File Path="benchmarks/src/BenchSupport/SetPrimaryKeyLifecycleEngine.cs" />
-    <File Path="benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbe.cs" />
-    <File Path="benchmarks/src/BenchSupport/Int64TypedPrimaryBuildProbeSemantics.cs" />
     <File Path="benchmarks/src/BenchSupport/LookupBench.cs" />
     <File Path="benchmarks/src/BenchSupport/LifecycleBench.cs" />
   </Folder>
