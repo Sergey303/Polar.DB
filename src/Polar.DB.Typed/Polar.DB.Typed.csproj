@@ -4,8 +4,34 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackageId>Polar.DB.Typed</PackageId>
+    <Title>Polar.DB.Typed</Title>
+    <Description>Typed DbSet storage and indexed lookup API built on Polar.DB.</Description>
+    <PackageTags>Polar.DB;DbSet;typed-storage;embedded-database;indexes;dotnet;csharp</PackageTags>
+    <Authors>Polar.DB Contributors</Authors>
+    <RepositoryUrl>https://github.com/Sergey303/Polar.DB</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/Sergey303/Polar.DB</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+
+    <Version>2.1.3</Version>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Polar.DB\Polar.DB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="" Link="LICENSE" />
   </ItemGroup>
 </Project>
