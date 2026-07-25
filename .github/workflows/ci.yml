@@ -57,11 +57,20 @@ jobs:
       - name: Restore
         run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
 
-      - name: Build
+      - name: Build complete solution
         run: >-
           dotnet build "${{ steps.locate_solution.outputs.solution }}"
           --configuration Release
           --no-restore
+          /p:ContinuousIntegrationBuild=true
+
+      - name: Build typed API with warnings as errors
+        run: >-
+          dotnet build src/Polar.DB.Typed/Polar.DB.Typed.csproj
+          --configuration Release
+          --no-restore
+          --no-dependencies
+          --no-incremental
           /p:ContinuousIntegrationBuild=true
           /warnaserror
 
