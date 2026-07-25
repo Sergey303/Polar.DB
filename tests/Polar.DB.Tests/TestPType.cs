@@ -35,7 +35,9 @@ namespace Polar.DB.Tests
         public void TestScale()
         {
             int[] arr1 = Enumerable.Range(0, 160).ToArray();
+#pragma warning disable CS0612 // Intentional coverage of the retained legacy Scale API.
             var scale_fun = Scale.GetDiaFunc32(arr1);
+#pragma warning restore CS0612
             int index = 81;
             Diapason dia = scale_fun(index);
             Assert.True(dia.start <= index && dia.start + dia.numb > index , "" + index + " in " + dia.start + " " + dia.numb);
