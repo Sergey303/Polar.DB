@@ -37,12 +37,13 @@ jobs:
         id: locate_solution
         shell: pwsh
         run: |
-          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter *.sln -Recurse |
+          $solution = Get-ChildItem -Path $env:GITHUB_WORKSPACE -File -Recurse |
+            Where-Object { $_.Extension -in '.sln', '.slnx' } |
             Sort-Object FullName |
             Select-Object -First 1 -ExpandProperty FullName
 
           if (-not $solution) {
-            throw 'No .sln file was found in the repository.'
+            throw 'No .sln or .slnx file was found in the repository.'
           }
 
           "solution=$solution" >> $env:GITHUB_OUTPUT
@@ -77,11 +78,21 @@ jobs:
       - name: Restore
         run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
 
-      - name: Build
+      - name: Build complete solution
         run: >-
           dotnet build "${{ steps.locate_solution.outputs.solution }}"
           --configuration Release
           --no-restore
+          /p:ContinuousIntegrationBuild=true
+          /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Build typed API with warnings as errors
+        run: >-
+          dotnet build src/Polar.DB.Typed/Polar.DB.Typed.csproj
+          --configuration Release
+          --no-restore
+          --no-dependencies
+          --no-incremental
           /p:ContinuousIntegrationBuild=true
           /p:Version=${{ steps.version.outputs.version }}
           /warnaserror
