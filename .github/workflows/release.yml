@@ -49,18 +49,23 @@ jobs:
           "solution=$solution" >> $env:GITHUB_OUTPUT
           Write-Host "Using solution: $solution"
 
-      - name: Locate Polar.DB project
-        id: locate_pack_project
+      - name: Locate package projects
+        id: locate_pack_projects
         shell: pwsh
         run: |
-          $project = Join-Path $env:GITHUB_WORKSPACE 'src/Polar.DB/Polar.DB.csproj'
+          $baseProject = Join-Path $env:GITHUB_WORKSPACE 'src/Polar.DB/Polar.DB.csproj'
+          $typedProject = Join-Path $env:GITHUB_WORKSPACE 'src/Polar.DB.Typed/Polar.DB.Typed.csproj'
 
-          if (-not (Test-Path $project)) {
-            throw "Pack project was not found: $project"
+          foreach ($project in @($baseProject, $typedProject)) {
+            if (-not (Test-Path $project)) {
+              throw "Pack project was not found: $project"
+            }
           }
 
-          "project=$project" >> $env:GITHUB_OUTPUT
-          Write-Host "Using pack project: $project"
+          "base_project=$baseProject" >> $env:GITHUB_OUTPUT
+          "typed_project=$typedProject" >> $env:GITHUB_OUTPUT
+          Write-Host "Using base pack project: $baseProject"
+          Write-Host "Using typed pack project: $typedProject"
 
       - name: Determine version
         id: version
@@ -88,7 +93,7 @@ jobs:
 
       - name: Build typed API with warnings as errors
         run: >-
-          dotnet build src/Polar.DB.Typed/Polar.DB.Typed.csproj
+          dotnet build "${{ steps.locate_pack_projects.outputs.typed_project }}"
           --configuration Release
           --no-restore
           --no-dependencies
@@ -104,14 +109,38 @@ jobs:
           --no-build
           --verbosity normal
 
-      - name: Pack Polar.DB only
+      - name: Pack Polar.DB
         run: >-
-          dotnet pack "${{ steps.locate_pack_project.outputs.project }}"
+          dotnet pack "${{ steps.locate_pack_projects.outputs.base_project }}"
           --configuration Release
           --no-build
           --output "${{ github.workspace }}/artifacts/nuget"
           /p:ContinuousIntegrationBuild=true
           /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Pack Polar.DB.Typed
+        run: >-
+          dotnet pack "${{ steps.locate_pack_projects.outputs.typed_project }}"
+          --configuration Release
+          --no-build
+          --output "${{ github.workspace }}/artifacts/nuget"
+          /p:ContinuousIntegrationBuild=true
+          /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Verify package set
+        shell: bash
+        run: |
+          version='${{ steps.version.outputs.version }}'
+          base_package="${GITHUB_WORKSPACE}/artifacts/nuget/Polar.DB.${version}.nupkg"
+          typed_package="${GITHUB_WORKSPACE}/artifacts/nuget/Polar.DB.Typed.${version}.nupkg"
+
+          for package in "$base_package" "$typed_package"; do
+            if [[ ! -f "$package" ]]; then
+              echo "Expected package was not produced: $package"
+              find "${GITHUB_WORKSPACE}/artifacts/nuget" -maxdepth 1 -type f -print || true
+              exit 1
+            fi
+          done
 
       - name: Upload build artifacts for manual or non-tag runs
         if: github.ref_type != 'tag'
@@ -153,28 +182,22 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-      - name: Publish Polar.DB to NuGet.org
+      - name: Publish packages to NuGet.org
         if: github.ref_type == 'tag'
         shell: bash
         run: |
-          shopt -s nullglob
-          packages=("${GITHUB_WORKSPACE}"/artifacts/nuget/Polar.DB.*.nupkg)
+          version='${{ steps.version.outputs.version }}'
+          packages=(
+            "${GITHUB_WORKSPACE}/artifacts/nuget/Polar.DB.${version}.nupkg"
+            "${GITHUB_WORKSPACE}/artifacts/nuget/Polar.DB.Typed.${version}.nupkg"
+          )
 
-          if [[ ${#packages[@]} -eq 0 ]]; then
-            echo "No Polar.DB .nupkg file found to publish."
-            exit 1
-          fi
-
-          if [[ ${#packages[@]} -ne 1 ]]; then
-            echo "Expected exactly one Polar.DB .nupkg file, found ${#packages[@]}:"
-            printf ' - %s\n' "${packages[@]}"
-            exit 1
-          fi
-
-          dotnet nuget push "${packages[0]}" \
-            --api-key "$NUGET_API_KEY_NORMALIZED" \
-            --source "$NUGET_SOURCE" \
-            --skip-duplicate
+          for package in "${packages[@]}"; do
+            dotnet nuget push "$package" \
+              --api-key "$NUGET_API_KEY_NORMALIZED" \
+              --source "$NUGET_SOURCE" \
+              --skip-duplicate
+          done
 
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
