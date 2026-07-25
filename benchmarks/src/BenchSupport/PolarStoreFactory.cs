@@ -32,8 +32,9 @@ internal static class PolarStoreFactory
         var longIndex = NeedsLongIndex(kind) ? CreateLongIndex(StreamGen, sequence) : null;
         var guidIndex = NeedsGuidIndex(kind) ? CreateGuidIndex(StreamGen, sequence) : null;
         var stringIndex = NeedsStringIndex(kind) ? CreateStringIndex(StreamGen, sequence) : null;
-        sequence.uindexes = new IUIndex[] { intIndex, longIndex, guidIndex, stringIndex }
-            .Where(index => index != null).Cast<IUIndex>().ToArray();
+        sequence.uindexes = new IUIndex?[] { intIndex, longIndex, guidIndex, stringIndex }
+            .OfType<IUIndex>()
+            .ToArray();
 
         return new PolarStore(sequence, intIndex, longIndex, guidIndex, stringIndex);
     }
