@@ -118,7 +118,7 @@ public sealed class DbSet<T> : IDbSet<T>
 
         IComparable storageKey = _scheme.NormalizeKey(key);
         T? foundValue = default;
-        bool found = _gate.Read(() =>
+        bool found = _gate.SequenceRead(() =>
         {
             bool ok = _primaryKeyMap.TryGet(storageKey, out T record);
             foundValue = record;
@@ -140,7 +140,7 @@ public sealed class DbSet<T> : IDbSet<T>
         ThrowIfDisposed();
         if (key == null) throw new ArgumentNullException(nameof(key));
         IComparable storageKey = _scheme.NormalizeKey(key);
-        return _gate.Read(() => _primaryKeyMap.Contains(storageKey));
+        return _gate.SequenceRead(() => _primaryKeyMap.Contains(storageKey));
     }
 
     public IReadOnlyList<T> All()
@@ -162,7 +162,7 @@ public sealed class DbSet<T> : IDbSet<T>
         fieldScheme.EnsureClrType<TKey>();
 
         IExternalKeyIndexTyped<T, TKey> index = EnsureExternalKeyIndex<TKey>(fieldName, fieldScheme);
-        return _gate.Read(() => index.Find(value));
+        return _gate.SequenceRead(() => index.Find(value));
     }
 
     public void Dispose()
