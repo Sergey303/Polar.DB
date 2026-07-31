@@ -64,7 +64,7 @@ public class DbSetPrimaryKeyConfigurationTests
             "16:predicate:target1:113:object:target");
 
         TripleLikeRow[] rows =
-        [
+        {
             new TripleLikeRow(
                 Guid.Parse("00000000-0000-0000-0000-000000000001"),
                 "short",
@@ -94,7 +94,7 @@ public class DbSetPrimaryKeyConfigurationTests
                 long.MaxValue - 1,
                 new string('x', 401),
                 new string('y', 403))
-        ];
+        };
 
         try
         {
