@@ -4,33 +4,60 @@ namespace PolarDbBenchmarks;
 
 internal static class BenchmarkPaths
 {
-    public static string PrepareWorkDir(string experimentId)
+    public static string RepoRoot => FindRepoRoot();
+
+    public static string PrepareEngineWorkDir(string experimentId, string runId, BenchmarkEngine engine)
     {
-        var work = WorkDir(experimentId);
-        CleanupWorkDir(experimentId);
+        var work = EngineWorkDir(experimentId, runId, engine);
+        DeleteDirectory(work, throwOnFailure: true);
         Directory.CreateDirectory(work);
-        Directory.CreateDirectory(Path.Combine(FindRepoRoot(), "benchmarks", "results"));
+        EnsureResultDirectories(experimentId, runId);
         return work;
     }
 
-    public static void CleanupWorkDir(string experimentId)
+    public static void EnsureResultDirectories(string experimentId, string runId)
     {
-        DeleteDirectory(WorkDir(experimentId), throwOnFailure: true);
-    }
-
-    public static void TryCleanupWorkDir(string experimentId)
-    {
-        DeleteDirectory(WorkDir(experimentId), throwOnFailure: false);
+        Directory.CreateDirectory(ResultsDir());
+        Directory.CreateDirectory(RawRunDir(experimentId, runId));
     }
 
     public static void CleanupAllWork()
     {
-        var workRoot = Path.Combine(FindRepoRoot(), "benchmarks", "work");
+        var workRoot = Path.Combine(RepoRoot, "benchmarks", "work");
         DeleteDirectory(workRoot, throwOnFailure: true);
     }
 
+    public static void TryCleanupRunWork(string experimentId, string runId) =>
+        DeleteDirectory(Path.Combine(RepoRoot, "benchmarks", "work", runId, experimentId), throwOnFailure: false);
+
+    public static void TryDeleteDirectory(string path) => DeleteDirectory(path, throwOnFailure: false);
+
     public static string ResultPath(string experimentId) =>
-        Path.Combine(FindRepoRoot(), "benchmarks", "results", experimentId + ".html");
+        Path.Combine(ResultsDir(), experimentId + ".html");
+
+    public static string LatestManifestPath(string experimentId) =>
+        Path.Combine(ResultsDir(), experimentId + ".manifest.json");
+
+    public static string LatestRawJsonPath(string experimentId) =>
+        Path.Combine(ResultsDir(), experimentId + ".raw.json");
+
+    public static string LatestRawCsvPath(string experimentId) =>
+        Path.Combine(ResultsDir(), experimentId + ".raw.csv");
+
+    public static string WorkerResultPath(string experimentId, string runId, BenchmarkEngine engine) =>
+        Path.Combine(RawRunDir(experimentId, runId), EngineToken(engine) + ".worker.json");
+
+    public static string ImmutableManifestPath(string experimentId, string runId) =>
+        Path.Combine(RawRunDir(experimentId, runId), "manifest.json");
+
+    public static string ImmutableRawJsonPath(string experimentId, string runId) =>
+        Path.Combine(RawRunDir(experimentId, runId), "combined.raw.json");
+
+    public static string ImmutableRawCsvPath(string experimentId, string runId) =>
+        Path.Combine(RawRunDir(experimentId, runId), "samples.csv");
+
+    public static string EngineToken(BenchmarkEngine engine) =>
+        engine == BenchmarkEngine.Sqlite ? "sqlite" : "polar-db";
 
     public static long DirBytes(string dir)
     {
@@ -39,8 +66,14 @@ internal static class BenchmarkPaths
             .Sum(file => new FileInfo(file).Length);
     }
 
-    private static string WorkDir(string experimentId) =>
-        Path.Combine(FindRepoRoot(), "benchmarks", "work", experimentId);
+    private static string ResultsDir() =>
+        Path.Combine(RepoRoot, "benchmarks", "results");
+
+    private static string RawRunDir(string experimentId, string runId) =>
+        Path.Combine(ResultsDir(), "raw", experimentId, runId);
+
+    private static string EngineWorkDir(string experimentId, string runId, BenchmarkEngine engine) =>
+        Path.Combine(RepoRoot, "benchmarks", "work", runId, experimentId, EngineToken(engine));
 
     private static void DeleteDirectory(string path, bool throwOnFailure)
     {

@@ -7,6 +7,8 @@ internal static class BenchmarkReportTables
     public static void AppendTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
     {
         AppendMainTiming(builder, engines);
+        if (engines.Any(engine => engine.OpenSamplesMs != null)) AppendReopenBreakdown(builder, engines);
+        if (engines.Any(engine => engine.DurableSamplesMs != null)) AppendMutationBreakdown(builder, engines);
         if (engines.Any(engine => engine.BuildSamplesMs != null || engine.LoadSamplesMs != null)) AppendBuildBreakdown(builder, engines);
         if (engines.Any(engine => engine.PrimaryBuildStages != null)) AppendPrimaryBuildInternals(builder, engines);
     }
@@ -23,13 +25,15 @@ internal static class BenchmarkReportTables
         var bestHeap = engines.Min(engine => engine.ResourcesAfter.ManagedBytes);
         var bestAvailable = engines.Max(engine => engine.ResourcesAfter.AvailableMemoryBytes);
 
-        builder.AppendLine("<h3>Timing and resources</h3>");
-        builder.AppendLine("<table><tr><th>Engine</th><th>Status</th><th>Total median</th><th>Total p95</th><th>Total trimmed</th><th>Rows</th><th>HDD</th><th>Private RAM</th><th>Working set</th><th>Managed heap</th><th>Available RAM</th></tr>");
+        builder.AppendLine("<h3>Primary measured metric and resources</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Status</th><th>Metric</th><th>Samples</th><th>Median</th><th>p95</th><th>Trimmed mean</th><th>Rows</th><th>HDD</th><th>Private RAM</th><th>Working set</th><th>Managed heap</th><th>Available RAM</th></tr>");
         foreach (var row in rows)
         {
             var engine = row.Engine;
             builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(engine.Engine) + "</td>");
             builder.Append("<td>" + BenchmarkReportFormat.Escape(engine.Status) + "</td>");
+            builder.Append("<td>" + BenchmarkReportFormat.Escape(engine.Metric) + "</td>");
+            builder.Append("<td>" + engine.SamplesMs.Count + "</td>");
             builder.Append(BenchmarkReportFormat.Cell(row.Stats.Median, bestMedian, " ms"));
             builder.Append(BenchmarkReportFormat.Cell(row.Stats.P95, bestP95, " ms"));
             builder.Append(BenchmarkReportFormat.Cell(row.Stats.TrimmedMean, bestTrimmed, " ms"));
@@ -39,6 +43,51 @@ internal static class BenchmarkReportTables
             builder.Append(BenchmarkReportFormat.ByteCell(engine.ResourcesAfter.WorkingSetBytes, bestWorking));
             builder.Append(BenchmarkReportFormat.ByteCell(engine.ResourcesAfter.ManagedBytes, bestHeap));
             builder.Append(BenchmarkReportFormat.HigherBetterCell(engine.ResourcesAfter.AvailableMemoryBytes, bestAvailable, " B") + "</tr>");
+        }
+        builder.AppendLine("</table>");
+    }
+
+    private static void AppendReopenBreakdown(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
+        var rows = engines.Select(engine => (
+            Engine: engine,
+            Open: BenchmarkStats.From(engine.OpenSamplesMs ?? Array.Empty<double>()),
+            Ready: BenchmarkStats.From(engine.SamplesMs))).ToArray();
+        var bestOpen = rows.Min(row => row.Open.Median);
+        var bestReady = rows.Min(row => row.Ready.Median);
+
+        builder.AppendLine("<h3>Equivalent reopen scenarios</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Open-only samples</th><th>Open-only median</th><th>Query-ready samples</th><th>Query-ready median</th></tr>");
+        foreach (var row in rows)
+        {
+            builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(row.Engine.Engine) + "</td>");
+            builder.Append("<td>" + (row.Engine.OpenSamplesMs?.Count ?? 0) + "</td>");
+            builder.Append(BenchmarkReportFormat.Cell(row.Open.Median, bestOpen, " ms"));
+            builder.Append("<td>" + row.Engine.SamplesMs.Count + "</td>");
+            builder.Append(BenchmarkReportFormat.Cell(row.Ready.Median, bestReady, " ms") + "</tr>");
+        }
+        builder.AppendLine("</table>");
+    }
+
+    private static void AppendMutationBreakdown(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
+        var rows = engines.Select(engine => (
+            Engine: engine,
+            Volatile: BenchmarkStats.From(engine.SamplesMs),
+            Durable: BenchmarkStats.From(engine.DurableSamplesMs ?? Array.Empty<double>()))).ToArray();
+        var bestVolatile = rows.Min(row => row.Volatile.Median);
+        var bestDurable = rows.Min(row => row.Durable.Median);
+
+        builder.AppendLine("<h3>Mutation persistence boundaries</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Volatile samples</th><th>Volatile median/op</th><th>Durable batches</th><th>Batch size</th><th>Durable median/op</th></tr>");
+        foreach (var row in rows)
+        {
+            builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(row.Engine.Engine) + "</td>");
+            builder.Append("<td>" + row.Engine.SamplesMs.Count + "</td>");
+            builder.Append(BenchmarkReportFormat.Cell(row.Volatile.Median, bestVolatile, " ms"));
+            builder.Append("<td>" + (row.Engine.DurableSamplesMs?.Count ?? 0) + "</td>");
+            builder.Append("<td>" + row.Engine.DurableBatchSize + "</td>");
+            builder.Append(BenchmarkReportFormat.Cell(row.Durable.Median, bestDurable, " ms") + "</tr>");
         }
         builder.AppendLine("</table>");
     }

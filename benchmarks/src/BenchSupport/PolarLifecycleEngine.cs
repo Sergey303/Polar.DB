@@ -9,8 +9,8 @@ internal static class PolarLifecycleEngine
     {
         if (options.Kind == ExperimentKind.BuildPrimaryIntOnly) return BuildPrimaryIntOnly(options, data, dir);
         if (options.Kind == ExperimentKind.ReopenOnly) return ReopenOnly(options, data, dir);
-        if (options.Kind == ExperimentKind.AppendOnly) return AppendOnly(options, data, dir);
-        return DeleteOnly(options, data, dir);
+        if (options.Kind == ExperimentKind.AppendOnly) return Mutation(options, data, dir, append: true);
+        return Mutation(options, data, dir, append: false);
     }
 
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
@@ -29,6 +29,7 @@ internal static class PolarLifecycleEngine
         var flushSamples = new List<double>();
         var stages = new MutablePrimaryBuildStages();
         var artifactDir = dir;
+
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
         {
             var runDir = Path.Combine(dir, "run-" + i);
@@ -41,6 +42,7 @@ internal static class PolarLifecycleEngine
             var flushMs = Measure(() => store.Sequence.Flush());
             total.Stop();
             store.Sequence.Close();
+
             if (i >= 0)
             {
                 totalSamples.Add(total.Elapsed.TotalMilliseconds);
@@ -51,9 +53,18 @@ internal static class PolarLifecycleEngine
                 artifactDir = runDir;
             }
         }
-        var rows = data;
-        return Result(engineName, totalSamples, rows, artifactDir, before,
-            buildSamples, flushSamples, stages.ToImmutable(), loadSamples);
+
+        return Result(
+            engineName,
+            "build + flush",
+            totalSamples,
+            data,
+            artifactDir,
+            before,
+            buildSamples,
+            flushSamples,
+            stages.ToImmutable(),
+            loadSamples);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -61,50 +72,165 @@ internal static class PolarLifecycleEngine
         var before = BenchmarkResources.Capture();
         var prepared = PrepareBuiltStore(dir, data, ExperimentKind.ReopenOnly);
         prepared.Sequence.Close();
-        var samples = new List<double>();
 
-        for (var i = 0; i < options.MeasuredOps + options.WarmupOps; i++)
+        var openOnly = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
         {
-            var ms = Measure(() =>
-            {
-                var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
-                store.Sequence.Refresh();
-                store.Sequence.Close();
-            });
-            if (i >= options.WarmupOps) samples.Add(ms);
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
+            store.Sequence.Close();
+        });
+
+        var expectedLookup = BenchmarkChecksum.HashRows(new[] { data[0] });
+        var queryReady = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        {
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
+            store.Sequence.Refresh();
+            var value = store.Sequence.GetByKey(data[0].Id);
+            if (value == null) throw new InvalidDataException("Polar.DB reopen lookup returned no row.");
+            var row = PolarRows.FromPolar(value);
+            var checksum = BenchmarkChecksum.HashRows(new[] { row });
+            if (checksum != expectedLookup)
+                throw new InvalidDataException("Polar.DB reopen lookup returned an unexpected row.");
+            store.Sequence.Close();
+        });
+
+        return Result(
+            "polar-db-current",
+            "query-ready reopen",
+            queryReady,
+            PolarMaterializer.ReadAll(dir, ExperimentKind.ReopenOnly),
+            dir,
+            before,
+            open: openOnly);
+    }
+
+    private static EngineResult Mutation(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        bool append)
+    {
+        var before = BenchmarkResources.Capture();
+        var warmupDir = Path.Combine(dir, "warmup");
+        var volatileDir = Path.Combine(dir, "volatile");
+        var durableDir = Path.Combine(dir, "durable");
+
+        WarmMutation(options, data, warmupDir, append);
+
+        var volatileStore = PrepareBuiltStore(volatileDir, data, options.Kind);
+        var volatileSamples = new List<double>();
+        if (append)
+        {
+            var rows = BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1);
+            foreach (var row in rows)
+                volatileSamples.Add(Measure(() => volatileStore.Sequence.AppendElement(PolarRows.ToPolar(row))));
+        }
+        else
+        {
+            foreach (var key in BenchmarkData.PrimaryKeys(data, options.MeasuredOps))
+                volatileSamples.Add(Measure(() => volatileStore.Sequence.AppendElement(PolarRows.Tombstone(key))));
         }
 
-        return Result("polar-db-current", samples,
-            PolarMaterializer.ReadAll(dir, ExperimentKind.ReopenOnly), dir, before);
+        var actualRows = PolarMaterializer.ReadAll(volatileStore);
+        volatileStore.Sequence.Flush();
+        volatileStore.Sequence.Close();
+
+        var durableSamples = MeasureDurableBatches(options, data, durableDir, append);
+
+        var result = Result(
+            "polar-db-current",
+            "volatile mutation",
+            volatileSamples,
+            actualRows,
+            volatileDir,
+            before,
+            durable: durableSamples,
+            durableBatchSize: BenchmarkDefaults.MutationDurableBatchSize);
+
+        BenchmarkPaths.TryDeleteDirectory(warmupDir);
+        BenchmarkPaths.TryDeleteDirectory(durableDir);
+        return result;
     }
 
-    private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
+    private static void WarmMutation(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        bool append)
     {
-        var before = BenchmarkResources.Capture();
-        var store = PrepareBuiltStore(dir, data, ExperimentKind.AppendOnly);
-        var appendRows = BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1);
-        var samples = new List<double>();
-        foreach (var row in appendRows)
-            samples.Add(Measure(() => store.Sequence.AppendElement(PolarRows.ToPolar(row))));
+        var warmRows = data.Take(Math.Min(data.Length, 50_000)).ToArray();
+        var store = PrepareBuiltStore(dir, warmRows, options.Kind);
+        if (append)
+        {
+            foreach (var row in BenchmarkData.Dataset(options.WarmupOps, options.Kind, warmRows.Length + 1))
+                store.Sequence.AppendElement(PolarRows.ToPolar(row));
+        }
+        else
+        {
+            foreach (var key in BenchmarkData.PrimaryKeys(warmRows, Math.Min(options.WarmupOps, warmRows.Length)))
+                store.Sequence.AppendElement(PolarRows.Tombstone(key));
+        }
 
-        var rows = PolarMaterializer.ReadAll(store);
         store.Sequence.Flush();
         store.Sequence.Close();
-        return Result("polar-db-current", samples, rows, dir, before);
     }
 
-    private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
+    private static IReadOnlyList<double> MeasureDurableBatches(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        bool append)
     {
-        var before = BenchmarkResources.Capture();
-        var store = PrepareBuiltStore(dir, data, ExperimentKind.DeleteOnly);
-        var samples = new List<double>();
-        foreach (var key in BenchmarkData.PrimaryKeys(data, options.MeasuredOps))
-            samples.Add(Measure(() => store.Sequence.AppendElement(PolarRows.Tombstone(key))));
+        var store = PrepareBuiltStore(dir, data, options.Kind);
+        var warmupBatches = BenchmarkDefaults.MutationDurableWarmupBatches;
+        var measuredBatches = BenchmarkDefaults.MutationDurableMeasuredBatches;
+        var batchSize = BenchmarkDefaults.MutationDurableBatchSize;
+        var totalOps = (warmupBatches + measuredBatches) * batchSize;
+        var appendRows = append
+            ? BenchmarkData.Dataset(totalOps, options.Kind, data.Length + options.MeasuredOps + 1)
+            : Array.Empty<Row>();
+        var deleteKeys = append
+            ? Array.Empty<long>()
+            : BenchmarkData.PrimaryKeys(data, Math.Min(totalOps, data.Length)).ToArray();
+        if (!append && deleteKeys.Length < totalOps)
+            throw new InvalidOperationException("Not enough unique rows for durable delete batches.");
 
-        var rows = PolarMaterializer.ReadAll(store);
-        store.Sequence.Flush();
+        var samples = new List<double>();
+        var offset = 0;
+        for (var batch = 0; batch < warmupBatches + measuredBatches; batch++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            for (var i = 0; i < batchSize; i++)
+            {
+                if (append)
+                    store.Sequence.AppendElement(PolarRows.ToPolar(appendRows[offset++]));
+                else
+                    store.Sequence.AppendElement(PolarRows.Tombstone(deleteKeys[offset++]));
+            }
+
+            store.Sequence.Flush();
+            BenchmarkDurability.SyncDirectoryFiles(dir);
+            stopwatch.Stop();
+            if (batch >= warmupBatches)
+                samples.Add(stopwatch.Elapsed.TotalMilliseconds / batchSize);
+        }
+
+        var actualRows = PolarMaterializer.ReadAll(store);
+        ValidateDurableRows(data, appendRows, actualRows, append, totalOps);
         store.Sequence.Close();
-        return Result("polar-db-current", samples, rows, dir, before);
+        return samples;
+    }
+
+    private static void ValidateDurableRows(
+        Row[] original,
+        Row[] appended,
+        Row[] actual,
+        bool append,
+        int operationCount)
+    {
+        var expected = (append ? original.Concat(appended) : original.Skip(operationCount)).ToArray();
+        if (actual.Length != expected.Length ||
+            BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
+            throw new InvalidDataException("Polar.DB durable mutation result failed correctness validation.");
     }
 
     private static PolarStore PrepareBuiltStore(string dir, Row[] data, ExperimentKind kind)
@@ -117,6 +243,18 @@ internal static class PolarLifecycleEngine
         return store;
     }
 
+    private static List<double> MeasureRepeated(int warmup, int measured, Action action)
+    {
+        var samples = new List<double>();
+        for (var i = -warmup; i < measured; i++)
+        {
+            var value = Measure(action);
+            if (i >= 0) samples.Add(value);
+        }
+
+        return samples;
+    }
+
     private static double Measure(Action action)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -126,12 +264,36 @@ internal static class PolarLifecycleEngine
     }
 
     private static EngineResult Result(
-        string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir,
-        ResourceSnapshot before, IReadOnlyList<double>? build = null,
-        IReadOnlyList<double>? flush = null, PrimaryBuildStageSamples? stages = null,
-        IReadOnlyList<double>? load = null) =>
-        new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush, stages, load);
+        string engine,
+        string metric,
+        IReadOnlyList<double> samples,
+        Row[] actualRows,
+        string dir,
+        ResourceSnapshot before,
+        IReadOnlyList<double>? build = null,
+        IReadOnlyList<double>? flush = null,
+        PrimaryBuildStageSamples? stages = null,
+        IReadOnlyList<double>? load = null,
+        IReadOnlyList<double>? open = null,
+        IReadOnlyList<double>? durable = null,
+        int durableBatchSize = 0) =>
+        new(
+            engine,
+            "Measured",
+            metric,
+            samples,
+            actualRows.Length,
+            BenchmarkChecksum.HashRows(actualRows),
+            BenchmarkPaths.DirBytes(dir),
+            before,
+            BenchmarkResources.Capture(),
+            build,
+            flush,
+            stages,
+            load,
+            open,
+            durable,
+            durableBatchSize);
 
     private sealed class MutablePrimaryBuildStages
     {
