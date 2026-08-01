@@ -74,12 +74,24 @@ jobs:
           /p:ContinuousIntegrationBuild=true
           /warnaserror
 
-      - name: Build isolated benchmark harness with warnings as errors
+      - name: Build shared benchmark library with warnings as errors
+        run: >-
+          dotnet build benchmarks/src/BenchSupport/BenchSupport.csproj
+          --configuration Release
+          --no-restore
+          --no-incremental
+          /p:ContinuousIntegrationBuild=true
+          /p:BuildProjectReferences=false
+          /warnaserror
+
+      - name: Build isolated benchmark executable with warnings as errors
         run: >-
           dotnet build benchmarks/src/PkIntLookup/PkIntLookup.csproj
           --configuration Release
+          --no-restore
           --no-incremental
           /p:ContinuousIntegrationBuild=true
+          /p:BuildProjectReferences=false
           /warnaserror
 
       - name: Smoke-test isolated benchmark workers and raw artifacts
