@@ -9,8 +9,8 @@ internal static class SqliteLifecycleEngine
     {
         if (options.Kind == ExperimentKind.BuildPrimaryIntOnly) return BuildPrimaryIntOnly(options, data, dir);
         if (options.Kind == ExperimentKind.ReopenOnly) return ReopenOnly(options, data, dir);
-        if (options.Kind == ExperimentKind.AppendOnly) return AppendOnly(options, data, dir);
-        return DeleteOnly(options, data, dir);
+        if (options.Kind == ExperimentKind.AppendOnly) return Mutation(options, data, dir, append: true);
+        return Mutation(options, data, dir, append: false);
     }
 
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
@@ -46,8 +46,16 @@ internal static class SqliteLifecycleEngine
             }
         }
 
-        var actualRows = data;
-        return Result("sqlite", totalSamples, actualRows, artifactDir, before, buildSamples, flushSamples, loadSamples);
+        return Result(
+            "sqlite",
+            "build + flush",
+            totalSamples,
+            data,
+            artifactDir,
+            before,
+            buildSamples,
+            flushSamples,
+            load: loadSamples);
     }
 
     private static void CreateTinyPrimaryStore(string db, IEnumerable<Row> rows)
@@ -77,57 +85,179 @@ internal static class SqliteLifecycleEngine
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
-        var samples = new List<double>();
-        for (var i = 0; i < options.MeasuredOps + options.WarmupOps; i++)
+
+        var openOnly = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
         {
-            var ms = Measure(() =>
+            using var connection = new SqliteConnection($"Data Source={db}");
+            connection.Open();
+        });
+
+        var expectedLookup = BenchmarkChecksum.HashRows(new[] { data[0] });
+        var queryReady = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        {
+            using var connection = new SqliteConnection($"Data Source={db}");
+            connection.Open();
+            using var session = SqliteLookupSession.Create(connection, ExperimentKind.PkIntLookup);
+            var query = session.Query(data[0].Id);
+            if (query.Rows != 1 || query.Checksum != expectedLookup)
+                throw new InvalidDataException("SQLite reopen lookup returned an unexpected row.");
+        });
+
+        return Result(
+            "sqlite",
+            "query-ready reopen",
+            queryReady,
+            SqliteRows.ReadAll(db),
+            dir,
+            before,
+            open: openOnly);
+    }
+
+    private static EngineResult Mutation(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        bool append)
+    {
+        var before = BenchmarkResources.Capture();
+        var warmupDir = Path.Combine(dir, "warmup");
+        var volatileDir = Path.Combine(dir, "volatile");
+        var durableDir = Path.Combine(dir, "durable");
+
+        WarmMutation(options, data, warmupDir, append);
+
+        Directory.CreateDirectory(volatileDir);
+        var volatileDb = Path.Combine(volatileDir, "data.sqlite");
+        SqliteStore.Create(volatileDb, data, withIndexes: true);
+        Row[] actualRows;
+        var volatileSamples = new List<double>();
+        using (var connection = new SqliteConnection($"Data Source={volatileDb}"))
+        {
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            if (append)
             {
-                using var connection = new SqliteConnection($"Data Source={db}");
-                connection.Open();
-            });
-            if (i >= options.WarmupOps) samples.Add(ms);
+                foreach (var row in BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1))
+                    volatileSamples.Add(Measure(() => InsertOne(connection, row)));
+            }
+            else
+            {
+                foreach (var key in BenchmarkData.PrimaryKeys(data, options.MeasuredOps))
+                    volatileSamples.Add(Measure(() => DeleteOne(connection, key)));
+            }
+
+            transaction.Commit();
+            actualRows = SqliteRows.ReadAll(connection);
         }
-        return Result("sqlite", samples, SqliteRows.ReadAll(db), dir, before);
+
+        var durableSamples = MeasureDurableBatches(options, data, durableDir, append);
+        var result = Result(
+            "sqlite",
+            "volatile mutation",
+            volatileSamples,
+            actualRows,
+            volatileDir,
+            before,
+            durable: durableSamples,
+            durableBatchSize: BenchmarkDefaults.MutationDurableBatchSize);
+
+        BenchmarkPaths.TryDeleteDirectory(warmupDir);
+        BenchmarkPaths.TryDeleteDirectory(durableDir);
+        return result;
     }
 
-    private static EngineResult AppendOnly(ExperimentOptions options, Row[] data, string dir)
+    private static void WarmMutation(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        bool append)
     {
-        var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
-        SqliteStore.Create(db, data, withIndexes: true);
+        var warmRows = data.Take(Math.Min(data.Length, 50_000)).ToArray();
+        SqliteStore.Create(db, warmRows, withIndexes: true);
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();
-
-        var appendRows = BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1);
-        var samples = MeasureInTransaction(connection, appendRows, InsertOne);
-        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
-    }
-
-    private static EngineResult DeleteOnly(ExperimentOptions options, Row[] data, string dir)
-    {
-        var before = BenchmarkResources.Capture();
-        Directory.CreateDirectory(dir);
-        var db = Path.Combine(dir, "data.sqlite");
-        SqliteStore.Create(db, data, withIndexes: true);
-        using var connection = new SqliteConnection($"Data Source={db}");
-        connection.Open();
-
-        var keys = BenchmarkData.PrimaryKeys(data, options.MeasuredOps).ToArray();
-        var samples = MeasureInTransaction(connection, keys, DeleteOne);
-        return Result("sqlite", samples, SqliteRows.ReadAll(connection), dir, before);
-    }
-
-    private static List<double> MeasureInTransaction<T>(
-        SqliteConnection connection, IEnumerable<T> items, Action<SqliteConnection, T> action)
-    {
         using var transaction = connection.BeginTransaction();
-        var samples = new List<double>();
-        foreach (var item in items)
-            samples.Add(Measure(() => action(connection, item)));
+        if (append)
+        {
+            foreach (var row in BenchmarkData.Dataset(options.WarmupOps, options.Kind, warmRows.Length + 1))
+                InsertOne(connection, row);
+        }
+        else
+        {
+            foreach (var key in BenchmarkData.PrimaryKeys(warmRows, Math.Min(options.WarmupOps, warmRows.Length)))
+                DeleteOne(connection, key);
+        }
 
-        transaction.Commit();
+        transaction.Rollback();
+    }
+
+    private static IReadOnlyList<double> MeasureDurableBatches(
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        bool append)
+    {
+        Directory.CreateDirectory(dir);
+        var db = Path.Combine(dir, "data.sqlite");
+        SqliteStore.Create(db, data, withIndexes: true);
+        var warmupBatches = BenchmarkDefaults.MutationDurableWarmupBatches;
+        var measuredBatches = BenchmarkDefaults.MutationDurableMeasuredBatches;
+        var batchSize = BenchmarkDefaults.MutationDurableBatchSize;
+        var totalOps = (warmupBatches + measuredBatches) * batchSize;
+        var appendRows = append
+            ? BenchmarkData.Dataset(totalOps, options.Kind, data.Length + options.MeasuredOps + 1)
+            : Array.Empty<Row>();
+        var deleteKeys = append
+            ? Array.Empty<long>()
+            : BenchmarkData.PrimaryKeys(data, Math.Min(totalOps, data.Length)).ToArray();
+        if (!append && deleteKeys.Length < totalOps)
+            throw new InvalidOperationException("Not enough unique rows for durable delete batches.");
+
+        using var connection = new SqliteConnection($"Data Source={db}");
+        connection.Open();
+        var samples = new List<double>();
+        var offset = 0;
+        for (var batch = 0; batch < warmupBatches + measuredBatches; batch++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            using (var transaction = connection.BeginTransaction())
+            {
+                for (var i = 0; i < batchSize; i++)
+                {
+                    if (append)
+                        InsertOne(connection, appendRows[offset++]);
+                    else
+                        DeleteOne(connection, deleteKeys[offset++]);
+                }
+
+                transaction.Commit();
+            }
+
+            SqliteStore.Flush(connection);
+            BenchmarkDurability.SyncDirectoryFiles(dir);
+            stopwatch.Stop();
+            if (batch >= warmupBatches)
+                samples.Add(stopwatch.Elapsed.TotalMilliseconds / batchSize);
+        }
+
+        var actualRows = SqliteRows.ReadAll(connection);
+        ValidateDurableRows(data, appendRows, actualRows, append, totalOps);
         return samples;
+    }
+
+    private static void ValidateDurableRows(
+        Row[] original,
+        Row[] appended,
+        Row[] actual,
+        bool append,
+        int operationCount)
+    {
+        var expected = (append ? original.Concat(appended) : original.Skip(operationCount)).ToArray();
+        if (actual.Length != expected.Length ||
+            BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
+            throw new InvalidDataException("SQLite durable mutation result failed correctness validation.");
     }
 
     private static void InsertOne(SqliteConnection connection, Row row)
@@ -154,6 +284,18 @@ internal static class SqliteLifecycleEngine
         command.ExecuteNonQuery();
     }
 
+    private static List<double> MeasureRepeated(int warmup, int measured, Action action)
+    {
+        var samples = new List<double>();
+        for (var i = -warmup; i < measured; i++)
+        {
+            var value = Measure(action);
+            if (i >= 0) samples.Add(value);
+        }
+
+        return samples;
+    }
+
     private static double Measure(Action action)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -163,9 +305,33 @@ internal static class SqliteLifecycleEngine
     }
 
     private static EngineResult Result(
-        string engine, IReadOnlyList<double> samples, Row[] actualRows, string dir,
-        ResourceSnapshot before, IReadOnlyList<double>? build = null,
-        IReadOnlyList<double>? flush = null, IReadOnlyList<double>? load = null) =>
-        new(engine, "Measured", samples, actualRows.Length, BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture(), build, flush, LoadSamplesMs: load);
+        string engine,
+        string metric,
+        IReadOnlyList<double> samples,
+        Row[] actualRows,
+        string dir,
+        ResourceSnapshot before,
+        IReadOnlyList<double>? build = null,
+        IReadOnlyList<double>? flush = null,
+        IReadOnlyList<double>? load = null,
+        IReadOnlyList<double>? open = null,
+        IReadOnlyList<double>? durable = null,
+        int durableBatchSize = 0) =>
+        new(
+            engine,
+            "Measured",
+            metric,
+            samples,
+            actualRows.Length,
+            BenchmarkChecksum.HashRows(actualRows),
+            BenchmarkPaths.DirBytes(dir),
+            before,
+            BenchmarkResources.Capture(),
+            build,
+            flush,
+            null,
+            load,
+            open,
+            durable,
+            durableBatchSize);
 }

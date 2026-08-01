@@ -44,6 +44,10 @@ TestResults/
 ## --- Benchmarks generated artifacts ---
 benchmarks/work/
 benchmarks/results/*.html
+benchmarks/results/*.manifest.json
+benchmarks/results/*.raw.json
+benchmarks/results/*.raw.csv
+benchmarks/results/raw/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Polar.DB/Polar.DB.csproj" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="BenchmarkArgs.cs" />
+    <Compile Include="BenchmarkModels.cs" />
+    <Compile Include="BenchmarkDefaults.cs" />
+    <Compile Include="BenchmarkData.cs" />
+    <Compile Include="BenchmarkFamousKeys.cs" />
+    <Compile Include="BenchmarkGuid.cs" />
+    <Compile Include="BenchmarkPaths.cs" />
+    <Compile Include="BenchmarkChecksum.cs" />
+    <Compile Include="BenchmarkRowAccumulator.cs" />
+    <Compile Include="BenchmarkExpected.cs" />
+    <Compile Include="BenchmarkResources.cs" />
+    <Compile Include="BenchmarkSystemMemory.cs" />
+    <Compile Include="BenchmarkStats.cs" />
+    <Compile Include="BenchmarkFileWarmup.cs" />
+    <Compile Include="BenchmarkProgress.cs" />
+    <Compile Include="BenchmarkEnvironment.cs" />
+    <Compile Include="BenchmarkRawArtifacts.cs" />
+    <Compile Include="BenchmarkDurability.cs" />
+    <Compile Include="BenchmarkExecution.cs" />
+    <Compile Include="BenchmarkReport.cs" />
+    <Compile Include="BenchmarkReportFormat.cs" />
+    <Compile Include="BenchmarkReportTables.cs" />
+    <Compile Include="SearchBenchmarkReportTables.cs" />
+    <Compile Include="LookupPlan.cs" />
+    <Compile Include="LookupPlanner.cs" />
+    <Compile Include="SqliteStore.cs" />
+    <Compile Include="SqliteRows.cs" />
+    <Compile Include="SqliteLookupEngine.cs" />
+    <Compile Include="SqliteLookupSession.cs" />
+    <Compile Include="SqliteLifecycleEngine.cs" />
+    <Compile Include="PolarRows.cs" />
+    <Compile Include="PolarStoreFactory.cs" />
+    <Compile Include="PolarMaterializer.cs" />
+    <Compile Include="PolarLookupEngine.cs" />
+    <Compile Include="PolarLookupSession.cs" />
+    <Compile Include="PolarLifecycleEngine.cs" />
+    <Compile Include="LookupBench.cs" />
+    <Compile Include="LifecycleBench.cs" />
+  </ItemGroup>
+</Project>

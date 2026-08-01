@@ -1,6 +1,6 @@
 namespace PolarDbBenchmarks;
 
-internal enum ExperimentKind
+public enum ExperimentKind
 {
     PkIntLookup, PkLongLookup, PkGuidLookup, PkStringLookup,
     ExternalIntLookup, ExternalLongLookup, ExternalGuidLookup, ExternalStringLookup,
@@ -9,7 +9,13 @@ internal enum ExperimentKind
     BuildPrimaryIntOnly, ReopenOnly, AppendOnly, DeleteOnly
 }
 
-internal static class ExperimentKindExtensions
+public enum BenchmarkEngine
+{
+    Sqlite,
+    PolarDb
+}
+
+public static class ExperimentKindExtensions
 {
     public static bool IsLookup(this ExperimentKind kind) =>
         kind is ExperimentKind.PkIntLookup or ExperimentKind.PkLongLookup
@@ -28,25 +34,25 @@ internal static class ExperimentKindExtensions
             or ExperimentKind.ExternalFamousGuidLookup or ExperimentKind.ExternalFamousStringLookup;
 }
 
-internal sealed record ExperimentOptions(
+public sealed record ExperimentOptions(
     string ExperimentId, string Title, ExperimentKind Kind,
     IReadOnlyList<int> RowCounts, int WarmupOps, int MeasuredOps);
 
-internal sealed record BenchmarkRunResult(int SetupRows, QueryResult Expected, IReadOnlyList<EngineResult> Engines);
+public sealed record BenchmarkRunResult(int SetupRows, QueryResult Expected, IReadOnlyList<EngineResult> Engines);
 
-internal sealed record LookupRunResult(int SetupRows, IReadOnlyList<LookupPhaseResult> Phases);
+public sealed record LookupRunResult(int SetupRows, IReadOnlyList<LookupPhaseResult> Phases);
 
-internal sealed record LookupPhaseResult(
+public sealed record LookupPhaseResult(
     string Name, QueryResult Expected, IReadOnlyList<LookupEngineResult> Engines);
 
-internal sealed record Row(long Id, long LongKey, Guid GuidKey, string SKey,
+public sealed record Row(long Id, long LongKey, Guid GuidKey, string SKey,
     int ExternalId, long ExternalLong, Guid ExternalGuid, string ExternalKey, string Payload);
 
-internal sealed record QueryResult(long Rows, ulong Checksum);
+public sealed record QueryResult(long Rows, ulong Checksum);
 
-internal sealed record ResourceSnapshot(long ManagedBytes, long WorkingSetBytes, long PrivateBytes, long AvailableMemoryBytes);
+public sealed record ResourceSnapshot(long ManagedBytes, long WorkingSetBytes, long PrivateBytes, long AvailableMemoryBytes);
 
-internal sealed record PrimaryBuildStageSamples(
+public sealed record PrimaryBuildStageSamples(
     IReadOnlyList<double> ScanMs,
     IReadOnlyList<double> ToArrayMs,
     IReadOnlyList<double> SortMs,
@@ -55,9 +61,10 @@ internal sealed record PrimaryBuildStageSamples(
     IReadOnlyList<double> GcMs,
     IReadOnlyList<double> ProfileTotalMs);
 
-internal sealed record EngineResult(
+public sealed record EngineResult(
     string Engine,
     string Status,
+    string Metric,
     IReadOnlyList<double> SamplesMs,
     long Rows,
     ulong Checksum,
@@ -67,10 +74,65 @@ internal sealed record EngineResult(
     IReadOnlyList<double>? BuildSamplesMs = null,
     IReadOnlyList<double>? FlushSamplesMs = null,
     PrimaryBuildStageSamples? PrimaryBuildStages = null,
-    IReadOnlyList<double>? LoadSamplesMs = null);
+    IReadOnlyList<double>? LoadSamplesMs = null,
+    IReadOnlyList<double>? OpenSamplesMs = null,
+    IReadOnlyList<double>? DurableSamplesMs = null,
+    int DurableBatchSize = 0);
 
-internal sealed record LookupEngineResult(
+public sealed record LookupEngineResult(
     string Engine, string Status, IReadOnlyList<double> BatchAvgSamplesMs,
     IReadOnlyList<double> LatencySamplesMs, long BatchQueries, long BatchRows,
     ulong BatchChecksum, long LatencyRows, ulong LatencyChecksum, long ArtifactBytes,
     ResourceSnapshot ResourcesBefore, ResourceSnapshot ResourcesAfter);
+
+public sealed record BenchmarkEnvironmentManifest(
+    string RunId,
+    string ExperimentId,
+    string ProcessRole,
+    string? Engine,
+    int ProcessId,
+    DateTimeOffset CapturedUtc,
+    string CommitSha,
+    bool GitDirty,
+    bool GitStatusKnown,
+    string RuntimeVersion,
+    string FrameworkDescription,
+    string OsDescription,
+    string OsArchitecture,
+    string ProcessArchitecture,
+    int ProcessorCount,
+    bool ServerGc,
+    string CpuDescription,
+    string PolarDbAssemblyVersion,
+    string SqliteAssemblyVersion,
+    string CurrentDirectory,
+    string CommandLine,
+    string TimeZone,
+    string Culture,
+    long? DriveTotalBytes,
+    long? DriveAvailableBytes);
+
+public sealed record BenchmarkRunManifest(
+    string RunId,
+    string ExperimentId,
+    DateTimeOffset StartedUtc,
+    BenchmarkEnvironmentManifest Coordinator,
+    IReadOnlyList<BenchmarkEnvironmentManifest> EngineProcesses,
+    IReadOnlyList<string> EngineOrder,
+    string ReopenDefinition,
+    string VolatileMutationDefinition,
+    string DurableMutationDefinition);
+
+public sealed record BenchmarkWorkerResult(
+    string RunId,
+    string ExperimentId,
+    BenchmarkEngine Engine,
+    BenchmarkEnvironmentManifest Manifest,
+    IReadOnlyList<BenchmarkRunResult>? LifecycleRuns,
+    IReadOnlyList<LookupRunResult>? LookupRuns);
+
+public sealed record BenchmarkCombinedRaw(
+    ExperimentOptions Options,
+    BenchmarkRunManifest Manifest,
+    IReadOnlyList<BenchmarkRunResult>? LifecycleRuns,
+    IReadOnlyList<LookupRunResult>? LookupRuns);

@@ -30,6 +30,40 @@ internal static class BenchmarkArgs
         return gb * 1024L * 1024L * 1024L;
     }
 
+    public static BenchmarkEngine? Engine(string[] args)
+    {
+        var raw = Value(args, "benchmark-engine");
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (raw.Equals("sqlite", StringComparison.OrdinalIgnoreCase)) return BenchmarkEngine.Sqlite;
+        if (raw.Equals("polar", StringComparison.OrdinalIgnoreCase) ||
+            raw.Equals("polar-db", StringComparison.OrdinalIgnoreCase))
+            return BenchmarkEngine.PolarDb;
+        throw new ArgumentException("Unknown benchmark engine: " + raw);
+    }
+
+    public static string? RunId(string[] args) => Value(args, "benchmark-run-id");
+
+    public static string[] WithoutWorkerArguments(string[] args)
+    {
+        var result = new List<string>();
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (IsWorkerArgument(args[i]))
+            {
+                if (!args[i].Contains('=') && i + 1 < args.Length) i++;
+                continue;
+            }
+
+            result.Add(args[i]);
+        }
+
+        return result.ToArray();
+    }
+
+    private static bool IsWorkerArgument(string arg) =>
+        arg.StartsWith("--benchmark-engine", StringComparison.OrdinalIgnoreCase) ||
+        arg.StartsWith("--benchmark-run-id", StringComparison.OrdinalIgnoreCase);
+
     private static string? Value(string[] args, string name)
     {
         var prefix = "--" + name + "=";

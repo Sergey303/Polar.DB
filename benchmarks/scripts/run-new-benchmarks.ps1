@@ -41,24 +41,27 @@ $projects = @(
   "benchmarks\src\DeleteOnly\DeleteOnly.csproj"
 )
 
-foreach ($project in $projects) {
-  $projectName = Split-Path (Split-Path $project -Parent) -Leaf
-  $experimentId = Get-ExperimentId $projectName
-  $work = Join-Path "benchmarks\work" $experimentId
+$previousRunId = $env:POLAR_BENCH_RUN_ID
+$seriesId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssfffZ")
+$env:POLAR_BENCH_RUN_ID = $seriesId
 
-  if (Test-Path $work) {
-    Write-Host "Cleaning $work before $project"
-    Remove-Item $work -Recurse -Force
-  }
+try {
+  Write-Host "Benchmark series: $seriesId"
+  Write-Host "Building shared benchmark library"
+  dotnet build -c Release "benchmarks\src\BenchSupport\BenchSupport.csproj"
 
-  try {
-    Write-Host "Running $project"
+  foreach ($project in $projects) {
+    $projectName = Split-Path (Split-Path $project -Parent) -Leaf
+    $experimentId = Get-ExperimentId $projectName
+    Write-Host "Running $experimentId from $project"
     dotnet run -c Release --project $project
   }
-  finally {
-    if (Test-Path $work) {
-      Write-Host "Cleaning $work after $project"
-      Remove-Item $work -Recurse -Force
-    }
+}
+finally {
+  if ($null -eq $previousRunId) {
+    Remove-Item Env:POLAR_BENCH_RUN_ID -ErrorAction SilentlyContinue
+  }
+  else {
+    $env:POLAR_BENCH_RUN_ID = $previousRunId
   }
 }

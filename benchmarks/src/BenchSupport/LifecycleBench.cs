@@ -1,49 +1,51 @@
-using System.Text;
-
 namespace PolarDbBenchmarks;
 
-internal static class LifecycleBench
+public static class LifecycleBench
 {
-    public static void Run(ExperimentOptions options)
-    {
-        var work = BenchmarkPaths.PrepareWorkDir(options.ExperimentId);
-        try
-        {
-            RunCore(options, work);
-        }
-        finally
-        {
-            Console.WriteLine("[bench] " + options.ExperimentId + ": cleanup work");
-            BenchmarkPaths.TryCleanupWorkDir(options.ExperimentId);
-        }
-    }
+    public static void Run(ExperimentOptions options) => BenchmarkExecution.Run(options);
 
-    private static void RunCore(ExperimentOptions options, string work)
+    internal static BenchmarkWorkerResult RunWorker(
+        ExperimentOptions options,
+        string runId,
+        BenchmarkEngine engine,
+        BenchmarkEnvironmentManifest manifest)
     {
+        var work = BenchmarkPaths.PrepareEngineWorkDir(options.ExperimentId, runId, engine);
         var runs = new List<BenchmarkRunResult>();
 
         foreach (var rowCount in options.RowCounts)
         {
             var data = BenchmarkData.Dataset(rowCount, options.Kind);
-            var caseDir = Path.Combine(work, "rows-" + rowCount);
             var expected = BenchmarkExpected.ForLifecycle(options, data);
-            var engines = LifecycleEngines(options, data, caseDir);
-            runs.Add(new BenchmarkRunResult(rowCount, expected, engines));
+            var caseDir = Path.Combine(work, "rows-" + rowCount);
+            var engineResult = engine == BenchmarkEngine.Sqlite
+                ? SqliteLifecycleEngine.Run(options, data, caseDir)
+                : PolarLifecycleEngine.Run(options, data, caseDir);
+            runs.Add(new BenchmarkRunResult(rowCount, expected, new[] { engineResult }));
         }
 
-        var output = BenchmarkPaths.ResultPath(options.ExperimentId);
-        File.WriteAllText(output, BenchmarkReport.Render(options, runs), Encoding.UTF8);
-        Console.WriteLine(output);
+        return new BenchmarkWorkerResult(runId, options.ExperimentId, engine, manifest, runs, null);
     }
 
-    private static IReadOnlyList<EngineResult> LifecycleEngines(ExperimentOptions options, Row[] data, string caseDir)
+    internal static IReadOnlyList<BenchmarkRunResult> Merge(
+        BenchmarkWorkerResult sqlite,
+        BenchmarkWorkerResult polar)
     {
-        var engines = new List<EngineResult>
-        {
-            SqliteLifecycleEngine.Run(options, data, Path.Combine(caseDir, "sqlite")),
-            PolarLifecycleEngine.Run(options, data, Path.Combine(caseDir, "polar"))
-        };
+        var left = sqlite.LifecycleRuns ?? throw new InvalidDataException("SQLite lifecycle result is missing.");
+        var right = polar.LifecycleRuns ?? throw new InvalidDataException("Polar.DB lifecycle result is missing.");
+        if (left.Count != right.Count) throw new InvalidDataException("Lifecycle row-count sets differ.");
 
-        return engines;
+        var merged = new List<BenchmarkRunResult>();
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (left[i].SetupRows != right[i].SetupRows || left[i].Expected != right[i].Expected)
+                throw new InvalidDataException("Lifecycle runs or expected values differ.");
+            merged.Add(new BenchmarkRunResult(
+                left[i].SetupRows,
+                left[i].Expected,
+                left[i].Engines.Concat(right[i].Engines).ToArray()));
+        }
+
+        return merged;
     }
 }

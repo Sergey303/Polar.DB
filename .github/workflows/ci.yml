@@ -74,6 +74,43 @@ jobs:
           /p:ContinuousIntegrationBuild=true
           /warnaserror
 
+      - name: Build shared benchmark library with warnings as errors
+        run: >-
+          dotnet build benchmarks/src/BenchSupport/BenchSupport.csproj
+          --configuration Release
+          --no-restore
+          --no-incremental
+          /p:ContinuousIntegrationBuild=true
+          /p:BuildProjectReferences=false
+          /warnaserror
+
+      - name: Build isolated benchmark executable with warnings as errors
+        run: >-
+          dotnet build benchmarks/src/PkIntLookup/PkIntLookup.csproj
+          --configuration Release
+          --no-restore
+          --no-incremental
+          /p:ContinuousIntegrationBuild=true
+          /p:BuildProjectReferences=false
+          /warnaserror
+
+      - name: Smoke-test isolated benchmark workers and raw artifacts
+        shell: pwsh
+        run: |
+          dotnet run --project benchmarks/src/PkIntLookup/PkIntLookup.csproj --configuration Release --no-build -- --rows=100
+
+          $required = @(
+            'benchmarks/results/pk-int-lookup.html',
+            'benchmarks/results/pk-int-lookup.manifest.json',
+            'benchmarks/results/pk-int-lookup.raw.json',
+            'benchmarks/results/pk-int-lookup.raw.csv'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Benchmark smoke test did not produce $path"
+            }
+          }
+
       - name: Test
         run: >-
           dotnet test "${{ steps.locate_solution.outputs.solution }}"

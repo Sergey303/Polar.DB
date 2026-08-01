@@ -70,6 +70,14 @@ internal static class SearchBenchmarkReportTables
         engine.BatchAvgSamplesMs.Count == 0 ? 0 : engine.BatchQueries / engine.BatchAvgSamplesMs.Count;
 
     private static EngineResult Convert(LookupEngineResult engine) =>
-        new(engine.Engine, engine.Status, engine.BatchAvgSamplesMs, engine.BatchRows, engine.BatchChecksum,
-            engine.ArtifactBytes, engine.ResourcesBefore, engine.ResourcesAfter);
+        new(
+            Engine: engine.Engine,
+            Status: engine.Status,
+            Metric: "batch average per query",
+            SamplesMs: engine.BatchAvgSamplesMs,
+            Rows: engine.BatchRows,
+            Checksum: engine.BatchChecksum,
+            ArtifactBytes: engine.ArtifactBytes,
+            ResourcesBefore: engine.ResourcesBefore,
+            ResourcesAfter: engine.ResourcesAfter);
 }
