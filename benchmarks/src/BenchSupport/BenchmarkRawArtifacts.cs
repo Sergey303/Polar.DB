@@ -11,6 +11,7 @@ internal static class BenchmarkRawArtifacts
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
@@ -35,7 +36,7 @@ internal static class BenchmarkRawArtifacts
         IReadOnlyList<BenchmarkRunResult>? lifecycleRuns,
         IReadOnlyList<LookupRunResult>? lookupRuns)
     {
-        var raw = new BenchmarkCombinedRaw(options, manifest, lifecycleRuns, lookupRuns);
+        var raw = new BenchmarkCombinedRaw(ResolveOptions(options), manifest, lifecycleRuns, lookupRuns);
         WriteJson(BenchmarkPaths.ImmutableManifestPath(options.ExperimentId, manifest.RunId), manifest);
         WriteJson(BenchmarkPaths.ImmutableRawJsonPath(options.ExperimentId, manifest.RunId), raw);
         WriteJson(BenchmarkPaths.LatestManifestPath(options.ExperimentId), manifest);
@@ -45,6 +46,16 @@ internal static class BenchmarkRawArtifacts
         WriteText(BenchmarkPaths.ImmutableRawCsvPath(options.ExperimentId, manifest.RunId), csv);
         WriteText(BenchmarkPaths.LatestRawCsvPath(options.ExperimentId), csv);
     }
+
+    private static BenchmarkResolvedOptions ResolveOptions(ExperimentOptions options) =>
+        new(
+            ExperimentId: options.ExperimentId,
+            Title: options.Title,
+            Kind: options.Kind,
+            RowCounts: options.RowCounts,
+            SamplingModel: options.Kind.IsLookup() ? "lookup-phase-plans" : "lifecycle-operations",
+            WarmupOperations: options.Kind.IsLookup() ? null : options.WarmupOps,
+            MeasuredOperations: options.Kind.IsLookup() ? null : options.MeasuredOps);
 
     private static string RenderCsv(
         ExperimentOptions options,
@@ -93,13 +104,23 @@ internal static class BenchmarkRawArtifacts
             foreach (var engine in phase.Engines)
             {
                 AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows, phase.Name,
-                    "lookup-batch-average", engine.BatchAvgSamplesMs, 1);
+                    "lookup-batch-average", engine.BatchAvgSamplesMs, LookupBatchSize(engine));
                 AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows, phase.Name,
                     "lookup-latency", engine.LatencySamplesMs, 1);
             }
         }
 
         return builder.ToString();
+    }
+
+    private static long LookupBatchSize(LookupEngineResult engine)
+    {
+        var samples = engine.BatchAvgSamplesMs.Count;
+        if (samples == 0) return 0;
+        if (engine.BatchQueries % samples != 0)
+            throw new InvalidDataException(
+                $"Lookup batch query count {engine.BatchQueries} is not divisible by sample count {samples} for {engine.Engine}.");
+        return engine.BatchQueries / samples;
     }
 
     private static void AppendSamples(
@@ -111,7 +132,7 @@ internal static class BenchmarkRawArtifacts
         string phase,
         string metric,
         IReadOnlyList<double>? values,
-        int batchSize)
+        long batchSize)
     {
         if (values == null) return;
         for (var i = 0; i < values.Count; i++)
