@@ -38,6 +38,12 @@ internal static class BenchmarkExecution
         var started = DateTimeOffset.UtcNow;
         BenchmarkPaths.EnsureResultDirectories(options.ExperimentId, runId);
         var coordinator = BenchmarkEnvironment.Capture(runId, options.ExperimentId, "coordinator", null);
+        if (!coordinator.PublicationReady)
+        {
+            Console.Error.WriteLine(
+                "[bench] NON-PUBLICATION RUN: build configuration is " + coordinator.BuildConfiguration +
+                "; optimizations disabled=" + coordinator.OptimizationsDisabled + ".");
+        }
 
         try
         {
@@ -47,6 +53,7 @@ internal static class BenchmarkExecution
 
             var sqlite = BenchmarkRawArtifacts.ReadWorker(options.ExperimentId, runId, BenchmarkEngine.Sqlite);
             var polar = BenchmarkRawArtifacts.ReadWorker(options.ExperimentId, runId, BenchmarkEngine.PolarDb);
+            ValidateEnvironment(coordinator, sqlite.Manifest, polar.Manifest);
             var manifest = new BenchmarkRunManifest(
                 RunId: runId,
                 ExperimentId: options.ExperimentId,
@@ -84,6 +91,22 @@ internal static class BenchmarkExecution
         {
             Console.Error.WriteLine("[bench] failed run kept under benchmarks/work and benchmarks/results/raw: " + runId);
             throw;
+        }
+    }
+
+    private static void ValidateEnvironment(
+        BenchmarkEnvironmentManifest coordinator,
+        params BenchmarkEnvironmentManifest[] workers)
+    {
+        foreach (var worker in workers)
+        {
+            if (!string.Equals(worker.CommitSha, coordinator.CommitSha, StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    $"Benchmark worker commit {worker.CommitSha} differs from coordinator commit {coordinator.CommitSha}.");
+            if (!string.Equals(worker.BuildConfiguration, coordinator.BuildConfiguration, StringComparison.OrdinalIgnoreCase) ||
+                worker.OptimizationsDisabled != coordinator.OptimizationsDisabled)
+                throw new InvalidDataException(
+                    $"Benchmark worker {worker.Engine} build settings differ from coordinator settings.");
         }
     }
 

@@ -94,7 +94,7 @@ jobs:
           /p:BuildProjectReferences=false
           /warnaserror
 
-      - name: Smoke-test isolated benchmark workers and raw artifacts
+      - name: Smoke-test isolated benchmark workers and raw protocol
         shell: pwsh
         run: |
           dotnet run --project benchmarks/src/PkIntLookup/PkIntLookup.csproj --configuration Release --no-build -- --rows=100
@@ -109,6 +109,63 @@ jobs:
             if (-not (Test-Path $path)) {
               throw "Benchmark smoke test did not produce $path"
             }
+          }
+
+          $manifest = Get-Content 'benchmarks/results/pk-int-lookup.manifest.json' -Raw | ConvertFrom-Json
+          if ($manifest.coordinator.buildConfiguration -ne 'Release') {
+            throw "Expected Release benchmark manifest, got $($manifest.coordinator.buildConfiguration)"
+          }
+          if (-not $manifest.coordinator.publicationReady) {
+            throw 'Release benchmark manifest is not marked publication-ready.'
+          }
+          foreach ($worker in $manifest.engineProcesses) {
+            if ($worker.buildConfiguration -ne 'Release' -or -not $worker.publicationReady) {
+              throw "Worker $($worker.engine) is not an optimized Release worker."
+            }
+          }
+
+          $raw = Get-Content 'benchmarks/results/pk-int-lookup.raw.json' -Raw | ConvertFrom-Json
+          if ($raw.options.samplingModel -ne 'lookup-phase-plans') {
+            throw "Unexpected sampling model: $($raw.options.samplingModel)"
+          }
+          if ($raw.options.PSObject.Properties.Name -contains 'warmupOps') {
+            throw 'Lookup raw options still expose misleading warmupOps.'
+          }
+
+          foreach ($run in $raw.lookupRuns) {
+            foreach ($phase in $run.phases) {
+              $plan = $phase.plan
+              if ($plan.measuredBatches -le 0 -or $plan.queriesPerBatch -le 1 -or $plan.latencySamples -le 0) {
+                throw "Incomplete resolved lookup plan for $($phase.name)."
+              }
+              if ($plan.batchQueries -ne ($plan.measuredBatches * $plan.queriesPerBatch)) {
+                throw "Inconsistent batch query count for $($phase.name)."
+              }
+              if ($plan.totalMeasuredQueries -ne ($plan.batchQueries + $plan.latencySamples)) {
+                throw "Inconsistent total measured query count for $($phase.name)."
+              }
+
+              foreach ($engine in $phase.engines) {
+                if ([string]$engine.batchRows -ne [string]$phase.expectedBatch.rows -or
+                    [string]$engine.batchChecksum -ne [string]$phase.expectedBatch.checksum) {
+                  throw "Batch correctness mismatch for $($engine.engine), $($phase.name)."
+                }
+                if ([string]$engine.latencyRows -ne [string]$phase.expectedLatency.rows -or
+                    [string]$engine.latencyChecksum -ne [string]$phase.expectedLatency.checksum) {
+                  throw "Latency correctness mismatch for $($engine.engine), $($phase.name)."
+                }
+              }
+            }
+          }
+
+          $csv = Import-Csv 'benchmarks/results/pk-int-lookup.raw.csv'
+          $batchRows = @($csv | Where-Object { $_.metric -eq 'lookup-batch-average' })
+          if ($batchRows.Count -eq 0) {
+            throw 'Raw CSV contains no lookup batch samples.'
+          }
+          $invalidBatchRows = @($batchRows | Where-Object { [int64]$_.batch_size -ne 100 })
+          if ($invalidBatchRows.Count -ne 0) {
+            throw 'Lookup CSV batch_size does not match the 100-query primary-key plan.'
           }
 
       - name: Test

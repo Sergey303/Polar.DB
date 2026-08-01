@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using Microsoft.Data.Sqlite;
@@ -19,6 +20,15 @@ internal static class BenchmarkEnvironment
         var drive = TryDrive(root);
         var commit = Git(root, "rev-parse", "HEAD");
         var status = Git(root, "status", "--porcelain", "--untracked-files=no");
+        var assembly = typeof(BenchmarkEnvironment).Assembly;
+        var buildConfiguration = AssemblyMetadata(assembly, "BenchmarkBuildConfiguration") ?? "unknown";
+        var debugAttribute = assembly.GetCustomAttribute<DebuggableAttribute>();
+        var optimizationsDisabled = debugAttribute?.IsJITOptimizerDisabled ?? false;
+        var isDebugBuild = buildConfiguration.Equals("Debug", StringComparison.OrdinalIgnoreCase)
+            || optimizationsDisabled;
+        var publicationReady = buildConfiguration.Equals("Release", StringComparison.OrdinalIgnoreCase)
+            && !optimizationsDisabled;
+
         return new BenchmarkEnvironmentManifest(
             RunId: runId,
             ExperimentId: experimentId,
@@ -36,6 +46,13 @@ internal static class BenchmarkEnvironment
             ProcessArchitecture: RuntimeInformation.ProcessArchitecture.ToString(),
             ProcessorCount: System.Environment.ProcessorCount,
             ServerGc: GCSettings.IsServerGC,
+            BuildConfiguration: buildConfiguration,
+            IsDebugBuild: isDebugBuild,
+            OptimizationsDisabled: optimizationsDisabled,
+            PublicationReady: publicationReady,
+            TieredCompilationSetting: RuntimeSetting("DOTNET_TieredCompilation", "COMPlus_TieredCompilation"),
+            TieredPgoSetting: RuntimeSetting("DOTNET_TieredPGO", "COMPlus_TieredPGO"),
+            ReadyToRunSetting: RuntimeSetting("DOTNET_ReadyToRun", "COMPlus_ReadyToRun"),
             CpuDescription: CpuDescription(),
             PolarDbAssemblyVersion: typeof(USequence).Assembly.GetName().Version?.ToString() ?? "unknown",
             SqliteAssemblyVersion: typeof(SqliteConnection).Assembly.GetName().Version?.ToString() ?? "unknown",
@@ -54,6 +71,22 @@ internal static class BenchmarkEnvironment
         var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMddTHHmmssfffZ", CultureInfo.InvariantCulture);
         var shortCommit = Git(BenchmarkPaths.RepoRoot, "rev-parse", "--short=8", "HEAD") ?? "nogit";
         return Sanitize(stamp + "-" + shortCommit + "-" + experimentId);
+    }
+
+    private static string? AssemblyMetadata(Assembly assembly, string key) =>
+        assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => string.Equals(attribute.Key, key, StringComparison.Ordinal))
+            ?.Value;
+
+    private static string RuntimeSetting(params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = System.Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(value)) return name + "=" + value;
+        }
+
+        return "runtime-default";
     }
 
     private static string Sanitize(string value)

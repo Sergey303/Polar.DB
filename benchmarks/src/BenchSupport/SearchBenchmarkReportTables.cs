@@ -7,9 +7,37 @@ internal static class SearchBenchmarkReportTables
     public static void AppendPhase(StringBuilder builder, LookupPhaseResult phase)
     {
         builder.AppendLine("<h3>" + BenchmarkReportFormat.Escape(phase.Name) + "</h3>");
+        AppendPlan(builder, phase.Plan);
         AppendBatch(builder, phase);
         AppendLatency(builder, phase);
-        BenchmarkReportTables.AppendCorrectness(builder, phase.Expected, phase.Engines.Select(Convert).ToArray());
+        AppendCorrectness(
+            builder,
+            "Batch correctness",
+            phase.ExpectedBatch,
+            phase.Engines,
+            engine => engine.BatchRows,
+            engine => engine.BatchChecksum);
+        AppendCorrectness(
+            builder,
+            "Latency correctness",
+            phase.ExpectedLatency,
+            phase.Engines,
+            engine => engine.LatencyRows,
+            engine => engine.LatencyChecksum);
+    }
+
+    private static void AppendPlan(StringBuilder builder, LookupPlanManifest plan)
+    {
+        builder.AppendLine("<h4>Resolved sampling plan</h4>");
+        builder.AppendLine("<table><tr><th>File warmup</th><th>Warmup queries</th><th>Measured batches</th><th>Queries/batch</th><th>Batch queries</th><th>Latency samples</th><th>Total measured queries</th></tr>");
+        builder.AppendLine("<tr><td>" + plan.FileWarmup +
+            "</td><td>" + BenchmarkReportFormat.Long(plan.WarmupQueries) +
+            "</td><td>" + BenchmarkReportFormat.Long(plan.MeasuredBatches) +
+            "</td><td>" + BenchmarkReportFormat.Long(plan.QueriesPerBatch) +
+            "</td><td>" + BenchmarkReportFormat.Long(plan.BatchQueries) +
+            "</td><td>" + BenchmarkReportFormat.Long(plan.LatencySamples) +
+            "</td><td>" + BenchmarkReportFormat.Long(plan.TotalMeasuredQueries) + "</td></tr>");
+        builder.AppendLine("</table>");
     }
 
     private static void AppendBatch(StringBuilder builder, LookupPhaseResult phase)
@@ -63,21 +91,35 @@ internal static class SearchBenchmarkReportTables
         builder.AppendLine("</table>");
     }
 
+    private static void AppendCorrectness(
+        StringBuilder builder,
+        string title,
+        QueryResult expected,
+        IReadOnlyList<LookupEngineResult> engines,
+        Func<LookupEngineResult, long> rows,
+        Func<LookupEngineResult, ulong> checksum)
+    {
+        builder.AppendLine("<h4>" + BenchmarkReportFormat.Escape(title) + "</h4>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Rows</th><th>Checksum</th><th>Status</th></tr>");
+        builder.AppendLine("<tr><td>expected</td><td>" + BenchmarkReportFormat.Long(expected.Rows) +
+            "</td><td>" + BenchmarkReportFormat.Unsigned(expected.Checksum) + "</td><td class=\"ok\">Baseline</td></tr>");
+        foreach (var engine in engines)
+        {
+            var actualRows = rows(engine);
+            var actualChecksum = checksum(engine);
+            var ok = actualRows == expected.Rows && actualChecksum == expected.Checksum;
+            builder.AppendLine("<tr><td>" + BenchmarkReportFormat.Escape(engine.Engine) +
+                "</td><td>" + BenchmarkReportFormat.Long(actualRows) +
+                "</td><td>" + BenchmarkReportFormat.Unsigned(actualChecksum) +
+                "</td><td class=\"" + (ok ? "ok" : "warn") + "\">" +
+                (ok ? "OK" : "Mismatch") + "</td></tr>");
+        }
+        builder.AppendLine("</table>");
+    }
+
     private static double RowsPerQuery(LookupEngineResult engine) =>
         engine.BatchQueries == 0 ? 0 : (double)engine.BatchRows / engine.BatchQueries;
 
     private static long QueriesPerBatch(LookupEngineResult engine) =>
         engine.BatchAvgSamplesMs.Count == 0 ? 0 : engine.BatchQueries / engine.BatchAvgSamplesMs.Count;
-
-    private static EngineResult Convert(LookupEngineResult engine) =>
-        new(
-            Engine: engine.Engine,
-            Status: engine.Status,
-            Metric: "batch average per query",
-            SamplesMs: engine.BatchAvgSamplesMs,
-            Rows: engine.BatchRows,
-            Checksum: engine.BatchChecksum,
-            ArtifactBytes: engine.ArtifactBytes,
-            ResourcesBefore: engine.ResourcesBefore,
-            ResourcesAfter: engine.ResourcesAfter);
 }

@@ -38,12 +38,35 @@ public sealed record ExperimentOptions(
     string ExperimentId, string Title, ExperimentKind Kind,
     IReadOnlyList<int> RowCounts, int WarmupOps, int MeasuredOps);
 
+public sealed record BenchmarkResolvedOptions(
+    string ExperimentId,
+    string Title,
+    ExperimentKind Kind,
+    IReadOnlyList<int> RowCounts,
+    string SamplingModel,
+    int? WarmupOperations,
+    int? MeasuredOperations);
+
 public sealed record BenchmarkRunResult(int SetupRows, QueryResult Expected, IReadOnlyList<EngineResult> Engines);
 
 public sealed record LookupRunResult(int SetupRows, IReadOnlyList<LookupPhaseResult> Phases);
 
+public sealed record LookupPlanManifest(
+    string Name,
+    bool FileWarmup,
+    int WarmupQueries,
+    int MeasuredBatches,
+    int QueriesPerBatch,
+    int BatchQueries,
+    int LatencySamples,
+    int TotalMeasuredQueries);
+
 public sealed record LookupPhaseResult(
-    string Name, QueryResult Expected, IReadOnlyList<LookupEngineResult> Engines);
+    string Name,
+    LookupPlanManifest Plan,
+    QueryResult ExpectedBatch,
+    QueryResult ExpectedLatency,
+    IReadOnlyList<LookupEngineResult> Engines);
 
 public sealed record Row(long Id, long LongKey, Guid GuidKey, string SKey,
     int ExternalId, long ExternalLong, Guid ExternalGuid, string ExternalKey, string Payload);
@@ -102,6 +125,13 @@ public sealed record BenchmarkEnvironmentManifest(
     string ProcessArchitecture,
     int ProcessorCount,
     bool ServerGc,
+    string BuildConfiguration,
+    bool IsDebugBuild,
+    bool OptimizationsDisabled,
+    bool PublicationReady,
+    string TieredCompilationSetting,
+    string TieredPgoSetting,
+    string ReadyToRunSetting,
     string CpuDescription,
     string PolarDbAssemblyVersion,
     string SqliteAssemblyVersion,
@@ -132,7 +162,7 @@ public sealed record BenchmarkWorkerResult(
     IReadOnlyList<LookupRunResult>? LookupRuns);
 
 public sealed record BenchmarkCombinedRaw(
-    ExperimentOptions Options,
+    BenchmarkResolvedOptions Options,
     BenchmarkRunManifest Manifest,
     IReadOnlyList<BenchmarkRunResult>? LifecycleRuns,
     IReadOnlyList<LookupRunResult>? LookupRuns);
