@@ -55,12 +55,16 @@ public static class LookupBench
                 var sqlitePhase = sqliteRun.Phases[phaseIndex];
                 var polarPhase = polarRun.Phases[phaseIndex];
                 if (sqlitePhase.Name != polarPhase.Name ||
-                    sqlitePhase.Expected != polarPhase.Expected)
-                    throw new InvalidDataException("Lookup phases or expected values differ.");
+                    sqlitePhase.Plan != polarPhase.Plan ||
+                    sqlitePhase.ExpectedBatch != polarPhase.ExpectedBatch ||
+                    sqlitePhase.ExpectedLatency != polarPhase.ExpectedLatency)
+                    throw new InvalidDataException("Lookup phases, plans, or expected values differ.");
 
                 phases.Add(new LookupPhaseResult(
                     sqlitePhase.Name,
-                    sqlitePhase.Expected,
+                    sqlitePhase.Plan,
+                    sqlitePhase.ExpectedBatch,
+                    sqlitePhase.ExpectedLatency,
                     sqlitePhase.Engines.Concat(polarPhase.Engines).ToArray()));
             }
 
@@ -82,11 +86,24 @@ public static class LookupBench
         var phases = new List<LookupPhaseResult>();
         for (var i = 0; i < plans.Count; i++)
         {
-            var expected = BenchmarkExpected.ForLookup(kind, data, plans[i].BatchKeys);
+            var plan = plans[i];
+            var engine = engineResults[i];
+            var manifest = plan.ToManifest();
+
+            if (engine.BatchAvgSamplesMs.Count != manifest.MeasuredBatches ||
+                engine.BatchQueries != manifest.BatchQueries ||
+                engine.LatencySamplesMs.Count != manifest.LatencySamples)
+                throw new InvalidDataException(
+                    $"Lookup result shape does not match resolved plan {plan.Name} for {engine.Engine}.");
+
+            var expectedBatch = BenchmarkExpected.ForLookup(kind, data, plan.BatchKeys);
+            var expectedLatency = BenchmarkExpected.ForLookup(kind, data, plan.LatencyKeys);
             phases.Add(new LookupPhaseResult(
-                plans[i].Name,
-                expected,
-                new[] { engineResults[i] }));
+                plan.Name,
+                manifest,
+                expectedBatch,
+                expectedLatency,
+                new[] { engine }));
         }
 
         return phases;
