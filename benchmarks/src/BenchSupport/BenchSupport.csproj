@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../../../src/Polar.DB/Polar.DB.csproj" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
   </ItemGroup>
 
   <ItemGroup>
