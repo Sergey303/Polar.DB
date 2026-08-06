@@ -78,6 +78,7 @@
   <Folder Name="/mag_experiments/">
     <Project Path="mag_experiments/mag_experiments.csproj" />
     <Project Path="mag_series/mag_series.csproj" Id="f6325e1f-af3f-4b6f-9e63-835d30af541f" />
+    <Project Path="mag_tests/mag_tests.csproj" Id="f972bce5-9945-4882-a2b0-e4b7ea91eec7" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Common/Common.csproj" />

@@ -13,7 +13,7 @@ namespace mag_series
         internal Func<object, bool> isEmpty;
         internal Func<object, IComparable> keyFunc;
         internal Func<IComparable, int> hashOfKey;
-        private UKeyIndex primaryKeyIndex;
+        private UniKeyIndex primaryKeyIndex;
         internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
         public IUIndex[] uindexes { get; set; } = new IUIndex[0];
         //private bool optimise = true;

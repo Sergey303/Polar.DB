@@ -1,11 +1,11 @@
-namespace Polar.DB
+﻿namespace Polar.DB
 {
     /// <summary>
     /// Sequence storage format: [Int64 count][serialized payload...].
     /// fs.Position is an internal working cursor and is not restored by hot-path methods.
     /// AppendOffset is the authoritative logical tail.
     /// </summary>
-    public class UniversalSequenceBase : IDisposable
+    public class UnivSequenceBase : IDisposable
     {
         private const long HeaderSize = 8L;
 
@@ -21,7 +21,7 @@ namespace Polar.DB
         private long append_offset = HeaderSize;
         private bool disposed;
 
-        public UniversalSequenceBase(PType tp_el, Stream media)
+        public UnivSequenceBase(PType tp_el, Stream media)
         {
             tp_elem = tp_el ?? throw new ArgumentNullException(nameof(tp_el));
             fs = media ?? throw new ArgumentNullException(nameof(media));
@@ -92,32 +92,41 @@ namespace Polar.DB
         {
             long pos = fs.Position;
             ByteFlow.Serialize(bw, v, tp_elem);
-            if (pos == append_offset)
-                append_offset = fs.Position;
+            //if (pos == append_offset)
+            //    append_offset = fs.Position;
             return pos;
         }
 
         public void SetElement(object v, long off)
         {
             SetTypedElementCore(tp_elem, v, off);
+            //if (off != fs.Position) fs.Position = off;
+            //SetElement(v);
         }
 
         public void SetTypedElement(PType tp, object v, long off)
         {
-            if (tp == null) throw new ArgumentNullException(nameof(tp));
-            SetTypedElementCore(tp, v, off);
+            //if (tp == null) throw new ArgumentNullException(nameof(tp));
+            //SetTypedElementCore(tp, v, off);
+            if (off != fs.Position) fs.Position = off;
+            ByteFlow.Serialize(bw, v, tp);
         }
 
         public long AppendElement(object v)
         {
             _ = v ?? throw new ArgumentNullException(nameof(v));
-
             long off = append_offset;
-            if (fs.Position != off) fs.Position = off;
+            if (off != fs.Position) fs.Position = off;
             ByteFlow.Serialize(bw, v, tp_elem);
             append_offset = fs.Position;
             nelements += 1L;
             return off;
+
+            //nelements += 1;
+            //long off = append_offset;
+            //SetElement(v, off);
+            //append_offset = fs.Position;
+            //return off;
         }
 
         public void ReplaceWithFixedInt32Array(int[] values)
@@ -146,7 +155,7 @@ namespace Polar.DB
         public object GetElement(long off)
         {
             ValidateReadOffset(off);
-            if (fs.Position != off) fs.Position = off;
+            if (off != fs.Position) fs.Position = off;
             return GetElement();
         }
 
@@ -154,7 +163,7 @@ namespace Polar.DB
         {
             if (tp == null) throw new ArgumentNullException(nameof(tp));
             ValidateReadOffset(off);
-            if (fs.Position != off) fs.Position = off;
+            if (off != fs.Position) fs.Position = off;
             return ByteFlow.Deserialize(br, tp);
         }
 
@@ -180,7 +189,7 @@ namespace Polar.DB
         public IEnumerable<object> ElementValues(long offset, long number)
         {
             ValidateRange(offset, number);
-            if (fs.Position != offset) fs.Position = offset;
+            fs.Position = offset;
             for (long i = 0; i < number; i++)
             {
                 yield return GetElement();
@@ -315,7 +324,8 @@ namespace Polar.DB
                     throw new InvalidOperationException("Rollback buffer is too large.");
 
                 originalBytes = new byte[bytesToSave];
-                if (fs.Position != off) fs.Position = off;
+                if (off != fs.Position) fs.Position = off;
+                //fs.Position = off;
                 int read = fs.Read(originalBytes, 0, originalBytes.Length);
                 if (read != originalBytes.Length)
                     throw new InvalidDataException("Cannot snapshot existing element bytes for rollback.");
@@ -323,7 +333,8 @@ namespace Polar.DB
 
             try
             {
-                if (fs.Position != off) fs.Position = off;
+                //fs.Position = off;
+                if (off != fs.Position) fs.Position = off;
                 ByteFlow.Serialize(bw, v, tp);
 
                 if (off == originalAppendOffset)
@@ -339,7 +350,8 @@ namespace Polar.DB
             {
                 if (originalBytes != null)
                 {
-                    if (fs.Position != off) fs.Position = off;
+                    //fs.Position = off;
+                    if (off != fs.Position) fs.Position = off;
                     fs.Write(originalBytes, 0, originalBytes.Length);
                 }
                 fs.SetLength(originalLength);
@@ -420,7 +432,7 @@ namespace Polar.DB
             if (rewriteHeader)
                 Flush();
             else
-                if (fs.Position != append_offset) fs.Position = append_offset;
+                fs.Position = append_offset;
         }
 
         private void RecoverVariableSize(long declaredCount, bool rewriteHeader, bool strict)
@@ -447,7 +459,7 @@ namespace Polar.DB
                 {
                     if (strict)
                         throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.", ex);
-                    if (fs.Position != off) fs.Position = off;
+                    if (off != fs.Position) fs.Position = off;
                     break;
                 }
 
@@ -467,7 +479,7 @@ namespace Polar.DB
             if (rewriteHeader)
                 Flush();
             else
-                if (fs.Position != append_offset) fs.Position = append_offset;
+                fs.Position = append_offset;
         }
 
         public void Dispose()

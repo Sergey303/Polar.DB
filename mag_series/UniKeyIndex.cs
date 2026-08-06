@@ -3,7 +3,7 @@ using static mag_series.USequence;
 
 namespace mag_series
 {
-    public class UKeyIndex
+    public class UniKeyIndex
     {
         private readonly USequence sequence;
 
@@ -24,7 +24,7 @@ namespace mag_series
 
         private bool keysinmemory;
 
-        public UKeyIndex(Func<Stream> streamGen, USequence sequence,
+        public UniKeyIndex(Func<Stream> streamGen, USequence sequence,
             Func<object, IComparable> keyFunc, Func<IComparable, int> hashOfKey, bool keysinmemory = true)
         {
             this.sequence = sequence;
