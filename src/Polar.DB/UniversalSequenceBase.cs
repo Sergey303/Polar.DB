@@ -20,6 +20,7 @@ namespace Polar.DB
     public class UniversalSequenceBase : IDisposable
     {
         private const long HeaderSize = 8L;
+        private const int FixedWriteBufferBytes = 64 * 1024;
 
         protected PType tp_elem;
         protected Stream fs;
@@ -144,18 +145,58 @@ namespace Polar.DB
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             EnsureFixedElementSize(sizeof(int), nameof(ReplaceWithFixedInt32Array));
-            var bytes = new byte[checked(values.Length * sizeof(int))];
-            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
-            ReplaceWithRawFixedPayload(values.LongLength, bytes);
+
+            BeginFixedReplace(values.LongLength);
+            if (values.Length > 0)
+            {
+                var buffer = new byte[FixedWriteBufferBytes];
+                int valuesPerBuffer = buffer.Length / sizeof(int);
+                int index = 0;
+                while (index < values.Length)
+                {
+                    int count = Math.Min(valuesPerBuffer, values.Length - index);
+                    for (int i = 0; i < count; i++)
+                    {
+                        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(
+                            buffer.AsSpan(i * sizeof(int), sizeof(int)),
+                            values[index + i]);
+                    }
+
+                    fs.Write(buffer, 0, count * sizeof(int));
+                    index += count;
+                }
+            }
+
+            CompleteFixedReplace(values.LongLength, checked(values.LongLength * sizeof(int)));
         }
 
         public void ReplaceWithFixedInt64Array(long[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             EnsureFixedElementSize(sizeof(long), nameof(ReplaceWithFixedInt64Array));
-            var bytes = new byte[checked(values.Length * sizeof(long))];
-            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
-            ReplaceWithRawFixedPayload(values.LongLength, bytes);
+
+            BeginFixedReplace(values.LongLength);
+            if (values.Length > 0)
+            {
+                var buffer = new byte[FixedWriteBufferBytes];
+                int valuesPerBuffer = buffer.Length / sizeof(long);
+                int index = 0;
+                while (index < values.Length)
+                {
+                    int count = Math.Min(valuesPerBuffer, values.Length - index);
+                    for (int i = 0; i < count; i++)
+                    {
+                        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(
+                            buffer.AsSpan(i * sizeof(long), sizeof(long)),
+                            values[index + i]);
+                    }
+
+                    fs.Write(buffer, 0, count * sizeof(long));
+                    index += count;
+                }
+            }
+
+            CompleteFixedReplace(values.LongLength, checked(values.LongLength * sizeof(long)));
         }
 
         public object GetElement()
@@ -342,14 +383,17 @@ namespace Polar.DB
             return true;
         }
 
-        private void ReplaceWithRawFixedPayload(long count, byte[] payload)
+        private void BeginFixedReplace(long count)
         {
             fs.Position = 0L;
             fs.SetLength(0L);
             bw.Write(count);
-            fs.Write(payload, 0, payload.Length);
+        }
+
+        private void CompleteFixedReplace(long count, long payloadBytes)
+        {
             nelements = count;
-            append_offset = HeaderSize + payload.LongLength;
+            append_offset = checked(HeaderSize + payloadBytes);
             fs.Position = append_offset;
             fs.Flush();
         }
@@ -499,7 +543,7 @@ namespace Polar.DB
 
                 try
                 {
-                    _ = ByteFlow.Deserialize(br, tp_elem);
+                    ByteFlow.Skip(br, tp_elem);
                 }
                 catch (EndOfStreamException ex)
                 {
