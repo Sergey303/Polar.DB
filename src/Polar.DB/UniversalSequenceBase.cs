@@ -1,5 +1,17 @@
 namespace Polar.DB
 {
+    internal readonly struct SequenceOpenHint
+    {
+        public SequenceOpenHint(long count, long appendOffset)
+        {
+            Count = count;
+            AppendOffset = appendOffset;
+        }
+
+        public long Count { get; }
+        public long AppendOffset { get; }
+    }
+
     /// <summary>
     /// Sequence storage format: [Int64 count][serialized payload...].
     /// fs.Position is an internal working cursor and is not restored by hot-path methods.
@@ -8,6 +20,7 @@ namespace Polar.DB
     public class UniversalSequenceBase : IDisposable
     {
         private const long HeaderSize = 8L;
+        private const int FixedWriteBufferBytes = 64 * 1024;
 
         protected PType tp_elem;
         protected Stream fs;
@@ -22,6 +35,11 @@ namespace Polar.DB
         private bool disposed;
 
         public UniversalSequenceBase(PType tp_el, Stream media)
+            : this(tp_el, media, null)
+        {
+        }
+
+        internal UniversalSequenceBase(PType tp_el, Stream media, SequenceOpenHint? openHint)
         {
             tp_elem = tp_el ?? throw new ArgumentNullException(nameof(tp_el));
             fs = media ?? throw new ArgumentNullException(nameof(media));
@@ -33,7 +51,7 @@ namespace Polar.DB
             {
                 Clear();
             }
-            else
+            else if (!TryApplyOpenHint(openHint))
             {
                 RecoverFromExistingStream(rewriteHeader: true, strict: false);
             }
@@ -63,7 +81,9 @@ namespace Polar.DB
             Dispose();
         }
 
-        public void Refresh()
+        public void Refresh() => Refresh(null);
+
+        internal void Refresh(SequenceOpenHint? openHint)
         {
             if (fs.Length == 0L)
             {
@@ -71,7 +91,8 @@ namespace Polar.DB
                 return;
             }
 
-            RecoverFromExistingStream(rewriteHeader: true, strict: true);
+            if (!TryApplyOpenHint(openHint))
+                RecoverFromExistingStream(rewriteHeader: true, strict: true);
         }
 
         public long Count() { return nelements; }
@@ -124,18 +145,58 @@ namespace Polar.DB
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             EnsureFixedElementSize(sizeof(int), nameof(ReplaceWithFixedInt32Array));
-            var bytes = new byte[checked(values.Length * sizeof(int))];
-            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
-            ReplaceWithRawFixedPayload(values.LongLength, bytes);
+
+            BeginFixedReplace(values.LongLength);
+            if (values.Length > 0)
+            {
+                var buffer = new byte[FixedWriteBufferBytes];
+                int valuesPerBuffer = buffer.Length / sizeof(int);
+                int index = 0;
+                while (index < values.Length)
+                {
+                    int count = Math.Min(valuesPerBuffer, values.Length - index);
+                    for (int i = 0; i < count; i++)
+                    {
+                        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(
+                            buffer.AsSpan(i * sizeof(int), sizeof(int)),
+                            values[index + i]);
+                    }
+
+                    fs.Write(buffer, 0, count * sizeof(int));
+                    index += count;
+                }
+            }
+
+            CompleteFixedReplace(values.LongLength, checked(values.LongLength * sizeof(int)));
         }
 
         public void ReplaceWithFixedInt64Array(long[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             EnsureFixedElementSize(sizeof(long), nameof(ReplaceWithFixedInt64Array));
-            var bytes = new byte[checked(values.Length * sizeof(long))];
-            Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
-            ReplaceWithRawFixedPayload(values.LongLength, bytes);
+
+            BeginFixedReplace(values.LongLength);
+            if (values.Length > 0)
+            {
+                var buffer = new byte[FixedWriteBufferBytes];
+                int valuesPerBuffer = buffer.Length / sizeof(long);
+                int index = 0;
+                while (index < values.Length)
+                {
+                    int count = Math.Min(valuesPerBuffer, values.Length - index);
+                    for (int i = 0; i < count; i++)
+                    {
+                        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(
+                            buffer.AsSpan(i * sizeof(long), sizeof(long)),
+                            values[index + i]);
+                    }
+
+                    fs.Write(buffer, 0, count * sizeof(long));
+                    index += count;
+                }
+            }
+
+            CompleteFixedReplace(values.LongLength, checked(values.LongLength * sizeof(long)));
         }
 
         public object GetElement()
@@ -280,14 +341,59 @@ namespace Polar.DB
             Flush();
         }
 
-        private void ReplaceWithRawFixedPayload(long count, byte[] payload)
+        private bool TryApplyOpenHint(SequenceOpenHint? openHint)
+        {
+            if (!openHint.HasValue || fs.Length < HeaderSize)
+                return false;
+
+            var hint = openHint.Value;
+            if (hint.Count < 0L || hint.AppendOffset < HeaderSize || fs.Length != hint.AppendOffset)
+                return false;
+
+            if (fs.Position != 0L) fs.Position = 0L;
+            long declaredCount;
+            try
+            {
+                declaredCount = br.ReadInt64();
+            }
+            catch (EndOfStreamException)
+            {
+                return false;
+            }
+
+            if (declaredCount != hint.Count)
+                return false;
+
+            if (elem_size > 0)
+            {
+                try
+                {
+                    if (checked(HeaderSize + hint.Count * elem_size) != hint.AppendOffset)
+                        return false;
+                }
+                catch (OverflowException)
+                {
+                    return false;
+                }
+            }
+
+            nelements = hint.Count;
+            append_offset = hint.AppendOffset;
+            fs.Position = append_offset;
+            return true;
+        }
+
+        private void BeginFixedReplace(long count)
         {
             fs.Position = 0L;
             fs.SetLength(0L);
             bw.Write(count);
-            fs.Write(payload, 0, payload.Length);
+        }
+
+        private void CompleteFixedReplace(long count, long payloadBytes)
+        {
             nelements = count;
-            append_offset = HeaderSize + payload.LongLength;
+            append_offset = checked(HeaderSize + payloadBytes);
             fs.Position = append_offset;
             fs.Flush();
         }
@@ -386,13 +492,9 @@ namespace Polar.DB
                 throw new InvalidDataException("UniversalSequenceBase declared count is negative.");
 
             if (elem_size > 0)
-            {
                 RecoverFixedSize(declaredCount, rewriteHeader, strict);
-            }
             else
-            {
                 RecoverVariableSize(declaredCount, rewriteHeader, strict);
-            }
         }
 
         private void RecoverFixedSize(long declaredCount, bool rewriteHeader, bool strict)
@@ -419,8 +521,8 @@ namespace Polar.DB
 
             if (rewriteHeader)
                 Flush();
-            else
-                if (fs.Position != append_offset) fs.Position = append_offset;
+            else if (fs.Position != append_offset)
+                fs.Position = append_offset;
         }
 
         private void RecoverVariableSize(long declaredCount, bool rewriteHeader, bool strict)
@@ -441,7 +543,7 @@ namespace Polar.DB
 
                 try
                 {
-                    _ = ByteFlow.Deserialize(br, tp_elem);
+                    ByteFlow.Skip(br, tp_elem);
                 }
                 catch (EndOfStreamException ex)
                 {
@@ -466,8 +568,8 @@ namespace Polar.DB
 
             if (rewriteHeader)
                 Flush();
-            else
-                if (fs.Position != append_offset) fs.Position = append_offset;
+            else if (fs.Position != append_offset)
+                fs.Position = append_offset;
         }
 
         public void Dispose()
