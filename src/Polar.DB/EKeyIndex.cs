@@ -4,157 +4,221 @@ namespace Polar.Universal
 {
     public class EKeyIndex : IUIndex
     {
-        // Есть опорная последовательность
         private readonly USequence sequence;
-        // Есть ключевая функция, вырабатывающая на элементах поток ключей. Ключи можно сравнивать!
-        private Func<object, IEnumerable<IComparable>> keysFunc;
-        // Есть преобразователь ключа в целое, это может быть хеш-функция или тожлественная
-        private Func<IComparable, int> hashOfKey;
-        // Статическая часть индекса
-        private UniversalSequenceBase hkeys;
-        private UniversalSequenceBase offsets;
+        private readonly Func<object, IEnumerable<IComparable>> keysFunc;
+        private readonly Func<IComparable, int> hashOfKey;
+        private readonly UniversalSequenceBase hkeys;
+        private readonly UniversalSequenceBase offsets;
+
+        private readonly Dictionary<IComparable, List<PLO>> dynamicByPrimary = new();
+        private readonly Dictionary<IComparable, List<PLO>> dynamicByLocal = new();
+        private readonly HashSet<IComparable> changedPrimaries = new();
+
+        private int[] hkeys_arr = Array.Empty<int>();
         private bool disposed;
 
-        // Динамическая часть состоит из списка первичный_ключ - (локальный_)ключ - объект
-        struct PLO
+        private readonly struct PLO
         {
-            public IComparable primary;
-            public IComparable local;
-            public long offset;
-        };
-        private List<PLO> plo_list;
+            public PLO(IComparable primary, IComparable local, long offset)
+            {
+                this.primary = primary;
+                this.local = local;
+                this.offset = offset;
+            }
+
+            public readonly IComparable primary;
+            public readonly IComparable local;
+            public readonly long offset;
+        }
 
         public EKeyIndex(Func<Stream> streamGen, USequence sequence,
             Func<object, IEnumerable<IComparable>> keysFunc, Func<IComparable, int> hashOfKey)
         {
-            this.sequence = sequence;
-            this.keysFunc = keysFunc;
-            this.hashOfKey = hashOfKey;
+            this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            this.keysFunc = keysFunc ?? throw new ArgumentNullException(nameof(keysFunc));
+            this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
 
             hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
             offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
-
-            plo_list = new List<PLO>();
         }
 
         public void OnAppendElement(object element, long offset)
         {
-            var keys = keysFunc(element);//.Distinct(); // Возможно, надо так...
+            var primary = sequence.GetPrimaryKey(element);
+            RemoveDynamicPrimary(primary);
+            changedPrimaries.Add(primary);
 
-            var primary_key = sequence.GetPrimaryKey(element);
-            var query = plo_list
-                .Where(plo => plo.primary != primary_key)
-                .Concat(keys.Select(k => new PLO()
+            List<PLO>? current = null;
+            foreach (var key in DistinctKeys(keysFunc(element)))
+            {
+                var entry = new PLO(primary, key, offset);
+                current ??= new List<PLO>();
+                current.Add(entry);
+
+                if (!dynamicByLocal.TryGetValue(key, out var localEntries))
                 {
-                    primary = primary_key,
-                    local = k,
-                    offset = offset
-                }));
-            plo_list = query.ToList();
+                    localEntries = new List<PLO>();
+                    dynamicByLocal.Add(key, localEntries);
+                }
+                localEntries.Add(entry);
+            }
+
+            if (current != null)
+                dynamicByPrimary[primary] = current;
         }
 
-        // Массив оптимизации поиска по значению хеша
-        private int[] hkeys_arr = new int[0];
+        public void Clear()
+        {
+            hkeys.Clear();
+            hkeys_arr = Array.Empty<int>();
+            offsets.Clear();
+            ClearDynamic();
+        }
 
-        public void Clear() { hkeys.Clear(); hkeys_arr = new int[0]; offsets.Clear(); plo_list = new List<PLO>(); }
-        public void Flush() { hkeys.Flush(); offsets.Flush(); }
-        public void Close() { Dispose(); }
+        public void Flush()
+        {
+            hkeys.Flush();
+            offsets.Flush();
+        }
+
+        public void Close() => Dispose();
 
         public void Refresh()
         {
-            hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+            hkeys.Refresh();
             offsets.Refresh();
+            hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+            ClearDynamic();
         }
 
         public void Build()
         {
-            // сканируем опорную последовательность, формируем массивы
-            List<int> hkeys_list = new();
-            List<long> offsets_list = new();
+            var hkeysList = new List<int>();
+            var offsetsList = new List<long>();
 
             sequence.Scan((off, obj) =>
             {
-                var loc_keys = keysFunc(obj);
-                foreach (var lk in loc_keys)
+                foreach (var localKey in DistinctKeys(keysFunc(obj)))
                 {
-                    offsets_list.Add(off);
-                    hkeys_list.Add(hashOfKey(lk));
+                    offsetsList.Add(off);
+                    hkeysList.Add(hashOfKey(localKey));
                 }
                 return true;
             });
-            hkeys_arr = hkeys_list.ToArray();
-            hkeys_list = new List<int>();
-            long[] offsets_arr = offsets_list.ToArray();
-            offsets_list = new List<long>();
-            GC.Collect();
 
-            Array.Sort(hkeys_arr, offsets_arr);
+            hkeys_arr = hkeysList.ToArray();
+            var offsetsArray = offsetsList.ToArray();
+            Array.Sort(hkeys_arr, offsetsArray);
 
-            hkeys.Clear();
-            foreach (var hkey in hkeys_arr) { hkeys.AppendElement(hkey); }
-            hkeys.Flush();
-
-            offsets.Clear();
-            foreach (var off in offsets_arr) { offsets.AppendElement(off); }
-            offsets.Flush();
-            offsets_arr = new long[0];
-            GC.Collect();
+            hkeys.ReplaceWithFixedInt32Array(hkeys_arr);
+            offsets.ReplaceWithFixedInt64Array(offsetsArray);
+            ClearDynamic();
         }
 
         public IEnumerable<object> GetManyByKey(IComparable localkey)
         {
-            // Посмотрим в динамическом множестве. Надо убрать пустые, остальные годятся
-            var dyn_candidates = plo_list.Where(plo => plo.local == localkey);
+            if (localkey == null) throw new ArgumentNullException(nameof(localkey));
 
-            int hkey = hashOfKey(localkey);
-
-            // Ищем в статическом индексе
-            int pos = Array.BinarySearch<int>(hkeys_arr, hkey);
-
-            // Список статически найденных элементов
-            List<object> objects = new();
-            if (pos >= 0)
+            if (dynamicByLocal.TryGetValue(localkey, out var dynamicEntries))
             {
-                //  ищем самую левую позицию 
-                int p = pos;
-                while (p >= 0 && hkeys_arr[p] == hkey) { pos = p; p--; }
-
-                // Создаем множество офсетов объектов objects
-                HashSet<long> offhash = new();
-
-                // движемся вправо
-                for (int i = pos; i < hkeys_arr.Length && hkeys_arr[i] == hkey; i++)
+                foreach (var entry in dynamicEntries.ToArray())
                 {
-                    // Проверки 1) на первичный ключ 2) на непустоту  3) на локальный ключ
-
-                    // Находим офсет из параллельной последовательности офсетов
-                    long offset = (long)offsets.GetByIndex(i);
-                    // Десериализуем элемент (объект)
-                    object elem_obj = sequence.GetByOffset(offset);
-                    // Получаем первичный ключ
-                    var p_key = sequence.GetPrimaryKey(elem_obj);
-                    // Этот ключ мог быть перемещен в динамическую область. Проверим
-                    if (plo_list.Any(plo => plo.primary == p_key)) continue; // Этот не берем
-                                                                             // элемент может быть пустым, такие не берем
-                    if (sequence.isEmpty(elem_obj)) continue;
-                    // Элемент должен содержать искомый локальный ключ
-                    if (!keysFunc(elem_obj).Contains<IComparable>(localkey)) continue;
-
-                    // Теперь этот элемент надо попробовать накопить, элементы разные если офсеты разные
-                    // Проверим на вхождение в offhash
-                    if (offhash.Contains(offset)) continue; // пропускаем
-                                                            // Добавим в offhash и objects
-                    offhash.Add(offset);
-                    objects.Add(elem_obj);
+                    var value = sequence.GetByOffset(entry.offset);
+                    if (!sequence.isEmpty(value))
+                        yield return value;
                 }
             }
-            return dyn_candidates
-                    .Select(plo => plo.offset)
-                    .Distinct() // убрали повторы
-                    .Select(off => sequence.GetByOffset(off)) // преобразовали в объектную форму
-                    .Where(ob => !sequence.isEmpty(ob)) // убрали пустые
-                    .Concat(objects)
-                    ;
+
+            int hkey = hashOfKey(localkey);
+            int pos = LowerBound(hkeys_arr, hkey);
+            while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
+            {
+                long offset = (long)offsets.GetByIndex(pos++);
+                object value = sequence.GetByOffset(offset);
+                var primary = sequence.GetPrimaryKey(value);
+
+                if (changedPrimaries.Contains(primary)) continue;
+                if (sequence.isEmpty(value)) continue;
+                if (!ContainsLogicalKey(value, localkey)) continue;
+
+                yield return value;
+            }
+        }
+
+        private bool ContainsLogicalKey(object element, IComparable sample)
+        {
+            foreach (var candidate in keysFunc(element) ?? Enumerable.Empty<IComparable>())
+            {
+                if (EqualityComparer<IComparable>.Default.Equals(candidate, sample))
+                    return true;
+            }
+            return false;
+        }
+
+        private static IEnumerable<IComparable> DistinctKeys(IEnumerable<IComparable>? keys)
+        {
+            if (keys == null) yield break;
+
+            IComparable? first = null;
+            var hasFirst = false;
+            HashSet<IComparable>? seen = null;
+
+            foreach (var key in keys)
+            {
+                if (key == null)
+                    throw new InvalidDataException("External index key cannot be null.");
+
+                if (!hasFirst)
+                {
+                    first = key;
+                    hasFirst = true;
+                    yield return key;
+                    continue;
+                }
+
+                seen ??= new HashSet<IComparable> { first! };
+                if (seen.Add(key))
+                    yield return key;
+            }
+        }
+
+        private void RemoveDynamicPrimary(IComparable primary)
+        {
+            if (!dynamicByPrimary.TryGetValue(primary, out var oldEntries)) return;
+
+            foreach (var old in oldEntries)
+            {
+                if (!dynamicByLocal.TryGetValue(old.local, out var localEntries)) continue;
+                for (var i = localEntries.Count - 1; i >= 0; i--)
+                {
+                    if (EqualityComparer<IComparable>.Default.Equals(localEntries[i].primary, primary))
+                        localEntries.RemoveAt(i);
+                }
+                if (localEntries.Count == 0)
+                    dynamicByLocal.Remove(old.local);
+            }
+
+            dynamicByPrimary.Remove(primary);
+        }
+
+        private void ClearDynamic()
+        {
+            dynamicByPrimary.Clear();
+            dynamicByLocal.Clear();
+            changedPrimaries.Clear();
+        }
+
+        private static int LowerBound(int[] values, int value)
+        {
+            var left = 0;
+            var right = values.Length;
+            while (left < right)
+            {
+                var middle = left + (right - left) / 2;
+                if (values[middle] < value) left = middle + 1;
+                else right = middle;
+            }
+            return left;
         }
 
         public void Dispose()
