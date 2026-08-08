@@ -1,5 +1,4 @@
-﻿
-//using PolarDB;
+﻿//using PolarDB;
 
 namespace Polar.DB
 {
@@ -47,7 +46,6 @@ namespace Polar.DB
                 case PTypeEnumeration.union:
                     {
                         PTypeUnion tp_uni = (PTypeUnion)tp;
-                        // тег - 1 байт
                         int tag = (int)((object[])v)[0];
                         object subval = ((object[])v)[1];
                         if (tag < 0 || tag >= tp_uni.Variants.Length) throw new Exception("Err in Serialize: wrong union tag");
@@ -58,6 +56,7 @@ namespace Polar.DB
                 default: throw new NotSupportedException($"Binary serialization does not support type {tp.Vid}.");
             }
         }
+
         public static object Deserialize(BinaryReader br, PType tp)
         {
             switch (tp.Vid)
@@ -94,7 +93,7 @@ namespace Polar.DB
                         long nelements = br.ReadInt64();
                         if (nelements < 0 || nelements > Int32.MaxValue) throw new Exception($"Err in Deserialize: sequense has too many ({nelements}) elements");
                         object[] elements = new object[nelements];
-                        for (int i = 0; i<nelements; i++)
+                        for (int i = 0; i < nelements; i++)
                         {
                             elements[i] = Deserialize(br, tp_element);
                         }
@@ -103,12 +102,119 @@ namespace Polar.DB
                 case PTypeEnumeration.union:
                     {
                         PTypeUnion tp_uni = (PTypeUnion)tp;
-                        // тег - 1 байт
                         int tag = br.ReadByte();
                         object subval = Deserialize(br, tp_uni.Variants[tag].Type);
                         return new object[] { tag, subval };
                     }
                 default: { throw new Exception($"Err in Deserialize: unknown type variant {tp.Vid}"); }
+            }
+        }
+
+        /// <summary>
+        /// Advances over one serialized value without materializing its object graph.
+        /// The byte layout is exactly the same one consumed by <see cref="Deserialize"/>.
+        /// </summary>
+        public static void Skip(BinaryReader br, PType tp)
+        {
+            if (br == null) throw new ArgumentNullException(nameof(br));
+            if (tp == null) throw new ArgumentNullException(nameof(tp));
+
+            switch (tp.Vid)
+            {
+                case PTypeEnumeration.none:
+                    return;
+                case PTypeEnumeration.boolean:
+                case PTypeEnumeration.@byte:
+                    SkipBytes(br, 1L);
+                    return;
+                case PTypeEnumeration.character:
+                    _ = br.ReadChar();
+                    return;
+                case PTypeEnumeration.integer:
+                    SkipBytes(br, sizeof(int));
+                    return;
+                case PTypeEnumeration.longinteger:
+                case PTypeEnumeration.real:
+                    SkipBytes(br, sizeof(long));
+                    return;
+                case PTypeEnumeration.fstring:
+                    SkipBytes(br, checked((long)((PTypeFString)tp).Length * sizeof(ushort)));
+                    return;
+                case PTypeEnumeration.sstring:
+                    SkipBytes(br, Read7BitEncodedStringByteCount(br));
+                    return;
+                case PTypeEnumeration.record:
+                    foreach (var field in ((PTypeRecord)tp).Fields)
+                        Skip(br, field.Type);
+                    return;
+                case PTypeEnumeration.sequence:
+                    {
+                        long count = br.ReadInt64();
+                        if (count < 0L || count > Int32.MaxValue)
+                            throw new InvalidDataException($"Serialized sequence has invalid element count {count}.");
+
+                        var elementType = ((PTypeSequence)tp).ElementType;
+                        for (long i = 0; i < count; i++)
+                            Skip(br, elementType);
+                        return;
+                    }
+                case PTypeEnumeration.union:
+                    {
+                        var union = (PTypeUnion)tp;
+                        int tag = br.ReadByte();
+                        if (tag < 0 || tag >= union.Variants.Length)
+                            throw new InvalidDataException($"Serialized union has invalid tag {tag}.");
+                        Skip(br, union.Variants[tag].Type);
+                        return;
+                    }
+                default:
+                    throw new NotSupportedException($"Binary serialization does not support type {tp.Vid}.");
+            }
+        }
+
+        private static int Read7BitEncodedStringByteCount(BinaryReader br)
+        {
+            uint value = 0U;
+            for (var shift = 0; shift < 28; shift += 7)
+            {
+                byte current = br.ReadByte();
+                value |= (uint)(current & 0x7F) << shift;
+                if ((current & 0x80) == 0)
+                    return checked((int)value);
+            }
+
+            byte last = br.ReadByte();
+            if (last > 0x07)
+                throw new InvalidDataException("Serialized string has an invalid 7-bit encoded byte length.");
+
+            value |= (uint)last << 28;
+            return checked((int)value);
+        }
+
+        private static void SkipBytes(BinaryReader br, long count)
+        {
+            if (count < 0L) throw new ArgumentOutOfRangeException(nameof(count));
+            if (count == 0L) return;
+
+            Stream stream = br.BaseStream;
+            if (stream.CanSeek)
+            {
+                long remaining = stream.Length - stream.Position;
+                if (remaining < count)
+                    throw new EndOfStreamException();
+                stream.Seek(count, SeekOrigin.Current);
+                return;
+            }
+
+            var buffer = new byte[4096];
+            long remainingBytes = count;
+            while (remainingBytes > 0L)
+            {
+                int requested = (int)Math.Min(buffer.Length, remainingBytes);
+                int read = br.Read(buffer, 0, requested);
+                if (read <= 0)
+                    throw new EndOfStreamException();
+                remainingBytes -= read;
             }
         }
     }
