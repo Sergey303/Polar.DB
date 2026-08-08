@@ -6,25 +6,32 @@ namespace Polar.Universal
 {
     public class USequence : IDisposable
     {
-        private UniversalSequenceBase sequence;
+        private const int StateMetadataMagic = 0x50444231; // PDB1
+        private const int StateMetadataVersion = 1;
+        private const int StateFlagPrimarySnapshotBuilt = 1;
+
+        private readonly UniversalSequenceBase sequence;
         internal Func<object, bool> isEmpty;
-        private UKeyIndex primaryKeyIndex;
+        private readonly UKeyIndex primaryKeyIndex;
         private IPrimaryKeyAccessor? _primaryKeyAccessor;
-        internal bool ElementChanged(IComparable key) { return primaryKeyIndex.ElementChanged(key); }
+        internal bool ElementChanged(IComparable key) => primaryKeyIndex.ElementChanged(key);
         public IUIndex[] uindexes { get; set; } = Array.Empty<IUIndex>();
-        private bool optimise = true;
-        private string? stateFileName;
+        private readonly bool optimise;
+        private readonly string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
         private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen,
             Func<object, bool> isEmpty, bool optimise = true)
         {
-            sequence = new UniversalSequenceBase(tp_el, streamGen());
-            this.isEmpty = isEmpty;
+            this.isEmpty = isEmpty ?? throw new ArgumentNullException(nameof(isEmpty));
             this.optimise = optimise;
             this.stateFileName = stateFileName;
 
+            PersistedState? initialState = TryReadStateFile(stateFileName, out var stored)
+                ? stored
+                : null;
+            sequence = new UniversalSequenceBase(tp_el, streamGen(), initialState?.ToOpenHint());
             primaryKeyIndex = new UKeyIndex(streamGen, this, optimise);
         }
 
@@ -97,8 +104,13 @@ namespace Polar.Universal
         private void RefreshCore(bool persistRecoveredIndexes)
         {
             EnsurePrimaryKeyConfigured();
-            sequence.Refresh();
-            primaryKeyIndex.Refresh();
+
+            PersistedState? state = TryReadState(out var stored) ? stored : null;
+            sequence.Refresh(state?.ToOpenHint());
+            primaryKeyIndex.Refresh(
+                state?.PrimarySnapshotBuilt ?? false,
+                state?.StaleOffsets,
+                state?.HasExtendedMetadata ?? false);
             loadedPrimaryBuildEntries = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
 
@@ -108,24 +120,26 @@ namespace Polar.Universal
                 return;
             }
 
-            if (!TryReplayDynamicTailFromState())
+            if (state == null || !TryReplayDynamicTailFromState(state))
                 Build();
         }
 
-        private bool TryReplayDynamicTailFromState()
+        private bool TryReplayDynamicTailFromState(PersistedState state)
         {
-            if (!TryReadState(out long stateCount, out long stateAppendOffset))
+            if (!state.HasExtendedMetadata || !state.PrimarySnapshotBuilt)
                 return false;
 
             long currentCount = sequence.Count();
-            if (stateCount == currentCount)
-                return stateAppendOffset == sequence.ElementOffset();
+            if (state.Count == currentCount)
+                return state.AppendOffset == sequence.ElementOffset();
 
             try
             {
-                long replayCount = currentCount - stateCount;
+                long replayCount = currentCount - state.Count;
+                if (replayCount < 0L) return false;
+
                 long replayed = 0L;
-                foreach (var pair in sequence.ElementOffsetValuePairs(stateAppendOffset, replayCount))
+                foreach (var pair in sequence.ElementOffsetValuePairs(state.AppendOffset, replayCount))
                 {
                     primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
                     if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
@@ -148,46 +162,35 @@ namespace Polar.Universal
             }
         }
 
-        private bool TryReadState(out long stateCount, out long stateAppendOffset)
+        private bool TryReadState(out PersistedState state)
         {
-            stateCount = 0L;
-            stateAppendOffset = 8L;
-
-            if (stateFileName == null || !File.Exists(stateFileName))
+            if (!TryReadStateFile(stateFileName, out state))
                 return false;
-
-            try
-            {
-                using var statefile = new FileStream(
-                    stateFileName,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite);
-                if (statefile.Length < sizeof(long) * 2)
-                    return false;
-
-                using var reader = new BinaryReader(statefile);
-                stateCount = reader.ReadInt64();
-                stateAppendOffset = reader.ReadInt64();
-            }
-            catch (IOException)
-            {
-                return false;
-            }
 
             long currentCount = sequence.Count();
             long logicalTail = sequence.ElementOffset();
 
-            if (stateCount < 0L || stateCount > currentCount)
+            if (state.Count < 0L || state.Count > currentCount)
                 return false;
-            if (stateAppendOffset < 8L || stateAppendOffset > logicalTail)
+            if (state.AppendOffset < 8L || state.AppendOffset > logicalTail)
                 return false;
-            if (stateCount == 0L && stateAppendOffset != 8L)
+            if (state.Count == 0L && state.AppendOffset != 8L)
                 return false;
-            if (stateCount == currentCount && stateAppendOffset != logicalTail)
+            if (state.Count == currentCount && state.AppendOffset != logicalTail)
                 return false;
-            if (stateCount < currentCount && stateAppendOffset >= logicalTail)
+            if (state.Count < currentCount && state.AppendOffset >= logicalTail)
                 return false;
+
+            if (state.HasExtendedMetadata)
+            {
+                if (state.StaleOffsets.LongLength > state.Count)
+                    return false;
+                foreach (var offset in state.StaleOffsets)
+                {
+                    if (offset < 8L || offset >= state.AppendOffset)
+                        return false;
+                }
+            }
 
             return true;
         }
@@ -222,6 +225,14 @@ namespace Polar.Universal
         {
             if (stateFileName == null) return;
 
+            var parent = Path.GetDirectoryName(stateFileName);
+            if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+
+            var staleOffsets = primaryKeyIndex.HasBuiltSnapshot
+                ? primaryKeyIndex.GetStaleOffsetsSnapshot()
+                : Array.Empty<long>();
+            Array.Sort(staleOffsets);
+
             using var statefile = new FileStream(
                 stateFileName,
                 FileMode.Create,
@@ -230,7 +241,75 @@ namespace Polar.Universal
             using var writer = new BinaryWriter(statefile);
             writer.Write(sequence.Count());
             writer.Write(sequence.ElementOffset());
+            writer.Write(StateMetadataMagic);
+            writer.Write(StateMetadataVersion);
+            writer.Write(primaryKeyIndex.HasBuiltSnapshot ? StateFlagPrimarySnapshotBuilt : 0);
+            writer.Write((long)staleOffsets.LongLength);
+            foreach (var offset in staleOffsets) writer.Write(offset);
             writer.Flush();
+            statefile.Flush();
+        }
+
+        private static bool TryReadStateFile(string? fileName, out PersistedState state)
+        {
+            state = PersistedState.Empty;
+            if (fileName == null || !File.Exists(fileName))
+                return false;
+
+            try
+            {
+                using var statefile = new FileStream(
+                    fileName,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite);
+                if (statefile.Length < sizeof(long) * 2)
+                    return false;
+
+                using var reader = new BinaryReader(statefile);
+                var count = reader.ReadInt64();
+                var appendOffset = reader.ReadInt64();
+                state = new PersistedState(count, appendOffset, false, false, Array.Empty<long>());
+
+                if (statefile.Length - statefile.Position < sizeof(int) * 3 + sizeof(long))
+                    return true;
+
+                var magic = reader.ReadInt32();
+                var version = reader.ReadInt32();
+                var flags = reader.ReadInt32();
+                var staleCount = reader.ReadInt64();
+                if (magic != StateMetadataMagic || version != StateMetadataVersion ||
+                    staleCount < 0L || staleCount > int.MaxValue)
+                    return true;
+
+                var requiredBytes = checked(staleCount * sizeof(long));
+                if (statefile.Length - statefile.Position < requiredBytes)
+                    return true;
+
+                var staleOffsets = new long[(int)staleCount];
+                for (var i = 0; i < staleOffsets.Length; i++)
+                    staleOffsets[i] = reader.ReadInt64();
+
+                state = new PersistedState(
+                    count,
+                    appendOffset,
+                    true,
+                    (flags & StateFlagPrimarySnapshotBuilt) != 0,
+                    staleOffsets);
+                return true;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (EndOfStreamException)
+            {
+                return false;
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
         }
 
         private void EnsurePrimaryKeyConfigured()
@@ -289,7 +368,7 @@ namespace Polar.Universal
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
         }
 
-        public object GetByKey(IComparable keysample)
+        public object? GetByKey(IComparable keysample)
         {
             EnsurePrimaryKeyConfigured();
             return primaryKeyIndex.GetByKey(keysample);
@@ -401,6 +480,33 @@ namespace Polar.Universal
             primaryKeyIndex.Dispose();
             if (uindexes != null) foreach (var ui in uindexes) ui.Dispose();
             disposed = true;
+        }
+
+        private sealed class PersistedState
+        {
+            internal static readonly PersistedState Empty =
+                new(0L, 8L, false, false, Array.Empty<long>());
+
+            internal PersistedState(
+                long count,
+                long appendOffset,
+                bool hasExtendedMetadata,
+                bool primarySnapshotBuilt,
+                long[] staleOffsets)
+            {
+                Count = count;
+                AppendOffset = appendOffset;
+                HasExtendedMetadata = hasExtendedMetadata;
+                PrimarySnapshotBuilt = primarySnapshotBuilt;
+                StaleOffsets = staleOffsets;
+            }
+
+            internal long Count { get; }
+            internal long AppendOffset { get; }
+            internal bool HasExtendedMetadata { get; }
+            internal bool PrimarySnapshotBuilt { get; }
+            internal long[] StaleOffsets { get; }
+            internal SequenceOpenHint ToOpenHint() => new(Count, AppendOffset);
         }
     }
 }
