@@ -302,10 +302,6 @@ namespace Polar.Universal
             {
                 return false;
             }
-            catch (EndOfStreamException)
-            {
-                return false;
-            }
             catch (OverflowException)
             {
                 return false;
