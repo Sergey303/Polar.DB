@@ -112,7 +112,7 @@ namespace Polar.DB
 
         /// <summary>
         /// Advances over one serialized value without materializing its object graph.
-        /// The byte layout is exactly the same one consumed by <see cref="Deserialize"/>.
+        /// The byte layout is exactly the same one written by <see cref="Serialize"/>.
         /// </summary>
         public static void Skip(BinaryReader br, PType tp)
         {
@@ -128,7 +128,10 @@ namespace Polar.DB
                     SkipBytes(br, 1L);
                     return;
                 case PTypeEnumeration.character:
-                    _ = br.ReadChar();
+                    // Polar.DB's existing character slot is the two-byte char value written
+                    // by BinaryWriter.Write(char). Skipping raw bytes avoids invoking the
+                    // BinaryReader text decoder and preserves the historical on-disk layout.
+                    SkipBytes(br, sizeof(char));
                     return;
                 case PTypeEnumeration.integer:
                     SkipBytes(br, sizeof(int));
