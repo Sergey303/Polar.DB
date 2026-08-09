@@ -15,6 +15,7 @@ namespace Polar.Universal
         internal bool ElementChanged(IComparable key) => keyoff_dic.ContainsKey(key);
         private readonly bool keysinmemory;
         private int[]? hkeys_arr;
+        private long[]? offsets_arr;
         private HashSet<long>? stale_offsets_set;
         private HashSet<long>? legacy_original_offsets_set;
         private bool snapshotOriginalityKnown;
@@ -64,6 +65,7 @@ namespace Polar.Universal
             hkeys.Clear();
             hkeys_arr = null;
             offsets.Clear();
+            offsets_arr = null;
             stale_offsets_set = null;
             legacy_original_offsets_set = null;
             snapshotOriginalityKnown = false;
@@ -91,9 +93,17 @@ namespace Polar.Universal
                 throw new InvalidDataException("Primary-key hash and offset sequence lengths differ.");
 
             if (keysinmemory)
+            {
                 hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
+                offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
+                if (hkeys_arr.LongLength != offsets_arr.LongLength)
+                    throw new InvalidDataException("In-memory primary-key hash and offset array lengths differ.");
+            }
             else
+            {
                 hkeys_arr = null;
+                offsets_arr = null;
+            }
 
             stale_offsets_set = null;
             legacy_original_offsets_set = null;
@@ -108,8 +118,9 @@ namespace Polar.Universal
             else if (keysinmemory && persistedKeyCount != 0)
             {
                 // Backward compatibility for state files written before stale-offset metadata existed.
-                // New snapshots never allocate this O(N) set.
-                legacy_original_offsets_set = new HashSet<long>(offsets.ElementValues().Cast<long>());
+                // New snapshots never allocate this O(N) set. The offset array is the same
+                // compact static snapshot used by lookups, so it is also safe as the legacy source.
+                legacy_original_offsets_set = new HashSet<long>(offsets_arr!);
             }
 
             hasBuiltSnapshot = snapshotBuilt || persistedKeyCount > 0;
@@ -158,17 +169,17 @@ namespace Polar.Universal
                     Array.Sort(entries, 0, entryCount, BuildEntryComparer.Instance);
             });
 
-            long[] offsets_arr = Array.Empty<long>();
+            long[] offsetsArray = Array.Empty<long>();
             toArrayMs = Measure(() =>
             {
                 var liveCount = CompactLatestLiveEntries(entries, entryCount, out var staleOffsets);
                 hkeys_arr = new int[liveCount];
-                offsets_arr = new long[liveCount];
+                offsetsArray = new long[liveCount];
 
                 for (var i = 0; i < liveCount; i++)
                 {
                     hkeys_arr[i] = entries[i].HashKey;
-                    offsets_arr[i] = entries[i].Offset;
+                    offsetsArray[i] = entries[i].Offset;
                 }
 
                 stale_offsets_set = staleOffsets.Length == 0 ? null : new HashSet<long>(staleOffsets);
@@ -183,11 +194,12 @@ namespace Polar.Universal
                 if (!keysinmemory) hkeys_arr = null;
             });
 
-            writeOffsetsMs = Measure(() => offsets.ReplaceWithFixedInt64Array(offsets_arr));
+            writeOffsetsMs = Measure(() => offsets.ReplaceWithFixedInt64Array(offsetsArray));
+            offsets_arr = keysinmemory ? offsetsArray : null;
 
             keyoff_dic.Clear();
             hasBuiltSnapshot = true;
-            offsets_arr = Array.Empty<long>();
+            offsetsArray = Array.Empty<long>();
             totalWatch.Stop();
 
             LastBuildProfile = new UIndexBuildProfile(
@@ -312,14 +324,15 @@ namespace Polar.Universal
         {
             var result = new List<long>();
             int hkey = PrimaryKeyAccessor.Hash(keysample);
+            var memoryOffsets = offsets_arr;
 
-            if (hkeys_arr != null)
+            if (hkeys_arr != null && memoryOffsets != null)
             {
                 int pos = LowerBound(hkeys_arr, hkey);
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    long offset = (long)offsets.GetByIndex(pos);
+                    long offset = memoryOffsets[pos];
                     object val = sequence.GetByOffset(offset);
                     if (val == null) break;
                     var key = PrimaryKeyAccessor.GetKey(val);
@@ -366,13 +379,14 @@ namespace Polar.Universal
         private bool TryGetIndexedValueAndOffsetByKey(IComparable keysample, out object value, out long offset)
         {
             int hkey = PrimaryKeyAccessor.Hash(keysample);
+            var memoryOffsets = offsets_arr;
 
-            if (hkeys_arr != null)
+            if (hkeys_arr != null && memoryOffsets != null)
             {
                 int pos = LowerBound(hkeys_arr, hkey);
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    var candidateOffset = (long)offsets.GetByIndex(pos);
+                    var candidateOffset = memoryOffsets[pos];
                     var candidateValue = sequence.GetByOffset(candidateOffset);
                     if (candidateValue != null)
                     {
