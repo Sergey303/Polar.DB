@@ -7,21 +7,35 @@ namespace Polar.DB.Tests;
 public sealed class PrimaryOffsetCacheTests
 {
     [Fact]
-    public void SnapshotCache_KeepsLatestDuplicateAndServesOffsetsFromMemory()
+    public void Build_CompactsDuplicatePrimaryKeyToLatest()
+    {
+        using var fixture = new StoreFixture();
+        using var sequence = fixture.OpenPrimaryOnly();
+
+        sequence.Load(new object[]
+        {
+            Row(1, false, "old"),
+            Row(1, false, "snapshot-latest"),
+            Row(2, false, "other")
+        });
+        sequence.Build();
+
+        Assert.Equal("snapshot-latest", Name(sequence.GetByKey(1)!));
+        Assert.Equal("other", Name(sequence.GetByKey(2)!));
+    }
+
+    [Fact]
+    public void Refresh_LoadsOffsetCache_StaticLookupDoesNotReadOffsetCell()
     {
         using var fixture = new StoreFixture();
         using (var sequence = fixture.OpenPrimaryOnly())
         {
             sequence.Load(new object[]
             {
-                Row(1, false, "old"),
                 Row(1, false, "snapshot-latest"),
                 Row(2, false, "other")
             });
             sequence.Build();
-
-            Assert.Equal("snapshot-latest", Name(sequence.GetByKey(1)!));
-            Assert.Equal("other", Name(sequence.GetByKey(2)!));
         }
 
         fixture.ResetStreams(countOffsetReads: true);
@@ -29,6 +43,7 @@ public sealed class PrimaryOffsetCacheTests
         reopened.Refresh();
 
         Assert.Equal("snapshot-latest", Name(reopened.GetByKey(1)!));
+        Assert.Equal("other", Name(reopened.GetByKey(2)!));
         Assert.NotNull(fixture.OffsetCounter);
         fixture.OffsetCounter!.Reset();
 
@@ -42,7 +57,26 @@ public sealed class PrimaryOffsetCacheTests
     }
 
     [Fact]
-    public void DynamicAndReplayedTail_OverrideCachedSnapshot_LastWriteWins()
+    public void DynamicTail_OverridesStaticSnapshot()
+    {
+        using var fixture = new StoreFixture();
+        using var sequence = fixture.OpenPrimaryOnly();
+
+        sequence.Load(new object[]
+        {
+            Row(1, false, "snapshot"),
+            Row(2, false, "other")
+        });
+        sequence.Build();
+
+        sequence.AppendElement(Row(1, false, "dynamic-latest"));
+
+        Assert.Equal("dynamic-latest", Name(sequence.GetByKey(1)!));
+        Assert.Equal("other", Name(sequence.GetByKey(2)!));
+    }
+
+    [Fact]
+    public void Refresh_ReplaysDynamicTail_LastWriteWins()
     {
         using var fixture = new StoreFixture();
         using (var sequence = fixture.OpenPrimaryOnly())
@@ -53,29 +87,59 @@ public sealed class PrimaryOffsetCacheTests
                 Row(2, false, "other")
             });
             sequence.Build();
-
             sequence.AppendElement(Row(1, false, "dynamic-latest"));
             sequence.Flush();
-            Assert.Equal("dynamic-latest", Name(sequence.GetByKey(1)!));
         }
 
         fixture.ResetStreams();
-        using (var replayed = fixture.OpenPrimaryOnly())
+        using var replayed = fixture.OpenPrimaryOnly();
+        replayed.Refresh();
+
+        Assert.Equal("dynamic-latest", Name(replayed.GetByKey(1)!));
+        Assert.Equal("other", Name(replayed.GetByKey(2)!));
+    }
+
+    [Fact]
+    public void Tombstone_OverridesStaticSnapshot()
+    {
+        using var fixture = new StoreFixture();
+        using var sequence = fixture.OpenPrimaryOnly();
+
+        sequence.Load(new object[]
         {
-            replayed.Refresh();
-            Assert.Equal("dynamic-latest", Name(replayed.GetByKey(1)!));
-            Assert.Equal("other", Name(replayed.GetByKey(2)!));
+            Row(1, false, "snapshot"),
+            Row(2, false, "other")
+        });
+        sequence.Build();
 
-            replayed.AppendElement(Row(1, true, "deleted"));
-            replayed.Flush();
-            Assert.Null(replayed.GetByKey(1));
+        sequence.AppendElement(Row(1, true, "deleted"));
+
+        Assert.Null(sequence.GetByKey(1));
+        Assert.Equal("other", Name(sequence.GetByKey(2)!));
+    }
+
+    [Fact]
+    public void Refresh_ReplaysTombstone()
+    {
+        using var fixture = new StoreFixture();
+        using (var sequence = fixture.OpenPrimaryOnly())
+        {
+            sequence.Load(new object[]
+            {
+                Row(1, false, "snapshot"),
+                Row(2, false, "other")
+            });
+            sequence.Build();
+            sequence.AppendElement(Row(1, true, "deleted"));
+            sequence.Flush();
         }
 
         fixture.ResetStreams();
-        using var deletedAfterReplay = fixture.OpenPrimaryOnly();
-        deletedAfterReplay.Refresh();
-        Assert.Null(deletedAfterReplay.GetByKey(1));
-        Assert.Equal("other", Name(deletedAfterReplay.GetByKey(2)!));
+        using var replayed = fixture.OpenPrimaryOnly();
+        replayed.Refresh();
+
+        Assert.Null(replayed.GetByKey(1));
+        Assert.Equal("other", Name(replayed.GetByKey(2)!));
     }
 
     private static object[] Row(int id, bool deleted, string name) =>
