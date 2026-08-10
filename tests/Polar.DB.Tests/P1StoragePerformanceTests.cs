@@ -113,7 +113,7 @@ public sealed class P1StoragePerformanceTests
             comparerCalls++;
             return ((int)((object[])left)[1]).CompareTo((int)((object[])right)[1]);
         });
-        using var index = new UIndex(
+        var index = new UIndex(
             streamGen,
             sequence,
             _ => true,
