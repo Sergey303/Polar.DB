@@ -1,0 +1,109 @@
+{
+  "capturedAt": "2026-08-10T19:16:53.5407339+07:00",
+  "repository": {
+    "path": "D:\\projects\\Polar.DB",
+    "branch": "main",
+    "commit": "e093da0247ec58c7fb78fc381eca52fa002b0967",
+    "clean": true,
+    "status": []
+  },
+  "operatingSystem": {
+    "Caption": "Майкрософт Windows 11 Pro",
+    "Version": "10.0.26200",
+    "BuildNumber": "26200",
+    "OSArchitecture": "64-разрядная"
+  },
+  "cpu": {
+    "Name": "12th Gen Intel(R) Core(TM) i5-12400",
+    "Manufacturer": "GenuineIntel",
+    "NumberOfCores": 6,
+    "NumberOfLogicalProcessors": 12,
+    "MaxClockSpeed": 2500,
+    "L2CacheSize": 7680,
+    "L3CacheSize": 18432
+  },
+  "system": {
+    "totalPhysicalMemoryGB": 31.78,
+    "visibleLogicalProcessors": 12,
+    "is64BitOperatingSystem": true,
+    "is64BitProcess": true
+  },
+  "memoryModules": [
+    {
+      "BankLabel": "BANK 0",
+      "CapacityGB": 8.0,
+      "Speed": 2133,
+      "ConfiguredClockSpeed": 3200,
+      "Manufacturer": "Patriot Memory (PDP Systems)",
+      "PartNumber": "4400 C19 Series     "
+    },
+    {
+      "BankLabel": "BANK 0",
+      "CapacityGB": 8.0,
+      "Speed": 2400,
+      "ConfiguredClockSpeed": 3200,
+      "Manufacturer": "Gloway International Co Ltd",
+      "PartNumber": "TAC4U3200E16081C    "
+    },
+    {
+      "BankLabel": "BANK 0",
+      "CapacityGB": 8.0,
+      "Speed": 2133,
+      "ConfiguredClockSpeed": 3200,
+      "Manufacturer": "Patriot Memory (PDP Systems)",
+      "PartNumber": "4400 C19 Series     "
+    },
+    {
+      "BankLabel": "BANK 0",
+      "CapacityGB": 8.0,
+      "Speed": 2400,
+      "ConfiguredClockSpeed": 3200,
+      "Manufacturer": "Gloway International Co Ltd",
+      "PartNumber": "TAC4U3200E16081C    "
+    }
+  ],
+  "benchmarkVolume": {
+    "DriveLetter": "D",
+    "FileSystem": "NTFS",
+    "FileSystemLabel": "",
+    "SizeGB": 232.16,
+    "FreeGB": 19.56
+  },
+  "benchmarkDisk": {
+    "Number": 0,
+    "FriendlyName": "Samsung SSD 980 PRO 250GB",
+    "Model": "Samsung SSD 980 PRO 250GB",
+    "Manufacturer": null,
+    "BusType": "NVMe",
+    "PartitionStyle": "GPT",
+    "SizeGB": 232.89
+  },
+  "physicalDisk": {
+    "FriendlyName": "Samsung SSD 980 PRO 250GB",
+    "MediaType": "SSD",
+    "BusType": "NVMe",
+    "SizeGB": 232.89
+  },
+  "activePowerPlan": "GUID схемы питания: 381b4222-f694-41f0-9685-ff5bb260df2e  (Сбалансированная)",
+  "dotnet": {
+    "info": "╨Я╨Р╨Ъ╨Х╨в SDK ╨Ф╨Ы╨п .NET:\r\n Version:           10.0.203\r\n Commit:            c23858a6d8\r\n Workload version:  10.0.200-manifests.ef86bccd\r\n MSBuild version:   18.3.3+c23858a6d\r\n\r\n╨б╤А╨╡╨┤╨░ ╨▓╤Л╨┐╨╛╨╗╨╜╨╡╨╜╨╕╤П:\r\n OS Name:     Windows\r\n OS Version:  10.0.26200\r\n OS Platform: Windows\r\n RID:         win-x64\r\n Base Path:   C:\\Program Files\\dotnet\\sdk\\10.0.203\\\r\n\r\n╨г╤Б╤В╨░╨╜╨╛╨▓╨╗╨╡╨╜╨╜╤Л╨╡ ╤А╨░╨▒╨╛╤З╨╕╨╡ ╨╜╨░╨│╤А╤Г╨╖╨║╨╕ .NET:\r\n╨Э╨╡╤В ╤Г╤Б╤В╨░╨╜╨╛╨▓╨╗╨╡╨╜╨╜╤Л╤Е ╤А╨░╨▒╨╛╤З╨╕╤Е ╨╜╨░╨│╤А╤Г╨╖╨╛╨║ ╨┤╨╗╤П ╨╛╤В╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╤П.\r\n╨Э╨░╤Б╤В╤А╨╛╨╡╨╜╨╛ ╨╜╨░ ╨╕╤Б╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╨╜╨╕╨╡ workload sets ╨┐╤А╨╕ ╤Г╤Б╤В╨░╨╜╨╛╨▓╨║╨╡ ╨╜╨╛╨▓╤Л╤Е ╨╝╨░╨╜╨╕╤Д╨╡╤Б╤В╨╛╨▓.\r\n╨Э╨░╨▒╨╛╤А╤Л ╤А╨░╨▒╨╛╤З╨╕╤Е ╨╜╨░╨│╤А╤Г╨╖╨╛╨║ ╨╜╨╡ ╤Г╤Б╤В╨░╨╜╨╛╨▓╨╗╨╡╨╜╤Л. ╨Ч╨░╨┐╤Г╤Б╤В╨╕╤В╨╡ ╨║╨╛╨╝╨░╨╜╨┤╤Г \"dotnet workload restore\", ╤З╤В╨╛╨▒╤Л ╤Г╤Б╤В╨░╨╜╨╛╨▓╨╕╤В╤М ╨╜╨░╨▒╨╛╤А ╤А╨░╨▒╨╛╤З╨╡╨╣ ╨╜╨░╨│╤А╤Г╨╖╨║╨╕.\r\n\r\nHost:\r\n  Version:      10.0.7\r\n  Architecture: x64\r\n  Commit:       b16286c228\r\n\r\n.NET SDKs installed:\r\n  8.0.420 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.100 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.203 [C:\\Program Files\\dotnet\\sdk]\r\n\r\n.NET runtimes installed:\r\n  Microsoft.AspNetCore.App 10.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.7 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.NETCore.App 8.0.26 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.7 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.WindowsDesktop.App 8.0.26 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 9.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.7 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n\r\nOther architectures found:\r\n  None\r\n\r\nEnvironment variables:\r\n  Not set\r\n\r\nglobal.json file:\r\n  Invalid [D:\\projects\\Polar.DB\\global.json]\r\n    Version '10.0.0' is not valid for the 'sdk/version' value. SDK feature bands start at 1 - for example, 10.0.100\r\n\r\nLearn more:\r\n  https://aka.ms/dotnet/info\r\n\r\nDownload .NET:\r\n  https://aka.ms/dotnet/download",
+    "sdks": [
+      "8.0.420 [C:\\Program Files\\dotnet\\sdk]",
+      "10.0.100 [C:\\Program Files\\dotnet\\sdk]",
+      "10.0.203 [C:\\Program Files\\dotnet\\sdk]"
+    ],
+    "runtimes": [
+      "Microsoft.AspNetCore.App 10.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.7 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.NETCore.App 8.0.26 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.7 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.WindowsDesktop.App 8.0.26 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 9.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 10.0.0 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 10.0.7 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]"
+    ],
+    "explicitRuntimeOverrides": []
+  }
+}
