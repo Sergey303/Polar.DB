@@ -1,48 +1,135 @@
 # Методика экспериментов Polar.DB vs SQLite
 
-> Приложение к черновику статьи `POLAR_DB_ARTICLE_DRAFT.md`. Этот файл описывает экспериментальный протокол настолько подробно, чтобы другой исследователь или агент мог восстановить смысл benchmark results без чтения истории чатов.
+> Приложение к `POLAR_DB_ARTICLE_DRAFT.md`. Этот файл описывает экспериментальный протокол так, чтобы смысл raw benchmark results можно было восстановить без истории чатов. Точная аппаратная и .NET-среда вынесена также в `EXPERIMENT_ENVIRONMENT.md`.
 
 ## 1. Цель протокола
 
-Benchmark harness предназначен для сравнения **одинаковых логических операций**, а не одинаковых внутренних алгоритмов двух engine.
+Benchmark harness сравнивает **одинаковые логические операции**, а не одинаковые внутренние алгоритмы двух engine.
 
-Polar.DB и SQLite различаются моделью хранения, индексами и lifecycle. Поэтому протокол запрещает сводить разные стадии к одной метрике. В частности:
+Polar.DB и SQLite различаются моделью хранения, индексами и lifecycle. Поэтому протокол разделяет стадии, которые нельзя корректно сводить в одну latency metric:
 
 - setup/load не включается в lookup-only timing;
 - build измеряется отдельно;
 - `open-only` отделён от `query-ready reopen`;
 - volatile mutation отделена от операции с persistence boundary;
-- point lookup отделён от массового equal-range lookup;
-- expected result проверяется независимо от времени выполнения.
+- point lookup отделён от equal-range lookup, возвращающего тысячи или миллионы строк;
+- correctness результата проверяется независимо от elapsed time.
 
-Сравнение считается содержательным только внутри одной строки/фазы с одинаковой семантикой результата.
+Сравнение интерпретируется только внутри одинаково определённой операции и одинакового postcondition.
 
-## 2. Зафиксированная публикационная серия
+## 2. Основная publication-ready серия
 
-Основной набор результатов статьи:
+Основные результаты статьи получены в серии:
 
-- series/run id: `20260810T030729570Z`;
-- commit: `e093da0247ec58c7fb78fc381eca52fa002b0967`;
+- run id: `20260810T030729570Z`;
+- repository commit: `e093da0247ec58c7fb78fc381eca52fa002b0967`;
 - git working tree: clean;
 - build configuration: Release;
 - `publicationReady = true`;
-- .NET runtime: 10.0.7;
-- framework description: `.NET 10.0.7`;
-- OS reported by runtime: `Microsoft Windows 10.0.26200`;
-- OS/process architecture: x64/x64;
-- logical processor count visible to process: 12;
+- .NET host/runtime: 10.0.7, x64;
+- Polar.DB assembly: 2.1.3.0;
+- Microsoft.Data.Sqlite assembly: 9.0.4.0;
 - Server GC: `false`;
 - Tiered Compilation: runtime default;
 - Tiered PGO: runtime default;
-- ReadyToRun: runtime default;
-- Polar.DB assembly version: 2.1.3.0;
-- Microsoft.Data.Sqlite assembly version: 9.0.4.0;
-- culture: `ru-RU`;
-- time zone: `N. Central Asia Standard Time`.
+- ReadyToRun: runtime default.
 
-Manifest фиксирует только generic CPU identifier (`Intel64 Family 6 Model 151 Stepping 5, GenuineIntel`) и объём логического диска. Для статьи дополнительно требуется точная модель CPU, RAM и storage device; поля для них приведены в разделе 15.
+Environment snapshot после серии был снят на том же `main` commit при clean working tree. Это связывает аппаратное описание с тем же состоянием repository.
 
-## 3. Структура запуска
+## 3. Аппаратная среда
+
+Краткое описание машины:
+
+- Microsoft Windows 11 Pro, version/build `10.0.26200`, x64;
+- Intel Core i5-12400;
+- 6 физических ядер, 12 логических процессоров;
+- 31.78 GiB physical memory visible to Windows;
+- 4 × 8 GiB DIMM, configured clock speed 3200 MT/s;
+- Samsung SSD 980 PRO 250GB;
+- SSD/NVMe;
+- GPT;
+- benchmark workspace на NTFS volume `D:`;
+- volume size 232.16 GiB;
+- free space при environment snapshot 19.56 GiB;
+- Windows power plan: `Сбалансированная`.
+
+Подробные модели RAM, WMI cache values, volume/disk distinction и ограничения этих показателей приведены в `EXPERIMENT_ENVIRONMENT.md`.
+
+### 3.1. RAM configuration
+
+Использовались четыре 8 GiB модуля двух типов:
+
+- 2 × Patriot Memory `4400 C19 Series`;
+- 2 × Gloway `TAC4U3200E16081C`.
+
+WMI сообщает для всех четырёх `ConfiguredClockSpeed = 3200`. Поле `Speed` при этом равно 2133 для Patriot и 2400 для Gloway, поэтому для статьи следует использовать именно формулировку **configured speed 3200 MT/s**, а не утверждать, что SPD/JEDEC nominal speed всех модулей одинаков.
+
+### 3.2. Storage
+
+Physical disk benchmark workspace:
+
+- `Samsung SSD 980 PRO 250GB`;
+- MediaType: SSD;
+- BusType: NVMe;
+- physical size reported by Windows: 232.89 GiB.
+
+Рабочий volume `D:`:
+
+- NTFS;
+- 232.16 GiB;
+- 19.56 GiB free при post-run environment snapshot.
+
+Свободное место snapshot не считается точным значением для каждого worker. Run-specific total/available volume bytes записываются benchmark manifests.
+
+## 4. .NET environment
+
+Environment snapshot показывает:
+
+- active SDK: 10.0.203;
+- SDK commit: `c23858a6d8`;
+- MSBuild: `18.3.3+c23858a6d`;
+- host: 10.0.7;
+- host architecture: x64;
+- RID: `win-x64`.
+
+Installed SDKs:
+
+- 8.0.420;
+- 10.0.100;
+- 10.0.203.
+
+Installed Microsoft.NETCore.App runtimes:
+
+- 8.0.26;
+- 9.0.11;
+- 10.0.0;
+- 10.0.7.
+
+Также установлены соответствующие WindowsDesktop runtimes и AspNetCore 10.0.0/10.0.7; полный перечень сохранён в `EXPERIMENT_ENVIRONMENT.md`.
+
+При environment snapshot не обнаружено явных `DOTNET_*` / `COMPlus_*` overrides, соответствующих собираемым Tiered/ReadyToRun/GC параметрам. Benchmark manifests также зафиксировали runtime defaults.
+
+## 5. Нюанс `global.json`
+
+На benchmark commit repository содержит:
+
+```json
+{
+  "sdk": {
+    "version": "10.0.0",
+    "rollForward": "latestMajor",
+    "allowPrerelease": true
+  }
+}
+```
+
+`dotnet --info` сообщает, что `10.0.0` является недопустимым значением `sdk/version`, поскольку SDK feature bands начинаются с `x.y.100`. Следовательно, этот `global.json` **не обеспечивал корректный SDK pin** для publication series.
+
+Фактически при environment snapshot был выбран SDK 10.0.203. Для выполненной серии это нужно трактовать как ограничение воспроизводимости, а не как основание переписывать уже полученные raw results.
+
+Для будущего строгого повторения рекомендуется сначала исправить `global.json`, затем выполнить новую publication series с новым run id. Старую и новую серии нельзя смешивать как один и тот же экспериментальный baseline.
+
+## 6. Process isolation
 
 Обычный запуск benchmark executable работает как coordinator.
 
@@ -51,22 +138,23 @@ Coordinator:
 1. определяет run id;
 2. записывает environment manifest;
 3. выбирает порядок engine;
-4. запускает SQLite worker отдельным процессом;
-5. запускает Polar.DB worker отдельным процессом;
+4. запускает SQLite worker отдельным child process;
+5. запускает Polar.DB worker отдельным child process;
 6. читает worker raw results;
-7. проверяет совместимость среды и формы результатов;
-8. объединяет результаты;
-9. сохраняет raw JSON/CSV, manifest и HTML report.
+7. проверяет одинаковый commit и совместимый build state;
+8. проверяет форму результатов;
+9. объединяет результаты;
+10. сохраняет raw JSON/CSV, manifest и HTML report.
 
-SQLite и Polar.DB **не измеряются в одном процессе**. Это уменьшает взаимное влияние managed heap, static state, открытых handles и JIT state.
+SQLite и Polar.DB **не измеряются внутри одного процесса**. Это снижает взаимное влияние managed heap, static state, открытых handles и JIT state.
 
-Worker commit обязан совпадать с coordinator commit. Build configuration и признак отключённых JIT optimizations также должны совпадать. При несовпадении coordinator завершает серию ошибкой.
+Worker commit обязан совпадать с coordinator commit. Build configuration и признак отключённых JIT optimizations также должны совпадать. Несовпадение делает run invalid.
 
-## 4. Порядок engine
+## 7. Engine order
 
-Если `POLAR_BENCH_ENGINE_ORDER` не задан, порядок SQLite/Polar.DB выбирается детерминированно из experiment id и run id. Поэтому в полной серии один engine не обязан всегда выполняться первым.
+Если `POLAR_BENCH_ENGINE_ORDER` не задан, порядок SQLite/Polar.DB определяется детерминированно из experiment id и run id.
 
-Для диагностических запусков порядок можно принудительно задать:
+Для диагностических запусков допускаются:
 
 ```powershell
 $env:POLAR_BENCH_ENGINE_ORDER = 'sqlite-first'
@@ -78,40 +166,72 @@ $env:POLAR_BENCH_ENGINE_ORDER = 'sqlite-first'
 $env:POLAR_BENCH_ENGINE_ORDER = 'polar-first'
 ```
 
-Для публикационной серии специально фиксировать один порядок не рекомендуется: это может создать систематическое преимущество первого или второго процесса.
+Publication series не фиксирует один engine первым во всех экспериментах, чтобы не создавать постоянное order bias.
 
-## 5. Размеры наборов
+## 8. Размеры datasets
 
-Все текущие эксперименты выполняются на двух размерах:
+Все experiment kinds основной серии выполняются на:
 
 - 50 000 записей;
 - 5 000 000 записей.
 
-В статье основной акцент сделан на 5 млн записей как на более показательном размере. Результаты 50 тыс. остаются частью серии и должны использоваться для проверки scaling behavior и отсутствия аномалий.
+Основной текст статьи показывает прежде всего 5 млн. Набор 50 тыс. остаётся контрольной точкой для scaling behavior и проверки аномалий.
 
-## 6. Логическая запись
+## 9. Synthetic row
 
-Synthetic dataset строится детерминированно. Каждая запись содержит:
+Dataset строится детерминированно и не зависит от внешнего файла или OS random source.
 
-- integer primary identifier;
-- long key;
-- Guid key;
-- string key;
+Логическая запись содержит:
+
+- integer primary id;
+- long primary candidate;
+- Guid primary candidate;
+- string primary candidate;
 - integer external key;
 - long external key;
 - Guid external key;
 - string external key;
 - payload.
 
-Для обычных external-key сценариев значение external key зависит от `id mod 1000`. Таким образом, на 5 млн записей существует 1000 групп примерно по 5000 строк.
+Детерминированность позволяет заранее вычислить expected row count и checksum для каждой выборки.
 
-Для `famous external` сценария 40% записей (`id mod 5` равно 0 или 1) получают один и тот же hit key. На 5 млн записей один запрос по этому ключу возвращает 2 млн строк. Остальные записи распределяются между другими значениями.
+## 10. Ordinary external-key distribution
 
-Dataset не читается из внешнего файла и не зависит от генератора случайных чисел ОС. Это позволяет воспроизводить expected row counts/checksums.
+Для обычных external-key сценариев значения распределяются по 1000 группам (`id mod 1000`).
 
-## 7. Каталог из 16 экспериментов
+На 5 млн записей один успешный external lookup возвращает около:
 
-Полная серия содержит:
+```text
+5 000 000 / 1000 = 5000 rows
+```
+
+Planner подбирает количество queries в measured batch так, чтобы sample материализовал примерно 20 000 строк.
+
+Для 5 млн это обычно 4 queries × ~5000 rows/query.
+
+## 11. Famous external-key distribution
+
+Отдельный stress workload использует high-frequency key.
+
+Запись считается hit, если:
+
+```text
+id mod 5 = 0 или 1
+```
+
+То есть hit key принадлежит 40% dataset.
+
+На 5 млн записей один hit query возвращает:
+
+```text
+2 000 000 rows
+```
+
+Этот experiment намеренно экстремален. Он исследует equal-range path при огромном результате и не должен называться «типичным запросом».
+
+## 12. Каталог 16 экспериментов
+
+Полная серия:
 
 1. `build-primary-int-only-id-only-experiment`;
 2. `pk-int-lookup`;
@@ -130,110 +250,107 @@ Dataset не читается из внешнего файла и не зави�
 15. `delete-only`;
 16. `reopen-only`.
 
-Названия описывают отдельные исследовательские вопросы; результаты разных experiment kinds не следует смешивать в одну latency metric.
+Каждый experiment отвечает на отдельный исследовательский вопрос. Метрики разных kinds нельзя объединять без явного изменения смысла.
 
-## 8. Primary-key lookup protocol
+## 13. Primary-key lookup protocol
 
-Для `int`, `long`, `Guid` и `string` primary key применяются одинаковые sampling rules.
+Одинаковые sampling rules применяются к `int`, `long`, `Guid` и `string` primary lookup.
 
-### 8.1. Cold after reopen
+### 13.1. Cold after reopen
 
-- file warmup: нет;
-- отдельный lookup warmup: нет;
+- explicit file warmup: нет;
+- lookup warmup: нет;
 - measured batches: 30;
-- queries per batch: 100;
+- queries/batch: 100;
 - batch queries: 3000;
 - single-query latency samples: 2000;
-- всего measured queries с учётом latency set: 5000.
+- total measured queries: 5000.
 
-### 8.2. Hot after file and lookup warmup
+### 13.2. Hot after file and lookup warmup
 
-- выполняется explicit file warmup;
+- explicit file warmup: да;
 - warmup samples: 5;
-- 100 queries на warmup sample;
-- итого warmup queries: 500;
+- queries/warmup sample: 100;
+- warmup queries: 500;
 - measured batches: 100;
-- queries per batch: 100;
+- queries/batch: 100;
 - batch queries: 10 000;
-- single-query latency samples: 2000;
-- итого measured queries: 12 000.
+- latency samples: 2000;
+- total measured queries: 12 000.
 
 Batch key set и latency key set различаются и имеют независимые expected values.
 
-### 8.3. Выбор ключей
+### 13.3. Выбор ключей
 
-Ключи выбираются детерминированно из dataset. Последовательность не является простым проходом по соседним строкам: индекс исходной строки вычисляется через мультипликативный шаг, что рассеивает обращения по набору. Для cold, hot, warmup и latency используются разные seed offsets.
+Lookup keys выбираются детерминированно из dataset. Индекс исходной строки вычисляется мультипликативным шагом, поэтому измерение не является последовательным проходом по соседним ids.
 
-Это уменьшает риск случайного измерения только локального участка индекса.
+Для cold, hot, warmup и latency используются разные seed offsets.
 
-## 9. Обычный external-key lookup
+## 14. Ordinary external lookup protocol
 
-Для неуникальных external keys цель batch planner — получить примерно 20 000 returned rows на один measured sample.
+Default parameters:
 
-На наборе 5 млн:
+- cold measured batches: 15;
+- hot measured batches: 30;
+- hot warmup samples: 3;
+- latency samples: 100;
+- target returned rows/sample: около 20 000.
 
-- около 5000 строк на один key;
-- поэтому один batch sample содержит 4 lookup queries;
-- cold: 15 measured batches;
-- hot: 30 measured batches;
-- hot warmup: 3 samples;
-- latency: 100 отдельных queries.
+На 5 млн при ~5000 rows/query planner выбирает 4 queries/batch.
 
-В raw series это даёт 120 hot batch queries и около 600 000 materialized rows на engine для каждого ordinary external experiment.
+Single-query latency external lookup нельзя напрямую сравнивать с primary one-row latency без учёта returned rows.
 
-Latency здесь означает latency одного запроса, который возвращает множество строк; её нельзя напрямую сопоставлять с one-row primary lookup.
+## 15. Famous external lookup protocol
 
-## 10. Famous external-key lookup
+Default parameters:
 
-Высокочастотный key возвращает 40% dataset.
-
-На 5 млн записей:
-
-- 2 000 000 строк/query;
-- 1 query на measured batch;
 - cold measured batches: 5;
 - hot measured batches: 5;
+- queries/batch: 1;
 - hot warmup samples: 2;
 - latency samples: 5.
 
-Сценарий намеренно стрессовый и проверяет поведение equal-range path, когда стоимость поиска границы мала по сравнению с обходом/materialization огромного результата.
+На 5 млн каждый hit query материализует 2 млн строк.
 
-Он не должен трактоваться как «типичный запрос».
-
-## 11. Build experiment
+## 16. Build experiment
 
 `build-primary-int-only-id-only-experiment` изолирует построение integer primary index для id-only storage.
 
-В publication raw series на каждый размер применены:
+На benchmark commit `Program.cs` задаёт:
 
 - warmup operations: 3;
 - measured operations: 10.
 
 Metric: `build + flush`.
 
-В эту величину нельзя включать выводы о полном ETL, создании всех secondary indexes или произвольной схеме записи. Она отвечает только на вопрос стоимости изолированной операции, заданной этим experiment kind.
+Raw results отдельно сохраняют build и flush components, но headline metric относится к их сумме.
 
-## 12. Mutation protocol
+Нельзя интерпретировать этот эксперимент как полный database load или построение произвольной secondary-index topology.
 
-### 12.1. Volatile mutation
+## 17. Mutation protocol
 
-`append-only` и `delete-only` измеряют 2000 отдельных операций после 200 warmup operations.
+### 17.1. Volatile mutation
 
-Volatile metric заканчивается **до** общего persistence boundary. Поэтому она характеризует стоимость изменения рабочего состояния engine.
+Для append/delete:
 
-Она особенно важна для понимания внутренней append/update path, но не является полной durable latency.
+- warmup operations: 200;
+- measured operations: 2000.
 
-### 12.2. Durable mutation
+Volatile sample заканчивается **до** общего persistence boundary.
 
-Дополнительно выполняются batches по 100 операций:
+Она показывает стоимость изменения рабочего состояния, а не полную durable write latency.
 
-- 2 warmup batches;
-- 15 measured batches;
-- batch size: 100.
+### 17.2. Durable mutation
 
-В report записывается **среднее время одной операции внутри batch**, включающего persistence boundary.
+Дополнительные batches:
 
-Для SQLite durable boundary включает:
+- warmup batches: 2;
+- measured batches: 15;
+- batch size: 100 operations.
+
+Report хранит среднее время одной операции внутри batch, включающего persistence boundary.
+
+Для SQLite boundary включает:
 
 - transaction commit;
 - WAL checkpoint;
@@ -244,135 +361,142 @@ Volatile metric заканчивается **до** общего persistence bou
 - `Flush`;
 - file sync.
 
-Именно durable metric следует использовать при сравнении практической стоимости гарантированно протолкнутой на storage группы изменений.
+Durable values являются предпочтительными при практическом обсуждении сохранённых изменений.
 
-Volatile и durable показатели нельзя объединять или выдавать один за другой без указания semantics.
+## 18. Reopen protocol
 
-## 13. Reopen protocol
+Reopen разделён на две metrics.
 
-Reopen разделён на две величины.
+### 18.1. Open-only
 
-### 13.1. Open-only
+Только открытие/закрытие storage handles.
 
-Измеряется открытие и закрытие storage handles без требования выполнить indexed query.
+### 18.2. Query-ready reopen
 
-Это отвечает на вопрос стоимости доступа к уже существующим файлам на уровне handles/initial open.
-
-### 13.2. Query-ready reopen
-
-Измерение включает:
+Включает:
 
 1. open;
 2. metadata/index readiness;
 3. один indexed primary-key lookup.
 
-Поэтому query-ready reopen намеренно включает всю подготовку, необходимую приложению для немедленного indexed read.
+Это одинаковый внешний postcondition: после измеряемой операции storage способен выполнить indexed primary lookup.
 
-Для текущей Polar.DB это существенно: static primary hash/key state и offsets поднимаются в RAM. Поэтому `open-only` и `query-ready` различаются на несколько порядков.
+Для Polar.DB query-ready включает подготовку RAM-resident primary state, поэтому open-only и query-ready закономерно различаются значительно.
 
-Для reopen:
+Parameters:
 
 - warmup operations: 5;
 - measured operations: 30.
 
-Нельзя сравнивать Polar.DB `query-ready` с SQLite `open-only` или наоборот.
+Нельзя сравнивать Polar.DB query-ready с SQLite open-only или наоборот.
 
-## 14. Correctness protocol
+## 19. Correctness protocol
 
-Timing result принимается только вместе с проверкой логического результата.
+Timing result принимается только вместе с correctness evidence.
 
-### 14.1. Lifecycle
+### 19.1. Lifecycle
 
-Для каждого dataset заранее вычисляется expected:
+Для dataset заранее вычисляются:
 
-- row count;
-- checksum.
+- expected rows;
+- expected checksum.
 
-После выполнения engine возвращает фактические row count/checksum. Они должны совпадать.
+Engine должен вернуть совпадающие фактические значения.
 
-### 14.2. Lookup
+### 19.2. Lookup
 
-Для каждой cold/hot phase отдельно вычисляются:
+Для каждой cold/hot phase независимо вычисляются:
 
 - expected rows для batch key set;
 - expected checksum для batch key set;
 - expected rows для latency key set;
 - expected checksum для latency key set.
 
-Batch и latency sets проверяются независимо.
+Batch и latency sets валидируются отдельно.
 
-В серии `20260810T030729570Z` все проверенные expected/factual значения совпали; при разборе архива было проверено 112 соответствий из 112.
+При разборе publication series `20260810T030729570Z` все 112 проверенных expected/factual соответствий совпали.
 
-Такой подход предотвращает ситуацию, когда engine выглядит «быстрее» из-за пропущенных строк, неправильного key set или неполной materialization.
+Это исключает «ускорение» за счёт пропущенных строк, неправильного key set или неполной выдачи.
 
-## 15. Измеряемые величины
+## 20. Значение lookup samples
 
-Raw artifacts содержат исходные samples; HTML является производным представлением.
+Для `lookup-batch-average` один raw sample `value_ms` означает **среднее время одного query внутри measured batch**.
 
-### Lookup
+То есть при 100 queries/batch sample не является latency всего batch.
 
-Для batch phase:
+Для latency rows:
 
-- `Batches count`;
-- `Queries/batch`;
-- `Total queries`;
+- batch size = 1;
+- sample = один query.
+
+Report также хранит:
+
+- batches count;
+- queries/batch;
+- total queries;
 - returned rows;
-- returned rows/query;
-- массив `batchAvgSamplesMs`.
+- returned rows/query.
 
-Каждое значение `batchAvgSamplesMs` — среднее время **одного query внутри данного measured batch**, а не длительность всего batch.
+## 21. Statistics в статье
 
-Для latency phase:
+Raw JSON/CSV являются первичными данными. HTML — derived report.
 
-- один query на sample;
-- `latencySamplesMs`;
-- batch size в CSV равен 1.
+В текущем черновике headline timings представлены как **median raw samples**, если явно не указано иное.
 
-### Lifecycle
+Для lookup headline hot numbers берутся из `batchAvgSamplesMs` hot phase.
 
-Хранятся массивы raw milliseconds:
+Для lifecycle используются median соответствующих arrays:
 
 - `samplesMs`;
-- при необходимости `openSamplesMs`;
-- для mutations `durableSamplesMs`.
+- `openSamplesMs` для open-only;
+- `durableSamplesMs` для durable mutation.
 
-В статье используются median values raw samples, если явно не указано иное. HTML дополнительно содержит trimmed statistics и throughput derivatives.
+HTML дополнительно выводит trimmed statistics и throughput-derived metrics, но они не должны незаметно подменять median в тексте статьи.
 
-### Artifact size
+## 22. Artifact size
 
-`artifactBytes` — суммарный размер файлов, сформированных engine в рамках соответствующего benchmark case. Это disk footprint конкретного benchmark artifact, а не оценка RAM usage и не «размер СУБД вообще».
+`artifactBytes` — размер файлов, созданных engine в benchmark case.
 
-### Resource snapshots
+Это:
 
-Перед и после измеряемых фаз фиксируются, где применимо:
+- disk footprint конкретного workload;
+- не RAM usage;
+- не размер «СУБД вообще»;
+- не peak temporary IO.
+
+При обсуждении Polar.DB disk footprint нужно учитывать, что query-ready path использует дополнительные RAM arrays.
+
+## 23. Resource snapshots
+
+Harness сохраняет, где применимо:
 
 - available system memory;
 - managed heap bytes;
-- private bytes;
+- process private bytes;
 - working set bytes.
 
-Эти snapshots полезны для диагностики, но в текущем черновике не рассматриваются как точная peak-memory metric.
+Эти значения являются snapshots, а не точной peak-memory telemetry. В текущей статье они используются как diagnostic evidence, но не как строгая peak-memory comparison.
 
-## 16. Publication-ready gate
+## 24. Publication-ready gate
 
-Harness помечает run как publication-ready только если:
+Run помечается publication-ready только если:
 
 - build configuration = Release;
 - JIT optimizer не отключён.
 
-Manifest также сохраняет явные overrides:
+Manifest также сохраняет явные overrides для:
 
-- `DOTNET_TieredCompilation` / `COMPlus_TieredCompilation`;
-- `DOTNET_TieredPGO` / `COMPlus_TieredPGO`;
-- `DOTNET_ReadyToRun` / `COMPlus_ReadyToRun`.
+- Tiered Compilation;
+- Tiered PGO;
+- ReadyToRun.
 
-В основной серии все три оставлены `runtime-default`.
+В основной серии они равны runtime defaults.
 
-Кроме этого coordinator проверяет одинаковый commit и совместимые build settings всех worker processes.
+Coordinator дополнительно проверяет одинаковый commit и build state worker processes.
 
-Debug/smoke runs не должны смешиваться с publication tables.
+Debug/smoke results нельзя смешивать с publication tables.
 
-## 17. Хранение артефактов
+## 25. Immutable artifacts
 
 Latest derived artifacts:
 
@@ -381,7 +505,7 @@ Latest derived artifacts:
 - `<experiment>.raw.json`;
 - `<experiment>.raw.csv`.
 
-Immutable series artifacts:
+Immutable run artifacts:
 
 ```text
 benchmarks/results/raw/<experiment>/<run-id>/
@@ -393,27 +517,24 @@ benchmarks/results/raw/<experiment>/<run-id>/
 benchmarks/results/raw/<experiment>/20260810T030729570Z/
 ```
 
-Внутри сохраняются:
+Внутри сохраняются combined raw, manifest, CSV и отдельные worker JSON.
 
-- `combined.raw.json`;
-- `manifest.json`;
-- `samples.csv`;
-- `sqlite.worker.json`;
-- `polar-db.worker.json`.
+## 26. Полный запуск
 
-Raw JSON/CSV являются первичными данными для количественного анализа; HTML следует рассматривать как derived report.
-
-## 18. Полный запуск
-
-Из корня repository:
+Из repository root:
 
 ```powershell
 pwsh -File .\benchmarks\scripts\run-new-benchmarks.ps1
 ```
 
-Скрипт присваивает один `POLAR_BENCH_RUN_ID` всей серии и последовательно запускает текущий каталог экспериментов.
+Скрипт:
 
-Перед публикационным запуском рекомендуется:
+1. создаёт один series id;
+2. задаёт его как `POLAR_BENCH_RUN_ID`;
+3. собирает shared benchmark library в Release;
+4. последовательно запускает 16 experiment projects в Release.
+
+Перед publication run рекомендуется выполнить полный gate:
 
 ```powershell
 git status --short
@@ -427,97 +548,91 @@ dotnet build $solution.FullName -c Release --no-restore
 dotnet test $solution.FullName -c Release --no-build
 ```
 
-Publication benchmark следует запускать только на ожидаемом commit, clean working tree и после зелёного полного test gate.
+Run следует начинать только на ожидаемом commit и clean working tree после зелёного полного test suite.
 
-## 19. Интерпретационные ограничения
+## 27. Интерпретация cold/hot
 
-### Cold не означает аппаратно «холодный диск»
+### Cold
 
-Cold phase означает отсутствие explicit file warmup в harness после reopen. Она не выполняет принудительный сброс OS page cache. Поэтому термин должен использоваться как **cold according to benchmark protocol**, а не как гарантированный physical cold-start.
+`Cold after reopen` означает отсутствие explicit file/lookup warmup в harness.
 
-### Hot не означает отсутствие всех системных шумов
+Это **не гарантирует очищенный OS page cache**. Поэтому в статье нельзя писать «полностью холодный диск».
 
-Hot phase выполняет explicit file/lookup warmup, но по-прежнему измеряется на обычной ОС и может испытывать scheduling, background IO, thermal/power-management effects.
+### Hot
 
-### Массовая выдача и point lookup — разные задачи
+Hot phase выполняет explicit file warmup и lookup warmup, но остаётся wall-clock измерением на обычной Windows системе.
 
-0,004 мс для one-row primary lookup нельзя сравнивать с 20–5000 мс для запроса, материализующего тысячи или миллионы строк, без нормализации на returned rows и описания semantics.
+На результат могут влиять scheduler, power management, background IO и thermal state.
 
-### Volatile mutation не является durable write
+## 28. Power plan и частота CPU
 
-Большие коэффициенты преимущества volatile append/delete должны сопровождаться durable metric. Иначе сравнение будет методологически вводить в заблуждение.
+Основная машина работала с Windows power plan `Сбалансированная`.
 
-### Reopen включает разный объём архитектурно необходимой работы
+Протокол не фиксирует CPU clock на постоянном значении и не отключает boost/power-management transitions. Поэтому результаты характеризуют реальную desktop environment пользователя, а не лабораторно закреплённую частоту CPU.
 
-Query-ready определён одинаковой внешней целью — открыть storage и быть способным выполнить indexed primary lookup. Внутренние действия engine закономерно различаются. Большая разница является результатом архитектуры, а не ошибкой fairness, пока внешний postcondition одинаков.
+Для будущего отдельного high-rigor run можно либо закрепить power profile, либо явно сравнить несколько профилей, но это будет новая серия.
 
-## 20. Дополнительное сравнение версии primary offset cache
+## 29. Version-to-version primary offset cache observation
 
-Для анализа изменения primary lookup используется предыдущая publication-ready серия:
+Предыдущая publication-ready серия:
 
 - run id: `20260808T095444545Z`;
 - commit: `3f8476f34b72b1ec18f875b3ac35143a00adac42`.
 
-Текущая серия:
+Основная серия:
 
 - run id: `20260810T030729570Z`;
 - commit: `e093da0247ec58c7fb78fc381eca52fa002b0967`.
 
-Между этими точками production diff затрагивает `UKeyIndex`: static offsets primary snapshot стали храниться в RAM рядом с key/hash array. Остальные изменения в рассматриваемом diff — regression tests.
+Production diff исследуемого primary path добавляет хранение static offsets в RAM рядом с hash/key snapshot.
 
-Наблюдаемое изменение hot primary lookup на 5 млн:
+На 5 млн hot lookup наблюдалось:
 
-- int: −23,1%;
-- long: −28,6%;
-- Guid: −35,0%;
-- string: −54,4%.
+- int: 5.284 → 4.065 мкс/query, −23.1%;
+- long: 5.488 → 3.921 мкс/query, −28.6%;
+- Guid: 5.862 → 3.811 мкс/query, −35.0%;
+- string: 10.049 → 4.585 мкс/query, −54.4%.
 
-Query-ready reopen одновременно увеличился примерно на 24,3%.
+Query-ready reopen одновременно изменился примерно 564.5 → 701.7 мс, +24.3%.
 
-Это **не строгий causal A/B**, поскольку серии выполнялись в разные моменты. Для публикации этот материал следует называть version-to-version observation. Для оценки причинного эффекта нужен отдельный interleaved A/B run на одной неизменной системе.
+Эти две полные серии запускались в разные моменты, поэтому сравнение является **version-to-version observation**, а не строгим isolated causal A/B.
 
-## 21. Аппаратная среда: поля, которые ещё требуется зафиксировать
+## 30. Главные ограничения
 
-Перед финальной версией статьи необходимо добавить:
+1. Одна Windows-машина: i5-12400, 32 GiB, Samsung 980 PRO NVMe.
+2. Balanced power plan; CPU frequency не фиксировалась.
+3. `global.json` невалидно pin'ит SDK; environment snapshot фактически использует SDK 10.0.203.
+4. Cold phase не очищает OS page cache.
+5. Ordinary external lookup возвращает тысячи строк/query; famous external — миллионы. Эти latency нельзя сравнивать с one-row point lookup как одинаковую работу.
+6. Volatile mutation не является durable write latency.
+7. `artifactBytes` не является RAM consumption.
+8. Resource snapshots не являются точным peak-memory profile.
+9. Version-to-version observation не заменяет interleaved A/B.
+10. Результаты Windows/NVMe нельзя без нового run переносить на Linux, SATA или другой CPU.
 
-- точную модель CPU;
-- physical cores / logical processors;
-- nominal/max clock;
-- объём RAM;
-- число модулей RAM;
-- configured memory speed;
-- модель physical disk, на котором расположен `D:\projects\Polar.DB`;
-- media type и bus type (NVMe/SATA и т. п.);
-- размер volume и свободное место в момент описания;
-- точную редакцию/version/build Windows;
-- активный Windows power plan;
-- `dotnet --info`;
-- installed .NET SDKs/runtimes;
-- commit и git cleanliness, если среда фиксируется повторно.
-
-Эти данные не нужно смешивать с benchmark manifest: manifest остаётся машинно записанным evidence конкретного run, а hardware appendix дополняет его человекочитаемым описанием платформы.
-
-## 22. Шаблон описания среды для статьи
-
-После получения system snapshot раздел можно заполнить в форме:
-
-> Эксперименты выполнялись на одном компьютере под управлением Windows [edition/version/build], x64. Процессор — [CPU], [physical] физических и [logical] логических ядер/потоков. Оперативная память — [RAM] GB, [modules] модулей, configured speed [MHz]. Рабочие файлы benchmark размещались на [disk model], [media/bus type], volume D:. Использовался .NET SDK [SDK], runtime .NET 10.0.7 x64; benchmark assemblies собирались в Release. На момент publication series commit Polar.DB был `e093da0247ec58c7fb78fc381eca52fa002b0967`, рабочее дерево — clean.
-
-## 23. Что допустимо утверждать по текущей серии
+## 31. Что допустимо утверждать
 
 Допустимо:
 
-- указывать measured medians для конкретного experiment/phase/row count;
-- сравнивать engines внутри одной одинаково определённой операции;
-- обсуждать trade-off между fast primary steady-state lookup и expensive query-ready reopen;
-- обсуждать disk artifact footprint;
-- отмечать, что heavy external result materialization сильнее у SQLite в данной серии.
+- публиковать median конкретного experiment/phase/row count;
+- сравнивать engines внутри одной логически одинаковой операции;
+- обсуждать measured trade-off между steady-state primary lookup и query-ready reopen;
+- сравнивать disk artifact footprint в рамках одинакового workload;
+- показывать, что heavy external materialization в этой серии быстрее у SQLite;
+- отдельно показывать volatile и durable mutation results.
 
 Недопустимо без дополнительных экспериментов:
 
 - «Polar.DB быстрее SQLite вообще»;
-- переносить результаты Windows на Linux;
-- считать volatile append полной durable latency;
-- считать `cold after reopen` полностью очищенным OS cache;
-- приписывать весь version-to-version speedup только одной micro-optimization как строго доказанный causal effect;
-- экстраполировать 5 млн на произвольные размеры данных без scaling study.
+- «cold = физически очищенный диск»;
+- «volatile append = durable write»;
+- переносить результаты на другую ОС/машину;
+- считать весь version-to-version speedup строго причинным эффектом одной строки оптимизации;
+- утверждать, что `global.json` закреплял SDK 10.0.203.
+
+## 32. Связанные файлы
+
+- `POLAR_DB_ARTICLE_DRAFT.md` — основной научный текст и наиболее существенные результаты.
+- `EXPERIMENT_METHOD.md` — этот протокол.
+- `EXPERIMENT_ENVIRONMENT.md` — machine/.NET snapshot и reproducibility notes.
+- `benchmarks/docs/README.md` — техническая документация benchmark harness.
