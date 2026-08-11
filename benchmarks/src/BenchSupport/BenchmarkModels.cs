@@ -140,7 +140,8 @@ public sealed record BenchmarkEnvironmentManifest(
     string TimeZone,
     string Culture,
     long? DriveTotalBytes,
-    long? DriveAvailableBytes);
+    long? DriveAvailableBytes,
+    string? SqliteNativeVersion = null);
 
 public sealed record BenchmarkRunManifest(
     string RunId,

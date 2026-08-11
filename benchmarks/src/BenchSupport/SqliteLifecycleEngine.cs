@@ -86,16 +86,26 @@ internal static class SqliteLifecycleEngine
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
 
+        // Dataset creation uses the provider defaults, including connection pooling.
+        // Clear those handles before measuring and disable pooling for every measured reopen
+        // so Dispose() closes the physical SQLite connection on each iteration.
+        SqliteConnection.ClearAllPools();
+        var reopenConnectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = db,
+            Pooling = false
+        }.ToString();
+
         var openOnly = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
         {
-            using var connection = new SqliteConnection($"Data Source={db}");
+            using var connection = new SqliteConnection(reopenConnectionString);
             connection.Open();
         });
 
         var expectedLookup = BenchmarkChecksum.HashRows(new[] { data[0] });
         var queryReady = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
         {
-            using var connection = new SqliteConnection($"Data Source={db}");
+            using var connection = new SqliteConnection(reopenConnectionString);
             connection.Open();
             using var session = SqliteLookupSession.Create(connection, ExperimentKind.PkIntLookup);
             var query = session.Query(data[0].Id);

@@ -61,7 +61,8 @@ internal static class BenchmarkEnvironment
             TimeZone: TimeZoneInfo.Local.Id,
             Culture: CultureInfo.CurrentCulture.Name,
             DriveTotalBytes: DriveValue(drive, total: true),
-            DriveAvailableBytes: DriveValue(drive, total: false));
+            DriveAvailableBytes: DriveValue(drive, total: false),
+            SqliteNativeVersion: SqliteNativeVersion());
     }
 
     public static string NewRunId(string experimentId)
@@ -87,6 +88,22 @@ internal static class BenchmarkEnvironment
         }
 
         return "runtime-default";
+    }
+
+    private static string SqliteNativeVersion()
+    {
+        try
+        {
+            using var connection = new SqliteConnection("Data Source=:memory:;Pooling=False");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT sqlite_version();";
+            return command.ExecuteScalar()?.ToString() ?? "unknown";
+        }
+        catch
+        {
+            return "unknown";
+        }
     }
 
     private static string Sanitize(string value)
