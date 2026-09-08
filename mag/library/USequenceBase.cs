@@ -35,42 +35,10 @@ namespace Polar.DB
                 fs.Position = 0L;
                 nelements = br.ReadInt64();
 
-                //// если длина элементов фиксирована, устанавливаем на условный конец, если нет -устанавливаем на начало пустого
-                //if (elem_size > 0) fs.Position = 8 + nelements * elem_size;
-                //else
-                //{
-                //    // fs.Position = fs.Length; // Этот вариант породит ошибку, если реальный размер файла больше, чем занимают элементы
-                //    //this.Scan((off, ob) => true); // Это решение почему-то раз в 15 медленнее следующего
-                //    long cnt = this.Count();
-                //    for (long ii = 0; ii < cnt; ii++)
-                //    {
-                //        GetElement();
-                //    }
-                //}
-
                 append_offset = fs.Length;
                 fs.Position = append_offset;
             }
 
-            // ==== Это не очень экономный вариант вычисления append_offset:
-            //else
-            //{ // считываем количество элементов, устанавливаем Position
-            //    fs.Position = 0L;
-            //    nelements = br.ReadInt64();
-            //    // если длина элементов фиксирована, устанавливаем на условный конец, если нет -устанавливаем на начало пустого
-            //    if (elem_size > 0) fs.Position = 8 + nelements * elem_size;
-            //    else
-            //    {
-            //        // fs.Position = fs.Length; // Этот вариант породит ошибку, если реальный размер файла больше, чем занимают элементы
-            //        //this.Scan((off, ob) => true); // Это решение почему-то раз в 15 медленнее следующего
-            //        long cnt = this.Count();
-            //        for (long ii = 0; ii < cnt; ii++)
-            //        {
-            //            GetElement();
-            //        }
-            //    }
-            //    append_offset = fs.Position;
-            //}
         }
         /// <summary>
         /// Делает последовательность с нулевым количеством элементов

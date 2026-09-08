@@ -1,0 +1,400 @@
+﻿using System.Text;
+//using PolarDB;
+
+namespace Polar.DB
+{
+    public class TextFlow
+    {
+        public static void Serialize(TextWriter tw, object v, PType tp)
+        {
+            switch (tp.Vid)
+            {
+                case PTypeEnumeration.none: { return; }
+                case PTypeEnumeration.boolean: { tw.Write((bool)v?'t':'f'); return; }
+                case PTypeEnumeration.@byte: { tw.Write(((byte)v).ToString()); return; }
+                case PTypeEnumeration.character: { tw.Write((char)v); return; }
+                case PTypeEnumeration.integer: { tw.Write((int)v); return; }
+                case PTypeEnumeration.longinteger: { tw.Write((long)v); return; }
+                case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }
+                case PTypeEnumeration.fstring:
+                    {
+                        var type = (PTypeFString)tp;
+                        string value = (string)v;
+                        if (value.Length > type.Length) throw new ArgumentException("Fixed string value exceeds declared length.", nameof(v));
+                        tw.Write('\"');
+                        tw.Write(value.Replace("\\", "\\\\").Replace("\"", "\\\""));
+                        tw.Write('\"');
+                        return;
+                    }
+                case PTypeEnumeration.sstring:
+                    {
+                        tw.Write('\"');
+                        tw.Write(((string)v).Replace("\\", "\\\\").Replace("\"", "\\\""));
+                        tw.Write('\"');
+                        return;
+                    }
+                case PTypeEnumeration.record:
+                    {
+                        object[] rec = (object[])v;
+                        PTypeRecord tp_rec = (PTypeRecord)tp;
+                        if (rec.Length != tp_rec.Fields.Length) throw new Exception("Err in Serialize: wrong record field number");
+                        tw.Write('{');
+                        for (int i = 0; i < rec.Length; i++)
+                        {
+                            if (i != 0) tw.Write(',');
+                            Serialize(tw, rec[i], tp_rec.Fields[i].Type);
+                        }
+                        tw.Write('}');
+                        return;
+                    }
+                case PTypeEnumeration.sequence:
+                    {
+                        PType tp_element = ((PTypeSequence)tp).ElementType;
+                        object[] elements = (object[])v;
+                        tw.Write('[');
+                        bool isfirst = true;
+                        foreach (object el in elements)
+                        {
+                            if (!isfirst) tw.Write(','); isfirst = false;
+                            Serialize(tw, el, tp_element);
+                        }
+                        tw.Write(']');
+                        return;
+                    }
+                case PTypeEnumeration.union:
+                    {
+                        PTypeUnion tp_uni = (PTypeUnion)tp;
+                        // тег - 1 байт
+                        int tag = (int)((object[])v)[0];
+                        object subval = ((object[])v)[1];
+                        if (tag < 0 || tag >= tp_uni.Variants.Length) throw new Exception("Err in Serialize: wrong union tag");
+                        tw.Write(tag);
+                        tw.Write('^');
+                        Serialize(tw, subval, tp_uni.Variants[tag].Type);
+                        return;
+                    }
+                default: throw new NotSupportedException($"Text serialization does not support type {tp.Vid}.");
+            }
+        }
+        private static int intend = 4;
+        private static void Intend(TextWriter tw, int nspaces)
+        {
+            tw.Write('\n'); for (int i = 0; i < nspaces; i++) tw.Write(' ');
+        }
+        private static bool IsSimple(PType tp)
+        {
+            if (tp.IsAtom || tp.Vid == PTypeEnumeration.sstring) return true;
+            if (tp.Vid == PTypeEnumeration.record)
+            {
+                PTypeRecord rec = (PTypeRecord)tp;
+                bool simple = true;
+                for (int i = 0; i < rec.Fields.Length; i++)
+                {
+                    var t = rec.Fields[i].Type;
+                    if (!(t.IsAtom || t.Vid == PTypeEnumeration.sstring)) { simple = false; break; }
+                }
+                if (simple) return true;
+            }
+            return false;
+
+        }
+        public static void SerializeFormatted(TextWriter tw, object v, PType tp, int level)
+        {
+            Intend(tw, level * intend);
+            switch (tp.Vid)
+            {
+                case PTypeEnumeration.none: { return; }
+                case PTypeEnumeration.boolean: { tw.Write((bool)v ? 't' : 'f'); return; }
+                case PTypeEnumeration.@byte: { tw.Write(((byte)v).ToString()); return; }
+                case PTypeEnumeration.character: { tw.Write((char)v); return; }
+                case PTypeEnumeration.integer: { tw.Write((int)v); return; }
+                case PTypeEnumeration.longinteger: { tw.Write((long)v); return; }
+                case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }
+                case PTypeEnumeration.fstring:
+                    {
+                        var type = (PTypeFString)tp;
+                        string value = (string)v;
+                        if (value.Length > type.Length) throw new ArgumentException("Fixed string value exceeds declared length.", nameof(v));
+                        tw.Write('\"');
+                        tw.Write(value.Replace("\\", "\\\\").Replace("\"", "\\\""));
+                        tw.Write('\"');
+                        return;
+                    }
+                case PTypeEnumeration.sstring:
+                    {
+                        tw.Write('\"');
+                        tw.Write(((string)v).Replace("\\", "\\\\").Replace("\"", "\\\""));
+                        tw.Write('\"');
+                        return;
+                    }
+                case PTypeEnumeration.record:
+                    {
+                        object[] rec = (object[])v;
+                        PTypeRecord tp_rec = (PTypeRecord)tp;
+                        if (rec.Length != tp_rec.Fields.Length) throw new Exception("Err in Serialize: wrong record field number");
+                        bool simple = IsSimple(tp);
+                        if (simple) { Serialize(tw, v, tp); return; }
+                        tw.Write('{');
+                        for (int i = 0; i < rec.Length; i++)
+                        {
+                            if (i != 0) tw.Write(',');
+                            SerializeFormatted(tw, rec[i], tp_rec.Fields[i].Type, level+1);
+                        }
+
+                        Intend(tw, level * intend);
+                        tw.Write('}');
+                        return;
+                    }
+                case PTypeEnumeration.sequence:
+                    {
+                        PType tp_element = ((PTypeSequence)tp).ElementType;
+                        object[] elements = (object[])v;
+                        tw.Write('[');
+                        bool isfirst = true;
+                        foreach (object el in elements)
+                        {
+                            if (!isfirst) tw.Write(','); isfirst = false;
+                            SerializeFormatted(tw, el, tp_element, level+1);
+                        }
+                        Intend(tw, level * intend);
+                        tw.Write(']');
+                        return;
+                    }
+                case PTypeEnumeration.union:
+                    {
+                        PTypeUnion tp_uni = (PTypeUnion)tp;
+                        // тег - 1 байт
+                        int tag = (int)((object[])v)[0];
+                        object subval = ((object[])v)[1];
+                        if (tag < 0 || tag >= tp_uni.Variants.Length) throw new Exception("Err in Serialize: wrong union tag");
+                        tw.Write(tag);
+                        tw.Write('^');
+                        if (IsSimple(tp_uni.Variants[tag].Type))
+                        {
+                            Serialize(tw, subval, tp_uni.Variants[tag].Type);
+                            return;
+                        }
+                        SerializeFormatted(tw, subval, tp_uni.Variants[tag].Type, level+1);
+                        return;
+                    }
+                default: throw new NotSupportedException($"Formatted text serialization does not support type {tp.Vid}.");
+            }
+        }
+        public static void SerializeFlowToSequense(TextWriter tw, IEnumerable<object> flow, PType tp)
+        {
+            tw.Write('[');
+            bool ft = true;
+            foreach (object ob in flow)
+            {
+                if (!ft) tw.Write(',');
+                ft = false;
+                Serialize(tw, ob, tp);
+            }
+            tw.Write(']');
+            
+        }
+        public static void SerializeFlowToSequenseFormatted(TextWriter tw, IEnumerable<object> flow, PType tp, int level)
+        {
+            tw.Write('\n'); for (int i = 0; i < level * intend; i++) tw.Write(' ');
+            tw.Write('[');
+            bool ft = true;
+            foreach (object ob in flow)
+            {
+                if (!ft) tw.Write(',');
+                ft = false;
+                SerializeFormatted(tw, ob, tp, level+1);
+            }
+            tw.Write('\n'); for (int i = 0; i < level * intend; i++) tw.Write(' ');
+            tw.Write(']');
+            tw.Flush();
+
+        }
+
+
+        public static object Deserialize(TextReader tr, PType tp)
+        { TextFlow tf = new TextFlow(tr); tf.Skip(); return tf.Des(tp); }
+        public static IEnumerable<object> DeserializeSequenseToFlow(TextReader tr, PType tp)
+        {
+            TextFlow tf = new TextFlow(tr);
+            tf.Skip();
+            char c = tf.ReadChar();
+            if (c != '[') throw new Exception("Err in DeserializeSequenseToFlow");
+
+            bool firsttime = true;
+            while (true)
+            {
+                tf.Skip();
+                //выхожу по закрывающей скобке
+                if (firsttime && tr.Peek() == ']') { c = (char)tr.Read(); break; }
+                firsttime = false;
+                yield return tf.Des(tp);
+                tf.Skip();
+                c = (char)tr.Read();
+                if (c == ']') break;
+                else if (c == ',') continue;
+                throw new Exception("Polar syntax error 19333");
+            }
+        }
+
+        // Более удобный объект для парсинга TextFlow
+        private TextReader tr;
+        public TextFlow(TextReader tr) { this.tr = tr; }
+        public void Skip()
+        {
+            while (char.IsWhiteSpace((char)tr.Peek())) tr.Read();
+        }
+        public bool ReadBoolean()
+        {
+            int c = tr.Read();
+            return c switch
+            {
+                't' => true,
+                'f' => false,
+                -1 => throw new EndOfStreamException("Unexpected end of boolean value."),
+                _ => throw new InvalidDataException($"Invalid boolean token '{(char)c}'.")
+            };
+        }
+        private string ReadWhile(Func<char, bool> yesFunc)
+        {
+            StringBuilder sb = new StringBuilder();
+            char c;
+            while (yesFunc(c = (char)tr.Peek()))
+            {
+                c = (char)tr.Read();
+                sb.Append((char)c);
+            }
+            return sb.ToString();
+        }
+        public byte ReadByte()
+        {
+            string s = ReadWhile(char.IsDigit);
+            if (s.Length == 0) throw new InvalidDataException("Byte value must contain decimal digits.");
+            return byte.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        public char ReadChar() { return (char)tr.Read(); }
+        public int ReadInt32()
+        {
+            int sign = 1;
+            if (tr.Peek() == '-') { sign = -1; tr.Read(); }
+            string s = ReadWhile(c => c >= '0' && c <= '9');
+            int v = Int32.Parse(s);
+            return sign * v;
+        }
+        public long ReadInt64()
+        {
+            int sign = 1;
+            if (tr.Peek() == '-') { sign = -1; tr.Read(); }
+            string s = ReadWhile(c => c >= '0' && c <= '9');
+            long v = Int64.Parse(s);
+            return sign * v;
+        }
+        public double ReadDouble()
+        {
+            // Наверное, это неправильно, но пока сойдет
+            string s = ReadWhile(c => (c >= '0' && c <= '9') || c == '-' || c == 'e' || c == '.');
+            double v = double.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+            return v;
+        }
+        public string ReadString()
+        {
+            if (tr.Read() != '"') throw new InvalidDataException("String value must start with a quote.");
+            StringBuilder sb = new StringBuilder();
+            while (true)
+            {
+                int c = tr.Read();
+                if (c == -1) throw new EndOfStreamException("String value is missing a closing quote.");
+                if (c == '"') return sb.ToString();
+                if (c == '\\')
+                {
+                    c = tr.Read();
+                    if (c == -1) throw new EndOfStreamException("String escape sequence is incomplete.");
+                    if (c == 'n') sb.Append('\n');
+                    else if (c == 'r') sb.Append('\r');
+                    else if (c == 't') sb.Append('\t');
+                    else sb.Append((char)c);
+                }
+                else sb.Append((char)c);
+            }
+        }
+
+        private object Des(PType tp)
+        {
+            switch (tp.Vid)
+            {
+                case PTypeEnumeration.none: { return null; }
+                case PTypeEnumeration.boolean: { return ReadBoolean(); }
+                case PTypeEnumeration.@byte: { return ReadByte(); }
+                case PTypeEnumeration.character: { return ReadChar(); }
+                case PTypeEnumeration.integer: { return ReadInt32(); }
+                case PTypeEnumeration.longinteger: { return ReadInt64(); }
+                case PTypeEnumeration.real: { return ReadDouble(); }
+                case PTypeEnumeration.fstring:
+                    {
+                        string value = ReadString();
+                        var type = (PTypeFString)tp;
+                        if (value.Length > type.Length) throw new InvalidDataException("Fixed string value exceeds declared length.");
+                        return value;
+                    }
+                case PTypeEnumeration.sstring: { return ReadString(); }
+                case PTypeEnumeration.record:
+                    {
+                        PTypeRecord tp_rec = (PTypeRecord)tp;
+                        object[] rec = new object[tp_rec.Fields.Length];
+                        char c = (char)tr.Read();
+                        if (c != '{') throw new Exception("Polar syntax error 19327");
+                        for (int i = 0; i < rec.Length; i++)
+                        {
+                            Skip();
+                            object v = Des(tp_rec.Fields[i].Type);
+                            rec[i] = v;
+                            if (i < rec.Length - 1)
+                            {
+                                Skip();
+                                c = (char)tr.Read();
+                                if (c != ',') throw new Exception("Polar syntax error 19329");
+                            }
+                            Skip();
+                        }
+                        c = (char)tr.Read();
+                        if (c != '}') throw new Exception("Polar syntax error 19328");
+                        return rec;
+                    }
+                case PTypeEnumeration.sequence:
+                    {
+                        PType tp_element = ((PTypeSequence)tp).ElementType;
+                        List<object> lsequ = new List<object>();
+                        char c = (char)tr.Read();
+                        if (c != '[') throw new Exception("Polar syntax error 19331");
+                        bool firsttime = true;
+                        while (true)
+                        {
+                            Skip();
+                            //TODO: неудачно, что дважды проверяю и выхожу по закрывающей скобке
+                            if (firsttime && tr.Peek() == ']') { c = (char)tr.Read(); break; }
+                            firsttime = false;
+                            lsequ.Add(Des(tp_element));
+                            Skip();
+                            c = (char)tr.Read();
+                            if (c == ']') break;
+                            else if (c == ',') continue;
+                            throw new Exception("Polar syntax error 19333");
+                        }
+                        if (c != ']') throw new Exception("Polar syntax error 19332");
+                        object[] elements = lsequ.ToArray();
+                        return elements;
+                    }
+                case PTypeEnumeration.union:
+                    {
+                        PTypeUnion tp_uni = (PTypeUnion)tp;
+                        // тег - 1 байт
+                        int tag = ReadInt32();
+                        Skip(); int c = tr.Read(); if (c != '^') throw new Exception("Polar syntax error 19335");
+                        Skip();
+                        object subval = Des(tp_uni.Variants[tag].Type);
+                        return new object[] { tag, subval };
+                    }
+                default: { throw new Exception($"Err in Deserialize: unknown type variant {tp.Vid}"); }
+            }
+        }
+    }
+}

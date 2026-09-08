@@ -6,9 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\src\Polar.DB\Polar.DB.csproj" />
-  </ItemGroup>
-
+	
+	<ItemGroup>
+		<ProjectReference Include="..\library\library.csproj" />
+	</ItemGroup>
 </Project>

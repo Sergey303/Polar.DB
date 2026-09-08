@@ -75,10 +75,9 @@
     <File Path="docs/Starting.md" />
     <File Path="docs/WHY_THIS_EXISTS.md" />
   </Folder>
-  <Folder Name="/mag_experiments/">
-    <Project Path="mag_experiments/mag_experiments.csproj" />
-    <Project Path="mag_series/mag_series.csproj" Id="f6325e1f-af3f-4b6f-9e63-835d30af541f" />
-    <Project Path="mag_tests/mag_tests.csproj" Id="f972bce5-9945-4882-a2b0-e4b7ea91eec7" />
+  <Folder Name="/mag/">
+    <Project Path="mag/library/library.csproj" Id="1c562bba-1085-420e-870a-214cbb01de1a" />
+    <Project Path="mag/Sborka/Sborka.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Common/Common.csproj" />
