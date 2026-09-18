@@ -78,6 +78,7 @@
   <Folder Name="/mag/">
     <Project Path="mag/library/library.csproj" Id="1c562bba-1085-420e-870a-214cbb01de1a" />
     <Project Path="mag/Sborka/Sborka.csproj" />
+    <Project Path="mag/TestingZone/TestingZone.csproj" Id="422ea5e3-bf40-489e-bfe1-d81bf4318930" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Common/Common.csproj" />

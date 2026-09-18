@@ -1,5 +1,4 @@
-﻿using Polar.DB;
-using Sborka;
+﻿using Sborka;
 
 int npersons = 5_000_000;
 bool toload = true;
@@ -15,49 +14,20 @@ if (!Directory.Exists(dbPath)) Directory.CreateDirectory(dbPath);
 
 if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
 
-PType tp = new PTypeRecord(
-    new NamedType("code", new PType(PTypeEnumeration.integer)),
-    new NamedType("name", new PType(PTypeEnumeration.sstring)),
-    new NamedType("age", new PType(PTypeEnumeration.integer)));
+// =========== Стандартный тест на key-value: загрузка и выборки
+//Sborka.mag_test1.Run(dbPath, npersons, toload);
+// Результаты на 5 млн.:  загрузка 1254 мс. выборка 80 мс. / 10 тыс. запрсов. Подключение 222 мс., запросы 88 мс.
 
-// Генератор стримов
-int cnt = 0;
-Func<Stream> GenStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
+// =========== тест на подмену значений
+//Sborka.mag_test2.Run(dbPath, npersons, toload);
 
-USequ usequence = new USequ(tp, GenStream, ob => (int)((object[])ob)[0], k => (int)k);
+// =========== тест на загрузку через добавление
+//Sborka.mag_test3.Run(dbPath, npersons, toload);
+// Результаты на 5 млн.:  загрузка 1696 мс. выборка 4 мс. / 10 тыс. запрсов. Подключение 1770 мс., запросы 4 мс.
 
-var flow = Enumerable.Range(0, npersons)
-    .Select(i => new object[] { npersons - i - 1, i.ToString(), 22 });
+// =========== тест на пустые элементы
+//Sborka.mag_test4.Run(dbPath, npersons, toload);
 
-if (toload)
-{
-    sw.Restart();
-    usequence.Load(flow);
-    sw.Stop();
-    Console.WriteLine("Load ok. duration=" + sw.ElapsedMilliseconds);
-}
-else
-{
-    sw.Restart();
-    usequence.Refresh();
-    sw.Stop();
-    Console.WriteLine("Refresh ok. duration=" + sw.ElapsedMilliseconds);
-}
-
-//foreach (object ob in usequence.ElementValues()) Console.WriteLine(tp.Interpret(ob));
-int cod = npersons * 2 / 3;
-object? ob = usequence.GetByKey(cod);
-
-if (ob != null) Console.WriteLine(tp.Interpret(ob));
-else Console.WriteLine($"item with cod {cod} not found");
-
-sw.Restart();
-for (int i = 0; i < 10000; i++)
-{
-    int k = rnd.Next(npersons);
-    object? v = usequence.GetByKey(k);
-    if (v != null) { }//Console.WriteLine(tp.Interpret(v));
-    else Console.WriteLine($"item with cod {k} not found");
-}
-sw.Stop();
-Console.WriteLine("10K GetByKey ok. duration=" + sw.ElapsedMilliseconds);
+// =========== тест на сканирование
+Sborka.mag_test5.Run(dbPath, npersons, toload);
+// загрузка 5 млн. в базовую последовательность 660 мс.

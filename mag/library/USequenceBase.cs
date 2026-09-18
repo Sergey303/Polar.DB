@@ -163,24 +163,24 @@ namespace Polar.DB
                 if (!ok) break;
             }
         }
-        public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
+        public IEnumerable<(object, long)> ElementOffsetValuePairs()
         {
             fs.Position = 8L;
             for (long i = 0; i < Count(); i++)
             {
                 long off = fs.Position;
                 object pobject = GetElement();
-                yield return new Tuple<long, object>(off, pobject);
+                yield return (pobject, off);
             }
         }
-        public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
+        public IEnumerable<(object, long)> ElementOffsetValuePairs(long offset, long number)
         {
             fs.Position = offset;
             for (long i = 0; i < number; i++)
             {
                 long off = fs.Position;
                 object pobject = GetElement();
-                yield return new Tuple<long, object>(off, pobject);
+                yield return (pobject, off);
             }
         }
 
