@@ -43,7 +43,7 @@ namespace Sborka
                     int hkey = hashOfKey(key);
                     hkey_list.Add(hkey);
                     offset_list.Add(off);
-                } 
+                }
             }
             hkey_arr = hkey_list.ToArray();
             offset_arr = offset_list.ToArray();
@@ -69,10 +69,10 @@ namespace Sborka
             int maxindex = m - 1;
             var query = Enumerable.Range(minindex, maxindex - minindex + 1)
                 .Select(i => bearing.GetElement(offset_arr[i]))
-                .Where(ob  => keysFunc(ob).Any(c => c.CompareTo(key) == 0));
+                .Where(ob => keysFunc(ob).Any(c => c.CompareTo(key) == 0));
             return query;
         }
-        public void Clear() { hkeys.Clear(); hkey_arr = new int[0]; offsets.Clear(); offset_arr = new long[0] }
+        public void Clear() { hkeys.Clear(); hkey_arr = new int[0]; offsets.Clear(); offset_arr = new long[0]; }
         public void Flush() { hkeys.Flush(); offsets.Flush(); }
         public void Close() { hkeys.Close(); offsets.Close(); }
         public void Refresh()

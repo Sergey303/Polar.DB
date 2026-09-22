@@ -29,7 +29,9 @@ if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
 //Sborka.mag_test4.Run(dbPath, npersons, toload);
 
 // =========== тест на сканирование
-Sborka.mag_test5.Run(dbPath, npersons, toload);
+//Sborka.mag_test5.Run(dbPath, npersons, toload);
 // загрузка 5 млн. в базовую последовательность 660 мс.
 
-
+// =========== тест на внешний индекс
+Sborka.mag_test6.Run(dbPath, npersons, toload);
+// 
