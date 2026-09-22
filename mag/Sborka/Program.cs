@@ -31,3 +31,5 @@ if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
 // =========== тест на сканирование
 Sborka.mag_test5.Run(dbPath, npersons, toload);
 // загрузка 5 млн. в базовую последовательность 660 мс.
+
+
