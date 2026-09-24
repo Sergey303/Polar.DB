@@ -36,9 +36,9 @@ namespace Sborka
                 new object[] { 1, true, "load", 1},
                 new object[] { 0, false, "load", 0},
             });
-            // usequence.AppendElement(new object[] { 2, true, "append", 2 });
-            // usequence.AppendElement(new object[] { 4, false, "append", 3 });
-            // usequence.AppendElement(new object[] { 2, false, "append", 3 });
+            usequence.AppendElement(new object[] { 2, true, "append", 2 });
+            usequence.AppendElement(new object[] { 4, false, "append", 3 });
+            usequence.AppendElement(new object[] { 2, false, "append", 3 });
 
             //foreach (var el in usequence.ElementValues())
             //{
