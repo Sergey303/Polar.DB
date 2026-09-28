@@ -40,13 +40,14 @@ namespace Sborka
         public long Count() => bearing.Count();
         public long CurrenOffset() => bearing.ElementOffset();
         public void Refresh() { bearing.Refresh(); primaryIndex.Refresh(); }
+        internal bool IsOriginal(object ob, long offset) => primaryIndex.IsOriginal(ob, offset);
         public IEnumerable<object> ElementValues()
         {
             var flow = bearing.ElementOffsetValuePairs()
                     .Where(p => primaryIndex.IsOriginal(p.Item1, p.Item2))
                     .Select(obofpair => obofpair.Item1)
                     .Concat(primaryIndex.DynFlow().Select(p => p.Item1))
-                    .Where(ob => !(bool)((object[])ob)[1]);
+                    .Where(ob => !isEmpty(ob));
             return flow;
         }
         public object GetElement(long offset)

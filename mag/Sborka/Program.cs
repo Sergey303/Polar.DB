@@ -33,5 +33,9 @@ if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
 // загрузка 5 млн. в базовую последовательность 660 мс.
 
 // =========== тест на внешний индекс
-Sborka.mag_test6.Run(dbPath, npersons, toload);
+//Sborka.mag_test6.Run(dbPath, npersons, toload);
+// 
+
+// =========== тест на внешний индекс
+Sborka.mag_test7.Run(dbPath, npersons, toload);
 // 

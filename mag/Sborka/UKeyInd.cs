@@ -281,9 +281,16 @@ namespace Sborka
                     return true;
                 }
             }
-            else
+            else // офсет за границей статики 
             {
-                return false;
+                // если офсет за границей статики, то надо его искать в keyoff_dic
+                if (keyoff_dic.ContainsKey(key))
+                {  // Если есть, то надо проверить офсет
+                    long off = (long)keyoff_dic[key];
+                    if (off  == offset) return true; // оригинал!
+                    else return false;
+                }
+                else return false; //нет в таблице - значит офсет от чего-то другого (?) 
             }
         }
         public IEnumerable<(object, long)> DynFlow()

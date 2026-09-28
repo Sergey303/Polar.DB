@@ -12,10 +12,12 @@ namespace Sborka
         private Func<IComparable, int> hashOfKey;
         // Статическая часть индекса
         private int[] hkey_arr;
-        private long[]? offset_arr;
+        private long[] offset_arr;
         private USequenceBase hkeys;
         private USequenceBase offsets;
-        // Динамическая часть пока не намечена
+
+        // Динамическая часть: словарь hkey -> offsets 
+        private Dictionary<int, HashSet<long>> hkeyoffsets_dic;
 
         public EKeyIndex(Func<Stream> streamGen, USequ bearing,
             Func<object, IEnumerable<IComparable>> keysFunc, Func<IComparable, int> hashOfKey)
@@ -28,6 +30,7 @@ namespace Sborka
             offsets = new USequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
             hkey_arr = new int[0];
             offset_arr = new long[0];
+            hkeyoffsets_dic = new Dictionary<int, HashSet<long>>();
         }
 
         public void Build()
@@ -56,19 +59,33 @@ namespace Sborka
         }
         public IEnumerable<object> GetManyByKey(IComparable key)
         {
-            if (offset_arr == null) return Enumerable.Empty<object>();
             int hkey = hashOfKey(key);
             var ind = Array.BinarySearch(hkey_arr, hkey);
-            if (ind < 0) return Enumerable.Empty<object>();
-            // находим мин индекс minindex такой, minindex >= 0 && hkey_arr[minindex] == hkey
-            int m = ind - 1;
-            while (m >= 0 && hkey_arr[m] == hkey) { m--; }
-            int minindex = m + 1;
-            m = ind + 1;
-            while (m < hkey_arr.Length && hkey_arr[m] == hkey) { m++; }
-            int maxindex = m - 1;
-            var query = Enumerable.Range(minindex, maxindex - minindex + 1)
-                .Select(i => bearing.GetElement(offset_arr[i]))
+
+            // Собираем подходящие офсеты из статической части и динамической части
+            HashSet<long> offsets = new HashSet<long>();
+
+            if (ind >= 0)
+            {   // Ищем в статике
+                // находим мин индекс minindex такой, minindex >= 0 && hkey_arr[minindex] == hkey
+                int m = ind - 1;
+                while (m >= 0 && hkey_arr[m] == hkey) { m--; }
+                int minindex = m + 1;
+                m = ind + 1;
+                while (m < hkey_arr.Length && hkey_arr[m] == hkey) { m++; }
+                int maxindex = m - 1;
+                offsets.UnionWith(Enumerable.Range(minindex, maxindex - minindex + 1).Select(ind => offset_arr[ind]));
+            }
+            if (hkeyoffsets_dic.ContainsKey(hkey))
+            {   // Ищем в динамике
+                offsets.UnionWith(hkeyoffsets_dic[hkey]);
+            }
+            
+            // Поток офсетов 1) превращаем в поток пар элементов-офсетов, 2) фильтруем на оригиналы, 3) в них проверяем на наличие внешнего ключа
+            var query = offsets
+                .Select(o => (bearing.GetElement(o), o))
+                .Where(oboff => bearing.IsOriginal(oboff.Item1, oboff.Item2))
+                .Select(oboff => oboff.Item1)
                 .Where(ob => keysFunc(ob).Any(c => c.CompareTo(key) == 0));
             return query;
         }
@@ -83,7 +100,18 @@ namespace Sborka
         }
         public void OnAppendElement(object element, long offset)
         {
-            throw new NotImplementedException();
+            // Добавляем хеш-ключи в словарь
+            foreach (var hkey in keysFunc(element).Select(k => hashOfKey(k)))
+            {
+                if (hkeyoffsets_dic.ContainsKey(hkey))
+                {
+                    hkeyoffsets_dic[hkey].Add(offset);
+                }
+                else 
+                { 
+                    hkeyoffsets_dic.Add(hkey, new HashSet<long>(new long[] { offset }));
+                }
+            }
         }
     }
 }
