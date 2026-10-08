@@ -113,7 +113,8 @@ internal static class BenchmarkReport
         builder.AppendLine("<h2>Protocol notes</h2>");
         builder.AppendLine("<p>Correctness ignores materialized row order but checks row count and row values.</p>");
         builder.AppendLine("<p>Lookup batch and latency key sets have independent expected row counts and checksums.</p>");
-        builder.AppendLine("<p>RAM values are process-level snapshots from the corresponding isolated engine worker.</p>");
+        builder.AppendLine("<p>RAM values are process-level snapshots from the corresponding isolated engine worker. Query and build scenarios capture the live query-ready or built store before close when applicable.</p>");
+        builder.AppendLine("<p>Managed allocation samples use process-wide GC allocated-byte deltas; GC columns use collection-count deltas for the measured operation.</p>");
         builder.AppendLine("<p>Available RAM is detected from the operating system when possible.</p>");
         builder.AppendLine("<p><b>Reopen:</b> " + BenchmarkReportFormat.Escape(manifest.ReopenDefinition) + "</p>");
         builder.AppendLine("<p><b>Volatile mutation:</b> " + BenchmarkReportFormat.Escape(manifest.VolatileMutationDefinition) + "</p>");
