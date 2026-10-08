@@ -45,10 +45,12 @@ internal static class PolarLookupEngine
 
         BenchmarkProgress.Stage("polar-db " + plan.Name + ": latency " + plan.LatencyKeys.Length + " samples");
         var latency = session.MeasureLatency(plan.LatencyKeys, "polar-db " + plan.Name + " latency");
+        var readyResources = BenchmarkResources.Capture();
+        GC.KeepAlive(store);
         store.Sequence.Close();
 
         return new LookupEngineResult("polar-db-current", "Measured", batch.Samples, latency.Samples,
             plan.BatchKeys.Length, batch.Rows, batch.Checksum, latency.Rows, latency.Checksum,
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
+            BenchmarkPaths.DirBytes(dir), before, readyResources);
     }
 }
