@@ -50,7 +50,7 @@ internal sealed class TypedPrimaryKeyAccessor<TKey> : IPrimaryKeyAccessor
             destinationIndex,
             staleOffsets,
             _selector,
-            static (left, right) => left.CompareTo(right));
+            static (left, right) => ((IComparable)left).CompareTo(right));
 }
 
 internal sealed class DelegatePrimaryKeyAccessor : IPrimaryKeyAccessor
