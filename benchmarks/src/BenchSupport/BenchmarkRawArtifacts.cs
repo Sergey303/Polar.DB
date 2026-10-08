@@ -64,7 +64,7 @@ internal static class BenchmarkRawArtifacts
         IReadOnlyList<LookupRunResult>? lookupRuns)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("run_id,experiment_id,kind,engine,setup_rows,phase,metric,sample_index,value_ms,batch_size");
+        builder.AppendLine("run_id,experiment_id,kind,engine,setup_rows,phase,metric,sample_index,value,unit,batch_size");
 
         if (lifecycleRuns != null)
         {
@@ -148,7 +148,8 @@ internal static class BenchmarkRawArtifacts
         string phase,
         string metric,
         IReadOnlyList<double>? values,
-        long batchSize)
+        long batchSize,
+        string unit = "ms")
     {
         if (values == null) return;
         for (var i = 0; i < values.Count; i++)
@@ -162,6 +163,7 @@ internal static class BenchmarkRawArtifacts
                 .Append(Csv(metric)).Append(',')
                 .Append(i.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(values[i].ToString("R", CultureInfo.InvariantCulture)).Append(',')
+                .Append(Csv(unit)).Append(',')
                 .Append(batchSize.ToString(CultureInfo.InvariantCulture))
                 .AppendLine();
         }
@@ -187,7 +189,8 @@ internal static class BenchmarkRawArtifacts
             phase,
             metric,
             values.Select(value => (double)value).ToArray(),
-            1);
+            1,
+            "bytes");
     }
 
     private static void AppendIntSamples(
@@ -210,7 +213,8 @@ internal static class BenchmarkRawArtifacts
             phase,
             metric,
             values.Select(value => (double)value).ToArray(),
-            1);
+            1,
+            "count");
     }
 
     private static string Csv(string value)
