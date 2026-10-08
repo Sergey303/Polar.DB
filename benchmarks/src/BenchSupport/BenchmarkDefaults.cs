@@ -32,6 +32,13 @@ public static class BenchmarkDefaults
 
     public const int ReopenWarmupOps = 5;
     public const int ReopenMeasuredOps = 30;
+    public const int ReopenTailRows = 10_000;
+
+    public const int ExternalBuildWarmupOps = 2;
+    public const int ExternalBuildMeasuredOps = 10;
+
+    public const int TraversalWarmupOps = 2;
+    public const int TraversalMeasuredOps = 10;
 
     public const int MutationWarmupOps = 200;
     public const int MutationMeasuredOps = 2_000;
