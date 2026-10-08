@@ -139,10 +139,10 @@ namespace Polar.Universal
                 if (replayCount < 0L) return false;
 
                 long replayed = 0L;
-                foreach (var pair in sequence.ElementOffsetValuePairs(state.AppendOffset, replayCount))
+                foreach (var pair in sequence.OffsetValuePairs(state.AppendOffset, replayCount))
                 {
-                    primaryKeyIndex.OnAppendElement(pair.Item2, pair.Item1);
-                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Item2, pair.Item1);
+                    primaryKeyIndex.OnAppendElement(pair.Value, pair.Offset);
+                    if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(pair.Value, pair.Offset);
                     replayed++;
                 }
 
@@ -330,9 +330,11 @@ namespace Polar.Universal
 
         public IEnumerable<object> ElementValues()
         {
-            return sequence.ElementOffsetValuePairs()
-                .Where(pair => IsOriginalAndNotEmpty(pair.Item2, pair.Item1))
-                .Select(pair => pair.Item2);
+            foreach (var pair in sequence.OffsetValuePairs())
+            {
+                if (IsOriginalAndNotEmpty(pair.Value, pair.Offset))
+                    yield return pair.Value;
+            }
         }
 
         public void Scan(Func<long, object, bool> handler)
