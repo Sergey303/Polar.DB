@@ -111,7 +111,7 @@ internal static class BenchmarkReport
     private static void AppendCommonNotes(StringBuilder builder, BenchmarkRunManifest manifest)
     {
         builder.AppendLine("<h2>Protocol notes</h2>");
-        builder.AppendLine("<p>Correctness ignores materialized row order but checks row count and row values.</p>");
+        builder.AppendLine("<p>Correctness ignores materialized row order and checks row count plus row values. The fixed-Int32 reopen-with-tail scenario instead checks the complete primary-value set plus an indexed tail lookup.</p>");
         builder.AppendLine("<p>Lookup batch and latency key sets have independent expected row counts and checksums.</p>");
         builder.AppendLine("<p>RAM values are process-level snapshots from the corresponding isolated engine worker. Query and build scenarios capture the live query-ready or built store before close when applicable.</p>");
         builder.AppendLine("<p>Managed allocation samples use process-wide GC allocated-byte deltas; GC columns use collection-count deltas for the measured operation.</p>");

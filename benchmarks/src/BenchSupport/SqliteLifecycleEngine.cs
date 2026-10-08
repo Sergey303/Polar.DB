@@ -194,7 +194,7 @@ internal static class SqliteLifecycleEngine
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
-        SqliteStore.Create(db, data, withIndexes: false);
+        CreateTinyPrimaryStore(db, data);
 
         var tail = BenchmarkData.Dataset(
             BenchmarkDefaults.ReopenTailRows,
@@ -203,7 +203,8 @@ internal static class SqliteLifecycleEngine
         using (var appendConnection = new SqliteConnection($"Data Source={db}"))
         {
             appendConnection.Open();
-            SqliteStore.InsertRows(appendConnection, tail);
+            SqliteStore.CreatePrimaryIntIndex(appendConnection);
+            InsertTinyPrimaryRows(appendConnection, tail);
             SqliteStore.Flush(appendConnection);
         }
 
@@ -214,25 +215,27 @@ internal static class SqliteLifecycleEngine
             Pooling = false
         }.ToString();
 
-        var expectedLast = BenchmarkChecksum.HashRows(new[] { tail[^1] });
+        var lastKey = checked((int)tail[^1].Id);
         var samples = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
         {
             using var connection = new SqliteConnection(reopenConnectionString);
             connection.Open();
-            ValidatePrimaryLookup(connection, tail[^1].Id, expectedLast, "tail reopen");
+            ValidatePrimaryIntLookup(connection, lastKey, "tail reopen");
         });
 
         using var liveConnection = new SqliteConnection(reopenConnectionString);
         liveConnection.Open();
-        ValidatePrimaryLookup(liveConnection, tail[^1].Id, expectedLast, "tail reopen live snapshot");
+        ValidatePrimaryIntLookup(liveConnection, lastKey, "tail reopen live snapshot");
         var liveResources = BenchmarkResources.Capture();
         GC.KeepAlive(liveConnection);
 
         var rows = checked(data.LongLength + tail.LongLength);
-        var checksum = BenchmarkChecksum.HashRows(data.Concat(tail));
+        var checksum = BenchmarkChecksum.HashInt32Values(
+            data.Select(row => checked((int)row.Id))
+                .Concat(tail.Select(row => checked((int)row.Id))));
         return Result(
             "sqlite",
-            "query-ready reopen with appended tail",
+            "fixed-int query-ready reopen with appended tail",
             samples,
             rows,
             checksum,
@@ -448,6 +451,34 @@ internal static class SqliteLifecycleEngine
         }
 
         return new QueryResult(rows, accumulator.Finish());
+    }
+
+    private static void InsertTinyPrimaryRows(SqliteConnection connection, IEnumerable<Row> rows)
+    {
+        using var transaction = connection.BeginTransaction();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO rows(id) VALUES($id)";
+        var id = command.Parameters.Add("$id", SqliteType.Integer);
+        foreach (var row in rows)
+        {
+            id.Value = checked((int)row.Id);
+            command.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+    }
+
+    private static void ValidatePrimaryIntLookup(
+        SqliteConnection connection,
+        int key,
+        string scenario)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM rows WHERE id=$id";
+        command.Parameters.AddWithValue("$id", key);
+        var value = command.ExecuteScalar();
+        if (value == null || Convert.ToInt32(value) != key)
+            throw new InvalidDataException("SQLite " + scenario + " lookup returned an unexpected Int32 key.");
     }
 
     private static void ValidatePrimaryLookup(

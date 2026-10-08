@@ -29,6 +29,13 @@ The script assigns one `POLAR_BENCH_RUN_ID` to the whole series. Engine order is
 alternated deterministically by default. Set `POLAR_BENCH_ENGINE_ORDER` to
 `sqlite-first` or `polar-first` only when a fixed order is required.
 
+The lifecycle suite also contains focused scenarios used to isolate current storage work:
+
+- `BuildPrimaryIntOnly` — fixed Int32 primary-index build, including Load/Build allocations and GC counts;
+- `BuildExternalIndexesOnly` — build and flush of the four typed external indexes over prepared primary storage;
+- `TraversalOnly` — full logical row traversal without setup/reopen time in the measured interval;
+- `ReopenWithTail` — fixed-Int32 query-ready reopen with 10,000 rows beyond the persisted primary snapshot, isolating tail replay from variable-record recovery scanning.
+
 For lifecycle smoke runs, row counts and operation counts can be overridden:
 
 ```powershell
@@ -75,9 +82,11 @@ Lookup HTML reports use explicit names:
 - `Returned rows` is the total number of materialized rows returned by all lookup requests.
 - `Returned rows/query = Returned rows / Total queries`.
 
-For `lookup-batch-average` CSV rows, `value_ms` is the average time per query inside the
-measured batch and `batch_size` is the actual number of queries used to produce that sample.
-For single-query latency rows, `batch_size` is `1`.
+Raw CSV uses a generic `value` column plus an explicit `unit` column. Timing rows use
+`unit=ms`; managed-allocation rows use `unit=bytes`; GC collection deltas use
+`unit=count`. For `lookup-batch-average` rows, `value` is the average milliseconds per
+query inside the measured batch and `batch_size` is the actual number of queries used to
+produce that sample. For single-query latency rows, `batch_size` is `1`.
 
 Timing tables include `Rows/sec by trimmed` next to trimmed timing columns.
 For latency tables this is calculated from trimmed single-query latency and the
@@ -87,7 +96,12 @@ Lifecycle reports distinguish:
 
 - `open-only` from `query-ready reopen`;
 - `volatile mutation` from a batch containing a persistence boundary;
-- per-operation raw mutation samples from per-batch durable averages.
+- per-operation raw mutation samples from per-batch durable averages;
+- Load/Build timing from process-wide managed allocated-byte and Gen0/1/2 collection deltas.
+
+For build and query scenarios, resource snapshots are captured while the built/query-ready
+store is still alive when applicable. This makes retained index memory visible instead of
+measuring only the process after the store has been closed.
 
 Green cells mark winners for comparable metrics. Lower is better for timings and
 memory sizes. Higher is better for rows/sec and available RAM.

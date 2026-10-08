@@ -14,7 +14,7 @@ function Get-ExperimentId([string] $projectName) {
     "ExternalFamousLongLookup" { return "external-famous-long-lookup" }
     "ExternalFamousGuidLookup" { return "external-famous-guid-lookup" }
     "ExternalFamousStringLookup" { return "external-famous-string-lookup" }
-    "BuildPrimaryIntOnly" { return "build-primary-int-only" }
+    "BuildPrimaryIntOnly" { return "build-primary-int-only-id-only-experiment" }
     "BuildExternalIndexesOnly" { return "build-external-indexes-only" }
     "TraversalOnly" { return "traversal-only" }
     "ReopenWithTail" { return "reopen-with-tail" }
