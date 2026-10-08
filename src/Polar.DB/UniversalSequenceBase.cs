@@ -287,14 +287,25 @@ namespace Polar.DB
 
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
         {
-            foreach (var pair in OffsetValuePairs())
-                yield return new Tuple<long, object>(pair.Offset, pair.Value);
+            fs.Position = HeaderSize;
+            for (long i = 0; i < Count(); i++)
+            {
+                long off = fs.Position;
+                object pobject = GetElement();
+                yield return new Tuple<long, object>(off, pobject);
+            }
         }
 
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
         {
-            foreach (var pair in OffsetValuePairs(offset, number))
-                yield return new Tuple<long, object>(pair.Offset, pair.Value);
+            ValidateRange(offset, number);
+            fs.Position = offset;
+            for (long i = 0; i < number; i++)
+            {
+                long off = fs.Position;
+                object pobject = GetElement();
+                yield return new Tuple<long, object>(off, pobject);
+            }
         }
 
         public void Sort32(Func<object, int> keyFun)
