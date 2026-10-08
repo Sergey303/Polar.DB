@@ -11,6 +11,8 @@ internal static class BenchmarkReportTables
         if (engines.Any(engine => engine.DurableSamplesMs != null)) AppendMutationBreakdown(builder, engines);
         if (engines.Any(engine => engine.BuildSamplesMs != null || engine.LoadSamplesMs != null)) AppendBuildBreakdown(builder, engines);
         if (engines.Any(engine => engine.PrimaryBuildStages != null)) AppendPrimaryBuildInternals(builder, engines);
+        if (engines.Any(engine => engine.LoadAllocationGc != null || engine.BuildAllocationGc != null))
+            AppendAllocationGc(builder, engines);
     }
 
     private static void AppendMainTiming(StringBuilder builder, IReadOnlyList<EngineResult> engines)
@@ -159,6 +161,41 @@ internal static class BenchmarkReportTables
             builder.Append("</tr>");
         }
         builder.AppendLine("</table>");
+    }
+
+    private static void AppendAllocationGc(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
+        builder.AppendLine("<h3>Managed allocations and GC</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Load allocated median</th><th>Load Gen0</th><th>Load Gen1</th><th>Load Gen2</th><th>Build allocated median</th><th>Build Gen0</th><th>Build Gen1</th><th>Build Gen2</th></tr>");
+        foreach (var engine in engines)
+        {
+            var load = engine.LoadAllocationGc;
+            var build = engine.BuildAllocationGc;
+            builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(engine.Engine) + "</td>");
+            builder.Append("<td>" + BytesMedian(load?.AllocatedBytes) + "</td>");
+            builder.Append("<td>" + NumberMedian(load?.Gen0Collections) + "</td>");
+            builder.Append("<td>" + NumberMedian(load?.Gen1Collections) + "</td>");
+            builder.Append("<td>" + NumberMedian(load?.Gen2Collections) + "</td>");
+            builder.Append("<td>" + BytesMedian(build?.AllocatedBytes) + "</td>");
+            builder.Append("<td>" + NumberMedian(build?.Gen0Collections) + "</td>");
+            builder.Append("<td>" + NumberMedian(build?.Gen1Collections) + "</td>");
+            builder.Append("<td>" + NumberMedian(build?.Gen2Collections) + "</td></tr>");
+        }
+        builder.AppendLine("</table>");
+    }
+
+    private static string BytesMedian(IReadOnlyList<long>? values)
+    {
+        if (values == null || values.Count == 0) return "n/a";
+        var median = BenchmarkStats.From(values.Select(value => (double)value).ToArray()).Median;
+        return BenchmarkReportFormat.Long((long)Math.Round(median)) + " B";
+    }
+
+    private static string NumberMedian(IReadOnlyList<int>? values)
+    {
+        if (values == null || values.Count == 0) return "n/a";
+        var median = BenchmarkStats.From(values.Select(value => (double)value).ToArray()).Median;
+        return BenchmarkReportFormat.Number(median);
     }
 
     public static void AppendMemoryPressure(StringBuilder builder, IReadOnlyList<EngineResult> engines)
