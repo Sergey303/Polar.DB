@@ -25,7 +25,7 @@ public sealed class PrimaryOffsetCacheTests
     }
 
     [Fact]
-    public void Refresh_LoadsOffsetCache_StaticLookupDoesNotReadOffsetCell()
+    public void Refresh_LoadsHashCache_StaticLookupReadsOffsetsButNotHashes()
     {
         using var fixture = new StoreFixture();
         using (var sequence = fixture.OpenPrimaryOnly())
@@ -38,13 +38,15 @@ public sealed class PrimaryOffsetCacheTests
             sequence.Build();
         }
 
-        fixture.ResetStreams(countOffsetReads: true);
+        fixture.ResetStreams(countPrimaryIndexReads: true);
         using var reopened = fixture.OpenPrimaryOnly();
         reopened.Refresh();
 
         Assert.Equal("snapshot-latest", Name(reopened.GetByKey(1)!));
         Assert.Equal("other", Name(reopened.GetByKey(2)!));
+        Assert.NotNull(fixture.HashCounter);
         Assert.NotNull(fixture.OffsetCounter);
+        fixture.HashCounter!.Reset();
         fixture.OffsetCounter!.Reset();
 
         for (var i = 0; i < 100; i++)
@@ -53,7 +55,8 @@ public sealed class PrimaryOffsetCacheTests
             Assert.Equal("other", Name(reopened.GetByKey(2)!));
         }
 
-        Assert.Equal(0L, fixture.OffsetCounter.BytesRead);
+        Assert.Equal(0L, fixture.HashCounter.BytesRead);
+        Assert.True(fixture.OffsetCounter.BytesRead > 0L);
     }
 
     [Fact]
@@ -153,7 +156,7 @@ public sealed class PrimaryOffsetCacheTests
             Path.GetTempPath(),
             "polar-primary-offset-cache-" + Guid.NewGuid().ToString("N"));
         private int _streamNumber;
-        private bool _countOffsetReads;
+        private bool _countPrimaryIndexReads;
 
         internal StoreFixture()
         {
@@ -161,14 +164,16 @@ public sealed class PrimaryOffsetCacheTests
         }
 
         internal string StatePath => Path.Combine(_dir, "state.bin");
+        internal CountingStream? HashCounter { get; private set; }
         internal CountingStream? OffsetCounter { get; private set; }
 
         internal string StreamPath(int number) => Path.Combine(_dir, "f" + number + ".bin");
 
-        internal void ResetStreams(bool countOffsetReads = false)
+        internal void ResetStreams(bool countPrimaryIndexReads = false)
         {
             _streamNumber = 0;
-            _countOffsetReads = countOffsetReads;
+            _countPrimaryIndexReads = countPrimaryIndexReads;
+            HashCounter = null;
             OffsetCounter = null;
         }
 
@@ -198,7 +203,13 @@ public sealed class PrimaryOffsetCacheTests
                 FileShare.ReadWrite);
 
             // USequence opens payload first, then primary hashes, then primary offsets.
-            if (_countOffsetReads && number == 2)
+            if (_countPrimaryIndexReads && number == 1)
+            {
+                HashCounter = new CountingStream(inner);
+                return HashCounter;
+            }
+
+            if (_countPrimaryIndexReads && number == 2)
             {
                 OffsetCounter = new CountingStream(inner);
                 return OffsetCounter;
