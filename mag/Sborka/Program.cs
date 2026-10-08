@@ -15,7 +15,7 @@ if (!Directory.Exists(dbPath)) Directory.CreateDirectory(dbPath);
 if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
 
 // =========== Стандартный тест на key-value: загрузка и выборки
-//Sborka.mag_test1.Run(dbPath, npersons, toload);
+Sborka.mag_test1.Run(dbPath, npersons, toload);
 // Результаты на 5 млн.:  загрузка 1254 мс. выборка 80 мс. / 10 тыс. запрсов. Подключение 222 мс., запросы 88 мс.
 
 // =========== тест на подмену значений
@@ -37,5 +37,9 @@ if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
 // 
 
 // =========== тест на внешний индекс
-Sborka.mag_test7.Run(dbPath, npersons, toload);
+//Sborka.mag_test7.Run(dbPath, npersons, toload);
+// 
+
+// =========== тест на внешний индекс
+//Sborka.mag_test8.Run(dbPath, npersons, toload);
 // 
