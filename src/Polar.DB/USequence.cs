@@ -209,8 +209,10 @@ namespace Polar.Universal
                 if (isEmpty(element)) continue;
 
                 var offset = sequence.AppendElement(element);
-                var key = primaryKey.GetKey(element);
-                loadedEntries.Add(new BuildEntry(primaryKey.Hash(key), key, offset, isEmpty: false));
+                loadedEntries.Add(new BuildEntry(
+                    primaryKey.HashValue(element),
+                    offset,
+                    isEmpty: false));
             }
 
             loadedPrimaryBuildEntries = loadedEntries.Count == 0

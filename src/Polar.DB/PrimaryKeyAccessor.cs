@@ -6,6 +6,14 @@ internal interface IPrimaryKeyAccessor
 {
     IComparable GetKey(object value);
     int Hash(IComparable key);
+    int HashValue(object value);
+    int CompactHashCollisionGroup(
+        USequence sequence,
+        BuildEntry[] entries,
+        int start,
+        int count,
+        int destinationIndex,
+        List<long> staleOffsets);
 }
 
 internal sealed class TypedPrimaryKeyAccessor<TKey> : IPrimaryKeyAccessor
@@ -25,6 +33,24 @@ internal sealed class TypedPrimaryKeyAccessor<TKey> : IPrimaryKeyAccessor
 
     IComparable IPrimaryKeyAccessor.GetKey(object value) => _selector(value);
     int IPrimaryKeyAccessor.Hash(IComparable key) => _hasher((TKey)key);
+    int IPrimaryKeyAccessor.HashValue(object value) => _hasher(_selector(value));
+
+    int IPrimaryKeyAccessor.CompactHashCollisionGroup(
+        USequence sequence,
+        BuildEntry[] entries,
+        int start,
+        int count,
+        int destinationIndex,
+        List<long> staleOffsets) =>
+        PrimaryKeyCollisionCompaction.Compact(
+            sequence,
+            entries,
+            start,
+            count,
+            destinationIndex,
+            staleOffsets,
+            _selector,
+            static (left, right) => left.CompareTo(right));
 }
 
 internal sealed class DelegatePrimaryKeyAccessor : IPrimaryKeyAccessor
@@ -42,6 +68,24 @@ internal sealed class DelegatePrimaryKeyAccessor : IPrimaryKeyAccessor
 
     public IComparable GetKey(object value) => _selector(value);
     public int Hash(IComparable key) => _hasher(key);
+    public int HashValue(object value) => _hasher(_selector(value));
+
+    public int CompactHashCollisionGroup(
+        USequence sequence,
+        BuildEntry[] entries,
+        int start,
+        int count,
+        int destinationIndex,
+        List<long> staleOffsets) =>
+        PrimaryKeyCollisionCompaction.Compact(
+            sequence,
+            entries,
+            start,
+            count,
+            destinationIndex,
+            staleOffsets,
+            _selector,
+            static (left, right) => left.CompareTo(right));
 }
 
 internal static class PrimaryKeyHasherDefaults<TKey>

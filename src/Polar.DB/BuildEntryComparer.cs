@@ -7,11 +7,8 @@ internal sealed class BuildEntryComparer : IComparer<BuildEntry>
     public int Compare(BuildEntry left, BuildEntry right)
     {
         var hashComparison = left.HashKey.CompareTo(right.HashKey);
-        if (hashComparison != 0) return hashComparison;
-
-        var keyComparison = left.Key.CompareTo(right.Key);
-        if (keyComparison != 0) return keyComparison;
-
-        return left.Offset.CompareTo(right.Offset);
+        return hashComparison != 0
+            ? hashComparison
+            : left.Offset.CompareTo(right.Offset);
     }
 }
