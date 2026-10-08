@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Polar.DB.ExternalKey;
 using Polar.Universal;
 
 namespace PolarDbBenchmarks;
@@ -7,51 +8,78 @@ internal static class PolarLifecycleEngine
 {
     public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
     {
-        if (options.Kind == ExperimentKind.BuildPrimaryIntOnly) return BuildPrimaryIntOnly(options, data, dir);
-        if (options.Kind == ExperimentKind.ReopenOnly) return ReopenOnly(options, data, dir);
-        if (options.Kind == ExperimentKind.AppendOnly) return Mutation(options, data, dir, append: true);
-        return Mutation(options, data, dir, append: false);
+        return options.Kind switch
+        {
+            ExperimentKind.BuildPrimaryIntOnly => BuildPrimaryIntOnly(options, data, dir),
+            ExperimentKind.BuildExternalIndexesOnly => BuildExternalIndexesOnly(options, data, dir),
+            ExperimentKind.TraversalOnly => TraversalOnly(options, data, dir),
+            ExperimentKind.ReopenWithTail => ReopenWithTail(options, data, dir),
+            ExperimentKind.ReopenOnly => ReopenOnly(options, data, dir),
+            ExperimentKind.AppendOnly => Mutation(options, data, dir, append: true),
+            _ => Mutation(options, data, dir, append: false)
+        };
     }
 
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
     {
-        return BuildPrimaryIntOnly(options, data, dir,
-            store => store.Sequence.Load(data.Select(row => (object)row.Id)), "polar-db-current");
+        return BuildPrimaryIntOnly(
+            options,
+            data,
+            dir,
+            store => store.Sequence.Load(data.Select(row => (object)checked((int)row.Id))),
+            "polar-db-current");
     }
 
     private static EngineResult BuildPrimaryIntOnly(
-        ExperimentOptions options, Row[] data, string dir, Action<PolarStore> load, string engineName)
+        ExperimentOptions options,
+        Row[] data,
+        string dir,
+        Action<PolarStore> load,
+        string engineName)
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
         var loadSamples = new List<double>();
         var buildSamples = new List<double>();
         var flushSamples = new List<double>();
+        var loadAllocationGc = new MutableAllocationGcSamples();
+        var buildAllocationGc = new MutableAllocationGcSamples();
         var stages = new MutablePrimaryBuildStages();
         var artifactDir = dir;
+        ResourceSnapshot? liveResources = null;
 
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
         {
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildPrimaryIntOnly);
-            var loadMs = Measure(() => load(store));
+            var loadMeasurement = BenchmarkMeasure.Profile(() => load(store));
+
             var total = Stopwatch.StartNew();
-            var buildMs = Measure(() => store.Sequence.Build());
+            var buildMeasurement = BenchmarkMeasure.Profile(() => store.Sequence.Build());
             var profile = store.Sequence.LastPrimaryBuildProfile;
             var flushMs = Measure(() => store.Sequence.Flush());
             total.Stop();
-            store.Sequence.Close();
 
             if (i >= 0)
             {
                 totalSamples.Add(total.Elapsed.TotalMilliseconds);
-                loadSamples.Add(loadMs);
-                buildSamples.Add(buildMs);
+                loadSamples.Add(loadMeasurement.ElapsedMs);
+                buildSamples.Add(buildMeasurement.ElapsedMs);
                 flushSamples.Add(flushMs);
+                loadAllocationGc.Add(loadMeasurement);
+                buildAllocationGc.Add(buildMeasurement);
                 stages.Add(profile);
                 artifactDir = runDir;
             }
+
+            if (i == options.MeasuredOps - 1)
+            {
+                liveResources = BenchmarkResources.Capture();
+                GC.KeepAlive(store);
+            }
+
+            store.Sequence.Close();
         }
 
         return Result(
@@ -61,10 +89,153 @@ internal static class PolarLifecycleEngine
             data,
             artifactDir,
             before,
-            buildSamples,
-            flushSamples,
-            stages.ToImmutable(),
-            loadSamples);
+            after: liveResources,
+            build: buildSamples,
+            flush: flushSamples,
+            stages: stages.ToImmutable(),
+            load: loadSamples,
+            loadAllocationGc: loadAllocationGc.ToImmutable(),
+            buildAllocationGc: buildAllocationGc.ToImmutable());
+    }
+
+    private static EngineResult BuildExternalIndexesOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        var before = BenchmarkResources.Capture();
+        var totalSamples = new List<double>();
+        var buildSamples = new List<double>();
+        var flushSamples = new List<double>();
+        var buildAllocationGc = new MutableAllocationGcSamples();
+        var artifactDir = dir;
+        ResourceSnapshot? liveResources = null;
+
+        for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
+        {
+            var runDir = Path.Combine(dir, "run-" + i);
+            Directory.CreateDirectory(runDir);
+            var store = PolarStoreFactory.Open(runDir, ExperimentKind.BuildExternalIndexesOnly);
+            var indexes = store.Sequence.uindexes;
+
+            store.Sequence.uindexes = Array.Empty<IUIndex>();
+            store.Sequence.Load(data.Select(PolarRows.ToPolar));
+            store.Sequence.Build();
+            store.Sequence.Flush();
+            store.Sequence.uindexes = indexes;
+
+            var total = Stopwatch.StartNew();
+            var buildMeasurement = BenchmarkMeasure.Profile(() =>
+            {
+                foreach (var index in indexes) index.Build();
+            });
+            var flushMs = Measure(() =>
+            {
+                foreach (var index in indexes) index.Flush();
+            });
+            total.Stop();
+
+            ValidateExternalIndexes(store, data);
+
+            if (i >= 0)
+            {
+                totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                buildSamples.Add(buildMeasurement.ElapsedMs);
+                flushSamples.Add(flushMs);
+                buildAllocationGc.Add(buildMeasurement);
+                artifactDir = runDir;
+            }
+
+            if (i == options.MeasuredOps - 1)
+            {
+                liveResources = BenchmarkResources.Capture();
+                GC.KeepAlive(store);
+            }
+
+            store.Sequence.Close();
+        }
+
+        return Result(
+            "polar-db-current",
+            "external indexes build + flush",
+            totalSamples,
+            data,
+            artifactDir,
+            before,
+            after: liveResources,
+            build: buildSamples,
+            flush: flushSamples,
+            buildAllocationGc: buildAllocationGc.ToImmutable());
+    }
+
+    private static EngineResult TraversalOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        var before = BenchmarkResources.Capture();
+        var store = PrepareBuiltStore(dir, data, ExperimentKind.TraversalOnly);
+        var expected = new QueryResult(data.LongLength, BenchmarkChecksum.HashRows(data));
+        var samples = new List<double>();
+
+        for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
+        {
+            QueryResult actual = default!;
+            var elapsed = Measure(() => actual = ScanAll(store));
+            if (actual != expected)
+                throw new InvalidDataException("Polar.DB traversal returned unexpected rows.");
+            if (i >= 0) samples.Add(elapsed);
+        }
+
+        var liveResources = BenchmarkResources.Capture();
+        GC.KeepAlive(store);
+        store.Sequence.Close();
+
+        return Result(
+            "polar-db-current",
+            "full logical traversal",
+            samples,
+            data,
+            dir,
+            before,
+            after: liveResources);
+    }
+
+    private static EngineResult ReopenWithTail(ExperimentOptions options, Row[] data, string dir)
+    {
+        var before = BenchmarkResources.Capture();
+        var prepared = PrepareBuiltStore(dir, data, ExperimentKind.ReopenWithTail);
+        var tail = BenchmarkData.Dataset(
+            BenchmarkDefaults.ReopenTailRows,
+            ExperimentKind.ReopenWithTail,
+            data.LongLength + 1L);
+
+        foreach (var row in tail)
+            prepared.Sequence.AppendElement(PolarRows.ToPolar(row));
+        prepared.Sequence.Flush();
+        prepared.Sequence.Close();
+
+        var expectedLast = BenchmarkChecksum.HashRows(new[] { tail[^1] });
+        var samples = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        {
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenWithTail);
+            store.Sequence.Refresh();
+            ValidatePrimaryLookup(store, tail[^1].Id, expectedLast, "tail replay");
+            store.Sequence.Close();
+        });
+
+        var liveStore = PolarStoreFactory.Open(dir, ExperimentKind.ReopenWithTail);
+        liveStore.Sequence.Refresh();
+        ValidatePrimaryLookup(liveStore, tail[^1].Id, expectedLast, "tail replay live snapshot");
+        var liveResources = BenchmarkResources.Capture();
+        GC.KeepAlive(liveStore);
+        liveStore.Sequence.Close();
+
+        var rows = checked(data.LongLength + tail.LongLength);
+        var checksum = BenchmarkChecksum.HashRows(data.Concat(tail));
+        return Result(
+            "polar-db-current",
+            "query-ready reopen with dynamic tail",
+            samples,
+            rows,
+            checksum,
+            dir,
+            before,
+            after: liveResources);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -84,14 +255,16 @@ internal static class PolarLifecycleEngine
         {
             var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
             store.Sequence.Refresh();
-            var value = store.Sequence.GetByKey(data[0].Id);
-            if (value == null) throw new InvalidDataException("Polar.DB reopen lookup returned no row.");
-            var row = PolarRows.FromPolar(value);
-            var checksum = BenchmarkChecksum.HashRows(new[] { row });
-            if (checksum != expectedLookup)
-                throw new InvalidDataException("Polar.DB reopen lookup returned an unexpected row.");
+            ValidatePrimaryLookup(store, data[0].Id, expectedLookup, "reopen");
             store.Sequence.Close();
         });
+
+        var liveStore = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
+        liveStore.Sequence.Refresh();
+        ValidatePrimaryLookup(liveStore, data[0].Id, expectedLookup, "reopen live snapshot");
+        var liveResources = BenchmarkResources.Capture();
+        GC.KeepAlive(liveStore);
+        liveStore.Sequence.Close();
 
         return Result(
             "polar-db-current",
@@ -100,6 +273,7 @@ internal static class PolarLifecycleEngine
             PolarMaterializer.ReadAll(dir, ExperimentKind.ReopenOnly),
             dir,
             before,
+            after: liveResources,
             open: openOnly);
     }
 
@@ -227,8 +401,8 @@ internal static class PolarLifecycleEngine
         bool append,
         int operationCount)
     {
-        var expected = (append ? original.Concat(appended) : original.Skip(operationCount)).ToArray();
-        if (actual.Length != expected.Length ||
+        var expected = append ? original.Concat(appended) : original.Skip(operationCount);
+        if (actual.LongLength != expected.LongCount() ||
             BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
             throw new InvalidDataException("Polar.DB durable mutation result failed correctness validation.");
     }
@@ -237,10 +411,62 @@ internal static class PolarLifecycleEngine
     {
         Directory.CreateDirectory(dir);
         var store = PolarStoreFactory.Open(dir, kind);
-        store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
+        store.Sequence.Load(data.Select(PolarRows.ToPolar));
         store.Sequence.Build();
         store.Sequence.Flush();
         return store;
+    }
+
+    private static QueryResult ScanAll(PolarStore store)
+    {
+        var accumulator = new BenchmarkRowAccumulator();
+        long rows = 0;
+        foreach (var value in store.Sequence.ElementValues())
+        {
+            accumulator.Add(PolarRows.FromPolar(value));
+            rows++;
+        }
+
+        return new QueryResult(rows, accumulator.Finish());
+    }
+
+    private static void ValidatePrimaryLookup(
+        PolarStore store,
+        long key,
+        ulong expectedChecksum,
+        string scenario)
+    {
+        var value = store.Sequence.GetByKey(key);
+        if (value == null)
+            throw new InvalidDataException("Polar.DB " + scenario + " lookup returned no row.");
+
+        var checksum = BenchmarkChecksum.HashRows(new[] { PolarRows.FromPolar(value) });
+        if (checksum != expectedChecksum)
+            throw new InvalidDataException("Polar.DB " + scenario + " lookup returned an unexpected row.");
+    }
+
+    private static void ValidateExternalIndexes(PolarStore store, Row[] data)
+    {
+        ValidateExternalIndex(store.IntIndex!, data[0].ExternalId,
+            data.Where(row => row.ExternalId == data[0].ExternalId));
+        ValidateExternalIndex(store.LongIndex!, data[0].ExternalLong,
+            data.Where(row => row.ExternalLong == data[0].ExternalLong));
+        ValidateExternalIndex(store.GuidIndex!, data[0].ExternalGuid,
+            data.Where(row => row.ExternalGuid == data[0].ExternalGuid));
+        ValidateExternalIndex(store.StringIndex!, data[0].ExternalKey,
+            data.Where(row => row.ExternalKey == data[0].ExternalKey));
+    }
+
+    private static void ValidateExternalIndex(
+        IExternalKeyIndex index,
+        IComparable key,
+        IEnumerable<Row> expectedRows)
+    {
+        var actual = index.GetManyByValue(key).Select(PolarRows.FromPolar).ToArray();
+        var expected = expectedRows.ToArray();
+        if (actual.LongLength != expected.LongLength ||
+            BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
+            throw new InvalidDataException("Polar.DB external-index build failed correctness validation.");
     }
 
     private static List<double> MeasureRepeated(int warmup, int measured, Action action)
@@ -270,30 +496,72 @@ internal static class PolarLifecycleEngine
         Row[] actualRows,
         string dir,
         ResourceSnapshot before,
+        ResourceSnapshot? after = null,
         IReadOnlyList<double>? build = null,
         IReadOnlyList<double>? flush = null,
         PrimaryBuildStageSamples? stages = null,
         IReadOnlyList<double>? load = null,
         IReadOnlyList<double>? open = null,
         IReadOnlyList<double>? durable = null,
-        int durableBatchSize = 0) =>
-        new(
+        int durableBatchSize = 0,
+        AllocationGcSamples? loadAllocationGc = null,
+        AllocationGcSamples? buildAllocationGc = null) =>
+        Result(
             engine,
-            "Measured",
             metric,
             samples,
-            actualRows.Length,
+            actualRows.LongLength,
             BenchmarkChecksum.HashRows(actualRows),
-            BenchmarkPaths.DirBytes(dir),
+            dir,
             before,
-            BenchmarkResources.Capture(),
+            after,
             build,
             flush,
             stages,
             load,
             open,
             durable,
-            durableBatchSize);
+            durableBatchSize,
+            loadAllocationGc,
+            buildAllocationGc);
+
+    private static EngineResult Result(
+        string engine,
+        string metric,
+        IReadOnlyList<double> samples,
+        long rows,
+        ulong checksum,
+        string dir,
+        ResourceSnapshot before,
+        ResourceSnapshot? after = null,
+        IReadOnlyList<double>? build = null,
+        IReadOnlyList<double>? flush = null,
+        PrimaryBuildStageSamples? stages = null,
+        IReadOnlyList<double>? load = null,
+        IReadOnlyList<double>? open = null,
+        IReadOnlyList<double>? durable = null,
+        int durableBatchSize = 0,
+        AllocationGcSamples? loadAllocationGc = null,
+        AllocationGcSamples? buildAllocationGc = null) =>
+        new(
+            engine,
+            "Measured",
+            metric,
+            samples,
+            rows,
+            checksum,
+            BenchmarkPaths.DirBytes(dir),
+            before,
+            after ?? BenchmarkResources.Capture(),
+            build,
+            flush,
+            stages,
+            load,
+            open,
+            durable,
+            durableBatchSize,
+            loadAllocationGc,
+            buildAllocationGc);
 
     private sealed class MutablePrimaryBuildStages
     {
