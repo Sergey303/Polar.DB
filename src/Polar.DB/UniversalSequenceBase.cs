@@ -262,26 +262,84 @@ namespace Polar.DB
             }
         }
 
-        internal IEnumerable<(long Offset, object Value)> OffsetValuePairs()
+        internal OffsetValueEnumerable OffsetValuePairs() =>
+            new(this, HeaderSize, number: 0L, bounded: false);
+
+        internal OffsetValueEnumerable OffsetValuePairs(long offset, long number) =>
+            new(this, offset, number, bounded: true);
+
+        internal readonly struct OffsetValueEnumerable
         {
-            fs.Position = HeaderSize;
-            for (long i = 0; i < Count(); i++)
+            private readonly UniversalSequenceBase _sequence;
+            private readonly long _offset;
+            private readonly long _number;
+            private readonly bool _bounded;
+
+            internal OffsetValueEnumerable(
+                UniversalSequenceBase sequence,
+                long offset,
+                long number,
+                bool bounded)
             {
-                long off = fs.Position;
-                object pobject = GetElement();
-                yield return (off, pobject);
+                _sequence = sequence;
+                _offset = offset;
+                _number = number;
+                _bounded = bounded;
+            }
+
+            public OffsetValueEnumerator GetEnumerator()
+            {
+                if (_bounded)
+                    _sequence.ValidateRange(_offset, _number);
+
+                if (_sequence.fs.Position != _offset)
+                    _sequence.fs.Position = _offset;
+
+                return new OffsetValueEnumerator(_sequence, _number, _bounded);
             }
         }
 
-        internal IEnumerable<(long Offset, object Value)> OffsetValuePairs(long offset, long number)
+        internal struct OffsetValueEnumerator
         {
-            ValidateRange(offset, number);
-            fs.Position = offset;
-            for (long i = 0; i < number; i++)
+            private readonly UniversalSequenceBase _sequence;
+            private readonly bool _bounded;
+            private long _remaining;
+            private long _index;
+            private (long Offset, object Value) _current;
+
+            internal OffsetValueEnumerator(
+                UniversalSequenceBase sequence,
+                long number,
+                bool bounded)
             {
-                long off = fs.Position;
-                object pobject = GetElement();
-                yield return (off, pobject);
+                _sequence = sequence;
+                _bounded = bounded;
+                _remaining = number;
+                _index = 0L;
+                _current = (0L, null!);
+            }
+
+            public (long Offset, object Value) Current => _current;
+
+            public bool MoveNext()
+            {
+                if (_bounded)
+                {
+                    if (_remaining <= 0L) return false;
+                }
+                else if (_index >= _sequence.Count())
+                {
+                    return false;
+                }
+
+                long off = _sequence.fs.Position;
+                object value = _sequence.GetElement();
+                _current = (off, value);
+
+                if (_bounded) _remaining--;
+                else _index++;
+
+                return true;
             }
         }
 
