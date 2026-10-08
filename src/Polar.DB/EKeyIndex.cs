@@ -2,6 +2,7 @@ using Polar.DB;
 
 namespace Polar.Universal
 {
+    [Obsolete("Use Polar.DB.ExternalKey.ExternalKeyIndex<T> instead.", error: false)]
     public class EKeyIndex : IUIndex
     {
         private readonly USequence sequence;

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Polar.DB;
+using Polar.DB.ExternalKey;
 using Polar.Universal;
 
 namespace PolarDbBenchmarks;
@@ -141,7 +142,7 @@ internal static class LookupEngines
         IEnumerable<object> values = kind switch
         {
             LookupKind.PrimaryInt or LookupKind.PrimaryString => One(store.Sequence.GetByKey((IComparable)key)),
-            LookupKind.ExternalInt or LookupKind.ExternalString => store.ExternalIndex!.GetManyByKey((IComparable)key),
+            LookupKind.ExternalInt or LookupKind.ExternalString => store.ExternalIndex!.GetManyByValue((IComparable)key),
             _ => Array.Empty<object>()
         };
 
@@ -193,16 +194,22 @@ internal static class LookupEngines
                 StableHash);
         }
 
-        EKeyIndex? external = null;
-        if (kind is LookupKind.ExternalInt or LookupKind.ExternalString)
+        IExternalKeyIndex? external = kind switch
         {
-            Func<object, IEnumerable<IComparable>> keys = kind == LookupKind.ExternalInt
-                ? o => new IComparable[] { (int)((object[])o)[2] }
-                : o => new IComparable[] { (string)((object[])o)[3] };
+            LookupKind.ExternalInt => new ExternalKeyIndex<int>(
+                StreamGen,
+                sequence,
+                o => new[] { (int)((object[])o)[2] }),
+            LookupKind.ExternalString => new ExternalKeyIndex<string>(
+                StreamGen,
+                sequence,
+                o => new[] { (string)((object[])o)[3] },
+                StringComparer.Ordinal),
+            _ => null
+        };
 
-            external = new EKeyIndex(StreamGen, sequence, keys, StableHash);
+        if (external != null)
             sequence.uindexes = new IUIndex[] { external };
-        }
 
         return new PolarStore(sequence, external);
     }
@@ -268,5 +275,5 @@ internal static class LookupEngines
         cmd.ExecuteNonQuery();
     }
 
-    private sealed record PolarStore(USequence Sequence, EKeyIndex? ExternalIndex);
+    private sealed record PolarStore(USequence Sequence, IExternalKeyIndex? ExternalIndex);
 }

@@ -1,4 +1,5 @@
 using Polar.DB;
+using Polar.DB.ExternalKey;
 using Polar.Universal;
 using Xunit;
 
@@ -19,16 +20,16 @@ public sealed class P0StoragePerformanceTests
         });
         sequence.Build();
 
-        Assert.Equal(2, external.GetManyByKey(7).Count());
+        Assert.Equal(2, external.GetManyByValue(7).Count());
 
         sequence.AppendElement(Row(1, 8, false, "replacement"));
 
-        var oldKey = external.GetManyByKey(7).Select(Name).ToArray();
+        var oldKey = external.GetManyByValue(7).Select(Name).ToArray();
         Assert.Equal(new[] { "second" }, oldKey);
-        Assert.Equal(new[] { "replacement" }, external.GetManyByKey(8).Select(Name).ToArray());
+        Assert.Equal(new[] { "replacement" }, external.GetManyByValue(8).Select(Name).ToArray());
 
         sequence.AppendElement(Row(1, 8, true, "deleted"));
-        Assert.Empty(external.GetManyByKey(8));
+        Assert.Empty(external.GetManyByValue(8));
     }
 
     [Fact]
@@ -142,18 +143,17 @@ public sealed class P0StoragePerformanceTests
             return sequence;
         }
 
-        internal USequence OpenWithExternalIndex(out EKeyIndex index)
+        internal USequence OpenWithExternalIndex(out ExternalKeyIndex<int> index)
         {
             var sequence = NewSequence();
-            index = new EKeyIndex(
+            index = new ExternalKeyIndex<int>(
                 NextStream,
                 sequence,
                 value =>
                 {
                     var external = (int)((object[])value)[1];
-                    return new IComparable[] { external, external };
-                },
-                key => (int)key);
+                    return new[] { external, external };
+                });
             sequence.uindexes = new IUIndex[] { index };
             return sequence;
         }
