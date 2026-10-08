@@ -6,7 +6,8 @@ public enum ExperimentKind
     ExternalIntLookup, ExternalLongLookup, ExternalGuidLookup, ExternalStringLookup,
     ExternalFamousIntLookup, ExternalFamousLongLookup,
     ExternalFamousGuidLookup, ExternalFamousStringLookup,
-    BuildPrimaryIntOnly, ReopenOnly, AppendOnly, DeleteOnly
+    BuildPrimaryIntOnly, BuildExternalIndexesOnly, TraversalOnly, ReopenWithTail,
+    ReopenOnly, AppendOnly, DeleteOnly
 }
 
 public enum BenchmarkEngine
