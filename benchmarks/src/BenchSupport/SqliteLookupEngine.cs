@@ -44,9 +44,12 @@ internal static class SqliteLookupEngine
 
         BenchmarkProgress.Stage("sqlite " + plan.Name + ": latency " + plan.LatencyKeys.Length + " samples");
         var latency = session.MeasureLatency(plan.LatencyKeys, "sqlite " + plan.Name + " latency");
+        var readyResources = BenchmarkResources.Capture();
+        GC.KeepAlive(session);
+        GC.KeepAlive(connection);
 
         return new LookupEngineResult("sqlite", "Measured", batch.Samples, latency.Samples,
             plan.BatchKeys.Length, batch.Rows, batch.Checksum, latency.Rows, latency.Checksum,
-            BenchmarkPaths.DirBytes(dir), before, BenchmarkResources.Capture());
+            BenchmarkPaths.DirBytes(dir), before, readyResources);
     }
 }
