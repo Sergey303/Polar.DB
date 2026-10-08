@@ -18,16 +18,24 @@ internal static class BenchmarkExpected
 
     public static QueryResult ForLifecycle(ExperimentOptions options, Row[] data)
     {
+        if (options.Kind == ExperimentKind.ReopenWithTail)
+        {
+            var tail = BenchmarkData.Dataset(
+                BenchmarkDefaults.ReopenTailRows,
+                options.Kind,
+                data.LongLength + 1L);
+            var ids = data.Select(row => checked((int)row.Id))
+                .Concat(tail.Select(row => checked((int)row.Id)));
+            return new QueryResult(
+                checked(data.LongLength + tail.LongLength),
+                BenchmarkChecksum.HashInt32Values(ids));
+        }
+
         IEnumerable<Row> expectedRows = options.Kind switch
         {
             ExperimentKind.AppendOnly => data.Concat(
                 BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1)),
             ExperimentKind.DeleteOnly => data.Skip(options.MeasuredOps),
-            ExperimentKind.ReopenWithTail => data.Concat(
-                BenchmarkData.Dataset(
-                    BenchmarkDefaults.ReopenTailRows,
-                    options.Kind,
-                    data.LongLength + 1L)),
             _ => data
         };
 
@@ -35,7 +43,6 @@ internal static class BenchmarkExpected
         {
             ExperimentKind.AppendOnly => checked(data.LongLength + options.MeasuredOps),
             ExperimentKind.DeleteOnly => data.LongLength - options.MeasuredOps,
-            ExperimentKind.ReopenWithTail => checked(data.LongLength + BenchmarkDefaults.ReopenTailRows),
             _ => data.LongLength
         };
 
