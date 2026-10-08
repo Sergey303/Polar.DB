@@ -262,6 +262,20 @@ namespace Polar.DB
             }
         }
 
+        public void Scan(long offset, long number, Func<long, object, bool> handler)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            ValidateRange(offset, number);
+            if (fs.Position != offset) fs.Position = offset;
+
+            for (long i = 0; i < number; i++)
+            {
+                long off = fs.Position;
+                object pobject = GetElement();
+                if (!handler(off, pobject)) break;
+            }
+        }
+
         internal OffsetValueEnumerable OffsetValuePairs() =>
             new(this, HeaderSize, number: 0L, bounded: false);
 
@@ -343,6 +357,7 @@ namespace Polar.DB
             }
         }
 
+        [Obsolete("Use Scan(Func<long, object, bool>) for allocation-free traversal.")]
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
         {
             fs.Position = HeaderSize;
@@ -354,6 +369,7 @@ namespace Polar.DB
             }
         }
 
+        [Obsolete("Use Scan(long, long, Func<long, object, bool>) for allocation-free range traversal.")]
         public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
         {
             ValidateRange(offset, number);
