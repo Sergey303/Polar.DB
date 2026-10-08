@@ -116,7 +116,7 @@ internal static class PolarLifecycleEngine
             var indexes = store.Sequence.uindexes;
 
             store.Sequence.uindexes = Array.Empty<IUIndex>();
-            store.Sequence.Load(data.Select(PolarRows.ToPolar));
+            store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
             store.Sequence.Build();
             store.Sequence.Flush();
             store.Sequence.uindexes = indexes;
@@ -411,7 +411,7 @@ internal static class PolarLifecycleEngine
     {
         Directory.CreateDirectory(dir);
         var store = PolarStoreFactory.Open(dir, kind);
-        store.Sequence.Load(data.Select(PolarRows.ToPolar));
+        store.Sequence.Load(data.Select(row => PolarRows.ToPolar(row)));
         store.Sequence.Build();
         store.Sequence.Flush();
         return store;
