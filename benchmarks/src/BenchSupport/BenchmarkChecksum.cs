@@ -25,6 +25,14 @@ internal static class BenchmarkChecksum
         return accumulator.Finish();
     }
 
+    public static ulong HashInt32Values(IEnumerable<int> values)
+    {
+        var hash = Offset;
+        foreach (var value in values)
+            hash = Combine(hash, unchecked((uint)value));
+        return hash;
+    }
+
     public static ulong Combine(ulong current, ulong value)
     {
         unchecked
