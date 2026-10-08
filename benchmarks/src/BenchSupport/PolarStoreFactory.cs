@@ -1,14 +1,15 @@
 using Polar.DB;
+using Polar.DB.ExternalKey;
 using Polar.Universal;
 
 namespace PolarDbBenchmarks;
 
 internal sealed record PolarStore(
     USequence Sequence,
-    EKeyIndex? IntIndex,
-    EKeyIndex? LongIndex,
-    EKeyIndex? GuidIndex,
-    EKeyIndex? StringIndex);
+    IExternalKeyIndex? IntIndex,
+    IExternalKeyIndex? LongIndex,
+    IExternalKeyIndex? GuidIndex,
+    IExternalKeyIndex? StringIndex);
 
 internal static class PolarStoreFactory
 {
@@ -123,15 +124,19 @@ internal static class PolarStoreFactory
         return BenchmarkGuid.Join((long)row[offset], (long)row[offset + 1]);
     }
 
-    private static EKeyIndex CreateIntIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (int)((object[])value)[5] }, BenchmarkChecksum.StableHash);
+    private static IExternalKeyIndex CreateIntIndex(Func<Stream> streamGen, USequence sequence) =>
+        new ExternalKeyIndex<int>(streamGen, sequence, value => new[] { (int)((object[])value)[5] });
 
-    private static EKeyIndex CreateLongIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (long)((object[])value)[6] }, BenchmarkChecksum.StableHash);
+    private static IExternalKeyIndex CreateLongIndex(Func<Stream> streamGen, USequence sequence) =>
+        new ExternalKeyIndex<long>(streamGen, sequence, value => new[] { (long)((object[])value)[6] });
 
-    private static EKeyIndex CreateGuidIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { ReadGuid(value, 7) }, BenchmarkChecksum.StableHash);
+    private static IExternalKeyIndex CreateGuidIndex(Func<Stream> streamGen, USequence sequence) =>
+        new ExternalKeyIndex<Guid>(streamGen, sequence, value => new[] { ReadGuid(value, 7) });
 
-    private static EKeyIndex CreateStringIndex(Func<Stream> streamGen, USequence sequence) =>
-        new(streamGen, sequence, value => new IComparable[] { (string)((object[])value)[9] }, BenchmarkChecksum.StableHash);
+    private static IExternalKeyIndex CreateStringIndex(Func<Stream> streamGen, USequence sequence) =>
+        new ExternalKeyIndex<string>(
+            streamGen,
+            sequence,
+            value => new[] { (string)((object[])value)[9] },
+            StringComparer.Ordinal);
 }

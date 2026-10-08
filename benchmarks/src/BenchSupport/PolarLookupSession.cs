@@ -94,7 +94,7 @@ internal sealed class PolarLookupSession
             _ => _store.StringIndex
         };
 
-        foreach (var value in index!.GetManyByKey(key))
+        foreach (var value in index!.GetManyByValue(key))
             yield return value;
     }
 }

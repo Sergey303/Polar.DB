@@ -137,8 +137,10 @@ namespace Polar.Universal
             {
                 sequence.ScanPhysical((off, obj) =>
                 {
-                    var key = PrimaryKeyAccessor.GetKey(obj);
-                    entries[entryCount++] = new BuildEntry(PrimaryKeyAccessor.Hash(key), key, off, sequence.IsEmpty(obj));
+                    entries[entryCount++] = new BuildEntry(
+                        PrimaryKeyAccessor.HashValue(obj),
+                        off,
+                        sequence.IsEmpty(obj));
                     return true;
                 });
             });
@@ -439,7 +441,7 @@ namespace Polar.Universal
             return false;
         }
 
-        private static int CompactLatestLiveEntries(BuildEntry[] entries, int entryCount, out long[] staleOffsets)
+        private int CompactLatestLiveEntries(BuildEntry[] entries, int entryCount, out long[] staleOffsets)
         {
             var liveCount = 0;
             var index = 0;
@@ -447,34 +449,43 @@ namespace Polar.Universal
 
             while (index < entryCount)
             {
-                var groupStart = index;
-                var latest = entries[index++];
-                while (index < entryCount && IsSameLogicalKey(latest, entries[index]))
-                    latest = entries[index++];
+                var groupStart = index++;
+                var hashKey = entries[groupStart].HashKey;
+                while (index < entryCount && entries[index].HashKey == hashKey)
+                    index++;
 
-                for (var i = groupStart; i < index - 1; i++)
+                var groupCount = index - groupStart;
+                if (groupCount == 1)
                 {
-                    stale ??= new List<long>();
-                    stale.Add(entries[i].Offset);
+                    var latest = entries[groupStart];
+                    if (latest.IsEmpty)
+                    {
+                        stale ??= new List<long>();
+                        stale.Add(latest.Offset);
+                    }
+                    else
+                    {
+                        entries[liveCount++] = latest;
+                    }
+
+                    continue;
                 }
 
-                if (latest.IsEmpty)
-                {
-                    stale ??= new List<long>();
-                    stale.Add(latest.Offset);
-                }
-                else
-                {
-                    entries[liveCount++] = latest;
-                }
+                stale ??= new List<long>();
+                liveCount = PrimaryKeyAccessor.CompactHashCollisionGroup(
+                    sequence,
+                    entries,
+                    groupStart,
+                    groupCount,
+                    liveCount,
+                    stale);
             }
 
-            staleOffsets = stale == null ? Array.Empty<long>() : stale.ToArray();
+            staleOffsets = stale == null || stale.Count == 0
+                ? Array.Empty<long>()
+                : stale.ToArray();
             return liveCount;
         }
-
-        private static bool IsSameLogicalKey(BuildEntry left, BuildEntry right) =>
-            left.HashKey == right.HashKey && left.Key.CompareTo(right.Key) == 0;
 
         private static int LowerBound(int[] values, int value)
         {
