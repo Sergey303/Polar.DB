@@ -7,10 +7,16 @@ internal static class SqliteLifecycleEngine
 {
     public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
     {
-        if (options.Kind == ExperimentKind.BuildPrimaryIntOnly) return BuildPrimaryIntOnly(options, data, dir);
-        if (options.Kind == ExperimentKind.ReopenOnly) return ReopenOnly(options, data, dir);
-        if (options.Kind == ExperimentKind.AppendOnly) return Mutation(options, data, dir, append: true);
-        return Mutation(options, data, dir, append: false);
+        return options.Kind switch
+        {
+            ExperimentKind.BuildPrimaryIntOnly => BuildPrimaryIntOnly(options, data, dir),
+            ExperimentKind.BuildExternalIndexesOnly => BuildExternalIndexesOnly(options, data, dir),
+            ExperimentKind.TraversalOnly => TraversalOnly(options, data, dir),
+            ExperimentKind.ReopenWithTail => ReopenWithTail(options, data, dir),
+            ExperimentKind.ReopenOnly => ReopenOnly(options, data, dir),
+            ExperimentKind.AppendOnly => Mutation(options, data, dir, append: true),
+            _ => Mutation(options, data, dir, append: false)
+        };
     }
 
     private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
@@ -20,29 +26,41 @@ internal static class SqliteLifecycleEngine
         var loadSamples = new List<double>();
         var buildSamples = new List<double>();
         var flushSamples = new List<double>();
+        var loadAllocationGc = new MutableAllocationGcSamples();
+        var buildAllocationGc = new MutableAllocationGcSamples();
         var artifactDir = dir;
+        ResourceSnapshot? liveResources = null;
 
         for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
         {
             var runDir = Path.Combine(dir, "run-" + i);
             Directory.CreateDirectory(runDir);
             var db = Path.Combine(runDir, "data.sqlite");
-            var loadMs = Measure(() => CreateTinyPrimaryStore(db, data));
+
+            var loadMeasurement = BenchmarkMeasure.Profile(() => CreateTinyPrimaryStore(db, data));
             using var connection = new SqliteConnection($"Data Source={db}");
             connection.Open();
 
             var total = Stopwatch.StartNew();
-            var buildMs = Measure(() => SqliteStore.CreatePrimaryIntIndex(connection));
+            var buildMeasurement = BenchmarkMeasure.Profile(() => SqliteStore.CreatePrimaryIntIndex(connection));
             var flushMs = Measure(() => SqliteStore.Flush(connection));
             total.Stop();
 
             if (i >= 0)
             {
                 totalSamples.Add(total.Elapsed.TotalMilliseconds);
-                loadSamples.Add(loadMs);
-                buildSamples.Add(buildMs);
+                loadSamples.Add(loadMeasurement.ElapsedMs);
+                buildSamples.Add(buildMeasurement.ElapsedMs);
                 flushSamples.Add(flushMs);
+                loadAllocationGc.Add(loadMeasurement);
+                buildAllocationGc.Add(buildMeasurement);
                 artifactDir = runDir;
+            }
+
+            if (i == options.MeasuredOps - 1)
+            {
+                liveResources = BenchmarkResources.Capture();
+                GC.KeepAlive(connection);
             }
         }
 
@@ -53,9 +71,12 @@ internal static class SqliteLifecycleEngine
             data,
             artifactDir,
             before,
-            buildSamples,
-            flushSamples,
-            load: loadSamples);
+            after: liveResources,
+            build: buildSamples,
+            flush: flushSamples,
+            load: loadSamples,
+            loadAllocationGc: loadAllocationGc.ToImmutable(),
+            buildAllocationGc: buildAllocationGc.ToImmutable());
     }
 
     private static void CreateTinyPrimaryStore(string db, IEnumerable<Row> rows)
@@ -72,11 +93,152 @@ internal static class SqliteLifecycleEngine
 
         foreach (var row in rows)
         {
-            id.Value = row.Id;
+            id.Value = checked((int)row.Id);
             command.ExecuteNonQuery();
         }
 
         tx.Commit();
+    }
+
+    private static EngineResult BuildExternalIndexesOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        var before = BenchmarkResources.Capture();
+        var totalSamples = new List<double>();
+        var buildSamples = new List<double>();
+        var flushSamples = new List<double>();
+        var buildAllocationGc = new MutableAllocationGcSamples();
+        var artifactDir = dir;
+        ResourceSnapshot? liveResources = null;
+
+        for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
+        {
+            var runDir = Path.Combine(dir, "run-" + i);
+            Directory.CreateDirectory(runDir);
+            var db = Path.Combine(runDir, "data.sqlite");
+            SqliteStore.Create(db, data, withIndexes: false);
+
+            using var connection = new SqliteConnection($"Data Source={db}");
+            connection.Open();
+
+            var total = Stopwatch.StartNew();
+            var buildMeasurement = BenchmarkMeasure.Profile(() => SqliteStore.CreateExternalIndexes(connection));
+            var flushMs = Measure(() => SqliteStore.Flush(connection));
+            total.Stop();
+
+            ValidateExternalIndexes(connection, data);
+
+            if (i >= 0)
+            {
+                totalSamples.Add(total.Elapsed.TotalMilliseconds);
+                buildSamples.Add(buildMeasurement.ElapsedMs);
+                flushSamples.Add(flushMs);
+                buildAllocationGc.Add(buildMeasurement);
+                artifactDir = runDir;
+            }
+
+            if (i == options.MeasuredOps - 1)
+            {
+                liveResources = BenchmarkResources.Capture();
+                GC.KeepAlive(connection);
+            }
+        }
+
+        return Result(
+            "sqlite",
+            "external indexes build + flush",
+            totalSamples,
+            data,
+            artifactDir,
+            before,
+            after: liveResources,
+            build: buildSamples,
+            flush: flushSamples,
+            buildAllocationGc: buildAllocationGc.ToImmutable());
+    }
+
+    private static EngineResult TraversalOnly(ExperimentOptions options, Row[] data, string dir)
+    {
+        var before = BenchmarkResources.Capture();
+        Directory.CreateDirectory(dir);
+        var db = Path.Combine(dir, "data.sqlite");
+        SqliteStore.Create(db, data, withIndexes: false);
+
+        using var connection = new SqliteConnection($"Data Source={db}");
+        connection.Open();
+
+        var expected = new QueryResult(data.LongLength, BenchmarkChecksum.HashRows(data));
+        var samples = new List<double>();
+        for (var i = -options.WarmupOps; i < options.MeasuredOps; i++)
+        {
+            QueryResult actual = default!;
+            var elapsed = Measure(() => actual = ScanAll(connection));
+            if (actual != expected)
+                throw new InvalidDataException("SQLite traversal returned unexpected rows.");
+            if (i >= 0) samples.Add(elapsed);
+        }
+
+        var liveResources = BenchmarkResources.Capture();
+        GC.KeepAlive(connection);
+        return Result(
+            "sqlite",
+            "full logical traversal",
+            samples,
+            data,
+            dir,
+            before,
+            after: liveResources);
+    }
+
+    private static EngineResult ReopenWithTail(ExperimentOptions options, Row[] data, string dir)
+    {
+        var before = BenchmarkResources.Capture();
+        Directory.CreateDirectory(dir);
+        var db = Path.Combine(dir, "data.sqlite");
+        SqliteStore.Create(db, data, withIndexes: false);
+
+        var tail = BenchmarkData.Dataset(
+            BenchmarkDefaults.ReopenTailRows,
+            ExperimentKind.ReopenWithTail,
+            data.LongLength + 1L);
+        using (var appendConnection = new SqliteConnection($"Data Source={db}"))
+        {
+            appendConnection.Open();
+            SqliteStore.InsertRows(appendConnection, tail);
+            SqliteStore.Flush(appendConnection);
+        }
+
+        SqliteConnection.ClearAllPools();
+        var reopenConnectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = db,
+            Pooling = false
+        }.ToString();
+
+        var expectedLast = BenchmarkChecksum.HashRows(new[] { tail[^1] });
+        var samples = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        {
+            using var connection = new SqliteConnection(reopenConnectionString);
+            connection.Open();
+            ValidatePrimaryLookup(connection, tail[^1].Id, expectedLast, "tail reopen");
+        });
+
+        using var liveConnection = new SqliteConnection(reopenConnectionString);
+        liveConnection.Open();
+        ValidatePrimaryLookup(liveConnection, tail[^1].Id, expectedLast, "tail reopen live snapshot");
+        var liveResources = BenchmarkResources.Capture();
+        GC.KeepAlive(liveConnection);
+
+        var rows = checked(data.LongLength + tail.LongLength);
+        var checksum = BenchmarkChecksum.HashRows(data.Concat(tail));
+        return Result(
+            "sqlite",
+            "query-ready reopen with appended tail",
+            samples,
+            rows,
+            checksum,
+            dir,
+            before,
+            after: liveResources);
     }
 
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
@@ -86,9 +248,6 @@ internal static class SqliteLifecycleEngine
         var db = Path.Combine(dir, "data.sqlite");
         SqliteStore.Create(db, data, withIndexes: true);
 
-        // Dataset creation uses the provider defaults, including connection pooling.
-        // Clear those handles before measuring and disable pooling for every measured reopen
-        // so Dispose() closes the physical SQLite connection on each iteration.
         SqliteConnection.ClearAllPools();
         var reopenConnectionString = new SqliteConnectionStringBuilder
         {
@@ -107,11 +266,14 @@ internal static class SqliteLifecycleEngine
         {
             using var connection = new SqliteConnection(reopenConnectionString);
             connection.Open();
-            using var session = SqliteLookupSession.Create(connection, ExperimentKind.PkIntLookup);
-            var query = session.Query(data[0].Id);
-            if (query.Rows != 1 || query.Checksum != expectedLookup)
-                throw new InvalidDataException("SQLite reopen lookup returned an unexpected row.");
+            ValidatePrimaryLookup(connection, data[0].Id, expectedLookup, "reopen");
         });
+
+        using var liveConnection = new SqliteConnection(reopenConnectionString);
+        liveConnection.Open();
+        ValidatePrimaryLookup(liveConnection, data[0].Id, expectedLookup, "reopen live snapshot");
+        var liveResources = BenchmarkResources.Capture();
+        GC.KeepAlive(liveConnection);
 
         return Result(
             "sqlite",
@@ -120,6 +282,7 @@ internal static class SqliteLifecycleEngine
             SqliteRows.ReadAll(db),
             dir,
             before,
+            after: liveResources,
             open: openOnly);
     }
 
@@ -264,10 +427,77 @@ internal static class SqliteLifecycleEngine
         bool append,
         int operationCount)
     {
-        var expected = (append ? original.Concat(appended) : original.Skip(operationCount)).ToArray();
-        if (actual.Length != expected.Length ||
+        var expected = append ? original.Concat(appended) : original.Skip(operationCount);
+        if (actual.LongLength != expected.LongCount() ||
             BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
             throw new InvalidDataException("SQLite durable mutation result failed correctness validation.");
+    }
+
+    private static QueryResult ScanAll(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = SqliteRows.SelectAllSql();
+        using var reader = command.ExecuteReader();
+
+        var accumulator = new BenchmarkRowAccumulator();
+        long rows = 0;
+        while (reader.Read())
+        {
+            accumulator.Add(SqliteRows.Read(reader));
+            rows++;
+        }
+
+        return new QueryResult(rows, accumulator.Finish());
+    }
+
+    private static void ValidatePrimaryLookup(
+        SqliteConnection connection,
+        long key,
+        ulong expectedChecksum,
+        string scenario)
+    {
+        using var session = SqliteLookupSession.Create(connection, ExperimentKind.PkIntLookup);
+        var query = session.Query(key);
+        if (query.Rows != 1 || query.Checksum != expectedChecksum)
+            throw new InvalidDataException("SQLite " + scenario + " lookup returned an unexpected row.");
+    }
+
+    private static void ValidateExternalIndexes(SqliteConnection connection, Row[] data)
+    {
+        ValidateExternalIndex(
+            connection,
+            ExperimentKind.ExternalIntLookup,
+            data[0].ExternalId,
+            data.Where(row => row.ExternalId == data[0].ExternalId));
+        ValidateExternalIndex(
+            connection,
+            ExperimentKind.ExternalLongLookup,
+            data[0].ExternalLong,
+            data.Where(row => row.ExternalLong == data[0].ExternalLong));
+        ValidateExternalIndex(
+            connection,
+            ExperimentKind.ExternalGuidLookup,
+            data[0].ExternalGuid,
+            data.Where(row => row.ExternalGuid == data[0].ExternalGuid));
+        ValidateExternalIndex(
+            connection,
+            ExperimentKind.ExternalStringLookup,
+            data[0].ExternalKey,
+            data.Where(row => row.ExternalKey == data[0].ExternalKey));
+    }
+
+    private static void ValidateExternalIndex(
+        SqliteConnection connection,
+        ExperimentKind kind,
+        object key,
+        IEnumerable<Row> expectedRows)
+    {
+        using var session = SqliteLookupSession.Create(connection, kind);
+        var actual = session.Query(key);
+        var expected = expectedRows.ToArray();
+        if (actual.Rows != expected.LongLength ||
+            actual.Checksum != BenchmarkChecksum.HashRows(expected))
+            throw new InvalidDataException("SQLite external-index build failed correctness validation.");
     }
 
     private static void InsertOne(SqliteConnection connection, Row row)
@@ -321,27 +551,67 @@ internal static class SqliteLifecycleEngine
         Row[] actualRows,
         string dir,
         ResourceSnapshot before,
+        ResourceSnapshot? after = null,
         IReadOnlyList<double>? build = null,
         IReadOnlyList<double>? flush = null,
         IReadOnlyList<double>? load = null,
         IReadOnlyList<double>? open = null,
         IReadOnlyList<double>? durable = null,
-        int durableBatchSize = 0) =>
+        int durableBatchSize = 0,
+        AllocationGcSamples? loadAllocationGc = null,
+        AllocationGcSamples? buildAllocationGc = null) =>
+        Result(
+            engine,
+            metric,
+            samples,
+            actualRows.LongLength,
+            BenchmarkChecksum.HashRows(actualRows),
+            dir,
+            before,
+            after,
+            build,
+            flush,
+            load,
+            open,
+            durable,
+            durableBatchSize,
+            loadAllocationGc,
+            buildAllocationGc);
+
+    private static EngineResult Result(
+        string engine,
+        string metric,
+        IReadOnlyList<double> samples,
+        long rows,
+        ulong checksum,
+        string dir,
+        ResourceSnapshot before,
+        ResourceSnapshot? after = null,
+        IReadOnlyList<double>? build = null,
+        IReadOnlyList<double>? flush = null,
+        IReadOnlyList<double>? load = null,
+        IReadOnlyList<double>? open = null,
+        IReadOnlyList<double>? durable = null,
+        int durableBatchSize = 0,
+        AllocationGcSamples? loadAllocationGc = null,
+        AllocationGcSamples? buildAllocationGc = null) =>
         new(
             engine,
             "Measured",
             metric,
             samples,
-            actualRows.Length,
-            BenchmarkChecksum.HashRows(actualRows),
+            rows,
+            checksum,
             BenchmarkPaths.DirBytes(dir),
             before,
-            BenchmarkResources.Capture(),
+            after ?? BenchmarkResources.Capture(),
             build,
             flush,
             null,
             load,
             open,
             durable,
-            durableBatchSize);
+            durableBatchSize,
+            loadAllocationGc,
+            buildAllocationGc);
 }
