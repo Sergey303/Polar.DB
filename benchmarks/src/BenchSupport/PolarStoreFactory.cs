@@ -45,7 +45,7 @@ internal static class PolarStoreFactory
         switch (kind)
         {
             case ExperimentKind.BuildPrimaryIntOnly:
-                sequence.SetPrimaryKey<long>(value => (long)value, BenchmarkChecksum.StableHash);
+                sequence.SetPrimaryKey<int>(value => (int)value, BenchmarkChecksum.StableHash);
                 return;
 
             case ExperimentKind.PkLongLookup:
@@ -77,7 +77,7 @@ internal static class PolarStoreFactory
     private static PType ElementType(ExperimentKind kind)
     {
         if (kind == ExperimentKind.BuildPrimaryIntOnly)
-            return new PType(PTypeEnumeration.longinteger);
+            return new PType(PTypeEnumeration.integer);
 
         return new PTypeRecord(
             new NamedType("id", new PType(PTypeEnumeration.longinteger)),
