@@ -59,6 +59,11 @@ internal static class SqliteStore
         Exec(connection, "CREATE UNIQUE INDEX ix_rows_long_key ON rows(long_key);");
         Exec(connection, "CREATE UNIQUE INDEX ix_rows_guid_key ON rows(guid_key);");
         Exec(connection, "CREATE UNIQUE INDEX ix_rows_skey ON rows(skey);");
+        CreateExternalIndexes(connection);
+    }
+
+    public static void CreateExternalIndexes(SqliteConnection connection)
+    {
         Exec(connection, "CREATE INDEX ix_rows_external_id ON rows(external_id);");
         Exec(connection, "CREATE INDEX ix_rows_external_long ON rows(external_long);");
         Exec(connection, "CREATE INDEX ix_rows_external_guid ON rows(external_guid);");
