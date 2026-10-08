@@ -15,7 +15,6 @@ namespace Polar.Universal
         internal bool ElementChanged(IComparable key) => keyoff_dic.ContainsKey(key);
         private readonly bool keysinmemory;
         private int[]? hkeys_arr;
-        private long[]? offsets_arr;
         private HashSet<long>? stale_offsets_set;
         private HashSet<long>? legacy_original_offsets_set;
         private bool snapshotOriginalityKnown;
@@ -65,7 +64,6 @@ namespace Polar.Universal
             hkeys.Clear();
             hkeys_arr = null;
             offsets.Clear();
-            offsets_arr = null;
             stale_offsets_set = null;
             legacy_original_offsets_set = null;
             snapshotOriginalityKnown = false;
@@ -92,18 +90,9 @@ namespace Polar.Universal
             if (persistedKeyCount != offsets.Count())
                 throw new InvalidDataException("Primary-key hash and offset sequence lengths differ.");
 
-            if (keysinmemory)
-            {
-                hkeys_arr = hkeys.ElementValues().Cast<int>().ToArray();
-                offsets_arr = offsets.ElementValues().Cast<long>().ToArray();
-                if (hkeys_arr.LongLength != offsets_arr.LongLength)
-                    throw new InvalidDataException("In-memory primary-key hash and offset array lengths differ.");
-            }
-            else
-            {
-                hkeys_arr = null;
-                offsets_arr = null;
-            }
+            hkeys_arr = keysinmemory
+                ? hkeys.ElementValues().Cast<int>().ToArray()
+                : null;
 
             stale_offsets_set = null;
             legacy_original_offsets_set = null;
@@ -118,9 +107,8 @@ namespace Polar.Universal
             else if (keysinmemory && persistedKeyCount != 0)
             {
                 // Backward compatibility for state files written before stale-offset metadata existed.
-                // New snapshots never allocate this O(N) set. The offset array is the same
-                // compact static snapshot used by lookups, so it is also safe as the legacy source.
-                legacy_original_offsets_set = new HashSet<long>(offsets_arr!);
+                // New snapshots never allocate this O(N) set.
+                legacy_original_offsets_set = new HashSet<long>(offsets.ElementValues().Cast<long>());
             }
 
             hasBuiltSnapshot = snapshotBuilt || persistedKeyCount > 0;
@@ -197,7 +185,6 @@ namespace Polar.Universal
             });
 
             writeOffsetsMs = Measure(() => offsets.ReplaceWithFixedInt64Array(offsetsArray));
-            offsets_arr = keysinmemory ? offsetsArray : null;
 
             keyoff_dic.Clear();
             hasBuiltSnapshot = true;
@@ -326,15 +313,13 @@ namespace Polar.Universal
         {
             var result = new List<long>();
             int hkey = PrimaryKeyAccessor.Hash(keysample);
-            var memoryOffsets = offsets_arr;
-
-            if (hkeys_arr != null && memoryOffsets != null)
+            if (hkeys_arr != null)
             {
                 int pos = LowerBound(hkeys_arr, hkey);
 
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    long offset = memoryOffsets[pos];
+                    long offset = (long)offsets.GetByIndex(pos);
                     object val = sequence.GetByOffset(offset);
                     if (val == null) break;
                     var key = PrimaryKeyAccessor.GetKey(val);
@@ -381,14 +366,12 @@ namespace Polar.Universal
         private bool TryGetIndexedValueAndOffsetByKey(IComparable keysample, out object value, out long offset)
         {
             int hkey = PrimaryKeyAccessor.Hash(keysample);
-            var memoryOffsets = offsets_arr;
-
-            if (hkeys_arr != null && memoryOffsets != null)
+            if (hkeys_arr != null)
             {
                 int pos = LowerBound(hkeys_arr, hkey);
                 while (pos < hkeys_arr.Length && hkeys_arr[pos] == hkey)
                 {
-                    var candidateOffset = memoryOffsets[pos];
+                    var candidateOffset = (long)offsets.GetByIndex(pos);
                     var candidateValue = sequence.GetByOffset(candidateOffset);
                     if (candidateValue != null)
                     {
