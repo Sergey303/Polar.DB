@@ -83,6 +83,22 @@ internal static class BenchmarkRawArtifacts
                     engine.FlushSamplesMs, 1);
                 AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "durable-per-operation",
                     engine.DurableSamplesMs, engine.DurableBatchSize);
+                AppendLongSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "load-allocated-bytes",
+                    engine.LoadAllocationGc?.AllocatedBytes);
+                AppendIntSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "load-gen0-collections",
+                    engine.LoadAllocationGc?.Gen0Collections);
+                AppendIntSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "load-gen1-collections",
+                    engine.LoadAllocationGc?.Gen1Collections);
+                AppendIntSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "load-gen2-collections",
+                    engine.LoadAllocationGc?.Gen2Collections);
+                AppendLongSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "build-allocated-bytes",
+                    engine.BuildAllocationGc?.AllocatedBytes);
+                AppendIntSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "build-gen0-collections",
+                    engine.BuildAllocationGc?.Gen0Collections);
+                AppendIntSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "build-gen1-collections",
+                    engine.BuildAllocationGc?.Gen1Collections);
+                AppendIntSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "build-gen2-collections",
+                    engine.BuildAllocationGc?.Gen2Collections);
                 if (engine.PrimaryBuildStages != null)
                 {
                     var stages = engine.PrimaryBuildStages;
@@ -149,6 +165,52 @@ internal static class BenchmarkRawArtifacts
                 .Append(batchSize.ToString(CultureInfo.InvariantCulture))
                 .AppendLine();
         }
+    }
+
+    private static void AppendLongSamples(
+        StringBuilder builder,
+        BenchmarkRunManifest manifest,
+        ExperimentOptions options,
+        string engine,
+        int setupRows,
+        string phase,
+        string metric,
+        IReadOnlyList<long>? values)
+    {
+        if (values == null) return;
+        AppendSamples(
+            builder,
+            manifest,
+            options,
+            engine,
+            setupRows,
+            phase,
+            metric,
+            values.Select(value => (double)value).ToArray(),
+            1);
+    }
+
+    private static void AppendIntSamples(
+        StringBuilder builder,
+        BenchmarkRunManifest manifest,
+        ExperimentOptions options,
+        string engine,
+        int setupRows,
+        string phase,
+        string metric,
+        IReadOnlyList<int>? values)
+    {
+        if (values == null) return;
+        AppendSamples(
+            builder,
+            manifest,
+            options,
+            engine,
+            setupRows,
+            phase,
+            metric,
+            values.Select(value => (double)value).ToArray(),
+            1);
     }
 
     private static string Csv(string value)
