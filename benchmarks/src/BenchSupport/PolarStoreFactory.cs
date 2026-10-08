@@ -104,18 +104,22 @@ internal static class PolarStoreFactory
 
     private static bool NeedsIntIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalIntLookup or ExperimentKind.ExternalFamousIntLookup
+            or ExperimentKind.BuildExternalIndexesOnly
             or ExperimentKind.ReopenOnly or ExperimentKind.AppendOnly or ExperimentKind.DeleteOnly;
 
     private static bool NeedsLongIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalLongLookup or ExperimentKind.ExternalFamousLongLookup
+            or ExperimentKind.BuildExternalIndexesOnly
             or ExperimentKind.ReopenOnly or ExperimentKind.AppendOnly or ExperimentKind.DeleteOnly;
 
     private static bool NeedsGuidIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalGuidLookup or ExperimentKind.ExternalFamousGuidLookup
+            or ExperimentKind.BuildExternalIndexesOnly
             or ExperimentKind.ReopenOnly or ExperimentKind.AppendOnly or ExperimentKind.DeleteOnly;
 
     private static bool NeedsStringIndex(ExperimentKind kind) =>
         kind is ExperimentKind.ExternalStringLookup or ExperimentKind.ExternalFamousStringLookup
+            or ExperimentKind.BuildExternalIndexesOnly
             or ExperimentKind.ReopenOnly or ExperimentKind.AppendOnly or ExperimentKind.DeleteOnly;
 
     private static Guid ReadGuid(object value, int offset)
