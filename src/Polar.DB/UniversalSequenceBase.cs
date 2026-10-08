@@ -262,18 +262,18 @@ namespace Polar.DB
             }
         }
 
-        public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
+        internal IEnumerable<(long Offset, object Value)> OffsetValuePairs()
         {
             fs.Position = HeaderSize;
             for (long i = 0; i < Count(); i++)
             {
                 long off = fs.Position;
                 object pobject = GetElement();
-                yield return new Tuple<long, object>(off, pobject);
+                yield return (off, pobject);
             }
         }
 
-        public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
+        internal IEnumerable<(long Offset, object Value)> OffsetValuePairs(long offset, long number)
         {
             ValidateRange(offset, number);
             fs.Position = offset;
@@ -281,8 +281,20 @@ namespace Polar.DB
             {
                 long off = fs.Position;
                 object pobject = GetElement();
-                yield return new Tuple<long, object>(off, pobject);
+                yield return (off, pobject);
             }
+        }
+
+        public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs()
+        {
+            foreach (var pair in OffsetValuePairs())
+                yield return new Tuple<long, object>(pair.Offset, pair.Value);
+        }
+
+        public IEnumerable<Tuple<long, object>> ElementOffsetValuePairs(long offset, long number)
+        {
+            foreach (var pair in OffsetValuePairs(offset, number))
+                yield return new Tuple<long, object>(pair.Offset, pair.Value);
         }
 
         public void Sort32(Func<object, int> keyFun)
