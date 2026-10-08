@@ -18,16 +18,28 @@ internal static class BenchmarkExpected
 
     public static QueryResult ForLifecycle(ExperimentOptions options, Row[] data)
     {
-        var expectedRows = options.Kind switch
+        IEnumerable<Row> expectedRows = options.Kind switch
         {
             ExperimentKind.AppendOnly => data.Concat(
                 BenchmarkData.Dataset(options.MeasuredOps, options.Kind, data.Length + 1)),
             ExperimentKind.DeleteOnly => data.Skip(options.MeasuredOps),
+            ExperimentKind.ReopenWithTail => data.Concat(
+                BenchmarkData.Dataset(
+                    BenchmarkDefaults.ReopenTailRows,
+                    options.Kind,
+                    data.LongLength + 1L)),
             _ => data
         };
 
-        var materialized = expectedRows.ToArray();
-        return new QueryResult(materialized.Length, BenchmarkChecksum.HashRows(materialized));
+        var rowCount = options.Kind switch
+        {
+            ExperimentKind.AppendOnly => checked(data.LongLength + options.MeasuredOps),
+            ExperimentKind.DeleteOnly => data.LongLength - options.MeasuredOps,
+            ExperimentKind.ReopenWithTail => checked(data.LongLength + BenchmarkDefaults.ReopenTailRows),
+            _ => data.LongLength
+        };
+
+        return new QueryResult(rowCount, BenchmarkChecksum.HashRows(expectedRows));
     }
 
     private static Row[] LookupMatches(ExperimentKind kind, Row[] data, object key) =>
