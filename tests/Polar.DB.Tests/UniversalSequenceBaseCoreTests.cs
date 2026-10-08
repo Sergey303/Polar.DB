@@ -142,7 +142,9 @@ Assert.Equal(8L, stream.Length);
         sequence.Flush();
 
         stream.Position = 5L;
+#pragma warning disable CS0618 // Intentional compatibility coverage for the obsolete traversal API.
         _ = sequence.ElementOffsetValuePairs().ToArray();
+#pragma warning restore CS0618
 
         long offset = sequence.AppendElement(30L);
 
