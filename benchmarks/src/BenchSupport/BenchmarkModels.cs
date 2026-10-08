@@ -75,6 +75,12 @@ public sealed record QueryResult(long Rows, ulong Checksum);
 
 public sealed record ResourceSnapshot(long ManagedBytes, long WorkingSetBytes, long PrivateBytes, long AvailableMemoryBytes);
 
+public sealed record AllocationGcSamples(
+    IReadOnlyList<long> AllocatedBytes,
+    IReadOnlyList<int> Gen0Collections,
+    IReadOnlyList<int> Gen1Collections,
+    IReadOnlyList<int> Gen2Collections);
+
 public sealed record PrimaryBuildStageSamples(
     IReadOnlyList<double> ScanMs,
     IReadOnlyList<double> ToArrayMs,
@@ -100,7 +106,9 @@ public sealed record EngineResult(
     IReadOnlyList<double>? LoadSamplesMs = null,
     IReadOnlyList<double>? OpenSamplesMs = null,
     IReadOnlyList<double>? DurableSamplesMs = null,
-    int DurableBatchSize = 0);
+    int DurableBatchSize = 0,
+    AllocationGcSamples? LoadAllocationGc = null,
+    AllocationGcSamples? BuildAllocationGc = null);
 
 public sealed record LookupEngineResult(
     string Engine, string Status, IReadOnlyList<double> BatchAvgSamplesMs,
