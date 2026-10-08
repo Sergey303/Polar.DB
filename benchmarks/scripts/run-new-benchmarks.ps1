@@ -15,6 +15,9 @@ function Get-ExperimentId([string] $projectName) {
     "ExternalFamousGuidLookup" { return "external-famous-guid-lookup" }
     "ExternalFamousStringLookup" { return "external-famous-string-lookup" }
     "BuildPrimaryIntOnly" { return "build-primary-int-only" }
+    "BuildExternalIndexesOnly" { return "build-external-indexes-only" }
+    "TraversalOnly" { return "traversal-only" }
+    "ReopenWithTail" { return "reopen-with-tail" }
     "ReopenOnly" { return "reopen-only" }
     "AppendOnly" { return "append-only" }
     "DeleteOnly" { return "delete-only" }
@@ -36,6 +39,9 @@ $projects = @(
   "benchmarks\src\ExternalFamousGuidLookup\ExternalFamousGuidLookup.csproj",
   "benchmarks\src\ExternalFamousStringLookup\ExternalFamousStringLookup.csproj",
   "benchmarks\src\BuildPrimaryIntOnly\BuildPrimaryIntOnly.csproj",
+  "benchmarks\src\BuildExternalIndexesOnly\BuildExternalIndexesOnly.csproj",
+  "benchmarks\src\TraversalOnly\TraversalOnly.csproj",
+  "benchmarks\src\ReopenWithTail\ReopenWithTail.csproj",
   "benchmarks\src\ReopenOnly\ReopenOnly.csproj",
   "benchmarks\src\AppendOnly\AppendOnly.csproj",
   "benchmarks\src\DeleteOnly\DeleteOnly.csproj"
