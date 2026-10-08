@@ -30,6 +30,7 @@
     <Compile Include="BenchmarkRowAccumulator.cs" />
     <Compile Include="BenchmarkExpected.cs" />
     <Compile Include="BenchmarkResources.cs" />
+    <Compile Include="BenchmarkMeasure.cs" />
     <Compile Include="BenchmarkSystemMemory.cs" />
     <Compile Include="BenchmarkStats.cs" />
     <Compile Include="BenchmarkFileWarmup.cs" />
