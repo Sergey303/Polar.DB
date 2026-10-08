@@ -198,38 +198,44 @@ internal static class PolarLifecycleEngine
     private static EngineResult ReopenWithTail(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
-        var prepared = PrepareBuiltStore(dir, data, ExperimentKind.ReopenWithTail);
+        Directory.CreateDirectory(dir);
+        var prepared = PolarStoreFactory.Open(dir, ExperimentKind.BuildPrimaryIntOnly);
+        prepared.Sequence.Load(data.Select(row => (object)checked((int)row.Id)));
+        prepared.Sequence.Build();
+        prepared.Sequence.Flush();
+
         var tail = BenchmarkData.Dataset(
             BenchmarkDefaults.ReopenTailRows,
             ExperimentKind.ReopenWithTail,
             data.LongLength + 1L);
-
         foreach (var row in tail)
-            prepared.Sequence.AppendElement(PolarRows.ToPolar(row));
+            prepared.Sequence.AppendElement(checked((int)row.Id));
         prepared.Sequence.Flush();
         prepared.Sequence.Close();
 
-        var expectedLast = BenchmarkChecksum.HashRows(new[] { tail[^1] });
+        var lastKey = checked((int)tail[^1].Id);
         var samples = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
         {
-            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenWithTail);
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.BuildPrimaryIntOnly);
             store.Sequence.Refresh();
-            ValidatePrimaryLookup(store, tail[^1].Id, expectedLast, "tail replay");
+            ValidatePrimaryIntLookup(store, lastKey, "tail replay");
             store.Sequence.Close();
         });
 
-        var liveStore = PolarStoreFactory.Open(dir, ExperimentKind.ReopenWithTail);
+        var liveStore = PolarStoreFactory.Open(dir, ExperimentKind.BuildPrimaryIntOnly);
         liveStore.Sequence.Refresh();
-        ValidatePrimaryLookup(liveStore, tail[^1].Id, expectedLast, "tail replay live snapshot");
+        ValidatePrimaryIntLookup(liveStore, lastKey, "tail replay live snapshot");
         var liveResources = BenchmarkResources.Capture();
         GC.KeepAlive(liveStore);
         liveStore.Sequence.Close();
 
         var rows = checked(data.LongLength + tail.LongLength);
-        var checksum = BenchmarkChecksum.HashRows(data.Concat(tail));
+        var checksum = BenchmarkChecksum.HashInt32Values(
+            data.Select(row => checked((int)row.Id))
+                .Concat(tail.Select(row => checked((int)row.Id))));
         return Result(
             "polar-db-current",
-            "query-ready reopen with dynamic tail",
+            "fixed-int query-ready reopen with dynamic tail",
             samples,
             rows,
             checksum,
@@ -428,6 +434,16 @@ internal static class PolarLifecycleEngine
         }
 
         return new QueryResult(rows, accumulator.Finish());
+    }
+
+    private static void ValidatePrimaryIntLookup(
+        PolarStore store,
+        int key,
+        string scenario)
+    {
+        var value = store.Sequence.GetByKey(key);
+        if (value is not int actual || actual != key)
+            throw new InvalidDataException("Polar.DB " + scenario + " lookup returned an unexpected Int32 key.");
     }
 
     private static void ValidatePrimaryLookup(
