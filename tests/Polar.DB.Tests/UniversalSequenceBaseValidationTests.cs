@@ -183,7 +183,9 @@ public class UniversalSequenceBaseValidationTests
         sequence.AppendElement(10L);
         sequence.Flush();
 
+#pragma warning disable CS0618 // Intentional compatibility coverage for the obsolete traversal API.
         Assert.Throws<ArgumentOutOfRangeException>(() => sequence.ElementOffsetValuePairs(7L, 1L).ToArray());
+#pragma warning restore CS0618
     }
 
     [Fact]
@@ -196,7 +198,9 @@ public class UniversalSequenceBaseValidationTests
         sequence.AppendElement(10L);
         sequence.Flush();
 
+#pragma warning disable CS0618 // Intentional compatibility coverage for the obsolete traversal API.
         Assert.Throws<ArgumentOutOfRangeException>(() => sequence.ElementOffsetValuePairs(8L, -1L).ToArray());
+#pragma warning restore CS0618
     }
 
     [Fact]
