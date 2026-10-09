@@ -18,10 +18,19 @@ public static class LifecycleBench
             var data = BenchmarkData.Dataset(rowCount, options.Kind);
             var expected = BenchmarkExpected.ForLifecycle(options, data);
             var caseDir = Path.Combine(work, "rows-" + rowCount);
-            var engineResult = engine == BenchmarkEngine.Sqlite
-                ? SqliteLifecycleEngine.Run(options, data, caseDir)
-                : PolarLifecycleEngine.Run(options, data, caseDir);
-            runs.Add(new BenchmarkRunResult(rowCount, expected, new[] { engineResult }));
+            try
+            {
+                var engineResult = engine == BenchmarkEngine.Sqlite
+                    ? SqliteLifecycleEngine.Run(options, data, caseDir)
+                    : PolarLifecycleEngine.Run(options, data, caseDir);
+                runs.Add(new BenchmarkRunResult(rowCount, expected, new[] { engineResult }));
+                BenchmarkPaths.TryDeleteDirectory(caseDir);
+            }
+            catch
+            {
+                Console.Error.WriteLine("[bench] failed case kept for diagnostics: " + caseDir);
+                throw;
+            }
         }
 
         return new BenchmarkWorkerResult(runId, options.ExperimentId, engine, manifest, runs, null);
