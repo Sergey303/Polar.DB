@@ -20,13 +20,22 @@ public static class LookupBench
             var plans = LookupPlanner.Plans(options.Kind, data);
             var caseDir = Path.Combine(work, "rows-" + rowCount);
 
-            var engineResults = engine == BenchmarkEngine.Sqlite
-                ? SqliteLookupEngine.Run(options, data, caseDir, plans)
-                : PolarLookupEngine.Run(options, data, caseDir, plans);
+            try
+            {
+                var engineResults = engine == BenchmarkEngine.Sqlite
+                    ? SqliteLookupEngine.Run(options, data, caseDir, plans)
+                    : PolarLookupEngine.Run(options, data, caseDir, plans);
 
-            runs.Add(new LookupRunResult(
-                rowCount,
-                BuildSingleEnginePhases(options.Kind, data, plans, engineResults)));
+                runs.Add(new LookupRunResult(
+                    rowCount,
+                    BuildSingleEnginePhases(options.Kind, data, plans, engineResults)));
+                BenchmarkPaths.TryDeleteDirectory(caseDir);
+            }
+            catch
+            {
+                Console.Error.WriteLine("[bench] failed case kept for diagnostics: " + caseDir);
+                throw;
+            }
         }
 
         return new BenchmarkWorkerResult(runId, options.ExperimentId, engine, manifest, null, runs);
