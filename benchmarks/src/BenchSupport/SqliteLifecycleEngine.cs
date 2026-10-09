@@ -62,6 +62,11 @@ internal static class SqliteLifecycleEngine
                 liveResources = BenchmarkResources.Capture();
                 GC.KeepAlive(connection);
             }
+
+            connection.Close();
+            SqliteConnection.ClearAllPools();
+            if (i != options.MeasuredOps - 1)
+                BenchmarkPaths.TryDeleteDirectory(runDir);
         }
 
         return Result(
@@ -141,6 +146,11 @@ internal static class SqliteLifecycleEngine
                 liveResources = BenchmarkResources.Capture();
                 GC.KeepAlive(connection);
             }
+
+            connection.Close();
+            SqliteConnection.ClearAllPools();
+            if (i != options.MeasuredOps - 1)
+                BenchmarkPaths.TryDeleteDirectory(runDir);
         }
 
         return Result(
