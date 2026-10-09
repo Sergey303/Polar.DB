@@ -80,6 +80,8 @@ internal static class PolarLifecycleEngine
             }
 
             store.Sequence.Close();
+            if (i != options.MeasuredOps - 1)
+                BenchmarkPaths.TryDeleteDirectory(runDir);
         }
 
         return Result(
@@ -150,6 +152,8 @@ internal static class PolarLifecycleEngine
             }
 
             store.Sequence.Close();
+            if (i != options.MeasuredOps - 1)
+                BenchmarkPaths.TryDeleteDirectory(runDir);
         }
 
         return Result(
