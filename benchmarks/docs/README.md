@@ -8,6 +8,13 @@ Each normal benchmark launch is a coordinator. It starts SQLite and Polar.DB in 
 child processes, waits for both workers, validates compatible result shapes and build
 settings, and then creates the combined report.
 
+Benchmark working data is disk-bounded. Successful workers delete each completed row-count
+case before moving to the next one. Repeated build scenarios also delete warmup and earlier
+measured `run-*` directories as soon as their metrics have been captured, retaining only the
+current/final run long enough to calculate artifact size. After the coordinator writes combined
+raw/manifest/HTML artifacts, the remaining work directory for that experiment is deleted.
+Failed active cases are intentionally kept under `benchmarks/work` for diagnostics.
+
 Generated latest-result artifacts:
 
 - `<experiment>.html` — derived report;
