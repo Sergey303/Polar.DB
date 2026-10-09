@@ -29,6 +29,8 @@ The script assigns one `POLAR_BENCH_RUN_ID` to the whole series. Engine order is
 alternated deterministically by default. Set `POLAR_BENCH_ENGINE_ORDER` to
 `sqlite-first` or `polar-first` only when a fixed order is required.
 
+For the next primary-offset experiment, see [`PRIMARY_OFFSET_RESIDENCY_PLAN.md`](PRIMARY_OFFSET_RESIDENCY_PLAN.md). It records the planned Windows/Linux comparison of the current FileStream path, `System.IO.RandomAccess`, memory-mapped access and, only if needed, a bounded managed page cache.
+
 The lifecycle suite also contains focused scenarios used to isolate current storage work:
 
 - `BuildPrimaryIntOnly` — fixed Int32 primary-index build, including Load/Build allocations and GC counts;
