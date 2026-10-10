@@ -25,10 +25,11 @@ public static class LookupBench
                 var engineResults = engine == BenchmarkEngine.Sqlite
                     ? SqliteLookupEngine.Run(options, data, caseDir, plans)
                     : PolarLookupEngine.Run(options, data, caseDir, plans);
+                var expected = BenchmarkExpected.CreateLookupOracle(options.Kind, data, plans);
 
                 runs.Add(new LookupRunResult(
                     rowCount,
-                    BuildSingleEnginePhases(options.Kind, data, plans, engineResults)));
+                    BuildSingleEnginePhases(plans, engineResults, expected)));
                 BenchmarkPaths.TryDeleteDirectory(caseDir);
             }
             catch
@@ -84,10 +85,9 @@ public static class LookupBench
     }
 
     private static IReadOnlyList<LookupPhaseResult> BuildSingleEnginePhases(
-        ExperimentKind kind,
-        Row[] data,
         IReadOnlyList<LookupPlan> plans,
-        IReadOnlyList<LookupEngineResult> engineResults)
+        IReadOnlyList<LookupEngineResult> engineResults,
+        LookupExpectedOracle expected)
     {
         if (plans.Count != engineResults.Count)
             throw new InvalidDataException("Lookup plan and engine result counts differ.");
@@ -105,8 +105,8 @@ public static class LookupBench
                 throw new InvalidDataException(
                     $"Lookup result shape does not match resolved plan {plan.Name} for {engine.Engine}.");
 
-            var expectedBatch = BenchmarkExpected.ForLookup(kind, data, plan.BatchKeys);
-            var expectedLatency = BenchmarkExpected.ForLookup(kind, data, plan.LatencyKeys);
+            var expectedBatch = expected.ForKeys(plan.BatchKeys);
+            var expectedLatency = expected.ForKeys(plan.LatencyKeys);
             phases.Add(new LookupPhaseResult(
                 plan.Name,
                 manifest,
