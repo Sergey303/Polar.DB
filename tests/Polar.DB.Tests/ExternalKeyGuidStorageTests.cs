@@ -112,8 +112,8 @@ public class ExternalKeyGuidStorageTests
                 _ => false,
                 optimise: false);
             Sequence.SetPrimaryKey<int>(row => (int)((object[])row)[0]);
-            Append(1, First);
-            Append(2, Second);
+            Sequence.AppendElement(new object[] { 1, First.ToString("D") });
+            Sequence.AppendElement(new object[] { 2, Second.ToString("D") });
             Sequence.Build();
         }
 
