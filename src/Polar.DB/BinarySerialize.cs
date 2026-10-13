@@ -15,6 +15,14 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { bw.Write((int)v); return; }
                 case PTypeEnumeration.longinteger: { bw.Write((long)v); return; }
                 case PTypeEnumeration.real: { bw.Write((double)v); return; }
+                case PTypeEnumeration.guid:
+                    {
+                        Span<byte> bytes = stackalloc byte[16];
+                        if (!((Guid)v).TryWriteBytes(bytes))
+                            throw new InvalidOperationException("Could not serialize Guid value.");
+                        bw.Write(bytes);
+                        return;
+                    }
                 case PTypeEnumeration.fstring:
                     {
                         var type = (PTypeFString)tp;
@@ -68,6 +76,12 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { return br.ReadInt32(); }
                 case PTypeEnumeration.longinteger: { return br.ReadInt64(); }
                 case PTypeEnumeration.real: { return br.ReadDouble(); }
+                case PTypeEnumeration.guid:
+                    {
+                        Span<byte> bytes = stackalloc byte[16];
+                        ReadExactly(br, bytes);
+                        return new Guid(bytes);
+                    }
                 case PTypeEnumeration.fstring:
                     {
                         var type = (PTypeFString)tp;
@@ -140,6 +154,9 @@ namespace Polar.DB
                 case PTypeEnumeration.real:
                     SkipBytes(br, sizeof(long));
                     return;
+                case PTypeEnumeration.guid:
+                    SkipBytes(br, 16L);
+                    return;
                 case PTypeEnumeration.fstring:
                     SkipBytes(br, checked((long)((PTypeFString)tp).Length * sizeof(ushort)));
                     return;
@@ -172,6 +189,17 @@ namespace Polar.DB
                     }
                 default:
                     throw new NotSupportedException($"Binary serialization does not support type {tp.Vid}.");
+            }
+        }
+
+        private static void ReadExactly(BinaryReader br, Span<byte> buffer)
+        {
+            int readTotal = 0;
+            while (readTotal < buffer.Length)
+            {
+                int read = br.Read(buffer.Slice(readTotal));
+                if (read <= 0) throw new EndOfStreamException();
+                readTotal += read;
             }
         }
 
