@@ -21,7 +21,7 @@ public class GuidTypedStorageTests
             string tablePath = Path.Combine(root, "native-guid");
             string schema = File.ReadAllText(Path.Combine(tablePath, "schema.json"));
 
-            Assert.Contains(""PolarType": "guid"", schema);
+            Assert.Contains("\"PolarType\": \"guid\"", schema);
             Assert.Equal(28L, new FileInfo(Path.Combine(tablePath, "data-00.bin")).Length);
 
             using var reopened = Open(root, "native-guid");
@@ -52,7 +52,7 @@ public class GuidTypedStorageTests
                 Assert.Equal(new GuidIntEntity(id, 9), set.GetByKey(id));
 
             string schema = File.ReadAllText(Path.Combine(tablePath, "schema.json"));
-            Assert.Contains(""PolarType": "sstring"", schema);
+            Assert.Contains("\"PolarType\": \"sstring\"", schema);
             Assert.Equal(legacyLength, new FileInfo(Path.Combine(tablePath, "data-00.bin")).Length);
         }
         finally
