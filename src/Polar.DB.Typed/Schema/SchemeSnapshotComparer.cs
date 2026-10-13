@@ -2,7 +2,19 @@ namespace Polar.DB.Typed.Schema;
 
 internal static class SchemeSnapshotComparer
 {
-    public static string DescribeDifference(SchemeSnapshot stored, SchemeSnapshot current)
+    private const string LegacyOpaquePType = "Polar.DB.PType";
+
+    public static bool AreCompatible(SchemeSnapshot stored, SchemeSnapshot current) =>
+        FindDifference(stored, current) == null;
+
+    public static string DescribeDifference(SchemeSnapshot stored, SchemeSnapshot current) =>
+        FindDifference(stored, current)
+        ?? "Stored schema.json differs from the requested record type.";
+
+    public static bool IsLegacyOpaquePolarType(string value) =>
+        string.Equals(value, LegacyOpaquePType, StringComparison.Ordinal);
+
+    private static string? FindDifference(SchemeSnapshot stored, SchemeSnapshot current)
     {
         if (!Same(stored.StorageName, current.StorageName))
             return $"Storage name changed from '{stored.StorageName}' to '{current.StorageName}'.";
@@ -20,7 +32,7 @@ internal static class SchemeSnapshotComparer
         if (!Same(stored.TypeName, current.TypeName))
             return $"Record type changed from '{stored.TypeName}' to '{current.TypeName}'.";
 
-        return "Stored schema.json differs from the requested record type.";
+        return null;
     }
 
     private static string? DescribeFieldDifference(
@@ -32,11 +44,33 @@ internal static class SchemeSnapshotComparer
             return $"Field #{index} changed from '{stored.Name}' to '{current.Name}'.";
         if (!Same(stored.ClrType, current.ClrType))
             return $"Field '{stored.Name}' CLR type changed from '{stored.ClrType}' to '{current.ClrType}'.";
-        if (!Same(stored.PolarType, current.PolarType))
+        if (!PolarTypesCompatible(stored, current))
             return $"Field '{stored.Name}' Polar type changed from '{stored.PolarType}' to '{current.PolarType}'.";
         if (stored.Key != current.Key)
             return $"Field '{stored.Name}' primary-key flag changed.";
         return null;
+    }
+
+    private static bool PolarTypesCompatible(
+        SchemeFieldSnapshot stored,
+        SchemeFieldSnapshot current)
+    {
+        if (Same(stored.PolarType, current.PolarType))
+            return true;
+        if (!IsLegacyOpaquePolarType(stored.PolarType))
+            return false;
+
+        string? expectedLegacyType = stored.ClrType switch
+        {
+            "System.Int32" => PTypeEnumeration.integer.ToString(),
+            "System.String" => PTypeEnumeration.sstring.ToString(),
+            "System.Boolean" => PTypeEnumeration.boolean.ToString(),
+            "System.Int64" => PTypeEnumeration.sstring.ToString(),
+            "System.Guid" => PTypeEnumeration.sstring.ToString(),
+            _ => null
+        };
+
+        return expectedLegacyType != null && Same(expectedLegacyType, current.PolarType);
     }
 
     private static bool Same(string left, string right) =>

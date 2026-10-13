@@ -56,13 +56,13 @@ internal static class PolarStoreFactory
 
             case ExperimentKind.PkGuidLookup:
                 sequence.SetPrimaryKey<Guid>(
-                    value => ReadGuid(value, 2),
+                    value => (Guid)((object[])value)[2],
                     BenchmarkChecksum.StableHash);
                 return;
 
             case ExperimentKind.PkStringLookup:
                 sequence.SetPrimaryKey<string>(
-                    value => (string)((object[])value)[4],
+                    value => (string)((object[])value)[3],
                     BenchmarkChecksum.StableHash);
                 return;
 
@@ -82,13 +82,11 @@ internal static class PolarStoreFactory
         return new PTypeRecord(
             new NamedType("id", new PType(PTypeEnumeration.longinteger)),
             new NamedType("long_key", new PType(PTypeEnumeration.longinteger)),
-            new NamedType("guid_low", new PType(PTypeEnumeration.longinteger)),
-            new NamedType("guid_high", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("guid", new PType(PTypeEnumeration.guid)),
             new NamedType("skey", new PType(PTypeEnumeration.sstring)),
             new NamedType("external_id", new PType(PTypeEnumeration.integer)),
             new NamedType("external_long", new PType(PTypeEnumeration.longinteger)),
-            new NamedType("external_guid_low", new PType(PTypeEnumeration.longinteger)),
-            new NamedType("external_guid_high", new PType(PTypeEnumeration.longinteger)),
+            new NamedType("external_guid", new PType(PTypeEnumeration.guid)),
             new NamedType("external_key", new PType(PTypeEnumeration.sstring)),
             new NamedType("payload", new PType(PTypeEnumeration.sstring)),
             new NamedType("deleted", new PType(PTypeEnumeration.boolean)));
@@ -99,7 +97,7 @@ internal static class PolarStoreFactory
         if (kind == ExperimentKind.BuildPrimaryIntOnly)
             return value => false;
 
-        return value => (bool)((object[])value)[11];
+        return value => (bool)((object[])value)[9];
     }
 
     private static bool NeedsIntIndex(ExperimentKind kind) =>
@@ -122,25 +120,19 @@ internal static class PolarStoreFactory
             or ExperimentKind.BuildExternalIndexesOnly
             or ExperimentKind.ReopenOnly or ExperimentKind.AppendOnly or ExperimentKind.DeleteOnly;
 
-    private static Guid ReadGuid(object value, int offset)
-    {
-        var row = (object[])value;
-        return BenchmarkGuid.Join((long)row[offset], (long)row[offset + 1]);
-    }
-
     private static IExternalKeyIndex CreateIntIndex(Func<Stream> streamGen, USequence sequence) =>
-        new ExternalKeyIndex<int>(streamGen, sequence, value => new[] { (int)((object[])value)[5] });
+        new ExternalKeyIndex<int>(streamGen, sequence, value => new[] { (int)((object[])value)[4] });
 
     private static IExternalKeyIndex CreateLongIndex(Func<Stream> streamGen, USequence sequence) =>
-        new ExternalKeyIndex<long>(streamGen, sequence, value => new[] { (long)((object[])value)[6] });
+        new ExternalKeyIndex<long>(streamGen, sequence, value => new[] { (long)((object[])value)[5] });
 
     private static IExternalKeyIndex CreateGuidIndex(Func<Stream> streamGen, USequence sequence) =>
-        new ExternalKeyIndex<Guid>(streamGen, sequence, value => new[] { ReadGuid(value, 7) });
+        new ExternalKeyIndex<Guid>(streamGen, sequence, value => new[] { (Guid)((object[])value)[6] });
 
     private static IExternalKeyIndex CreateStringIndex(Func<Stream> streamGen, USequence sequence) =>
         new ExternalKeyIndex<string>(
             streamGen,
             sequence,
-            value => new[] { (string)((object[])value)[9] },
+            value => new[] { (string)((object[])value)[7] },
             StringComparer.Ordinal);
 }

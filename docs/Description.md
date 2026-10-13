@@ -86,7 +86,7 @@ PType tp_persons = new PTypeSequence(
 ```csharp
 PType tp = new PType(PTypeEnumeration.xxx);
 ```
-Где xxx – один из вариантов: none, boolean, @byte, character, integer, longinteger, real, sstring.
+Где xxx – один из вариантов: none, boolean, @byte, character, integer, longinteger, real, guid, sstring.
 
 А конструкторы составных типов задают информацию о структуре и типах элементов:
 

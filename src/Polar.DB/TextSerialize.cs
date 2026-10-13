@@ -16,6 +16,13 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { tw.Write((int)v); return; }
                 case PTypeEnumeration.longinteger: { tw.Write((long)v); return; }
                 case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }
+                case PTypeEnumeration.guid:
+                    {
+                        tw.Write('"');
+                        tw.Write(((Guid)v).ToString("D"));
+                        tw.Write('"');
+                        return;
+                    }
                 case PTypeEnumeration.fstring:
                     {
                         var type = (PTypeFString)tp;
@@ -110,6 +117,13 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { tw.Write((int)v); return; }
                 case PTypeEnumeration.longinteger: { tw.Write((long)v); return; }
                 case PTypeEnumeration.real: { tw.Write(((double)v).ToString("G", System.Globalization.CultureInfo.InvariantCulture)); return; }
+                case PTypeEnumeration.guid:
+                    {
+                        tw.Write('"');
+                        tw.Write(((Guid)v).ToString("D"));
+                        tw.Write('"');
+                        return;
+                    }
                 case PTypeEnumeration.fstring:
                     {
                         var type = (PTypeFString)tp;
@@ -328,6 +342,7 @@ namespace Polar.DB
                 case PTypeEnumeration.integer: { return ReadInt32(); }
                 case PTypeEnumeration.longinteger: { return ReadInt64(); }
                 case PTypeEnumeration.real: { return ReadDouble(); }
+                case PTypeEnumeration.guid: { return Guid.ParseExact(ReadString(), "D"); }
                 case PTypeEnumeration.fstring:
                     {
                         string value = ReadString();

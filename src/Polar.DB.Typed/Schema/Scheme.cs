@@ -27,7 +27,7 @@ internal sealed class Scheme<T>
     }
 
     public string StorageName { get; }
-    public PType RecordType { get; }
+    public PType RecordType { get; private set; }
     public IReadOnlyList<FieldScheme> Fields { get; }
     public string KeyName => _keyField.Name;
     public string KeyClrTypeName => _keyField.ClrType.FullName ?? _keyField.ClrType.Name;
@@ -87,6 +87,12 @@ internal sealed class Scheme<T>
                     StableHash.OfString);
                 return;
 
+            case PTypeEnumeration.guid:
+                sequence.SetPrimaryKey<Guid>(
+                    record => (Guid)((object[])record)[keyIndex],
+                    StableHash.OfGuid);
+                return;
+
             default:
                 throw new InvalidOperationException(
                     $"Primary key field '{_keyField.Name}' uses unsupported storage type '{_keyField.PolarType.Vid}'.");
@@ -122,7 +128,7 @@ internal sealed class Scheme<T>
         Fields.Select(item => new SchemeFieldSnapshot(
             item.Name,
             item.ClrType.FullName ?? item.ClrType.Name,
-            item.PolarType.ToString() ?? item.PolarType.GetType().Name,
+            item.PolarType.Vid.ToString(),
             item.Index,
             item.Index == _keyField.Index)).ToArray());
 
@@ -144,8 +150,52 @@ internal sealed class Scheme<T>
             return;
 
         SchemeSnapshot stored = ReadStoredSnapshot(existingJson, tablePath, schemaPath);
+        ApplyStoredStorageCompatibility(stored);
+        current = Snapshot();
+
+        if (SchemeSnapshotComparer.AreCompatible(stored, current))
+        {
+            if (stored.Fields.Any(field => SchemeSnapshotComparer.IsLegacyOpaquePolarType(field.PolarType)))
+                SchemaJsonFile.WriteAtomic(schemaPath, ToJson(current));
+            return;
+        }
+
         string detail = SchemeSnapshotComparer.DescribeDifference(stored, current);
         throw new SchemeCompatibilityException(tablePath, schemaPath, detail);
+    }
+
+    private void ApplyStoredStorageCompatibility(SchemeSnapshot stored)
+    {
+        if (stored.Fields.Count != Fields.Count)
+            return;
+
+        bool changed = false;
+        for (int index = 0; index < Fields.Count; index++)
+        {
+            FieldScheme currentField = Fields[index];
+            SchemeFieldSnapshot storedField = stored.Fields[index];
+
+            if (currentField.ClrType != typeof(Guid) ||
+                currentField.PolarType.Vid != PTypeEnumeration.guid)
+                continue;
+
+            bool legacyGuidStorage =
+                string.Equals(storedField.PolarType, PTypeEnumeration.sstring.ToString(), StringComparison.Ordinal) ||
+                SchemeSnapshotComparer.IsLegacyOpaquePolarType(storedField.PolarType);
+
+            if (!legacyGuidStorage)
+                continue;
+
+            currentField.UseLegacyGuidStringStorage();
+            changed = true;
+        }
+
+        if (changed)
+        {
+            RecordType = new PTypeRecord(Fields
+                .Select(field => new NamedType(field.Name, field.PolarType))
+                .ToArray());
+        }
     }
 
     private static SchemeSnapshot ReadStoredSnapshot(

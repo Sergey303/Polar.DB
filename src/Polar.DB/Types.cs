@@ -9,7 +9,7 @@ namespace Polar.DB
     public enum PTypeEnumeration
     {
         none, boolean, character, integer, longinteger, real, fstring, sstring, record, sequence, union,
-        @byte
+        @byte, guid
     }
     /// <summary>
     /// Базовый класс, задающий тип
@@ -47,12 +47,13 @@ namespace Polar.DB
                     case PTypeEnumeration.sequence: return 24; // длина (число элементов), выделенный объем, ссылка
                     case PTypeEnumeration.union: return 9; // тег, ссылка
                     case PTypeEnumeration.@byte: return 1;
+                    case PTypeEnumeration.guid: return 16;
                     default: return -1;
                 }
             }
         }
         /// <summary>
-        /// Определяет является ли тип атомарным, т.е. none, boolean, character, integer, longinteger, real
+        /// Определяет является ли тип атомарным, т.е. none, boolean, character, integer, longinteger, real, guid
         /// </summary>
         public bool IsAtom
         {
@@ -72,6 +73,7 @@ namespace Polar.DB
                     case PTypeEnumeration.sequence: return false; // длина (число элементов), выделенный объем, ссылка
                     case PTypeEnumeration.union: return false; // тег, ссылка
                     case PTypeEnumeration.@byte: return true;
+                    case PTypeEnumeration.guid: return true;
                     default: return false;
                 }
             }
@@ -97,6 +99,7 @@ namespace Polar.DB
                     case PTypeEnumeration.sequence: return false; // длина (число элементов), выделенный объем, ссылка
                     case PTypeEnumeration.union: return false; // тег, ссылка
                     case PTypeEnumeration.@byte: return true;
+                    case PTypeEnumeration.guid: return true;
                     default: return false;
                 }
             }
@@ -117,6 +120,7 @@ namespace Polar.DB
                 case PTypeEnumeration.sequence: return 9;
                 case PTypeEnumeration.union: return 10;
                 case PTypeEnumeration.@byte: return 11;
+                case PTypeEnumeration.guid: return 12;
                 default: return -1;
             }
         }
@@ -201,7 +205,10 @@ namespace Polar.DB
                     {
                         return new PType(PTypeEnumeration.@byte);
                     }
-                // case 12: не реализован вариант объектной пары
+                case 12:
+                    {
+                        return new PType(PTypeEnumeration.guid);
+                    }
                 default:
                     {
                         throw new Exception("unknown tag for pobject");
@@ -237,7 +244,8 @@ namespace Polar.DB
                     new PTypeRecord(
                         new NamedType("Name", new PType(PTypeEnumeration.sstring)),
                         new NamedType("Type", ttype)))),
-            new NamedType("byte", new PType(PTypeEnumeration.@byte))
+            new NamedType("byte", new PType(PTypeEnumeration.@byte)),
+            new NamedType("guid", new PType(PTypeEnumeration.none))
             };
         }
         public string Interpret(object? v, bool withfieldnames = false)
@@ -300,6 +308,8 @@ namespace Polar.DB
                     }
                 case PTypeEnumeration.@byte:
                     return ((byte)v).ToString();
+                case PTypeEnumeration.guid:
+                    return ((Guid)v).ToString("D");
                 default: throw new Exception("Can't interpret value by type");
             }
         }

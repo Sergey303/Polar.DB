@@ -10,6 +10,7 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     private readonly IComparer<T> _comparer;
     private readonly UniversalSequenceBase _keys;
     private readonly UniversalSequenceBase _offsets;
+    private readonly bool _legacyGuidStringStorage;
     private readonly List<ExternalKeyIndexEntry<T>> _dynamic = new();
     private ExternalKeyIndexSnapshot<T> _snapshot = ExternalKeyIndexSnapshot<T>.Empty;
     private long _revision;
@@ -25,7 +26,12 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
         _sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
         _keysFunc = keysFunc ?? throw new ArgumentNullException(nameof(keysFunc));
         _comparer = comparer ?? Comparer<T>.Default;
-        _keys = new UniversalSequenceBase(ExternalKeyIndexKeyCodec<T>.GetStorageType(), streamGen());
+
+        Stream keyStream = streamGen();
+        _legacyGuidStringStorage = ExternalKeyIndexKeyCodec<T>.IsLegacyGuidStringStorage(keyStream);
+        _keys = new UniversalSequenceBase(
+            ExternalKeyIndexKeyCodec<T>.GetStorageType(_legacyGuidStringStorage),
+            keyStream);
         _offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
     }
 
@@ -53,7 +59,10 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     {
         _keys.Refresh();
         _offsets.Refresh();
-        _snapshot = ExternalKeyIndexCompaction<T>.ReadSnapshot(_keys, _offsets);
+        _snapshot = ExternalKeyIndexCompaction<T>.ReadSnapshot(
+            _keys,
+            _offsets,
+            _legacyGuidStringStorage);
         _dynamic.Clear();
         _revision++;
     }
@@ -63,7 +72,12 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
         var snapshot = ExternalKeyIndexCompaction<T>.BuildSnapshot(
             _sequence, _keysFunc, _comparer, CancellationToken.None);
 
-        ExternalKeyIndexCompaction<T>.WriteSnapshot(_keys, _offsets, snapshot, CancellationToken.None);
+        ExternalKeyIndexCompaction<T>.WriteSnapshot(
+            _keys,
+            _offsets,
+            snapshot,
+            _legacyGuidStringStorage,
+            CancellationToken.None);
         PublishSnapshot(snapshot, long.MaxValue);
     }
 

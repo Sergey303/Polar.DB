@@ -96,6 +96,10 @@ The current automatic typed schema supports constructor/property fields of these
 - `string`;
 - `bool`.
 
+New `Guid` fields use the native fixed-size 16-byte Polar `guid` type. Tables created by earlier
+versions with string-backed `Guid` fields remain readable in their legacy storage mode; their
+`schema.json` metadata is upgraded without rewriting the table data.
+
 Primary and external key fields must implement both `IComparable` and `IComparable<T>`.
 
 ## Canonical Scenarios

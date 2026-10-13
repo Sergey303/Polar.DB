@@ -4,13 +4,18 @@ internal static class PolarRows
 {
     public static object ToPolar(Row row, bool deleted = false)
     {
-        var guid = BenchmarkGuid.Split(row.GuidKey);
-        var externalGuid = BenchmarkGuid.Split(row.ExternalGuid);
         return new object[]
         {
-            row.Id, row.LongKey, guid.Low, guid.High, row.SKey, row.ExternalId,
-            row.ExternalLong, externalGuid.Low, externalGuid.High, row.ExternalKey,
-            row.Payload, deleted
+            row.Id,
+            row.LongKey,
+            row.GuidKey,
+            row.SKey,
+            row.ExternalId,
+            row.ExternalLong,
+            row.ExternalGuid,
+            row.ExternalKey,
+            row.Payload,
+            deleted
         };
     }
 
@@ -18,13 +23,11 @@ internal static class PolarRows
     {
         id,
         0L,
-        0L,
-        0L,
+        Guid.Empty,
         string.Empty,
         -1,
         0L,
-        0L,
-        0L,
+        Guid.Empty,
         string.Empty,
         string.Empty,
         true
@@ -33,8 +36,15 @@ internal static class PolarRows
     public static Row FromPolar(object value)
     {
         var row = (object[])value;
-        return new Row((long)row[0], (long)row[1], BenchmarkGuid.Join((long)row[2], (long)row[3]),
-            (string)row[4], (int)row[5], (long)row[6], BenchmarkGuid.Join((long)row[7], (long)row[8]),
-            (string)row[9], (string)row[10]);
+        return new Row(
+            (long)row[0],
+            (long)row[1],
+            (Guid)row[2],
+            (string)row[3],
+            (int)row[4],
+            (long)row[5],
+            (Guid)row[6],
+            (string)row[7],
+            (string)row[8]);
     }
 }

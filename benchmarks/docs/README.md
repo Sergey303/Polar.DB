@@ -38,6 +38,11 @@ alternated deterministically by default. Set `POLAR_BENCH_ENGINE_ORDER` to
 
 For the next primary-offset experiment, see [`PRIMARY_OFFSET_RESIDENCY_PLAN.md`](PRIMARY_OFFSET_RESIDENCY_PLAN.md). It records the planned Windows/Linux comparison of the current FileStream path, `System.IO.RandomAccess`, memory-mapped access and, only if needed, a bounded managed page cache.
 
+The current Polar.DB benchmark row schema stores both Guid fields directly as native
+`PTypeEnumeration.guid` values. Earlier benchmark commits represented each Guid as two `long`
+fields; those historical raw results remain valid for their recorded commits, but Guid-sensitive
+storage-size/build/reopen measurements must be rerun before comparing them with the current schema.
+
 The lifecycle suite also contains focused scenarios used to isolate current storage work:
 
 - `BuildPrimaryIntOnly` — fixed Int32 primary-index build, including Load/Build allocations and GC counts;

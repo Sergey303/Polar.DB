@@ -36,10 +36,11 @@ internal static class ExternalKeyIndexCompaction<T>
 
     internal static ExternalKeyIndexSnapshot<T> ReadSnapshot(
         UniversalSequenceBase keys,
-        UniversalSequenceBase offsets)
+        UniversalSequenceBase offsets,
+        bool legacyGuidStringStorage)
     {
         T[] keysArray = keys.ElementValues()
-            .Select(ExternalKeyIndexKeyCodec<T>.FromStorage)
+            .Select(value => ExternalKeyIndexKeyCodec<T>.FromStorage(value, legacyGuidStringStorage))
             .ToArray();
 
         long[] offsetsArray = offsets.ElementValues()
@@ -53,6 +54,7 @@ internal static class ExternalKeyIndexCompaction<T>
         UniversalSequenceBase keys,
         UniversalSequenceBase offsets,
         ExternalKeyIndexSnapshot<T> snapshot,
+        bool legacyGuidStringStorage,
         CancellationToken cancellationToken)
     {
         keys.Clear();
@@ -60,7 +62,7 @@ internal static class ExternalKeyIndexCompaction<T>
         foreach (var key in snapshot.Keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            keys.AppendElement(ExternalKeyIndexKeyCodec<T>.ToStorage(key));
+            keys.AppendElement(ExternalKeyIndexKeyCodec<T>.ToStorage(key, legacyGuidStringStorage));
         }
 
         keys.Flush();
