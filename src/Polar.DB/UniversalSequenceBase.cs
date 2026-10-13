@@ -81,7 +81,23 @@ namespace Polar.DB
             Dispose();
         }
 
-        public void Refresh() => Refresh(null);
+        //public void Refresh() => Refresh(null);
+        public void Refresh()
+        {
+            // Вариант Лештаева
+            //Refresh(null);
+
+            // Вариант Марчука
+            //long pos = fs.Position;
+            //fs.Position = 0L;
+            //fs.CopyTo(Stream.Null); // Это решение плохо тем, что работает с полным файлом даже если занята только часть
+            //fs.Position = pos;
+
+            // Вариант со сканированием
+            Scan((off, obj) => true);
+        }
+        //fs.CopyToAsync(Stream.Null);
+
 
         internal void Refresh(SequenceOpenHint? openHint)
         {
