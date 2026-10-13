@@ -163,9 +163,9 @@ internal static class SchemeBuilder
         if (type == typeof(Guid))
         {
             return new FieldStorage(
-                new PType(PTypeEnumeration.sstring),
-                value => value == null ? null : ((Guid)value).ToString("D"),
-                value => value == null ? Guid.Empty : Guid.Parse((string)value));
+                new PType(PTypeEnumeration.guid),
+                value => value,
+                value => value);
         }
 
         throw new SchemeBuildException(

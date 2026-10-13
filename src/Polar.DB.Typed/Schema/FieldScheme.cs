@@ -4,8 +4,8 @@ namespace Polar.DB.Typed.Schema;
 
 internal sealed class FieldScheme
 {
-    private readonly Func<object?, object?> _toStorage;
-    private readonly Func<object?, object?> _fromStorage;
+    private Func<object?, object?> _toStorage;
+    private Func<object?, object?> _fromStorage;
 
     public FieldScheme(
         string name,
@@ -28,8 +28,19 @@ internal sealed class FieldScheme
     public string Name { get; }
     public int Index { get; }
     public Type ClrType { get; }
-    public PType PolarType { get; }
+    public PType PolarType { get; private set; }
     public PropertyInfo Property { get; }
+
+
+    internal void UseLegacyGuidStringStorage()
+    {
+        if (ClrType != typeof(Guid))
+            throw new InvalidOperationException($"Field '{Name}' is not a Guid field.");
+
+        PolarType = new PType(PTypeEnumeration.sstring);
+        _toStorage = value => value == null ? null : ((Guid)value).ToString("D");
+        _fromStorage = value => value == null ? Guid.Empty : Guid.Parse((string)value);
+    }
 
     public object? ToStorageValue(object? value) => _toStorage(value);
 
