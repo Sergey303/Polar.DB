@@ -1,77 +1,75 @@
-﻿using Polar.DB;
-using Polar.Universal;
-//using Sborka;
+using System.Diagnostics;
 
-int npersons = 5_000_000;
-bool toload = true;
-if (args.Length == 2) { npersons = int.Parse(args[0]); toload = (args[1] == "true"); }
+try
+{
+    var options = RunOptions.Parse(args);
+    Console.WriteLine($"TestingZone scenario={options.Scenario} phase={options.Phase} count={options.Count} data={options.Directory} optimise={options.Optimise}");
+    var wall = Stopwatch.StartNew();
+    foreach (var phase in options.Phase == "cycle" ? new[] { "load", "reopen" } : new[] { options.Phase })
+    {
+        if (options.Scenario is "base" or "all")
+            BaseExperiment.Run(options.Directory, options.Count, phase);
+        if (options.Scenario is "mutation" or "all")
+            MutationExperiment.Run(options.Directory, phase);
+        if (options.Scenario is "indexed" or "all")
+        {
+            int indexedCount = options.Scenario == "all" ? Math.Min(options.Count, 25000) : options.Count;
+            if (indexedCount < 20) throw new ArgumentException("Indexed scenario requires at least 20 records.");
+            if (options.Scenario == "all" && indexedCount != options.Count)
+                Console.WriteLine($"NOTE indexed workload capped at {indexedCount} records; base uses {options.Count}.");
+            IndexedExperiment.Run(options.Directory, indexedCount, phase, options.Optimise);
+        }
+    }
+    Console.WriteLine($"PASS total_ms={wall.Elapsed.TotalMilliseconds:F1}");
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"FAIL {ex}");
+    Environment.ExitCode = 1;
+}
 
-Random rnd = new Random();
-System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+internal sealed record RunOptions(string Scenario, string Phase, int Count, string Directory, bool Optimise)
+{
+    internal static RunOptions Parse(string[] args)
+    {
+        // Alexander's original reproduction: TestingZone 5000000 true; TestingZone 5000000 false.
+        if (args.Length == 2 && int.TryParse(args[0], out int legacyCount) &&
+            bool.TryParse(args[1], out bool load))
+            return Validate(new("base", load ? "load" : "reopen", legacyCount,
+                Path.Combine(Environment.CurrentDirectory, "TestingZone-data"), false));
 
-string dbPath = $"C:\\Home\\data\\getstarted\\";
-if (!Directory.Exists(dbPath)) Directory.CreateDirectory(dbPath);
-if (toload) foreach (var file in Directory.GetFiles(dbPath)) File.Delete(file);
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (args.Length % 2 != 0) throw new ArgumentException(Usage);
+        for (int i = 0; i < args.Length; i += 2)
+        {
+            if (!args[i].StartsWith("--", StringComparison.Ordinal) ||
+                !values.TryAdd(args[i][2..], args[i + 1]))
+                throw new ArgumentException(Usage);
+        }
+        foreach (string key in values.Keys)
+            if (key is not ("scenario" or "phase" or "count" or "dir" or "optimise"))
+                throw new ArgumentException(Usage);
 
-// Тип элементов простого потока
-PType tp = new PTypeRecord(
-    new NamedType("code", new PType(PTypeEnumeration.integer)),
-    new NamedType("name", new PType(PTypeEnumeration.sstring)),
-    new NamedType("age", new PType(PTypeEnumeration.integer)));
+        string Get(string key, string fallback) => values.GetValueOrDefault(key, fallback);
+        if (!int.TryParse(Get("count", "2000"), out int count) ||
+            !bool.TryParse(Get("optimise", "false"), out bool optimise))
+            throw new ArgumentException(Usage);
 
-// Генератор простого потока
-IEnumerable<object> flow = Enumerable.Range(0, npersons)
-    .Select(i => new object[] { npersons - i - 1, i.ToString(), 22 });
+        return Validate(new(Get("scenario", "all"), Get("phase", "cycle"), count,
+            Path.GetFullPath(Get("dir", Path.Combine(Environment.CurrentDirectory, "TestingZone-data"))),
+            optimise));
+    }
 
-// Генератор стримов
-int cnt = 0;
-Func<Stream> GenStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
+    private static RunOptions Validate(RunOptions options)
+    {
+        if (options.Scenario is not ("base" or "mutation" or "indexed" or "all") ||
+            options.Phase is not ("load" or "reopen" or "cycle") ||
+            options.Count < 1)
+            throw new ArgumentException(Usage);
+        return options;
+    }
 
-Console.WriteLine("Старт тестирования");
-
-TestingZone.test3.Run(dbPath, npersons, toload);
-
-//void src_test3()
-//{
-//    //USequ usequence = new USequ(tp, GenStream, ob => (int)((object[])ob)[0], k => (int)k);
-//    USequence usequence = new USequence(tp, "state.bin", GenStream, ob => false);
-//    usequence.SetPrimaryKey<int>(ob => (int)((object[])ob)[0]);
-
-//    if (toload)
-//    {
-//        sw.Restart();
-//        usequence.Load(flow);
-//        usequence.Build();
-//        sw.Stop();
-//        Console.WriteLine("Load ok. duration=" + sw.ElapsedMilliseconds);
-//    }
-//    else
-//    {
-//        sw.Restart();
-//        usequence.Refresh();
-//        sw.Stop();
-//        Console.WriteLine("Refresh ok. duration=" + sw.ElapsedMilliseconds);
-//    }
-
-//    //foreach (object ob in usequence.ElementValues()) Console.WriteLine(tp.Interpret(ob));
-//    int cod = npersons * 2 / 3;
-//    object? ob = usequence.GetByKey(cod);
-
-//    if (ob != null) Console.WriteLine(tp.Interpret(ob));
-//    else Console.WriteLine($"item with cod {cod} not found");
-
-//    sw.Restart();
-//    for (int i = 0; i < 10000; i++)
-//    {
-//        int k = rnd.Next(npersons);
-//        object? v = usequence.GetByKey(k);
-//        if (v != null) { }//Console.WriteLine(tp.Interpret(v));
-//        else Console.WriteLine($"item with cod {k} not found");
-//    }
-//    sw.Stop();
-//    Console.WriteLine("10K GetByKey ok. duration=" + sw.ElapsedMilliseconds);
-
-//}
-
-
-
+    private const string Usage =
+        "Usage: TestingZone <count> <true|false> OR --scenario base|mutation|indexed|all " +
+        "--phase load|reopen|cycle --count N --dir PATH --optimise true|false";
+}

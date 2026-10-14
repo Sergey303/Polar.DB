@@ -98,6 +98,8 @@ namespace Polar.Universal
             offsets.Flush();
             offsets_arr = new long[0];
             GC.Collect();
+            // Build has merged dynamic keys into the persisted sorted snapshot.
+            pvo_arr = Array.Empty<PVO>();
         }
 
         public IEnumerable<object> GetManyByValue(int value)

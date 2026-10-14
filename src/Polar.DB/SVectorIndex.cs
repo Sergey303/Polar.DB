@@ -180,6 +180,8 @@ namespace Polar.Universal
             element_offsets.Flush();
             offsets_arr = null;
             GC.Collect();
+            // The completed snapshot already includes all dynamic entries.
+            dynindex.Clear();
         }
 
         public void OnAppendElement(object element, long offset)
