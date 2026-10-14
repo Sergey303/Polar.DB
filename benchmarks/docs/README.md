@@ -47,7 +47,8 @@ For a new native-Guid experiment use a fresh benchmark run ID and a product comm
 containing the native record layout. Do not compare its absolute numbers with the
 legacy Guid results as if the physical storage were the same. The typed-storage
 `guid-layout.v1` marker is outside the `BenchSupport` record format: these are
-separate concerns.
+separate concerns. The dependency-free [Guid storage microbenchmark](GUID_STORAGE_MICROBENCH.md)
+measures only the native-versus-legacy physical encoding on one product commit.
 
 The lifecycle suite also contains focused scenarios used to isolate current storage work:
 
