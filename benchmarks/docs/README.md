@@ -43,6 +43,12 @@ The current Polar.DB benchmark row schema stores both Guid fields directly as na
 fields; those historical raw results remain valid for their recorded commits, but Guid-sensitive
 storage-size/build/reopen measurements must be rerun before comparing them with the current schema.
 
+For a new native-Guid experiment use a fresh benchmark run ID and a product commit
+containing the native record layout. Do not compare its absolute numbers with the
+legacy Guid results as if the physical storage were the same. The typed-storage
+`guid-layout.v1` marker is outside the `BenchSupport` record format: these are
+separate concerns.
+
 The lifecycle suite also contains focused scenarios used to isolate current storage work:
 
 - `BuildPrimaryIntOnly` — fixed Int32 primary-index build, including Load/Build allocations and GC counts;

@@ -100,6 +100,14 @@ New `Guid` fields use the native fixed-size 16-byte Polar `guid` type. Tables cr
 versions with string-backed `Guid` fields remain readable in their legacy storage mode; their
 `schema.json` metadata is upgraded without rewriting the table data.
 
+Tables containing a CLR `Guid` also record a `guid-layout.v1` fingerprint beside
+`schema.json`. On reopen it must match the declared field layout. Early native and
+legacy tables without this marker are checked once before the marker is created;
+variable-size records are scanned and checked for serialization compatibility.
+The marker never rewrites existing data. Keep `schema.json`, `guid-layout.v1`, and
+the data files together when copying or restoring a table. Removing the marker
+from a large older table causes another full validation scan on next open.
+
 Primary and external key fields must implement both `IComparable` and `IComparable<T>`.
 
 ## Canonical Scenarios
