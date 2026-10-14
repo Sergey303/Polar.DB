@@ -43,10 +43,13 @@ internal static class ExternalKeyIndexKeyCodec<T>
 
     internal static bool IsLegacyGuidStringStorage(Stream stream)
     {
-        if (typeof(T) != typeof(Guid) || stream.Length <= SequenceHeaderSize)
-            return false;
+        if (typeof(T) != typeof(Guid)) return false;
         if (!stream.CanSeek || !stream.CanRead)
             throw new NotSupportedException("Guid external-index storage requires a seekable readable stream.");
+
+        if (stream.Length == 0L) return false; // New index, not yet initialized.
+        if (stream.Length < SequenceHeaderSize)
+            throw new InvalidDataException("Guid external-index key storage has a truncated sequence header.");
 
         long originalPosition = stream.Position;
         try
@@ -57,18 +60,22 @@ internal static class ExternalKeyIndexKeyCodec<T>
             while (totalRead < header.Length)
             {
                 int read = stream.Read(header.Slice(totalRead));
-                if (read <= 0) return false;
+                if (read <= 0)
+                    throw new InvalidDataException("Guid external-index key storage has a truncated sequence header.");
                 totalRead += read;
             }
 
             long count = BinaryPrimitives.ReadInt64LittleEndian(header);
-            if (count <= 0L) return false;
+            long payloadSize = stream.Length - SequenceHeaderSize;
+            if (count < 0 || (count == 0 && payloadSize != 0))
+                throw new InvalidDataException("Guid external-index key storage has an invalid sequence count.");
+            if (count == 0) return false; // Empty legacy and native streams have identical layouts.
 
-            long legacyLength = checked(SequenceHeaderSize + count * LegacyGuidStringPayloadSize);
-            long nativeLength = checked(SequenceHeaderSize + count * GuidBinarySize);
-
-            if (stream.Length == legacyLength) return true;
-            if (stream.Length == nativeLength) return false;
+            if (payloadSize % LegacyGuidStringPayloadSize == 0 &&
+                payloadSize / LegacyGuidStringPayloadSize == count)
+                return true;
+            if (payloadSize % GuidBinarySize == 0 && payloadSize / GuidBinarySize == count)
+                return false;
 
             throw new InvalidDataException(
                 "Guid external-index key storage matches neither the native 16-byte format " +
@@ -76,7 +83,7 @@ internal static class ExternalKeyIndexKeyCodec<T>
         }
         finally
         {
-            stream.Position = Math.Min(originalPosition, stream.Length);
+            stream.Position = originalPosition;
         }
     }
 
