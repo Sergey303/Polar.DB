@@ -141,13 +141,17 @@ internal sealed class Scheme<T>
 
         if (!File.Exists(schemaPath))
         {
+            NativeGuidDataFileValidator.Validate(RecordType, Fields, tablePath, schemaPath);
             SchemaJsonFile.WriteAtomic(schemaPath, currentJson);
             return;
         }
 
         string existingJson = SchemaJsonFile.Read(schemaPath);
         if (string.Equals(existingJson.Trim(), currentJson.Trim(), StringComparison.Ordinal))
+        {
+            NativeGuidDataFileValidator.Validate(RecordType, Fields, tablePath, schemaPath);
             return;
+        }
 
         SchemeSnapshot stored = ReadStoredSnapshot(existingJson, tablePath, schemaPath);
         ApplyStoredStorageCompatibility(stored);
@@ -155,6 +159,7 @@ internal sealed class Scheme<T>
 
         if (SchemeSnapshotComparer.AreCompatible(stored, current))
         {
+            NativeGuidDataFileValidator.Validate(RecordType, Fields, tablePath, schemaPath);
             if (stored.Fields.Any(field => SchemeSnapshotComparer.IsLegacyOpaquePolarType(field.PolarType)))
                 SchemaJsonFile.WriteAtomic(schemaPath, ToJson(current));
             return;

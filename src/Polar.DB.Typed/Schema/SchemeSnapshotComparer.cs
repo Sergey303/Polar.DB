@@ -44,6 +44,8 @@ internal static class SchemeSnapshotComparer
             return $"Field #{index} changed from '{stored.Name}' to '{current.Name}'.";
         if (!Same(stored.ClrType, current.ClrType))
             return $"Field '{stored.Name}' CLR type changed from '{stored.ClrType}' to '{current.ClrType}'.";
+        if (stored.Order != index || current.Order != index)
+            return $"Field '{stored.Name}' has an inconsistent persisted field order.";
         if (!PolarTypesCompatible(stored, current))
             return $"Field '{stored.Name}' Polar type changed from '{stored.PolarType}' to '{current.PolarType}'.";
         if (stored.Key != current.Key)
