@@ -28,6 +28,7 @@ internal static class IndexedExperiment
         {
             foreach (string file in Directory.EnumerateFiles(dir, "f*.bin")) File.Delete(file);
             if (File.Exists(state)) File.Delete(state);
+            foreach (string file in Directory.EnumerateFiles(dir, "f*.state")) File.Delete(file);
         }
 
         int fileNo = 0;

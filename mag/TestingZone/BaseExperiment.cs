@@ -15,7 +15,12 @@ internal static class BaseExperiment
         Directory.CreateDirectory(dir);
         if (phase == "reopen" && !File.Exists(data))
             throw new FileNotFoundException("Run the load phase first.", data);
-        if (phase == "load" && File.Exists(data)) File.Delete(data);
+        if (phase == "load")
+        {
+            if (File.Exists(data)) File.Delete(data);
+            string checkpoint = Path.ChangeExtension(data, ".state");
+            if (File.Exists(checkpoint)) File.Delete(checkpoint);
+        }
 
         var timer = Stopwatch.StartNew();
         using var stream = new FileStream(data, FileMode.OpenOrCreate, FileAccess.ReadWrite);
@@ -29,12 +34,7 @@ internal static class BaseExperiment
             sequence.Flush();
             Console.WriteLine($"BASE append_ms={timer.Elapsed.TotalMilliseconds:F1}");
         }
-        else
-        {
-            timer.Restart();
-            sequence.Refresh(); // Intentionally measure the redundant full recovery after constructor.
-            Console.WriteLine($"BASE explicit_refresh_ms={timer.Elapsed.TotalMilliseconds:F1}");
-        }
+        // Reopening already restores the sequence. Refresh would repeat a full validation scan.
 
         Check.Equal(n, sequence.Count(), "base persisted record count");
         timer.Restart();
