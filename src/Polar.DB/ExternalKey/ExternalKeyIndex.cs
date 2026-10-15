@@ -29,10 +29,10 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
 
         Stream keyStream = streamGen();
         _legacyGuidStringStorage = ExternalKeyIndexKeyCodec<T>.IsLegacyGuidStringStorage(keyStream);
-        _keys = new UniversalSequenceBase(
+        _keys = UniversalSequenceBase.OpenIndexSequence(
             ExternalKeyIndexKeyCodec<T>.GetStorageType(_legacyGuidStringStorage),
             keyStream);
-        _offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+        _offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
     }
 
     public void Clear()

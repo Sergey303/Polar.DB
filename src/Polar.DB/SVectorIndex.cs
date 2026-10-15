@@ -112,8 +112,8 @@ namespace Polar.Universal
             this.sequence = sequence;
             this.valuesFunc = valuesFunc;
 
-            values = new UniversalSequenceBase(new PType(PTypeEnumeration.sstring), streamGen());
-            element_offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            values = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.sstring), streamGen());
+            element_offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
             dynindex = new DynPairsSet(sequence);
         }
 

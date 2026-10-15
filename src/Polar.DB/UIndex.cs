@@ -43,8 +43,8 @@ namespace Polar.Universal
             this.comp = comp ?? throw new ArgumentNullException(nameof(comp));
 
             if (hashFunc != null)
-                hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+                hkeys = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.integer), streamGen());
+            offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
 
             complexComp = Comparer<HKeyObjOff>.Create((left, right) =>
             {

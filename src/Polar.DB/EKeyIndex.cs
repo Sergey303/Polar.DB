@@ -39,8 +39,8 @@ namespace Polar.Universal
             this.keysFunc = keysFunc ?? throw new ArgumentNullException(nameof(keysFunc));
             this.hashOfKey = hashOfKey ?? throw new ArgumentNullException(nameof(hashOfKey));
 
-            hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            hkeys = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.integer), streamGen());
+            offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
         }
 
         public void OnAppendElement(object element, long offset)

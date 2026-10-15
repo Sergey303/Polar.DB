@@ -31,8 +31,8 @@ namespace Polar.Universal
             this.valuesFunc = valuesFunc;
             this.comp = comp;
 
-            values = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            values = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.integer), streamGen());
+            offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
 
             pvo_arr = new PVO[0];
         }
