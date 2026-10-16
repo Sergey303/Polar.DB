@@ -28,10 +28,8 @@ namespace Polar.Universal
             this.optimise = optimise;
             this.stateFileName = stateFileName;
 
-            PersistedState? initialState = TryReadStateFile(stateFileName, out var stored)
-                ? stored
-                : null;
-            sequence = new UniversalSequenceBase(tp_el, streamGen(), initialState?.ToOpenHint());
+            sequence = new UniversalSequenceBase(tp_el, streamGen(),
+                checkpointFilePath: null, legacyStatePath: stateFileName);
             primaryKeyIndex = new UKeyIndex(streamGen, this, optimise);
         }
 
@@ -106,7 +104,7 @@ namespace Polar.Universal
             EnsurePrimaryKeyConfigured();
 
             PersistedState? state = TryReadState(out var stored) ? stored : null;
-            sequence.Refresh(state?.ToOpenHint());
+            sequence.RefreshFromCheckpoint();
             primaryKeyIndex.Refresh(
                 state?.PrimarySnapshotBuilt ?? false,
                 state?.StaleOffsets,
@@ -506,7 +504,6 @@ namespace Polar.Universal
             internal bool HasExtendedMetadata { get; }
             internal bool PrimarySnapshotBuilt { get; }
             internal long[] StaleOffsets { get; }
-            internal SequenceOpenHint ToOpenHint() => new(Count, AppendOffset);
         }
     }
 }

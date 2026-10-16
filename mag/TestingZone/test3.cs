@@ -26,7 +26,7 @@ namespace TestingZone
             Func<Stream> GenStream = () => new System.IO.FileStream(dbPath + "f" + (cnt++) + ".bin", FileMode.OpenOrCreate, FileAccess.ReadWrite);
 
             Console.WriteLine("01");
-            UniversalSequenceBase usb = new UniversalSequenceBase(tp, GenStream());
+            using UniversalSequenceBase usb = new UniversalSequenceBase(tp, GenStream());
             Console.WriteLine("02");
 
             IEnumerable<object> flow = Enumerable.Range(0, npersons)
@@ -46,13 +46,8 @@ namespace TestingZone
                 sw.Stop();
                 Console.WriteLine("Load ok. duration=" + sw.ElapsedMilliseconds);
             }
-            else
-            {
-                sw.Restart();
-                usb.Refresh();
-                sw.Stop();
-                Console.WriteLine("Refresh ok. duration=" + sw.ElapsedMilliseconds);
-            }
+            // The constructor has already opened and restored the sequence.
+            // Calling Refresh here would needlessly validate every record again.
 
 
             Console.WriteLine("2");

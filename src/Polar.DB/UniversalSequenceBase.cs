@@ -1,17 +1,5 @@
 namespace Polar.DB
 {
-    internal readonly struct SequenceOpenHint
-    {
-        public SequenceOpenHint(long count, long appendOffset)
-        {
-            Count = count;
-            AppendOffset = appendOffset;
-        }
-
-        public long Count { get; }
-        public long AppendOffset { get; }
-    }
-
     /// <summary>
     /// Sequence storage format: [Int64 count][serialized payload...].
     /// fs.Position is an internal working cursor and is not restored by hot-path methods.
@@ -33,17 +21,38 @@ namespace Polar.DB
         private long nelements;
         private long append_offset = HeaderSize;
         private bool disposed;
+        private readonly string? _checkpointPath;
+        private readonly string? _legacyStatePath;
 
         public UniversalSequenceBase(PType tp_el, Stream media)
-            : this(tp_el, media, null)
+            : this(tp_el, media, null, null)
         {
         }
 
-        internal UniversalSequenceBase(PType tp_el, Stream media, SequenceOpenHint? openHint)
+        /// <summary>
+        /// Opens a sequence using an optional checkpoint file. FileStream-backed sequences
+        /// use an adjacent .state file automatically when no path is supplied.
+        /// </summary>
+        public UniversalSequenceBase(PType tp_el, Stream media, string? checkpointFilePath)
+            : this(tp_el, media, checkpointFilePath, null)
+        {
+        }
+
+        // Internal index sequences are already covered by their owner's index checkpoint.
+        internal static UniversalSequenceBase OpenIndexSequence(PType type, Stream media) =>
+            new(type, media, null, null, autoCheckpoint: false);
+
+        internal UniversalSequenceBase(PType tp_el, Stream media, string? checkpointFilePath,
+            string? legacyStatePath, bool autoCheckpoint = true)
         {
             tp_elem = tp_el ?? throw new ArgumentNullException(nameof(tp_el));
             fs = media ?? throw new ArgumentNullException(nameof(media));
             if (tp_elem.HasNoTail) elem_size = tp_elem.HeadSize;
+            // Fixed-size streams need no checkpoint; internal index streams opt out.
+            _checkpointPath = checkpointFilePath != null || (autoCheckpoint && elem_size <= 0)
+                ? SequenceCheckpointStore.ResolvePath(fs, checkpointFilePath)
+                : null;
+            _legacyStatePath = legacyStatePath;
             br = new BinaryReader(fs);
             bw = new BinaryWriter(fs);
 
@@ -51,7 +60,7 @@ namespace Polar.DB
             {
                 Clear();
             }
-            else if (!TryApplyOpenHint(openHint))
+            else if (!TryApplyCheckpoint())
             {
                 RecoverFromExistingStream(rewriteHeader: true, strict: false);
             }
@@ -66,6 +75,7 @@ namespace Polar.DB
             append_offset = HeaderSize;
             fs.Position = append_offset;
             fs.Flush();
+            SequenceCheckpointStore.Save(_checkpointPath, nelements, append_offset);
         }
 
         public void Flush()
@@ -74,6 +84,7 @@ namespace Polar.DB
             bw.Write(nelements);
             fs.Position = append_offset;
             fs.Flush();
+            SequenceCheckpointStore.Save(_checkpointPath, nelements, append_offset);
         }
 
         public void Close()
@@ -81,17 +92,27 @@ namespace Polar.DB
             Dispose();
         }
 
-        public void Refresh() => Refresh(null);
-
-        internal void Refresh(SequenceOpenHint? openHint)
+        // Public Refresh retains strict recovery semantics for externally modified streams.
+        public void Refresh()
         {
             if (fs.Length == 0L)
             {
                 Clear();
                 return;
             }
+            RecoverFromExistingStream(rewriteHeader: true, strict: true);
+        }
 
-            if (!TryApplyOpenHint(openHint))
+        // USequence refreshes its indexes independently; the physical sequence may use
+        // its checkpoint without rescanning an otherwise unchanged multi-million-row file.
+        internal void RefreshFromCheckpoint()
+        {
+            if (fs.Length == 0L)
+            {
+                Clear();
+                return;
+            }
+            if (!TryApplyCheckpoint())
                 RecoverFromExistingStream(rewriteHeader: true, strict: true);
         }
 
@@ -438,34 +459,33 @@ namespace Polar.DB
             Flush();
         }
 
-        private bool TryApplyOpenHint(SequenceOpenHint? openHint)
+        private bool TryApplyCheckpoint()
         {
-            if (!openHint.HasValue || fs.Length < HeaderSize)
+            if (SequenceCheckpointStore.TryRead(_checkpointPath, out long count, out long tail) &&
+                TryUseCheckpoint(count, tail))
+                return true;
+
+            // Migrates old USequence state.bin without requiring the caller to interpret it.
+            // An outdated index checkpoint will fail the physical-file checks and be scanned.
+            return SequenceCheckpointStore.TryReadLegacy(_legacyStatePath, out count, out tail) &&
+                TryUseCheckpoint(count, tail);
+        }
+
+        private bool TryUseCheckpoint(long count, long tail)
+        {
+            if (count < 0L || tail < HeaderSize || fs.Length != tail)
                 return false;
 
-            var hint = openHint.Value;
-            if (hint.Count < 0L || hint.AppendOffset < HeaderSize || fs.Length != hint.AppendOffset)
-                return false;
-
-            if (fs.Position != 0L) fs.Position = 0L;
-            long declaredCount;
-            try
-            {
-                declaredCount = br.ReadInt64();
-            }
-            catch (EndOfStreamException)
-            {
-                return false;
-            }
-
-            if (declaredCount != hint.Count)
+            fs.Position = 0L;
+            long declaredCount = br.ReadInt64();
+            if (declaredCount != count)
                 return false;
 
             if (elem_size > 0)
             {
                 try
                 {
-                    if (checked(HeaderSize + hint.Count * elem_size) != hint.AppendOffset)
+                    if (checked(HeaderSize + count * elem_size) != tail)
                         return false;
                 }
                 catch (OverflowException)
@@ -474,9 +494,9 @@ namespace Polar.DB
                 }
             }
 
-            nelements = hint.Count;
-            append_offset = hint.AppendOffset;
-            fs.Position = append_offset;
+            nelements = count;
+            append_offset = tail;
+            fs.Position = tail;
             return true;
         }
 

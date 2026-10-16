@@ -34,8 +34,8 @@ namespace Polar.Universal
         {
             this.sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
             this.keysinmemory = keysinmemory;
-            hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            hkeys = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.integer), streamGen());
+            offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
             keyoff_dic = new Dictionary<IComparable, long>();
         }
 

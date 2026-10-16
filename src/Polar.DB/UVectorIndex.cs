@@ -18,8 +18,8 @@ namespace Polar.Universal
             this.sequence = sequence;
             this.valuesFunc = valuesFunc;
 
-            values = new UniversalSequenceBase(tp_value, streamGen());
-            element_offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            values = UniversalSequenceBase.OpenIndexSequence(tp_value, streamGen());
+            element_offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
             valueoffs_dic = new Dictionary<IComparable, long[]>();
         }
 

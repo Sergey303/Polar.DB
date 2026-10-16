@@ -103,8 +103,8 @@ namespace Polar.Universal
             this.keysinmemory = false;
             this.ignorecase = ignorecase;
 
-            hkeys = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            hkeys = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.integer), streamGen());
+            offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
             dynindex = new DynPairsSet(sequence, hashOfKey);
         }
 

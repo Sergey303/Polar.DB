@@ -31,8 +31,8 @@ namespace Polar.Universal
             this.valuesFunc = valuesFunc;
             this.comp = comp;
 
-            values = new UniversalSequenceBase(new PType(PTypeEnumeration.integer), streamGen());
-            offsets = new UniversalSequenceBase(new PType(PTypeEnumeration.longinteger), streamGen());
+            values = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.integer), streamGen());
+            offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
 
             pvo_arr = new PVO[0];
         }
@@ -98,6 +98,8 @@ namespace Polar.Universal
             offsets.Flush();
             offsets_arr = new long[0];
             GC.Collect();
+            // Build has merged dynamic keys into the persisted sorted snapshot.
+            pvo_arr = Array.Empty<PVO>();
         }
 
         public IEnumerable<object> GetManyByValue(int value)
