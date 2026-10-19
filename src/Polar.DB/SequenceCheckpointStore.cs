@@ -97,7 +97,12 @@ internal static class SequenceCheckpointStore
                 writer.Flush();
                 file.Flush(flushToDisk: true);
             }
-            File.Move(temporary, path, overwrite: true);
+            // File.Move(source, destination, overwrite) is unavailable on netstandard2.1.
+            // Replacing an existing file atomically also avoids a delete/move gap.
+            if (File.Exists(path))
+                File.Replace(temporary, path, null);
+            else
+                File.Move(temporary, path);
         }
         finally
         {
