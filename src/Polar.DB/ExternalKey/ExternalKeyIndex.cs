@@ -97,11 +97,14 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     public IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
     {
         ExternalKeyIndexSnapshot<T> snapshot = _snapshot;
-        ExternalKeyIndexEntry<T>[] dynamicEntries = _dynamic.ToArray();
+        ExternalKeyIndexEntry<T>[] dynamicEntries = _dynamic.Count == 0
+            ? Array.Empty<ExternalKeyIndexEntry<T>>()
+            : _dynamic.ToArray();
 
         var emittedOffsets = new HashSet<long>();
-        foreach (ExternalKeyIndexEntry<T> entry in dynamicEntries.Where(entry => KeyEquals(entry.Key, key)))
+        foreach (ExternalKeyIndexEntry<T> entry in dynamicEntries)
         {
+            if (!KeyEquals(entry.Key, key)) continue;
             object? value = TryReadDynamic(entry, elementFilter, emittedOffsets);
             if (value != null) yield return value;
         }
@@ -140,7 +143,15 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
         _dynamic.RemoveAll(entry => entry.Revision <= compactedThroughRevision);
     }
 
-    private bool HasKey(object element, T key) => GetKeys(element).Any(candidate => KeyEquals(candidate, key));
+    private bool HasKey(object element, T key)
+    {
+        foreach (T candidate in GetKeys(element))
+        {
+            if (KeyEquals(candidate, key)) return true;
+        }
+
+        return false;
+    }
 
     private bool KeyEquals(T left, T right) => _comparer.Compare(left, right) == 0;
 
