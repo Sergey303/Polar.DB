@@ -30,7 +30,8 @@ public sealed class ExternalGuidLookupRegressionTests
             row => (bool)((object[])row)[3], optimise: false);
         sequence.SetPrimaryKey<int>(row => (int)((object[])row)[0]);
 
-        using var index = new ExternalKeyIndex<Guid>(OpenStream, sequence,
+        // USequence owns the index and disposes it after the final Flush.
+        var index = new ExternalKeyIndex<Guid>(OpenStream, sequence,
             row => new[] { (Guid)((object[])row)[1], (Guid)((object[])row)[1] });
         sequence.uindexes = new IUIndex[] { index };
 
