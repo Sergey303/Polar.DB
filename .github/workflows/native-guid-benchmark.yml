@@ -1,0 +1,70 @@
+name: Native Guid benchmark
+
+on:
+  push:
+    paths:
+      - '.github/workflows/native-guid-benchmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guid-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        rows: [50000, 5000000]
+    env:
+      POLAR_BENCH_RUN_ID: native-guid-${{ github.run_id }}-${{ matrix.rows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Record runner limits
+        run: |
+          git rev-parse HEAD
+          dotnet --info | head -35
+          df -h .
+          free -h
+          if [ "$(df -Pk . | awk 'NR==2 {print $4}')" -lt 8000000 ]; then
+            echo "Not enough free disk for the bounded Guid benchmark" >&2
+            exit 1
+          fi
+
+      - name: Restore Guid benchmark dependencies
+        run: |
+          dotnet restore benchmarks/src/PkGuidLookup/PkGuidLookup.csproj
+          dotnet restore benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj
+
+      - name: Build optimized benchmark executables
+        run: |
+          dotnet build benchmarks/src/PkGuidLookup/PkGuidLookup.csproj -c Release --no-restore /p:GeneratePackageOnBuild=false
+          dotnet build benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj -c Release --no-restore /p:GeneratePackageOnBuild=false
+
+      - name: Measure native Guid primary lookup
+        run: |
+          dotnet run -c Release --no-build --project benchmarks/src/PkGuidLookup/PkGuidLookup.csproj -- --rows=${{ matrix.rows }}
+          df -h .
+
+      - name: Measure native Guid external lookup
+        run: |
+          dotnet run -c Release --no-build --project benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj -- --rows=${{ matrix.rows }}
+          df -h .
+
+      - name: Archive commit-bound results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-guid-${{ matrix.rows }}-${{ github.run_id }}
+          path: |
+            benchmarks/results/pk-guid-lookup.*
+            benchmarks/results/external-guid-lookup.*
+            benchmarks/results/raw/pk-guid-lookup/
+            benchmarks/results/raw/external-guid-lookup/
+          if-no-files-found: warn
+          retention-days: 30
