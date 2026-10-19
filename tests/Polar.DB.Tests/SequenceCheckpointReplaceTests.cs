@@ -18,7 +18,7 @@ public sealed class SequenceCheckpointReplaceTests
         try
         {
             using (var sequence = new UniversalSequenceBase(elementType,
-                new FileStream(data, FileMode.OpenOrCreate, FileAccess.ReadWrite)))
+                new FileStream(data, FileMode.OpenOrCreate, FileAccess.ReadWrite), state))
             {
                 sequence.AppendElement(1);
                 sequence.Flush();
@@ -34,7 +34,7 @@ public sealed class SequenceCheckpointReplaceTests
 
             Assert.Empty(Directory.GetFiles(root, "*.tmp"));
             using var reopened = new UniversalSequenceBase(elementType,
-                new FileStream(data, FileMode.Open, FileAccess.ReadWrite));
+                new FileStream(data, FileMode.Open, FileAccess.ReadWrite), state);
             Assert.Equal(2L, reopened.Count());
             Assert.Equal(new[] { 1, 2 }, reopened.ElementValues()
                 .Select(value => (int)value).ToArray());
