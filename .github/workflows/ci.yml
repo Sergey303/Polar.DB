@@ -210,13 +210,49 @@ jobs:
       - name: Restore
         run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
 
-      - name: Pack
+      - name: Build package projects
         run: >-
-          dotnet pack "${{ steps.locate_solution.outputs.solution }}"
+          dotnet build src/Polar.DB.Typed/Polar.DB.Typed.csproj
           --configuration Release
           --no-restore
+          /p:ContinuousIntegrationBuild=true
+          /p:GeneratePackageOnBuild=false
+
+      - name: Pack Polar.DB
+        run: >-
+          dotnet pack src/Polar.DB/Polar.DB.csproj
+          --configuration Release
+          --no-build
           --output "${{ github.workspace }}/artifacts/nuget"
           /p:ContinuousIntegrationBuild=true
+
+      - name: Pack Polar.DB.Typed
+        run: >-
+          dotnet pack src/Polar.DB.Typed/Polar.DB.Typed.csproj
+          --configuration Release
+          --no-build
+          --output "${{ github.workspace }}/artifacts/nuget"
+          /p:ContinuousIntegrationBuild=true
+
+      - name: Validate package contents
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression
+          $dir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/nuget'
+          foreach ($id in @('Polar.DB', 'Polar.DB.Typed')) {
+            $package = Get-ChildItem -Path $dir -Filter "$id.*.nupkg" |
+              Where-Object { $_.Name -match ('^' + [regex]::Escape($id) + '\.\d') } |
+              Select-Object -First 1
+            if (-not $package) { throw "Missing NuGet package: $id" }
+            $archive = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
+            try {
+              $entry = $archive.Entries | Where-Object {
+                $_.FullName -match ('^lib/.*/' + [regex]::Escape($id) + '\.dll$')
+              }
+              if (-not $entry) { throw "Package $($package.Name) has no library DLL" }
+              Write-Host "$($package.Name): $($entry.Count) library entry(ies)"
+            } finally { $archive.Dispose() }
+          }
 
       - name: Upload NuGet artifacts
         uses: actions/upload-artifact@v4
