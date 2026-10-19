@@ -40,6 +40,9 @@ For the next primary-offset experiment, see [`PRIMARY_OFFSET_RESIDENCY_PLAN.md`]
 
 The [October 2026 native Guid lookup run](NATIVE_GUID_2026_10_19_RESULTS.md)
 contains commit-bound 50k/5M measurements and links to the raw GitHub CI artifacts.
+The [controlled external Guid A-B comparison](EXTERNAL_GUID_AB_2026_10_19.md)
+compares baseline and allocation-cleanup commits on one runner per row count;
+it found no convincing lookup-latency improvement.
 
 The current Polar.DB benchmark row schema stores both Guid fields directly as native
 `PTypeEnumeration.guid` values. Earlier benchmark commits represented each Guid as two `long`
