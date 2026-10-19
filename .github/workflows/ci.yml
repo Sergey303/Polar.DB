@@ -210,6 +210,14 @@ jobs:
       - name: Restore
         run: dotnet restore "${{ steps.locate_solution.outputs.solution }}"
 
+      - name: Build Polar.DB for every target framework
+        run: >-
+          dotnet build src/Polar.DB/Polar.DB.csproj
+          --configuration Release
+          --no-restore
+          /p:ContinuousIntegrationBuild=true
+          /p:GeneratePackageOnBuild=false
+
       - name: Build package projects
         run: >-
           dotnet build src/Polar.DB.Typed/Polar.DB.Typed.csproj
