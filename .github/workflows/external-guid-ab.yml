@@ -1,0 +1,121 @@
+name: External Guid controlled A-B
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        rows: [50000, 5000000]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ff43f868c229515752c443de7e2c7af1a8c0b1ba
+          path: baseline
+      - uses: actions/checkout@v4
+        with:
+          ref: 03f52b4381e13a9dda4a019f3e6ba27ef5acfb64
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Record runner environment
+        run: |
+          dotnet --info | head -32
+          git -C baseline rev-parse HEAD
+          git -C candidate rev-parse HEAD
+          cat /proc/cpuinfo | grep 'model name' | head -1
+          df -h .
+          if [ "$(df -Pk . | awk 'NR==2 {print $4}')" -lt 8000000 ]; then
+            echo "Less than 8 GB free on the benchmark filesystem" >&2
+            exit 1
+          fi
+
+      - name: Build both revisions
+        run: |
+          for revision in baseline candidate; do
+            dotnet restore "$revision/benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj"
+            dotnet build "$revision/benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj" \
+              --configuration Release --no-restore /p:GeneratePackageOnBuild=false
+          done
+
+      - name: Run balanced A-B-B-A series
+        env:
+          POLAR_BENCH_ENGINE_ORDER: polar-first
+        run: |
+          set -euo pipefail
+          mkdir -p ab-raw
+          for spec in baseline:b1 candidate:c1 candidate:c2 baseline:b2; do
+            revision="${spec%%:*}"
+            trial="${spec##*:}"
+            echo "::group::${revision} ${trial} ${{ matrix.rows }} rows"
+            (
+              cd "$revision"
+              POLAR_BENCH_RUN_ID="ab-${{ github.run_id }}-${{ matrix.rows }}-${trial}" \
+                dotnet run --project benchmarks/src/ExternalGuidLookup/ExternalGuidLookup.csproj \
+                --configuration Release --no-build -- --rows=${{ matrix.rows }}
+            )
+            cp "$revision/benchmarks/results/external-guid-lookup.raw.csv" "ab-raw/${trial}.csv"
+            cp "$revision/benchmarks/results/external-guid-lookup.manifest.json" \
+              "ab-raw/${trial}.manifest.json"
+            echo "::endgroup::"
+          done
+
+      - name: Summarize within-runner paired measurements
+        if: success()
+        env:
+          ROWS: ${{ matrix.rows }}
+        run: |
+          python3 - <<'PY'
+          import csv, os, statistics
+          from pathlib import Path
+          names = ['b1', 'c1', 'c2', 'b2']
+          medians = {}
+          for trial in names:
+              with open(f'ab-raw/{trial}.csv', newline='') as stream:
+                  rows = list(csv.DictReader(stream))
+              for phase in ('Cold after reopen', 'Hot after file and lookup warmup'):
+                  for engine in ('polar-db-current', 'sqlite'):
+                      values = [float(row['value']) for row in rows
+                                if row['metric'] == 'lookup-batch-average'
+                                and row['phase'] == phase and row['engine'] == engine]
+                      if not values:
+                          raise RuntimeError(f'Missing benchmark samples: {trial}/{phase}/{engine}')
+                      medians[trial, phase, engine] = statistics.median(values)
+          lines = [
+              f'### {os.environ["ROWS"]} rows · same runner · A-B-B-A',
+              'Trial order: baseline, candidate, candidate, baseline.',
+              'Each value is a median batch-average **milliseconds per lookup**.',
+              '| Phase | Engine | Baseline mean of medians | Candidate mean of medians | Change |',
+              '|---|---|---:|---:|---:|',
+          ]
+          for phase in ('Cold after reopen', 'Hot after file and lookup warmup'):
+              for engine in ('polar-db-current', 'sqlite'):
+                  base = statistics.mean(medians[trial, phase, engine] for trial in ('b1','b2'))
+                  new = statistics.mean(medians[trial, phase, engine] for trial in ('c1','c2'))
+                  lines.append(f'| {phase} | {engine} | {base:.6f} | {new:.6f} '
+                               f'| {(new/base-1)*100:+.2f}% |')
+          lines.append('A paired exploratory comparison, not a confidence interval.')
+          report = '\n'.join(lines) + '\n'
+          print(report)
+          Path('ab-raw/SUMMARY.md').write_text(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write(report)
+          PY
+
+      - name: Preserve measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-guid-ab-${{ matrix.rows }}-${{ github.run_id }}
+          path: ab-raw/
+          if-no-files-found: warn
+          retention-days: 30
