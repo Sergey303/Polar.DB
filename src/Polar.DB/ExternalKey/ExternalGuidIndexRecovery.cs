@@ -7,9 +7,10 @@ internal static class ExternalGuidIndexRecovery
 {
     internal static bool CanRebuildKeyStream<T>(Stream stream)
     {
-        if (typeof(T) != typeof(Guid) || !stream.CanSeek || !stream.CanRead || !stream.CanWrite ||
-            stream.Length < sizeof(long))
+        if (typeof(T) != typeof(Guid) || !stream.CanSeek || !stream.CanRead || !stream.CanWrite)
             return false;
+        // The source records, not the derived index, define the authoritative data.
+        if (stream.Length < sizeof(long)) return stream.Length > 0;
 
         long originalPosition = stream.Position;
         try

@@ -181,7 +181,13 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     private void MarkRebuildRequired()
     {
         if (_rebuildMarkerPath == null) return;
-        File.WriteAllText(_rebuildMarkerPath, "rebuild-index-from-primary\n");
+        using (var marker = new FileStream(_rebuildMarkerPath, FileMode.Create,
+            FileAccess.Write, FileShare.Read))
+        {
+            byte[] contents = System.Text.Encoding.ASCII.GetBytes("rebuild-index-from-primary\n");
+            marker.Write(contents, 0, contents.Length);
+            marker.Flush(flushToDisk: true);
+        }
         _needsRebuild = true;
     }
 

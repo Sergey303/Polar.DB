@@ -2,17 +2,16 @@ using System.Buffers.Binary;
 using Polar.DB.ExternalKey;
 using Polar.Universal;
 using Xunit;
-
 namespace Polar.DB.Tests;
-
 public sealed class GuidInterruptedIndexRecoveryTests
 {
     private static readonly Guid First = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid Second = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid Tag = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-
     [Theory]
     [InlineData("key-tail")]
+    [InlineData("key-short-header")]
+    [InlineData("offset-short-header")]
     [InlineData("key-stale-header")]
     [InlineData("offset-tail")]
     [InlineData("offset-stale-header")]
@@ -25,9 +24,14 @@ public sealed class GuidInterruptedIndexRecoveryTests
         byte[] sourceBefore = File.ReadAllBytes(store.DataPath);
         string keyPath = store.ExternalPath(0);
         string offsetPath = store.ExternalPath(1);
-
         switch (failure)
         {
+            case "key-short-header":
+                File.WriteAllBytes(keyPath, new byte[] { 0x12 });
+                break;
+            case "offset-short-header":
+                File.WriteAllBytes(offsetPath, new byte[] { 0x12 });
+                break;
             case "key-tail":
                 using (var file = File.Open(keyPath, FileMode.Append))
                     file.Write(new byte[] { 0x12, 0x34, 0x56 });
@@ -56,7 +60,6 @@ public sealed class GuidInterruptedIndexRecoveryTests
                 File.WriteAllText(keyPath + ".rebuild-required", "rebuild-index-from-primary");
                 break;
         }
-
         var opened = store.Open();
         using (opened.Sequence)
         {
@@ -64,7 +67,6 @@ public sealed class GuidInterruptedIndexRecoveryTests
             Assert.Equal(new[] { First, Second }, Ids(opened.Index.GetManyByValue(Tag)));
             Assert.Equal(First, ((object[])opened.Sequence.GetByKey(First)!)[0]);
         }
-
         Assert.Equal(sourceBefore, File.ReadAllBytes(store.DataPath));
         Assert.False(File.Exists(keyPath + ".rebuild-required"));
         Assert.Equal(40, new FileInfo(keyPath).Length);
@@ -85,7 +87,6 @@ public sealed class GuidInterruptedIndexRecoveryTests
             Assert.Empty(opened.Index.GetManyByValue(Tag));
             opened.Sequence.Build();
         }
-
         var reopened = store.Open();
         using (reopened.Sequence)
         {
@@ -122,7 +123,6 @@ public sealed class GuidInterruptedIndexRecoveryTests
             int external = 0;
             Stream ExternalStream() => new FileStream(ExternalPath(external++),
                 FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
-
             var type = new PTypeRecord(
                 new NamedType("id", new PType(PTypeEnumeration.guid)),
                 new NamedType("tag", new PType(PTypeEnumeration.guid)),

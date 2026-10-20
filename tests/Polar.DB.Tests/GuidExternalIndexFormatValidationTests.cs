@@ -8,8 +8,6 @@ namespace Polar.DB.Tests;
 public class GuidExternalIndexFormatValidationTests
 {
     [Theory]
-    [InlineData(1, 0L)]                 // Partial header
-    [InlineData(7, 0L)]                 // Partial header
     [InlineData(8, -1L)]                // Invalid count
     [InlineData(74, long.MaxValue)]     // Avoid length arithmetic overflow
     public void Malformed_Guid_Index_Is_Rejected(int length, long count)
