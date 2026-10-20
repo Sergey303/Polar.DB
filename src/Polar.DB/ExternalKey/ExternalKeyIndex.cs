@@ -110,9 +110,15 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
             snapshot,
             _legacyGuidStringStorage,
             CancellationToken.None);
+        // Flush both index files durably before marking the rebuild complete.
+        if (_rebuildMarkerPath != null)
+        {
+            if (_keys.Media is FileStream keyFile) keyFile.Flush(flushToDisk: true);
+            if (_offsets.Media is FileStream offsetFile) offsetFile.Flush(flushToDisk: true);
+            File.Delete(_rebuildMarkerPath);
+        }
         PublishSnapshot(snapshot, long.MaxValue);
         _needsRebuild = false;
-        if (_rebuildMarkerPath != null) File.Delete(_rebuildMarkerPath);
     }
 
     public void OnAppendElement(object element, long offset)

@@ -10,7 +10,7 @@ public sealed class GuidTypedLifecycleMatrixTests
     private static readonly Guid Payload = Guid.Parse("11223344-5566-7788-99aa-bbccddeeff00");
 
     [Fact]
-    public void Plain_And_External_Guid_Fields_Survive_Updates_And_Reopening()
+    public void Plain_And_External_Guid_Fields_Survive_Duplicate_Rejection_And_Reopening()
     {
         string root = Path.Combine(Path.GetTempPath(), "polar-guid-typed-" +
             Guid.NewGuid().ToString("N"));
@@ -26,19 +26,18 @@ public sealed class GuidTypedLifecycleMatrixTests
                 Assert.Equal("original", Assert.Single(set.Find(row => row.ExternalGuid, First)).Name);
                 Assert.Equal(Guid.Empty, set.GetByKey(2).PayloadGuid);
 
-                set.Append(new Row(1, Payload, Second, "replacement"));
-                Assert.Empty(set.Find(row => row.ExternalGuid, First));
-                Assert.Equal(new[] { 1, 2 }, set.Find(row => row.ExternalGuid, Second)
-                    .Select(row => row.Id).OrderBy(id => id).ToArray());
+                Assert.Throws<InvalidOperationException>(() =>
+                    set.Append(new Row(1, Payload, Second, "replacement")));
+                Assert.Equal("original", Assert.Single(set.Find(row => row.ExternalGuid, First)).Name);
+                Assert.Equal(2, Assert.Single(set.Find(row => row.ExternalGuid, Second)).Id);
             }
 
             using (var reopened = Open(root))
             {
-                Assert.Equal(new Row(1, Payload, Second, "replacement"), reopened.GetByKey(1));
+                Assert.Equal(new Row(1, Payload, First, "original"), reopened.GetByKey(1));
                 Assert.Equal(Guid.Empty, reopened.GetByKey(2).PayloadGuid);
-                Assert.Empty(reopened.Find(row => row.ExternalGuid, First));
-                Assert.Equal(new[] { 1, 2 }, reopened.Find(row => row.ExternalGuid, Second)
-                    .Select(row => row.Id).OrderBy(id => id).ToArray());
+                Assert.Equal(1, Assert.Single(reopened.Find(row => row.ExternalGuid, First)).Id);
+                Assert.Equal(2, Assert.Single(reopened.Find(row => row.ExternalGuid, Second)).Id);
             }
         }
         finally
