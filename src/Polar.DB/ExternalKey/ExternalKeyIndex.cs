@@ -11,9 +11,11 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     private readonly UniversalSequenceBase _keys;
     private readonly UniversalSequenceBase _offsets;
     private readonly bool _legacyGuidStringStorage;
+    private readonly string? _rebuildMarkerPath;
     private readonly List<ExternalKeyIndexEntry<T>> _dynamic = new();
     private ExternalKeyIndexSnapshot<T> _snapshot = ExternalKeyIndexSnapshot<T>.Empty;
     private long _revision;
+    private bool _needsRebuild;
     private bool _disposed;
 
     public ExternalKeyIndex(
@@ -28,15 +30,37 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
         _comparer = comparer ?? Comparer<T>.Default;
 
         Stream keyStream = streamGen();
-        _legacyGuidStringStorage = ExternalKeyIndexKeyCodec<T>.IsLegacyGuidStringStorage(keyStream);
+        _rebuildMarkerPath = typeof(T) == typeof(Guid) && keyStream is FileStream file
+            ? file.Name + ".rebuild-required"
+            : null;
+        _needsRebuild = _rebuildMarkerPath != null && File.Exists(_rebuildMarkerPath);
+        try
+        {
+            _legacyGuidStringStorage = ExternalKeyIndexKeyCodec<T>.IsLegacyGuidStringStorage(keyStream);
+        }
+        catch (InvalidDataException) when (ExternalGuidIndexRecovery.CanRebuildKeyStream<T>(keyStream))
+        {
+            // Only a derived index is reset; the source sequence remains untouched.
+            ExternalGuidIndexRecovery.Reset(keyStream);
+            _needsRebuild = true;
+        }
+
         _keys = UniversalSequenceBase.OpenIndexSequence(
             ExternalKeyIndexKeyCodec<T>.GetStorageType(_legacyGuidStringStorage),
             keyStream);
-        _offsets = UniversalSequenceBase.OpenIndexSequence(new PType(PTypeEnumeration.longinteger), streamGen());
+        Stream offsetStream = streamGen();
+        if (typeof(T) == typeof(Guid) && ExternalGuidIndexRecovery.HasInterruptedOffsets(offsetStream))
+        {
+            ExternalGuidIndexRecovery.Reset(offsetStream);
+            _needsRebuild = true;
+        }
+        _offsets = UniversalSequenceBase.OpenIndexSequence(
+            new PType(PTypeEnumeration.longinteger), offsetStream);
     }
 
     public void Clear()
     {
+        MarkRebuildRequired();
         _keys.Clear();
         _offsets.Clear();
         _dynamic.Clear();
@@ -57,6 +81,13 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
 
     public void Refresh()
     {
+        if (_needsRebuild || (typeof(T) == typeof(Guid) &&
+            (_keys.Count() != _offsets.Count() || (_keys.Count() == 0 && _sequence.Count() > 0))))
+        {
+            Build();
+            return;
+        }
+
         _keys.Refresh();
         _offsets.Refresh();
         _snapshot = ExternalKeyIndexCompaction<T>.ReadSnapshot(
@@ -72,6 +103,7 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
         var snapshot = ExternalKeyIndexCompaction<T>.BuildSnapshot(
             _sequence, _keysFunc, _comparer, CancellationToken.None);
 
+        MarkRebuildRequired();
         ExternalKeyIndexCompaction<T>.WriteSnapshot(
             _keys,
             _offsets,
@@ -79,6 +111,8 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
             _legacyGuidStringStorage,
             CancellationToken.None);
         PublishSnapshot(snapshot, long.MaxValue);
+        _needsRebuild = false;
+        if (_rebuildMarkerPath != null) File.Delete(_rebuildMarkerPath);
     }
 
     public void OnAppendElement(object element, long offset)
@@ -96,6 +130,7 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
 
     public IEnumerable<object> GetManyByValue(T key, Func<object, bool>? elementFilter)
     {
+        if (_needsRebuild) Build();
         ExternalKeyIndexSnapshot<T> snapshot = _snapshot;
         ExternalKeyIndexEntry<T>[] dynamicEntries = _dynamic.Count == 0
             ? Array.Empty<ExternalKeyIndexEntry<T>>()
@@ -141,6 +176,13 @@ public sealed class ExternalKeyIndex<T> : IExternalKeyIndex<T>
     {
         _snapshot = snapshot;
         _dynamic.RemoveAll(entry => entry.Revision <= compactedThroughRevision);
+    }
+
+    private void MarkRebuildRequired()
+    {
+        if (_rebuildMarkerPath == null) return;
+        File.WriteAllText(_rebuildMarkerPath, "rebuild-index-from-primary\n");
+        _needsRebuild = true;
     }
 
     private bool HasKey(object element, T key)

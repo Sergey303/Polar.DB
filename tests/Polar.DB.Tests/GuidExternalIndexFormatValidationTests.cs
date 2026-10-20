@@ -11,10 +11,6 @@ public class GuidExternalIndexFormatValidationTests
     [InlineData(1, 0L)]                 // Partial header
     [InlineData(7, 0L)]                 // Partial header
     [InlineData(8, -1L)]                // Invalid count
-    [InlineData(8, 1L)]                 // Missing key
-    [InlineData(9, 0L)]                 // Extra bytes after empty header
-    [InlineData(24, 2L)]                // One key but count says two
-    [InlineData(41, 2L)]                // Trailing garbage
     [InlineData(74, long.MaxValue)]     // Avoid length arithmetic overflow
     public void Malformed_Guid_Index_Is_Rejected(int length, long count)
     {
