@@ -1,0 +1,93 @@
+name: Guid extended benchmarks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  famous-guid-lookup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        rows: [50000, 5000000]
+    env:
+      POLAR_BENCH_RUN_ID: famous-guid-${{ github.run_id }}-${{ matrix.rows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Check environment and disk
+        shell: bash
+        run: |
+          git rev-parse HEAD
+          dotnet --info | head -35
+          df -h .
+          free -h
+          if [ "$(df -Pk . | awk 'NR==2 {print $4}')" -lt 8000000 ]; then
+            echo "Insufficient free disk for famous Guid lookup" >&2
+            exit 1
+          fi
+      - name: Build famous Guid lookup
+        run: |
+          dotnet restore benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj
+          dotnet build benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj -c Release --no-restore /p:GeneratePackageOnBuild=false
+      - name: Measure famous Guid external lookup
+        run: |
+          dotnet run -c Release --no-build --project benchmarks/src/ExternalFamousGuidLookup/ExternalFamousGuidLookup.csproj -- --rows=${{ matrix.rows }}
+          df -h .
+      - name: Archive reports and samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: famous-guid-${{ matrix.rows }}-${{ github.run_id }}
+          path: |
+            benchmarks/results/external-famous-guid-lookup.*
+            benchmarks/results/raw/external-famous-guid-lookup/
+          retention-days: 30
+          if-no-files-found: warn
+
+  guid-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        rows: [50000, 1000000]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Record environment
+        shell: bash
+        run: |
+          mkdir -p guid-storage-reports
+          {
+            git rev-parse HEAD
+            dotnet --info
+            cat /proc/cpuinfo | grep 'model name' | head -1
+            df -h .
+          } > guid-storage-reports/environment.txt
+          cat guid-storage-reports/environment.txt
+      - name: Build storage benchmark
+        run: |
+          dotnet restore benchmarks/src/GuidStorageMicrobench/GuidStorageMicrobench.csproj
+          dotnet build benchmarks/src/GuidStorageMicrobench/GuidStorageMicrobench.csproj -c Release --no-restore /p:GeneratePackageOnBuild=false
+      - name: Compare native vs legacy Guid storage
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet run -c Release --no-build --project benchmarks/src/GuidStorageMicrobench/GuidStorageMicrobench.csproj -- ${{ matrix.rows }} 7 | tee guid-storage-reports/storage.csv
+      - name: Archive storage measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guid-storage-${{ matrix.rows }}-${{ github.run_id }}
+          path: guid-storage-reports/
+          retention-days: 30
+          if-no-files-found: warn
