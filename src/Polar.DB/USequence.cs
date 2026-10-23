@@ -19,6 +19,8 @@ namespace Polar.Universal
         private readonly bool optimise;
         private readonly string? stateFileName;
         private BuildEntry[]? loadedPrimaryBuildEntries;
+        private PersistedState? loadedIndexState;
+        private bool indexesReloaded;
         private bool disposed;
 
         public USequence(PType tp_el, string? stateFileName, Func<Stream> streamGen,
@@ -64,9 +66,11 @@ namespace Polar.Universal
             primaryKeyIndex.SetPrimaryKeyAccessor(accessor);
         }
 
+        // Retained for callers using the historical combined recovery API.
         public void RestoreDynamic()
         {
-            RefreshCore(persistRecoveredIndexes: true);
+            ReloadIndexesFromStorage();
+            RebuildIndexesFromSequence();
         }
 
         public void Clear()
@@ -74,6 +78,8 @@ namespace Polar.Universal
             sequence.Clear();
             primaryKeyIndex.Clear();
             loadedPrimaryBuildEntries = null;
+            loadedIndexState = null;
+            indexesReloaded = false;
             if (uindexes != null) foreach (var ui in uindexes) ui.Clear();
         }
 
@@ -93,33 +99,48 @@ namespace Polar.Universal
             disposed = true;
         }
 
+        // Retained for callers expecting recovery followed by automatic rebuild on failure.
         public void Refresh()
         {
             sequence.Flush();
-            RefreshCore(persistRecoveredIndexes: false);
+            ReloadIndexesFromStorage();
+            if (!TrySynchronizeIndexesWithSequence())
+                RebuildIndexesFromSequence();
         }
 
-        private void RefreshCore(bool persistRecoveredIndexes)
+        /// <summary>
+        /// Reloads persisted index snapshots, without replaying new records or rebuilding indexes.
+        /// Call TrySynchronizeIndexesWithSequence and rebuild when it returns false.
+        /// </summary>
+        public void ReloadIndexesFromStorage()
         {
             EnsurePrimaryKeyConfigured();
 
-            PersistedState? state = TryReadState(out var stored) ? stored : null;
+            loadedIndexState = TryReadState(out var stored) ? stored : null;
+            indexesReloaded = false;
             sequence.RefreshFromCheckpoint();
             primaryKeyIndex.Refresh(
-                state?.PrimarySnapshotBuilt ?? false,
-                state?.StaleOffsets,
-                state?.HasExtendedMetadata ?? false);
+                loadedIndexState?.PrimarySnapshotBuilt ?? false,
+                loadedIndexState?.StaleOffsets,
+                loadedIndexState?.HasExtendedMetadata ?? false);
             loadedPrimaryBuildEntries = null;
             if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
+            indexesReloaded = true;
+        }
 
-            if (persistRecoveredIndexes)
-            {
-                Build();
-                return;
-            }
+        /// <summary>
+        /// Replays records after the persisted index checkpoint.
+        /// Returns false if no valid checkpoint can be replayed; rebuild the indexes in that case.
+        /// </summary>
+        public bool TrySynchronizeIndexesWithSequence()
+        {
+            if (!indexesReloaded)
+                return false;
 
-            if (state == null || !TryReplayDynamicTailFromState(state))
-                Build();
+            indexesReloaded = false;
+            PersistedState? state = loadedIndexState;
+            loadedIndexState = null;
+            return state != null && TryReplayDynamicTailFromState(state);
         }
 
         private bool TryReplayDynamicTailFromState(PersistedState state)
@@ -352,6 +373,8 @@ namespace Polar.Universal
         {
             EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
+            loadedIndexState = null;
+            indexesReloaded = false;
             long off = sequence.AppendElement(element);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -361,6 +384,8 @@ namespace Polar.Universal
         {
             EnsurePrimaryKeyConfigured();
             loadedPrimaryBuildEntries = null;
+            loadedIndexState = null;
+            indexesReloaded = false;
             object element = sequence.GetElement(off);
             primaryKeyIndex.OnAppendElement(element, off);
             if (uindexes != null) foreach (var uind in uindexes) uind.OnAppendElement(element, off);
@@ -437,10 +462,16 @@ namespace Polar.Universal
             throw new NotImplementedException("Err: 292121");
         }
 
-        public void Build()
+        // Retained for callers using the historical build API.
+        public void Build() => RebuildIndexesFromSequence();
+
+        /// <summary>Rebuilds primary and secondary indexes from the authoritative sequence.</summary>
+        public void RebuildIndexesFromSequence()
         {
             EnsurePrimaryKeyConfigured();
             sequence.Flush();
+            loadedIndexState = null;
+            indexesReloaded = false;
 
             var loadedEntries = loadedPrimaryBuildEntries;
             if (loadedEntries != null)

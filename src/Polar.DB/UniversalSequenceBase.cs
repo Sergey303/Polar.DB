@@ -116,6 +116,91 @@ namespace Polar.DB
                 RecoverFromExistingStream(rewriteHeader: true, strict: true);
         }
 
+        /// <summary>
+        /// Checks the stored header and complete record boundaries without modifying the file.
+        /// Throws <see cref="InvalidDataException"/> if the physical sequence is inconsistent.
+        /// </summary>
+        public void ValidateStorageIntegrity()
+        {
+            long position = fs.Position;
+            try
+            {
+                if (fs.Length < HeaderSize)
+                    throw new InvalidDataException("UniversalSequenceBase header is truncated.");
+
+                fs.Position = 0L;
+                long declaredCount = br.ReadInt64();
+                if (declaredCount < 0L)
+                    throw new InvalidDataException("UniversalSequenceBase declared count is negative.");
+
+                if (elem_size > 0)
+                {
+                    long expectedLength;
+                    try
+                    {
+                        expectedLength = checked(HeaderSize + declaredCount * elem_size);
+                    }
+                    catch (OverflowException ex)
+                    {
+                        throw new InvalidDataException("UniversalSequenceBase element count overflows file length.", ex);
+                    }
+
+                    if (fs.Length != expectedLength)
+                        throw new InvalidDataException("UniversalSequenceBase fixed-size payload length does not match declared count.");
+                }
+                else
+                {
+                    for (long index = 0L; index < declaredCount; index++)
+                    {
+                        if (fs.Position >= fs.Length)
+                            throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.");
+                        try
+                        {
+                            ByteFlow.Skip(br, tp_elem);
+                        }
+                        catch (EndOfStreamException ex)
+                        {
+                            throw new InvalidDataException("UniversalSequenceBase variable-size payload is truncated.", ex);
+                        }
+                    }
+
+                    if (fs.Position != fs.Length)
+                        throw new InvalidDataException("UniversalSequenceBase has uncommitted trailing bytes.");
+                }
+            }
+            finally
+            {
+                fs.Position = Math.Min(position, fs.Length);
+            }
+        }
+
+        /// <summary>
+        /// Loads a consistent physical sequence into memory without rewriting or truncating stored data.
+        /// Use <see cref="RecoverConsistentState"/> to discard incomplete or uncommitted tails.
+        /// </summary>
+        public void ReloadStateFromStorage()
+        {
+            ValidateStorageIntegrity();
+            fs.Position = 0L;
+            nelements = br.ReadInt64();
+            append_offset = fs.Length;
+            fs.Position = append_offset;
+        }
+
+        /// <summary>
+        /// Repairs the header and discards incomplete or uncommitted trailing data, if present.
+        /// </summary>
+        public void RecoverConsistentState()
+        {
+            if (fs.Length == 0L)
+            {
+                Clear();
+                return;
+            }
+
+            RecoverFromExistingStream(rewriteHeader: true, strict: false);
+        }
+
         public long Count() { return nelements; }
 
         public long ElementOffset(long ind)
