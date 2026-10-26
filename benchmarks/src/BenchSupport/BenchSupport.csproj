@@ -46,6 +46,7 @@
     <Compile Include="LookupPlan.cs" />
     <Compile Include="LookupPlanner.cs" />
     <Compile Include="SqliteStore.cs" />
+    <Compile Include="SqliteStore.IndexProfiles.cs" />
     <Compile Include="SqliteRows.cs" />
     <Compile Include="SqliteLookupEngine.cs" />
     <Compile Include="SqliteLookupSession.cs" />

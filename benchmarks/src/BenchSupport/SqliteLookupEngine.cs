@@ -13,7 +13,7 @@ internal static class SqliteLookupEngine
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         BenchmarkProgress.Stage(options.ExperimentId + ": sqlite setup");
-        SqliteStore.Create(db, data, withIndexes: true);
+        SqliteStore.CreateForLookup(db, data, options.Kind);
 
         var results = new List<LookupEngineResult>();
         foreach (var plan in plans)

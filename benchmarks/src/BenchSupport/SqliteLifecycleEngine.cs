@@ -259,7 +259,7 @@ internal static class SqliteLifecycleEngine
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
-        SqliteStore.Create(db, data, withIndexes: true);
+        SqliteStore.CreateForReopen(db, data);
 
         SqliteConnection.ClearAllPools();
         var reopenConnectionString = new SqliteConnectionStringBuilder
@@ -314,7 +314,7 @@ internal static class SqliteLifecycleEngine
 
         Directory.CreateDirectory(volatileDir);
         var volatileDb = Path.Combine(volatileDir, "data.sqlite");
-        SqliteStore.Create(volatileDb, data, withIndexes: true);
+        SqliteStore.CreateForMutation(volatileDb, data);
         Row[] actualRows;
         var volatileSamples = new List<double>();
         using (var connection = new SqliteConnection($"Data Source={volatileDb}"))
@@ -361,7 +361,7 @@ internal static class SqliteLifecycleEngine
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
         var warmRows = data.Take(Math.Min(data.Length, 50_000)).ToArray();
-        SqliteStore.Create(db, warmRows, withIndexes: true);
+        SqliteStore.CreateForMutation(db, warmRows);
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();
         using var transaction = connection.BeginTransaction();
@@ -387,7 +387,7 @@ internal static class SqliteLifecycleEngine
     {
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
-        SqliteStore.Create(db, data, withIndexes: true);
+        SqliteStore.CreateForMutation(db, data);
         var warmupBatches = BenchmarkDefaults.MutationDurableWarmupBatches;
         var measuredBatches = BenchmarkDefaults.MutationDurableMeasuredBatches;
         var batchSize = BenchmarkDefaults.MutationDurableBatchSize;

@@ -2,17 +2,10 @@ using Microsoft.Data.Sqlite;
 
 namespace PolarDbBenchmarks;
 
-internal static class SqliteStore
+internal static partial class SqliteStore
 {
-    public static void Create(string db, Row[] rows, bool withIndexes)
-    {
-        using var connection = new SqliteConnection($"Data Source={db}");
-        connection.Open();
-        Exec(connection, "PRAGMA journal_mode=WAL;");
-        CreateTable(connection, "id INTEGER PRIMARY KEY");
-        InsertRows(connection, rows);
-        if (withIndexes) CreateIndexes(connection);
-    }
+    public static void Create(string db, Row[] rows, bool withIndexes) =>
+        Create(db, rows, withIndexes ? IndexProfile.LegacyFull : IndexProfile.None);
 
     public static void CreateForPrimaryIntBuild(string db, Row[] rows)
     {

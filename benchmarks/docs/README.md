@@ -1,5 +1,10 @@
 # Benchmark reports and reproducibility
 
+For the index-equivalence contract used by the current benchmark code, see
+[`INDEX_PROFILE_PARITY.md`](INDEX_PROFILE_PARITY.md). The article
+[`POLAR_DB_ARTICLE_DRAFT.md`](POLAR_DB_ARTICLE_DRAFT.md) marks the older
+results as historical; publication-grade performance figures require a new run.
+
 Benchmark executables reference the shared `benchmarks/src/BenchSupport/BenchSupport.csproj`
 library. Common benchmark sources are compiled once instead of being linked separately into
 every executable.
