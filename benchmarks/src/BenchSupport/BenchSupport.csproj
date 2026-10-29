@@ -57,6 +57,7 @@
     <Compile Include="PolarLookupEngine.cs" />
     <Compile Include="PolarLookupSession.cs" />
     <Compile Include="PolarLifecycleEngine.cs" />
+    <Compile Include="ReopenStageRecorder.cs" />
     <Compile Include="LookupBench.cs" />
     <Compile Include="LifecycleBench.cs" />
   </ItemGroup>

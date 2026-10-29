@@ -251,22 +251,33 @@ internal static class PolarLifecycleEngine
     private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
     {
         var before = BenchmarkResources.Capture();
+        BenchmarkProgress.Stage("polar reopen: preparing source storage");
         var prepared = PrepareBuiltStore(dir, data, ExperimentKind.ReopenOnly);
         prepared.Sequence.Close();
 
-        var openOnly = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        var recorder = new ReopenStageRecorder();
+        var rawFiles = Directory.GetFiles(dir, "*.bin").OrderBy(path => path, StringComparer.Ordinal).ToArray();
+        BenchmarkProgress.Stage("polar reopen: raw handles");
+        recorder.Measure(options.WarmupOps, options.MeasuredOps, "raw-file-handles", observe =>
+            ReopenStageRecorder.Time(observe, "open-close", () =>
+                ReopenStageRecorder.ProbeRawFileHandles(rawFiles)));
+
+        BenchmarkProgress.Stage("polar reopen: constructors");
+        var openOnly = recorder.Measure(options.WarmupOps, options.MeasuredOps, "constructor-open-only", observe =>
         {
-            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
-            store.Sequence.Close();
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly, observe);
+            ReopenStageRecorder.Time(observe, "close", store.Sequence.Close);
         });
 
         var expectedLookup = BenchmarkChecksum.HashRows(new[] { data[0] });
-        var queryReady = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        BenchmarkProgress.Stage("polar reopen: query ready");
+        var queryReady = recorder.Measure(options.WarmupOps, options.MeasuredOps, "query-ready", observe =>
         {
-            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
-            store.Sequence.Refresh();
-            ValidatePrimaryLookup(store, data[0].Id, expectedLookup, "reopen");
-            store.Sequence.Close();
+            var store = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly, observe);
+            store.Sequence.Refresh(observe);
+            ReopenStageRecorder.Time(observe, "first-primary-query-and-oracle", () =>
+                ValidatePrimaryLookup(store, data[0].Id, expectedLookup, "reopen"));
+            ReopenStageRecorder.Time(observe, "close", store.Sequence.Close);
         });
 
         var liveStore = PolarStoreFactory.Open(dir, ExperimentKind.ReopenOnly);
@@ -284,7 +295,7 @@ internal static class PolarLifecycleEngine
             dir,
             before,
             after: liveResources,
-            open: openOnly);
+            open: openOnly) with { ReopenStagesMs = recorder.Stages };
     }
 
     private static EngineResult Mutation(

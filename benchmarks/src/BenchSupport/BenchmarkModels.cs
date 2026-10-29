@@ -109,7 +109,8 @@ public sealed record EngineResult(
     IReadOnlyList<double>? DurableSamplesMs = null,
     int DurableBatchSize = 0,
     AllocationGcSamples? LoadAllocationGc = null,
-    AllocationGcSamples? BuildAllocationGc = null);
+    AllocationGcSamples? BuildAllocationGc = null,
+    IReadOnlyDictionary<string, IReadOnlyList<double>>? ReopenStagesMs = null);
 
 public sealed record LookupEngineResult(
     string Engine, string Status, IReadOnlyList<double> BatchAvgSamplesMs,

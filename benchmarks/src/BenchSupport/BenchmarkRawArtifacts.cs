@@ -75,6 +75,10 @@ internal static class BenchmarkRawArtifacts
                     engine.SamplesMs, 1);
                 AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "open-only",
                     engine.OpenSamplesMs, 1);
+                if (engine.ReopenStagesMs != null)
+                    foreach (var (stage, values) in engine.ReopenStagesMs.OrderBy(item => item.Key, StringComparer.Ordinal))
+                        AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows,
+                            "", "reopen/" + stage, values, 1);
                 AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "load",
                     engine.LoadSamplesMs, 1);
                 AppendSamples(builder, manifest, options, engine.Engine, run.SetupRows, "", "build",

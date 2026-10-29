@@ -75,6 +75,7 @@ Important compatibility rule:
 - Do not commit benchmark run artifacts, temporary databases, generated reports, or local machine outputs unless explicitly requested.
 - Keep benchmark changes reproducible: fixed seeds, clear dataset size, clear engine settings.
 - Separate measurement logic from analysis/reporting logic where practical.
+- For reopen benchmark stages and reproducibility, consult [benchmark documentation](benchmarks/docs/README.md).
 
 ## Dependencies and target frameworks
 

@@ -100,32 +100,65 @@ namespace Polar.Universal
         }
 
         // Retained for callers expecting recovery followed by automatic rebuild on failure.
-        public void Refresh()
+        public void Refresh() => Refresh(null);
+
+        /// <summary>
+        /// Refreshes as usual; the optional observer records exclusive sequential stage
+        /// durations in milliseconds. It is for diagnostics, not for the lookup hot path.
+        /// </summary>
+        public void Refresh(Action<string, double>? observeStage)
         {
-            sequence.Flush();
-            ReloadIndexesFromStorage();
-            if (!TrySynchronizeIndexesWithSequence())
-                RebuildIndexesFromSequence();
+            MeasureRefreshStage(observeStage, "refresh-flush", () => sequence.Flush());
+            ReloadIndexesFromStorage(observeStage);
+            bool replaySucceeded = false;
+            MeasureRefreshStage(observeStage, "refresh-try-replay", () =>
+                replaySucceeded = TrySynchronizeIndexesWithSequence());
+            if (!replaySucceeded)
+                MeasureRefreshStage(observeStage, "refresh-fallback-rebuild", RebuildIndexesFromSequence);
         }
 
         /// <summary>
         /// Reloads persisted index snapshots, without replaying new records or rebuilding indexes.
         /// Call TrySynchronizeIndexesWithSequence and rebuild when it returns false.
         /// </summary>
-        public void ReloadIndexesFromStorage()
+        public void ReloadIndexesFromStorage() => ReloadIndexesFromStorage(null);
+
+        private void ReloadIndexesFromStorage(Action<string, double>? observeStage)
         {
             EnsurePrimaryKeyConfigured();
 
-            loadedIndexState = TryReadState(out var stored) ? stored : null;
+            MeasureRefreshStage(observeStage, "refresh-metadata", () =>
+                loadedIndexState = TryReadState(out var stored) ? stored : null);
             indexesReloaded = false;
-            sequence.RefreshFromCheckpoint();
-            primaryKeyIndex.Refresh(
-                loadedIndexState?.PrimarySnapshotBuilt ?? false,
-                loadedIndexState?.StaleOffsets,
-                loadedIndexState?.HasExtendedMetadata ?? false);
+            MeasureRefreshStage(observeStage, "refresh-sequence-checkpoint", () =>
+                sequence.RefreshFromCheckpoint());
+            MeasureRefreshStage(observeStage, "refresh-primary", () =>
+                primaryKeyIndex.Refresh(
+                    loadedIndexState?.PrimarySnapshotBuilt ?? false,
+                    loadedIndexState?.StaleOffsets,
+                    loadedIndexState?.HasExtendedMetadata ?? false));
             loadedPrimaryBuildEntries = null;
-            if (uindexes != null) foreach (var ui in uindexes) ui.Refresh();
+            if (uindexes != null)
+                for (var i = 0; i < uindexes.Length; i++)
+                {
+                    var index = uindexes[i];
+                    MeasureRefreshStage(observeStage, "refresh-external-" + i, index.Refresh);
+                }
             indexesReloaded = true;
+        }
+
+        private static void MeasureRefreshStage(
+            Action<string, double>? observer, string stage, Action operation)
+        {
+            if (observer == null)
+            {
+                operation();
+                return;
+            }
+
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            operation();
+            observer(stage, (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
         }
 
         /// <summary>

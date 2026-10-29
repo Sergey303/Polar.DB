@@ -41,6 +41,11 @@ The script assigns one `POLAR_BENCH_RUN_ID` to the whole series. Engine order is
 alternated deterministically by default. Set `POLAR_BENCH_ENGINE_ORDER` to
 `sqlite-first` or `polar-first` only when a fixed order is required.
 
+For stage-by-stage reopening diagnostics, see
+[`REOPEN_STAGE_DECOMPOSITION.md`](REOPEN_STAGE_DECOMPOSITION.md).
+The `ReopenOnly` raw JSON/CSV exposes per-stage paired timings alongside
+constructor-open-only and query-ready totals; a raw-file-handle probe is separate.
+
 For the next primary-offset experiment, see [`PRIMARY_OFFSET_RESIDENCY_PLAN.md`](PRIMARY_OFFSET_RESIDENCY_PLAN.md). It records the planned Windows/Linux comparison of the current FileStream path, `System.IO.RandomAccess`, memory-mapped access and, only if needed, a bounded managed page cache.
 
 The [October 2026 native Guid lookup run](NATIVE_GUID_2026_10_19_RESULTS.md)

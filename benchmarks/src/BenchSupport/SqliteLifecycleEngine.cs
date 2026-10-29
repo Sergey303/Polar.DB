@@ -268,18 +268,41 @@ internal static class SqliteLifecycleEngine
             Pooling = false
         }.ToString();
 
-        var openOnly = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        var recorder = new ReopenStageRecorder();
+        var rawFiles = Directory.GetFiles(dir, "data.sqlite*").OrderBy(path => path, StringComparer.Ordinal).ToArray();
+        recorder.Measure(options.WarmupOps, options.MeasuredOps, "raw-file-handles", observe =>
+            ReopenStageRecorder.Time(observe, "open-close", () =>
+                ReopenStageRecorder.ProbeRawFileHandles(rawFiles)));
+
+        var openOnly = recorder.Measure(options.WarmupOps, options.MeasuredOps, "constructor-open-only", observe =>
         {
-            using var connection = new SqliteConnection(reopenConnectionString);
-            connection.Open();
+            var connection = ReopenStageRecorder.Time(observe, "construct-connection", () =>
+                new SqliteConnection(reopenConnectionString));
+            try
+            {
+                ReopenStageRecorder.Time(observe, "open-connection", connection.Open);
+            }
+            finally
+            {
+                ReopenStageRecorder.Time(observe, "close", connection.Dispose);
+            }
         });
 
         var expectedLookup = BenchmarkChecksum.HashRows(new[] { data[0] });
-        var queryReady = MeasureRepeated(options.WarmupOps, options.MeasuredOps, () =>
+        var queryReady = recorder.Measure(options.WarmupOps, options.MeasuredOps, "query-ready", observe =>
         {
-            using var connection = new SqliteConnection(reopenConnectionString);
-            connection.Open();
-            ValidatePrimaryLookup(connection, data[0].Id, expectedLookup, "reopen");
+            var connection = ReopenStageRecorder.Time(observe, "construct-connection", () =>
+                new SqliteConnection(reopenConnectionString));
+            try
+            {
+                ReopenStageRecorder.Time(observe, "open-connection", connection.Open);
+                ReopenStageRecorder.Time(observe, "first-primary-query-and-oracle", () =>
+                    ValidatePrimaryLookup(connection, data[0].Id, expectedLookup, "reopen"));
+            }
+            finally
+            {
+                ReopenStageRecorder.Time(observe, "close", connection.Dispose);
+            }
         });
 
         using var liveConnection = new SqliteConnection(reopenConnectionString);
@@ -296,7 +319,7 @@ internal static class SqliteLifecycleEngine
             dir,
             before,
             after: liveResources,
-            open: openOnly);
+            open: openOnly) with { ReopenStagesMs = recorder.Stages };
     }
 
     private static EngineResult Mutation(

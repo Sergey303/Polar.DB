@@ -2,7 +2,7 @@ using PolarDbBenchmarks;
 
 var options = new ExperimentOptions(
     ExperimentId: "reopen-only",
-    Title: "Reopen existing prepared storage only.",
+    Title: "Decomposed reopen of prepared indexed storage.",
     Kind: ExperimentKind.ReopenOnly,
     RowCounts: BenchmarkDefaults.RowCounts,
     WarmupOps: BenchmarkDefaults.ReopenWarmupOps,

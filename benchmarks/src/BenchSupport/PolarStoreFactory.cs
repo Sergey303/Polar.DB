@@ -13,7 +13,7 @@ internal sealed record PolarStore(
 
 internal static class PolarStoreFactory
 {
-    public static PolarStore Open(string dir, ExperimentKind kind)
+    public static PolarStore Open(string dir, ExperimentKind kind, Action<string, double>? observeStage = null)
     {
         var counter = 0;
         Stream StreamGen()
@@ -22,17 +22,23 @@ internal static class PolarStoreFactory
             return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
         }
 
-        var sequence = new USequence(
-            ElementType(kind),
-            Path.Combine(dir, "state.bin"),
-            StreamGen,
-            DeletedFlag(kind));
-        ConfigurePrimaryKey(sequence, kind);
+        var sequence = ReopenStageRecorder.Time(observeStage, "construct-sequence-and-primary", () =>
+            new USequence(ElementType(kind), Path.Combine(dir, "state.bin"), StreamGen, DeletedFlag(kind)));
+        ReopenStageRecorder.Time(observeStage, "configure-primary-key", () =>
+            ConfigurePrimaryKey(sequence, kind));
 
-        var intIndex = NeedsIntIndex(kind) ? CreateIntIndex(StreamGen, sequence) : null;
-        var longIndex = NeedsLongIndex(kind) ? CreateLongIndex(StreamGen, sequence) : null;
-        var guidIndex = NeedsGuidIndex(kind) ? CreateGuidIndex(StreamGen, sequence) : null;
-        var stringIndex = NeedsStringIndex(kind) ? CreateStringIndex(StreamGen, sequence) : null;
+        var intIndex = NeedsIntIndex(kind)
+            ? ReopenStageRecorder.Time(observeStage, "construct-external-0", () => CreateIntIndex(StreamGen, sequence))
+            : null;
+        var longIndex = NeedsLongIndex(kind)
+            ? ReopenStageRecorder.Time(observeStage, "construct-external-1", () => CreateLongIndex(StreamGen, sequence))
+            : null;
+        var guidIndex = NeedsGuidIndex(kind)
+            ? ReopenStageRecorder.Time(observeStage, "construct-external-2", () => CreateGuidIndex(StreamGen, sequence))
+            : null;
+        var stringIndex = NeedsStringIndex(kind)
+            ? ReopenStageRecorder.Time(observeStage, "construct-external-3", () => CreateStringIndex(StreamGen, sequence))
+            : null;
         sequence.uindexes = new IUIndex?[] { intIndex, longIndex, guidIndex, stringIndex }
             .OfType<IUIndex>()
             .ToArray();

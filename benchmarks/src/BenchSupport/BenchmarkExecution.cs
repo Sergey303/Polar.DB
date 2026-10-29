@@ -62,7 +62,7 @@ internal static class BenchmarkExecution
                 EngineProcesses: engineOrder.Select(engine =>
                     engine == BenchmarkEngine.Sqlite ? sqlite.Manifest : polar.Manifest).ToArray(),
                 EngineOrder: engineOrder.Select(BenchmarkPaths.EngineToken).ToArray(),
-                ReopenDefinition: "Open-only measures opening and closing storage handles. Query-ready measures opening, metadata/index readiness, and one indexed primary-key lookup. Reopen-with-tail uses fixed Int32 storage so Polar.DB measures dynamic-tail replay after the persisted snapshot without conflating variable-record recovery scanning; SQLite measures reopening after equivalent appended Int32 rows. SQLite clears existing pools after dataset preparation and uses Pooling=False for every measured reopen.",
+                ReopenDefinition: "ReopenOnly: raw-file-handles is a separate file-handle probe; constructor-open-only includes engine constructors, possible recovery and close. Query-ready includes construction, Refresh of primary and four secondary indexes, validated first primary lookup, and close. Each internal stage is recorded per paired repetition, not inferred by subtracting medians. SQLite uses Pooling=False. Reopen-with-tail uses fixed Int32 storage to exclude variable-record recovery scan.",
                 VolatileMutationDefinition: "Per-operation time before a persistence boundary; final flush/commit is excluded.",
                 DurableMutationDefinition: "Per-operation average inside a batch that includes SQLite transaction commit plus WAL checkpoint and file sync, or Polar.DB Flush plus file sync.");
 

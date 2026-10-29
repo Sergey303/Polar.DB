@@ -8,6 +8,7 @@ internal static class BenchmarkReportTables
     {
         AppendMainTiming(builder, engines);
         if (engines.Any(engine => engine.OpenSamplesMs != null)) AppendReopenBreakdown(builder, engines);
+        if (engines.Any(engine => engine.ReopenStagesMs != null)) AppendReopenStages(builder, engines);
         if (engines.Any(engine => engine.DurableSamplesMs != null)) AppendMutationBreakdown(builder, engines);
         if (engines.Any(engine => engine.BuildSamplesMs != null || engine.LoadSamplesMs != null)) AppendBuildBreakdown(builder, engines);
         if (engines.Any(engine => engine.PrimaryBuildStages != null)) AppendPrimaryBuildInternals(builder, engines);
@@ -58,8 +59,8 @@ internal static class BenchmarkReportTables
         var bestOpen = rows.Min(row => row.Open.Median);
         var bestReady = rows.Min(row => row.Ready.Median);
 
-        builder.AppendLine("<h3>Equivalent reopen scenarios</h3>");
-        builder.AppendLine("<table><tr><th>Engine</th><th>Open-only samples</th><th>Open-only median</th><th>Query-ready samples</th><th>Query-ready median</th></tr>");
+        builder.AppendLine("<h3>Reopen scenarios (full constructors vs query readiness)</h3>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Constructor-open-only samples</th><th>Constructor-open-only median</th><th>Query-ready samples</th><th>Query-ready median</th></tr>");
         foreach (var row in rows)
         {
             builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(row.Engine.Engine) + "</td>");
@@ -67,6 +68,28 @@ internal static class BenchmarkReportTables
             builder.Append(BenchmarkReportFormat.Cell(row.Open.Median, bestOpen, " ms"));
             builder.Append("<td>" + row.Engine.SamplesMs.Count + "</td>");
             builder.Append(BenchmarkReportFormat.Cell(row.Ready.Median, bestReady, " ms") + "</tr>");
+        }
+        builder.AppendLine("</table>");
+    }
+
+    private static void AppendReopenStages(StringBuilder builder, IReadOnlyList<EngineResult> engines)
+    {
+        builder.AppendLine("<h3>Reopen stage decomposition (paired per iteration)</h3>");
+        builder.AppendLine("<p>Stages are timed within the same operation. Their medians are not additive. " +
+            "Raw-file-handles is a separate file-open probe, not a component of engine open-only. " +
+            "Constructor-open-only includes initialization and possible recovery; it is not handle-only.</p>");
+        builder.AppendLine("<table><tr><th>Engine</th><th>Stage</th><th>Samples</th><th>Median, ms</th><th>P95, ms</th></tr>");
+        foreach (var engine in engines)
+        {
+            if (engine.ReopenStagesMs == null) continue;
+            foreach (var (stage, values) in engine.ReopenStagesMs.OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                var stats = BenchmarkStats.From(values);
+                builder.Append("<tr><td>" + BenchmarkReportFormat.Escape(engine.Engine) + "</td><td>" +
+                    BenchmarkReportFormat.Escape(stage) + "</td><td>" + values.Count + "</td><td>" +
+                    BenchmarkReportFormat.Number(stats.Median) + "</td><td>" +
+                    BenchmarkReportFormat.Number(stats.P95) + "</td></tr>");
+            }
         }
         builder.AppendLine("</table>");
     }

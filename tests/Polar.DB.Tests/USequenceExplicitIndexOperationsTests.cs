@@ -33,6 +33,66 @@ public class USequenceExplicitIndexOperationsTests
     }
 
     [Fact]
+    public void RefreshDiagnostics_PreservesRecoveryAndReportsPairedStages()
+    {
+        string dir = StorageCorruptionHelpers.CreateTempDirectory();
+        string state = Path.Combine(dir, "state.bin");
+        try
+        {
+            var writer = ConfiguredUSequenceTestFactory.CreateIntegerSequence(dir, state);
+            writer.AppendElement(10);
+            writer.RebuildIndexesFromSequence();
+            writer.AppendElement(20);
+            writer.Close();
+
+            var reopened = ConfiguredUSequenceTestFactory.CreateIntegerSequence(dir, state);
+            var stages = new Dictionary<string, double>(StringComparer.Ordinal);
+            reopened.Refresh((name, elapsedMs) =>
+            {
+                Assert.True(stages.TryAdd(name, elapsedMs));
+                Assert.True(double.IsFinite(elapsedMs) && elapsedMs >= 0);
+            });
+
+            Assert.Equal(20, reopened.GetByKey(20));
+            Assert.Equal(new[] { "refresh-flush", "refresh-metadata",
+                "refresh-sequence-checkpoint", "refresh-primary",
+                "refresh-try-replay" }, stages.Keys.ToArray());
+            reopened.Close();
+        }
+        finally
+        {
+            StorageCorruptionHelpers.DeleteDirectoryQuietly(dir);
+        }
+    }
+
+    [Fact]
+    public void RefreshDiagnostics_ReportsFallbackWhenCheckpointIsMissing()
+    {
+        string dir = StorageCorruptionHelpers.CreateTempDirectory();
+        string state = Path.Combine(dir, "state.bin");
+        try
+        {
+            var writer = ConfiguredUSequenceTestFactory.CreateIntegerSequence(dir, state);
+            writer.AppendElement(17);
+            writer.RebuildIndexesFromSequence();
+            writer.Close();
+            File.Delete(state);
+
+            var reopened = ConfiguredUSequenceTestFactory.CreateIntegerSequence(dir, state);
+            var stages = new List<string>();
+            reopened.Refresh((stage, _) => stages.Add(stage));
+
+            Assert.Contains("refresh-fallback-rebuild", stages);
+            Assert.Equal(17, reopened.GetByKey(17));
+            reopened.Close();
+        }
+        finally
+        {
+            StorageCorruptionHelpers.DeleteDirectoryQuietly(dir);
+        }
+    }
+
+    [Fact]
     public void MissingCheckpoint_RequiresExplicitRebuild()
     {
         string dir = StorageCorruptionHelpers.CreateTempDirectory();
