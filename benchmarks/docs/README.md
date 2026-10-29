@@ -41,6 +41,15 @@ The script assigns one `POLAR_BENCH_RUN_ID` to the whole series. Engine order is
 alternated deterministically by default. Set `POLAR_BENCH_ENGINE_ORDER` to
 `sqlite-first` or `polar-first` only when a fixed order is required.
 
+For statistically interpretable comparisons, use
+[`INDEPENDENT_RUN_STATISTICS.md`](INDEPENDENT_RUN_STATISTICS.md).
+It distinguishes within-process timing samples from independent coordinator runs,
+prescribes 12 ABBA-counterbalanced repetitions, and gives a paired bootstrap
+analysis with checks on commit, machine and build settings. The scripts are
+[`run-independent-series.py`](../scripts/run-independent-series.py) and
+[`analyze-independent-series.py`](../scripts/analyze-independent-series.py).
+The historic benchmark medians do not carry confidence intervals.
+
 For stage-by-stage reopening diagnostics, see
 [`REOPEN_STAGE_DECOMPOSITION.md`](REOPEN_STAGE_DECOMPOSITION.md).
 The `ReopenOnly` raw JSON/CSV exposes per-stage paired timings alongside
