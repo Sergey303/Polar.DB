@@ -1,7 +1,10 @@
 # Benchmark reports and reproducibility
 
 For the index-equivalence contract used by the current benchmark code, see
-[`INDEX_PROFILE_PARITY.md`](INDEX_PROFILE_PARITY.md). The article
+[`INDEX_PROFILE_PARITY.md`](INDEX_PROFILE_PARITY.md). The proposed
+[`STATE_TRANSITION_PROTOCOL.md`](STATE_TRANSITION_PROTOCOL.md) defines
+functional A → B₀ → B₁ states, reproducible snapshots and validity gates for
+**future** experiments; its measurements have **not** been performed. The article
 [`POLAR_DB_ARTICLE_DRAFT.md`](POLAR_DB_ARTICLE_DRAFT.md) marks the older
 results as historical; publication-grade performance figures require a new run.
 
