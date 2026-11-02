@@ -434,6 +434,8 @@ Mutation benchmark сохраняет разделение между volatile m
 
 Дополнительная серия с нативным Guid показывает, что уменьшение размера физического представления существенно для последовательного хранения, но само по себе не определяет время внешних индексных запросов с различным объёмом выдачи. Для объяснения наблюдаемого профиля необходима раздельная оценка стоимости обращения к первичным смещениям, формирования индексного состояния после открытия и построения внешних индексов. В рамках настоящей работы вклад этих механизмов не изолирован; соответствующие гипотезы требуют последующих контролируемых экспериментов.
 
+Современные исследования компактных индексных представлений, включая PGM-index [17], показывают важность совместного анализа размера индекса, обновлений и времени поиска. В воспроизводимом сравнении различных индексных структур Marcus и соавторы [18] отдельно рассматривают влияние данных, кэшей, размеров ключей и стоимости построения. Эти работы подтверждают необходимость явно описывать конфигурации и рабочие нагрузки; **их результаты не являются измерением Polar.DB и не доказывают его превосходства либо отставания**.
+
 <a id="sec-4-10"></a>
 ### 4.10. Ограничения исследования
 
@@ -1007,21 +1009,23 @@ High-frequency ключ соответствует 40% массива. Для 5 
 # Список литературы
 
 1. Марчук, А. Г. PolarDB — система создания специализированных NoSQL баз данных и СУБД / А. Г. Марчук // Моделирование и анализ информационных систем. — 2014. — Т. 21, № 6. — С. 169–175. — URL: https://www.mathnet.ru/mais421 (дата обращения: 02.11.2026). — Текст : электронный.
-2. Марчук, А. Г. Архитектура и основные особенности библиотеки PolarDB работы со структурированными данными / А. Г. Марчук // Системная информатика. — 2018. — № 13. — С. 25–34. — DOI 10.31144/si.2307-6410.2018.n13.p25-34.
-3. Марчук, А. Г. Последовательность как абстракция структурированного построения баз данных / А. Г. Марчук // Системная информатика. — 2021. — № 18. — С. 35–52. — DOI 10.31144/si.2307-6410.2021.n18.p35-52.
-4. Марчук, А. Г. Экспериментальная реализация SPARQL 1.1 и RDF Triple Store / А. Г. Марчук, С. В. Лештаев // Аналитика и управление данными в областях с интенсивным использованием данных : труды XVII Международной конференции DAMDID/RCDL'2015 (Обнинск, 13–16 октября 2015 г.). — 2015. — С. 83–87.
-5. Cooper, B. F. Benchmarking Cloud Serving Systems with YCSB / B. F. Cooper, A. Silberstein, E. Tam [и др.] // Proceedings of the 1st ACM Symposium on Cloud Computing (SoCC). — 2010. — P. 143–154. — DOI 10.1145/1807128.1807152.
-6. Dayan, N. Monkey: Optimal Navigable Key-Value Store / N. Dayan, M. Athanassoulis, S. Idreos // Proceedings of the 2017 ACM International Conference on Management of Data (SIGMOD). — 2017. — P. 79–94. — DOI 10.1145/3035918.3064054.
-7. Leis, V. The Adaptive Radix Tree: ARTful Indexing for Main-Memory Databases / V. Leis, A. Kemper, T. Neumann // Proceedings of the 29th IEEE International Conference on Data Engineering (ICDE). — 2013. — P. 38–49. — DOI 10.1109/ICDE.2013.6544812.
-8. Lim, H. SILT: A Memory-Efficient, High-Performance Key-Value Store / H. Lim, B. Fan, D. G. Andersen, M. Kaminsky // Proceedings of the 23rd ACM Symposium on Operating Systems Principles (SOSP). — 2011. — P. 1–13. — DOI 10.1145/2043556.2043558.
-9. Gray, J. The Five-Minute Rule Ten Years Later, and Other Computer Storage Rules of Thumb / J. Gray, G. Graefe // ACM SIGMOD Record. — 1997. — Vol. 26, no. 4. — P. 63–68. — DOI 10.1145/271074.271094.
-10. Comer, D. The Ubiquitous B-Tree / D. Comer // ACM Computing Surveys. — 1979. — Vol. 11, no. 2. — P. 121–137. — DOI 10.1145/356770.356776.
-11. O'Neil, P. The Log-Structured Merge-Tree (LSM-Tree) / P. O'Neil, E. Cheng, D. Gawlick, E. O'Neil // Acta Informatica. — 1996. — Vol. 33, no. 4. — P. 351–385. — DOI 10.1007/s002360050048.
-12. Athanassoulis, M. Designing Access Methods: The RUM Conjecture / M. Athanassoulis, M. S. Kester, L. M. Maas [и др.] // Proceedings of the 19th International Conference on Extending Database Technology (EDBT). — 2016. — P. 461–466. — DOI 10.5441/002/EDBT.2016.42.
-13. Kraska, T. The Case for Learned Index Structures / T. Kraska, A. Beutel, E. H. Chi [и др.] // Proceedings of the 2018 International Conference on Management of Data (SIGMOD). — 2018. — P. 489–504. — DOI 10.1145/3183713.3196909.
-14. Hellerstein, J. M. Architecture of a Database System / J. M. Hellerstein, M. Stonebraker, J. R. Hamilton // Foundations and Trends in Databases. — 2007. — Vol. 1, no. 2. — P. 141–259. — DOI 10.1561/1900000002.
-15. Kalibera, T. Rigorous Benchmarking in Reasonable Time / T. Kalibera, R. E. Jones // Proceedings of the 2013 International Symposium on Memory Management (ISMM). — 2013. — P. 63–74. — DOI 10.1145/2464157.2464160.
-16. Mytkowicz, T. Producing Wrong Data Without Doing Anything Obviously Wrong! / T. Mytkowicz, A. Diwan, M. Hauswirth, P. F. Sweeney // Proceedings of the 14th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS). — 2009. — P. 265–276. — DOI 10.1145/1508244.1508275.
+2. Марчук, А. Г. Архитектура и основные особенности библиотеки PolarDB работы со структурированными данными / А. Г. Марчук // Системная информатика. — 2018. — № 13. — С. 25–34. — DOI 10.31144/si.2307-6410.2018.n13.p25-34. — Текст : электронный.
+3. Марчук, А. Г. Последовательность как абстракция структурированного построения баз данных / А. Г. Марчук // Системная информатика. — 2021. — № 18. — С. 35–52. — DOI 10.31144/si.2307-6410.2021.n18.p35-52. — Текст : электронный.
+4. Марчук, А. Г. Экспериментальная реализация SPARQL 1.1 и RDF Triple Store / А. Г. Марчук, С. В. Лештаев // Аналитика и управление данными в областях с интенсивным использованием данных : труды XVII Международной конференции DAMDID/RCDL'2015 (Обнинск, 13–16 октября 2015 г.). — 2015. — С. 83–87. — Текст : непосредственный.
+5. Cooper, B. F. Benchmarking Cloud Serving Systems with YCSB / B. F. Cooper, A. Silberstein, E. Tam [и др.] // Proceedings of the 1st ACM Symposium on Cloud Computing (SoCC). — 2010. — P. 143–154. — DOI 10.1145/1807128.1807152. — Текст : электронный.
+6. Dayan, N. Monkey: Optimal Navigable Key-Value Store / N. Dayan, M. Athanassoulis, S. Idreos // Proceedings of the 2017 ACM International Conference on Management of Data (SIGMOD). — 2017. — P. 79–94. — DOI 10.1145/3035918.3064054. — Текст : электронный.
+7. Leis, V. The Adaptive Radix Tree: ARTful Indexing for Main-Memory Databases / V. Leis, A. Kemper, T. Neumann // Proceedings of the 29th IEEE International Conference on Data Engineering (ICDE). — 2013. — P. 38–49. — DOI 10.1109/ICDE.2013.6544812. — Текст : электронный.
+8. Lim, H. SILT: A Memory-Efficient, High-Performance Key-Value Store / H. Lim, B. Fan, D. G. Andersen, M. Kaminsky // Proceedings of the 23rd ACM Symposium on Operating Systems Principles (SOSP). — 2011. — P. 1–13. — DOI 10.1145/2043556.2043558. — Текст : электронный.
+9. Gray, J. The Five-Minute Rule Ten Years Later, and Other Computer Storage Rules of Thumb / J. Gray, G. Graefe // ACM SIGMOD Record. — 1997. — Vol. 26, no. 4. — P. 63–68. — DOI 10.1145/271074.271094. — Текст : электронный.
+10. Comer, D. The Ubiquitous B-Tree / D. Comer // ACM Computing Surveys. — 1979. — Vol. 11, no. 2. — P. 121–137. — DOI 10.1145/356770.356776. — Текст : электронный.
+11. O'Neil, P. The Log-Structured Merge-Tree (LSM-Tree) / P. O'Neil, E. Cheng, D. Gawlick, E. O'Neil // Acta Informatica. — 1996. — Vol. 33, no. 4. — P. 351–385. — DOI 10.1007/s002360050048. — Текст : электронный.
+12. Athanassoulis, M. Designing Access Methods: The RUM Conjecture / M. Athanassoulis, M. S. Kester, L. M. Maas [и др.] // Proceedings of the 19th International Conference on Extending Database Technology (EDBT). — 2016. — P. 461–466. — DOI 10.5441/002/EDBT.2016.42. — Текст : электронный.
+13. Kraska, T. The Case for Learned Index Structures / T. Kraska, A. Beutel, E. H. Chi [и др.] // Proceedings of the 2018 International Conference on Management of Data (SIGMOD). — 2018. — P. 489–504. — DOI 10.1145/3183713.3196909. — Текст : электронный.
+14. Hellerstein, J. M. Architecture of a Database System / J. M. Hellerstein, M. Stonebraker, J. R. Hamilton // Foundations and Trends in Databases. — 2007. — Vol. 1, no. 2. — P. 141–259. — DOI 10.1561/1900000002. — Текст : электронный.
+15. Kalibera, T. Rigorous Benchmarking in Reasonable Time / T. Kalibera, R. E. Jones // Proceedings of the 2013 International Symposium on Memory Management (ISMM). — 2013. — P. 63–74. — DOI 10.1145/2464157.2464160. — Текст : электронный.
+16. Mytkowicz, T. Producing Wrong Data Without Doing Anything Obviously Wrong! / T. Mytkowicz, A. Diwan, M. Hauswirth, P. F. Sweeney // Proceedings of the 14th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS). — 2009. — P. 265–276. — DOI 10.1145/1508244.1508275. — Текст : электронный.
+17. Ferragina, P. The PGM-Index: A Fully-Dynamic Compressed Learned Index with Provable Worst-Case Bounds / P. Ferragina, G. Vinciguerra // Proceedings of the VLDB Endowment. — 2020. — Vol. 13, no. 8. — P. 1162–1175. — DOI 10.14778/3389133.3389135. — Текст : электронный.
+18. Marcus, R. Benchmarking Learned Indexes / R. Marcus, A. Kipf, A. van Renen [и др.] // Proceedings of the VLDB Endowment. — 2020. — Vol. 14, no. 1. — P. 1–13. — DOI 10.14778/3421424.3421425. — Текст : электронный.
 
 <a id="repro"></a>
 ## Материалы воспроизводимости
