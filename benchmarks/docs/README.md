@@ -23,6 +23,28 @@ current/final run long enough to calculate artifact size. After the coordinator 
 raw/manifest/HTML artifacts, the remaining work directory for that experiment is deleted.
 Failed active cases are intentionally kept under `benchmarks/work` for diagnostics.
 
+## Disk-safety guard
+
+Both `run-independent-series.py` and `run-new-benchmarks.ps1` invoke
+`benchmarks/scripts/disk_guard.py` for builds and benchmark processes.
+Before a command starts, the guard requires more than 24 GiB free by default:
+16 GiB reserved plus an 8 GiB budget for reduction in free disk space.
+It checks available space every 0.5 seconds and stops the entire launched
+process group on a threshold breach or after the per-process timeout
+(default 900 seconds). A stopped independent series retains the metadata
+and completed raw results; failed work directories are not deleted blindly.
+The independent runner supports `--min-free-gib` (at least 8) and
+`--max-growth-gib` overrides, but smaller values increase risk.
+
+The guard fails closed if known benchmark output folders are mounted on a
+different filesystem from the repository. This is a monitored safety margin,
+**not a filesystem quota**: an unbounded write faster than the polling
+interval, or termination of the guard itself, could still fill the volume.
+For a strict disk cap, run on a dedicated quota-limited filesystem.
+Before publication runs, check the actual disk and leave enough reserve for
+other processes. Test the guard without large data using
+`python -m unittest discover -s benchmarks/scripts -p 'test_disk_guard.py'`.
+
 Generated latest-result artifacts:
 
 - `<experiment>.html` — derived report;

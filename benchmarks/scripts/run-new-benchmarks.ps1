@@ -1,5 +1,16 @@
 $ErrorActionPreference = "Stop"
 
+function Invoke-GuardedDotnet([string[]] $dotnetArgs) {
+  $python = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
+  if (-not $python) { throw "Python is required for safe disk-guarded benchmark runs." }
+  $guard = Join-Path $PSScriptRoot "disk_guard.py"
+  & $python.Source $guard --min-free-gib 16 --max-growth-gib 8 --timeout-seconds 900 -- dotnet @dotnetArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "Benchmark/build stopped by disk guard or failed (exit $LASTEXITCODE)."
+  }
+}
+
 function Get-ExperimentId([string] $projectName) {
   switch ($projectName) {
     "PkIntLookup" { return "pk-int-lookup" }
@@ -54,13 +65,13 @@ $env:POLAR_BENCH_RUN_ID = $seriesId
 try {
   Write-Host "Benchmark series: $seriesId"
   Write-Host "Building shared benchmark library"
-  dotnet build -c Release "benchmarks\src\BenchSupport\BenchSupport.csproj"
+  Invoke-GuardedDotnet -dotnetArgs @("build", "-c", "Release", "benchmarks\src\BenchSupport\BenchSupport.csproj")
 
   foreach ($project in $projects) {
     $projectName = Split-Path (Split-Path $project -Parent) -Leaf
     $experimentId = Get-ExperimentId $projectName
     Write-Host "Running $experimentId from $project"
-    dotnet run -c Release --project $project
+    Invoke-GuardedDotnet -dotnetArgs @("run", "-c", "Release", "--project", $project)
   }
 }
 finally {

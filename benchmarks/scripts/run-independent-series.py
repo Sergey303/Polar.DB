@@ -8,9 +8,13 @@ from pathlib import Path
 import subprocess
 import time
 
+from disk_guard import run_guarded
 
-def command(*args, cwd, env=None, timeout=None):
-    subprocess.run(args, cwd=cwd, env=env, timeout=timeout, check=True)
+
+def command(*args, cwd, env=None, timeout=900, min_free_gib=16.0,
+            max_growth_gib=8.0):
+    run_guarded(args, root=cwd, env=env, timeout_seconds=timeout,
+                min_free_gib=min_free_gib, max_growth_gib=max_growth_gib)
 
 
 def output(*args, cwd):
@@ -26,9 +30,13 @@ def main():
     p.add_argument("--samples", type=int, default=None)
     p.add_argument("--timeout-seconds", type=int, default=900)
     p.add_argument("--no-build", action="store_true")
+    p.add_argument("--min-free-gib", type=float, default=16.0)
+    p.add_argument("--max-growth-gib", type=float, default=8.0)
     args = p.parse_args()
     if args.repeats < 8 or args.repeats % 4 or args.rows < 1 or args.timeout_seconds < 1:
         p.error("Require repeats >= 8 and divisible by 4, rows >= 1, timeout >= 1")
+    if args.min_free_gib < 8 or args.max_growth_gib <= 0:
+        p.error("Require at least 8 GiB reserve and positive max growth")
     root = Path(__file__).resolve().parents[2]
     project = root / "benchmarks" / "src" / args.project / (args.project + ".csproj")
     dll = project.parent / "bin" / "Release" / "net10.0" / (args.project + ".dll")
@@ -38,7 +46,8 @@ def main():
         p.error("Tracked worktree has modifications. Commit or discard before a publication series")
     sha = output("git", "rev-parse", "HEAD", cwd=root)
     if not args.no_build:
-        command("dotnet", "build", "-c", "Release", str(project), cwd=root)
+        command("dotnet", "build", "-c", "Release", str(project), cwd=root,
+                min_free_gib=args.min_free_gib, max_growth_gib=args.max_growth_gib)
     if not dll.is_file():
         p.error("Release DLL not found: " + str(dll))
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -63,7 +72,9 @@ def main():
             print(f"[{i + 1}/{args.repeats}] {run_id}: {order}", flush=True)
             started = time.monotonic()
             command("dotnet", str(dll), *args_extra, cwd=root,
-                    env=env, timeout=args.timeout_seconds)
+                    env=env, timeout=args.timeout_seconds,
+                    min_free_gib=args.min_free_gib,
+                    max_growth_gib=args.max_growth_gib)
             matches = list((root / "benchmarks" / "results" / "raw").glob(
                 f"*/{run_id}/combined.raw.json"))
             if len(matches) != 1:
