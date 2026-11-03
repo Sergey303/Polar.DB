@@ -33,6 +33,8 @@ def main():
     p.add_argument("--min-free-gib", type=float, default=16.0)
     p.add_argument("--max-growth-gib", type=float, default=8.0)
     args = p.parse_args()
+    if args.project.endswith("Lookup") and (args.warmup is not None or args.samples is not None):
+        p.error("Lookup workloads use fixed phase plans; --warmup and --samples have no effect")
     if args.repeats < 8 or args.repeats % 4 or args.rows < 1 or args.timeout_seconds < 1:
         p.error("Require repeats >= 8 and divisible by 4, rows >= 1, timeout >= 1")
     if args.min_free_gib < 8 or args.max_growth_gib <= 0:
@@ -84,6 +86,12 @@ def main():
             if raw["manifest"]["runId"] != run_id or raw["manifest"]["engineOrder"] != (
                 ["sqlite", "polar-db"] if order == "sqlite-first" else ["polar-db", "sqlite"]):
                 raise ValueError("Run id or engine order was not respected")
+            work_dir = root / "benchmarks" / "work" / run_id
+            if work_dir.is_dir():
+                try:
+                    work_dir.rmdir()  # Remove only empty roots of successful runs.
+                except OSError:
+                    pass  # Preserve unexpected files for diagnosis.
             plan["runs"].append({"runId": run_id, "order": order,
                                  "raw": path, "elapsedSeconds": round(time.monotonic() - started, 3)})
             series_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")

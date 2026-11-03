@@ -35,6 +35,9 @@ process group on a threshold breach or after the per-process timeout
 and completed raw results; failed work directories are not deleted blindly.
 The independent runner supports `--min-free-gib` (at least 8) and
 `--max-growth-gib` overrides, but smaller values increase risk.
+Lookup scenarios have fixed phase plans: `--warmup` and `--samples` are
+rejected for lookup projects rather than silently ignored. Successful
+independent runs remove only their empty work-root directories.
 
 The guard fails closed if known benchmark output folders are mounted on a
 different filesystem from the repository. This is a monitored safety margin,
