@@ -61,6 +61,47 @@ def chart(name, header, unit, grouped, maximum, step):
     (OUT / (name + '.svg')).write_text('\n'.join(parts) + '\n')
 
 
+
+def reopen_stage_chart():
+    """Show the measured query-ready stage medians without adding them together."""
+    stages = [
+        ('Конструирование string', 'construct-external-3'),
+        ('Refresh string', 'refresh-external-3'),
+        ('Refresh Guid', 'refresh-external-2'),
+        ('Refresh int', 'refresh-external-0'),
+        ('Refresh long', 'refresh-external-1'),
+        ('Refresh primary', 'refresh-primary'),
+    ]
+    left, right, width = 255, 120, 960
+    plot_width = width - left - right
+    top, row_height = 90, 53
+    bottom = top + len(stages) * row_height
+    height = bottom + 90
+    maximum = 5
+    lines = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">',
+             '<title>Диагностические стадии повторного открытия Polar.DB на 5 млн записей</title>',
+             '<desc>Шесть отдельных измеряемых стадий query-ready reopen. Медианы времен, шкала от нуля. Статистики стадий нельзя арифметически складывать.</desc>',
+             '<rect width="100%" height="100%" fill="white"/>',
+             '<style>text{font-family:"DejaVu Sans",Arial,sans-serif;fill:#222;font-size:14px}.head{font-weight:600;font-size:19px}.muted{fill:#565656;font-size:12px}</style>',
+             '<text class="head" x="28" y="30">Стадии query-ready reopen, 5 млн записей</text>']
+    for tick in range(maximum + 1):
+        x = left + tick * plot_width / maximum
+        lines.append(f'<line x1="{x:.2f}" y1="{top-10}" x2="{x:.2f}" y2="{bottom}" stroke="#e3e3e3"/>')
+        lines.append(f'<text class="muted" text-anchor="middle" x="{x:.2f}" y="{bottom+25}">{tick}</text>')
+    lines.append(f'<text text-anchor="middle" x="{left+plot_width/2:.2f}" y="{bottom+48}">Медиана времени стадии, с</text>')
+    for i, (label, stage) in enumerate(stages):
+        v = measurement('reopen-only', 'polar-db-current', 5000000, '',
+                        'reopen/query-ready/' + stage) / 1000
+        y = top + i * row_height
+        color = POLAR if 'string' in label else '#7b8790'
+        lines.append(f'<text x="{left-14}" y="{y+25}" text-anchor="end">{escape(label)}</text>')
+        length = plot_width * v / maximum
+        lines.append(f'<rect x="{left}" y="{y+9}" width="{length:.2f}" height="26" fill="{color}"/>')
+        lines.append(f'<text x="{left+length+9:.2f}" y="{y+27}">{v:.3f}</text>')
+    lines.append(f'<text class="muted" x="28" y="{height-14}">Источник: run-id {MEASUREMENTS}, 30 повторов каждого этапа; стадии не аддитивны.</text>')
+    lines.append('</svg>')
+    (OUT / 'reopen-stages-5m.svg').write_text('\n'.join(lines) + '\n')
+
 def main():
     phase = 'Hot after file and lookup warmup'
     names = [('int', 'int'), ('long', 'long'), ('Guid', 'guid'), ('string', 'string')]
@@ -82,6 +123,7 @@ def main():
     s = measurement(experiment, 'sqlite', 5000000, '', 'full logical traversal') / 1000
     chart('traversal-5m', 'Полный логический обход, 5 млн записей',
           'Медиана полного обхода, с', [('5 млн строк', p, s)], 9, 3)
+    reopen_stage_chart()
 
 
 if __name__ == '__main__':
