@@ -1,0 +1,12 @@
+digraph BenchmarkStates {
+  graph [rankdir=TB, bgcolor="white", pad=0.20, nodesep=0.40, ranksep=0.38, fontname="DejaVu Sans", fontsize=14];
+  node [shape=box, style="rounded,filled", fillcolor="#F5F6F7", color="#444444", fontname="DejaVu Sans", fontsize=12, margin="0.18,0.14"];
+  edge [color="#444444", fontname="DejaVu Sans", fontsize=11, arrowsize=0.7];
+  empty [label="Пустое подготовленное\nхранилище"];
+  closed [label="Сохранённая\nзакрытая база"];
+  ready [label="База, готовая\nк запросам"];
+  changed [label="База после\nизменения"];
+  empty -> closed [label="Загрузка, построение\nиндексов, сохранение"];
+  closed -> ready [label="Открытие, подготовка\nи первый проверенный запрос"];
+  ready -> changed [label="Добавление или удаление\n(отдельный опыт)"];
+}

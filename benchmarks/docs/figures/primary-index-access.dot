@@ -1,0 +1,21 @@
+digraph PrimaryIndex {
+  graph [rankdir=TB, bgcolor="white", pad=0.20, nodesep=0.28, ranksep=0.38, fontname="DejaVu Sans", fontsize=15, labeljust=l];
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#424242", penwidth=1.1, fontname="DejaVu Sans", fontsize=12, margin="0.16,0.12"];
+  edge [color="#444444", arrowsize=0.7, fontname="DejaVu Sans", fontsize=10];
+  key [label="Ключ\nзапроса"];
+  hash [label="32-битный\nхеш"];
+  subgraph cluster_memory {
+    label="Оперативная память (RAM)";
+    fontname="DejaVu Sans"; fontsize=13; style="rounded"; color="#666666";
+    hashes [label="Отсортированный\nмассив хешей", fillcolor="#F0F4F8"];
+    group [label="Позиции совпавших\nхешей", fillcolor="#F0F4F8"];
+  }
+  subgraph cluster_file {
+    label="Файловое хранилище";
+    fontname="DejaVu Sans"; fontsize=13; style="rounded"; color="#777777";
+    offsets [label="Смещения по\nнайденным позициям", fillcolor="#F7F7F7"];
+    records [label="Записи по\nсмещениям", fillcolor="#F7F7F7"];
+  }
+  verify [label="Проверка полного ключа\nи актуальности записи"];
+  key -> hash -> hashes -> group -> offsets -> records -> verify;
+}
