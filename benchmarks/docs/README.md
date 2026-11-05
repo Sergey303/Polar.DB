@@ -6,8 +6,16 @@ For the index-equivalence contract used by the current benchmark code, see
 an empty prepared store, a saved closed database, and a query-ready database,
 along with reproducible snapshots and validity gates for
 **future** experiments; its measurements have **not** been performed. The article
-[`POLAR_DB_ARTICLE_DRAFT.md`](POLAR_DB_ARTICLE_DRAFT.md) marks the older
-results as historical; publication-grade performance figures require a new run.
+[`POLAR_DB_ARTICLE_DRAFT.md`](POLAR_DB_ARTICLE_DRAFT.md) reports the completed
+November 4, 2026 Linux/WSL2/ext4 series (`20261104T075733840Z`, source SHA
+`abbb03cdc34cff1c11e7550494f65b03dad9afd1`) and keeps earlier results
+separate. The raw archive is stored outside Git at
+`benchmarks/results/final-series/20261104T075733840Z-abbb03c-ext4.tar.gz`
+on the research machine. The article's 13 tables and 6 figures are checked with
+`python3 benchmarks/scripts/check-article-results.py` and regenerated with
+`python3 benchmarks/scripts/render-article-figures.py`. These validate the
+published arithmetic, **not** independent replication or uncertainty: a full
+publication-quality evaluation still needs independently repeated runs.
 
 Benchmark executables reference the shared `benchmarks/src/BenchSupport/BenchSupport.csproj`
 library. Common benchmark sources are compiled once instead of being linked separately into
@@ -81,6 +89,11 @@ The historic benchmark medians do not carry confidence intervals.
 
 For stage-by-stage reopening diagnostics, see
 [`REOPEN_STAGE_DECOMPOSITION.md`](REOPEN_STAGE_DECOMPOSITION.md).
+A small standalone November 5, 2026 diagnostic check with three measured
+repetitions at 50k and 5M rows is documented in
+[`REOPEN_DIAGNOSTIC_20261105.md`](REOPEN_DIAGNOSTIC_20261105.md);
+its raw CSV/JSON and manifest files are preserved separately under `docs/evidence/`.
+Its runtime differs from the November 4 main series and must not be pooled with it.
 The `ReopenOnly` raw JSON/CSV exposes per-stage paired timings alongside
 constructor-open-only and query-ready totals; a raw-file-handle probe is separate.
 
