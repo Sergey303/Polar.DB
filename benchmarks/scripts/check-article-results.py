@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check every numeric data cell of article tables against the pinned final-series archive."""
+"""Check manuscript and moved supplementary table cells against the pinned final series."""
 from pathlib import Path
 from collections import defaultdict
 from statistics import median
@@ -7,6 +7,8 @@ import re,csv,json,math
 ROOT=Path(__file__).resolve().parents[2]
 RESULTS=ROOT/'benchmarks/results/final-series/20261104T075733840Z-abbb03c-ext4/results'
 ARTICLE=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_DRAFT.md').read_text()
+SUPPLEMENT=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_TECHNICAL_MATERIALS.md').read_text()
+TABLE_LOCATIONS={6:(SUPPLEMENT,'Д.1'),7:(ARTICLE,'6'),8:(ARTICLE,'7'),9:(ARTICLE,'8'),10:(SUPPLEMENT,'Д.2'),11:(SUPPLEMENT,'Д.3'),12:(SUPPLEMENT,'Д.4'),13:(ARTICLE,'9')}
 cache={};count=0
 C='Cold after reopen'; H='Hot after file and lookup warmup'
 def values(name,n,engine,metric,phase=''):
@@ -23,8 +25,9 @@ def perc(v):
     v=sorted(v);i=(len(v)-1)*.95;j=math.floor(i)
     return v[j]*(1-(i-j))+v[min(j+1,len(v)-1)]*(i-j)
 def tab(n):
-    m=re.search(rf'^Таблица {n} —[^\n]*\n\n((?:\|[^\n]+\|\n)+)',ARTICLE,re.M)
-    assert m, n
+    source,label=TABLE_LOCATIONS.get(n,(ARTICLE,str(n)))
+    m=re.search(rf'^Таблица {re.escape(label)} —[^\n]*\n\n((?:\|[^\n]+\|\n)+)',source,re.M)
+    assert m, (n,label)
     ls=m.group(1).splitlines()
     return [[c.strip().strip('`') for c in line.strip('|').split('|')] for line in ls[2:]]
 def check(cell,actual):
@@ -118,4 +121,7 @@ for n,expected in ((50000,.754),(5000000,.887)):
             for i in range(30)]
     assert abs(median(ratios)-expected)<.0006
 
-print('OK: all 13 tables,',count,'numeric cells match archived CSV/JSON within stated rounding precision; paired reopen share checks pass')
+assert [int(v) for v in re.findall(r'^Таблица (\d+) —',ARTICLE,re.M)]==list(range(1,10))
+assert re.findall(r'^Таблица (Д\.\d+) —',SUPPLEMENT,re.M)==['Д.1','Д.2','Д.3','Д.4']
+assert count==204, count
+print('OK: all 9 manuscript + 4 supplementary tables,',count,'numeric cells match archived CSV/JSON; paired reopen share checks pass')
