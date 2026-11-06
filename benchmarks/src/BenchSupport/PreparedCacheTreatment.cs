@@ -76,7 +76,7 @@ internal static class PreparedCacheTreatment
         switch (condition)
         {
             case "none":
-                if (snapshot.Fraction < .995)
+                if (snapshot.Files.Any(file => file.Fraction < .995))
                     throw new InvalidDataException("Fully resident control lost pages before batch.");
                 return;
             case "data": selected = "data.sqlite"; break;
@@ -91,6 +91,8 @@ internal static class PreparedCacheTreatment
             throw new InvalidDataException($"Treatment {condition} residency out of range: {entry?.Fraction}");
         if (engine == "polar-db")
         {
+            if (selected is not "f0.bin" && files["f0.bin"].Fraction < .995)
+                throw new InvalidDataException("Payload unexpectedly evicted during index treatment.");
             foreach (var index in new[] { "f1.bin", "f2.bin" })
             {
                 if (index == selected) continue;
