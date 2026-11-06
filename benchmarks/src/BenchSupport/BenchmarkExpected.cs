@@ -4,7 +4,7 @@ internal static class BenchmarkExpected
 {
     public static LookupExpectedOracle CreateLookupOracle(
         ExperimentKind kind,
-        Row[] data,
+        BenchmarkDataset data,
         IReadOnlyList<LookupPlan> plans) =>
         kind switch
         {
@@ -27,7 +27,7 @@ internal static class BenchmarkExpected
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Not a lookup experiment.")
         };
 
-    public static QueryResult ForLifecycle(ExperimentOptions options, Row[] data)
+    public static QueryResult ForLifecycle(ExperimentOptions options, BenchmarkDataset data)
     {
         if (options.Kind == ExperimentKind.ReopenWithTail)
         {
@@ -61,7 +61,7 @@ internal static class BenchmarkExpected
     }
 
     private static LookupExpectedOracle BuildLookupOracle<TKey>(
-        Row[] data,
+        BenchmarkDataset data,
         IReadOnlyList<LookupPlan> plans,
         Func<Row, TKey> selector)
         where TKey : notnull

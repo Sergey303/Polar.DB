@@ -6,7 +6,7 @@ namespace PolarDbBenchmarks;
 
 internal static class PolarLifecycleEngine
 {
-    public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
+    public static EngineResult Run(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         return options.Kind switch
         {
@@ -20,7 +20,7 @@ internal static class PolarLifecycleEngine
         };
     }
 
-    private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         return BuildPrimaryIntOnly(
             options,
@@ -32,7 +32,7 @@ internal static class PolarLifecycleEngine
 
     private static EngineResult BuildPrimaryIntOnly(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         Action<PolarStore> load,
         string engineName)
@@ -100,7 +100,7 @@ internal static class PolarLifecycleEngine
             buildAllocationGc: buildAllocationGc.ToImmutable());
     }
 
-    private static EngineResult BuildExternalIndexesOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult BuildExternalIndexesOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
@@ -169,7 +169,7 @@ internal static class PolarLifecycleEngine
             buildAllocationGc: buildAllocationGc.ToImmutable());
     }
 
-    private static EngineResult TraversalOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult TraversalOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         var store = PrepareBuiltStore(dir, data, ExperimentKind.TraversalOnly);
@@ -199,7 +199,7 @@ internal static class PolarLifecycleEngine
             after: liveResources);
     }
 
-    private static EngineResult ReopenWithTail(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult ReopenWithTail(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -248,7 +248,7 @@ internal static class PolarLifecycleEngine
             after: liveResources);
     }
 
-    private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult ReopenOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         BenchmarkProgress.Stage("polar reopen: preparing source storage");
@@ -285,13 +285,15 @@ internal static class PolarLifecycleEngine
         ValidatePrimaryLookup(liveStore, data[0].Id, expectedLookup, "reopen live snapshot");
         var liveResources = BenchmarkResources.Capture();
         GC.KeepAlive(liveStore);
+        var actual = ScanAll(liveStore);
         liveStore.Sequence.Close();
 
         return Result(
             "polar-db-current",
             "query-ready reopen",
             queryReady,
-            PolarMaterializer.ReadAll(dir, ExperimentKind.ReopenOnly),
+            actual.Rows,
+            actual.Checksum,
             dir,
             before,
             after: liveResources,
@@ -300,7 +302,7 @@ internal static class PolarLifecycleEngine
 
     private static EngineResult Mutation(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         bool append)
     {
@@ -325,7 +327,7 @@ internal static class PolarLifecycleEngine
                 volatileSamples.Add(Measure(() => volatileStore.Sequence.AppendElement(PolarRows.Tombstone(key))));
         }
 
-        var actualRows = PolarMaterializer.ReadAll(volatileStore);
+        var actual = ScanAll(volatileStore);
         volatileStore.Sequence.Flush();
         volatileStore.Sequence.Close();
 
@@ -335,7 +337,8 @@ internal static class PolarLifecycleEngine
             "polar-db-current",
             "volatile mutation",
             volatileSamples,
-            actualRows,
+            actual.Rows,
+            actual.Checksum,
             volatileDir,
             before,
             durable: durableSamples,
@@ -348,11 +351,11 @@ internal static class PolarLifecycleEngine
 
     private static void WarmMutation(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         bool append)
     {
-        var warmRows = data.Take(Math.Min(data.Length, 50_000)).ToArray();
+        var warmRows = BenchmarkData.Dataset(Math.Min(data.Length, 50_000), options.Kind);
         var store = PrepareBuiltStore(dir, warmRows, options.Kind);
         if (append)
         {
@@ -371,7 +374,7 @@ internal static class PolarLifecycleEngine
 
     private static IReadOnlyList<double> MeasureDurableBatches(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         bool append)
     {
@@ -380,7 +383,7 @@ internal static class PolarLifecycleEngine
         var measuredBatches = BenchmarkDefaults.MutationDurableMeasuredBatches;
         var batchSize = BenchmarkDefaults.MutationDurableBatchSize;
         var totalOps = (warmupBatches + measuredBatches) * batchSize;
-        var appendRows = append
+        IReadOnlyList<Row> appendRows = append
             ? BenchmarkData.Dataset(totalOps, options.Kind, data.Length + options.MeasuredOps + 1)
             : Array.Empty<Row>();
         var deleteKeys = append
@@ -409,26 +412,26 @@ internal static class PolarLifecycleEngine
                 samples.Add(stopwatch.Elapsed.TotalMilliseconds / batchSize);
         }
 
-        var actualRows = PolarMaterializer.ReadAll(store);
-        ValidateDurableRows(data, appendRows, actualRows, append, totalOps);
+        var actual = ScanAll(store);
+        ValidateDurableRows(data, appendRows, actual, append, totalOps);
         store.Sequence.Close();
         return samples;
     }
 
     private static void ValidateDurableRows(
-        Row[] original,
-        Row[] appended,
-        Row[] actual,
+        BenchmarkDataset original,
+        IReadOnlyList<Row> appended,
+        QueryResult actual,
         bool append,
         int operationCount)
     {
         var expected = append ? original.Concat(appended) : original.Skip(operationCount);
-        if (actual.LongLength != expected.LongCount() ||
-            BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
+        if (actual.Rows != expected.LongCount() ||
+            actual.Checksum != BenchmarkChecksum.HashRows(expected))
             throw new InvalidDataException("Polar.DB durable mutation result failed correctness validation.");
     }
 
-    private static PolarStore PrepareBuiltStore(string dir, Row[] data, ExperimentKind kind)
+    private static PolarStore PrepareBuiltStore(string dir, IEnumerable<Row> data, ExperimentKind kind)
     {
         Directory.CreateDirectory(dir);
         var store = PolarStoreFactory.Open(dir, kind);
@@ -476,7 +479,7 @@ internal static class PolarLifecycleEngine
             throw new InvalidDataException("Polar.DB " + scenario + " lookup returned an unexpected row.");
     }
 
-    private static void ValidateExternalIndexes(PolarStore store, Row[] data)
+    private static void ValidateExternalIndexes(PolarStore store, BenchmarkDataset data)
     {
         ValidateExternalIndex(store.IntIndex!, data[0].ExternalId,
             data.Where(row => row.ExternalId == data[0].ExternalId));
@@ -524,7 +527,7 @@ internal static class PolarLifecycleEngine
         string engine,
         string metric,
         IReadOnlyList<double> samples,
-        Row[] actualRows,
+        IReadOnlyList<Row> actualRows,
         string dir,
         ResourceSnapshot before,
         ResourceSnapshot? after = null,
@@ -541,7 +544,7 @@ internal static class PolarLifecycleEngine
             engine,
             metric,
             samples,
-            actualRows.LongLength,
+            actualRows.Count,
             BenchmarkChecksum.HashRows(actualRows),
             dir,
             before,

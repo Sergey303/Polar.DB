@@ -23,6 +23,7 @@
     <Compile Include="BenchmarkModels.cs" />
     <Compile Include="BenchmarkDefaults.cs" />
     <Compile Include="BenchmarkData.cs" />
+    <Compile Include="BenchmarkDataset.cs" />
     <Compile Include="BenchmarkFamousKeys.cs" />
     <Compile Include="BenchmarkGuid.cs" />
     <Compile Include="BenchmarkPaths.cs" />

@@ -4,10 +4,10 @@ namespace PolarDbBenchmarks;
 
 internal static partial class SqliteStore
 {
-    public static void Create(string db, Row[] rows, bool withIndexes) =>
+    public static void Create(string db, IEnumerable<Row> rows, bool withIndexes) =>
         Create(db, rows, withIndexes ? IndexProfile.LegacyFull : IndexProfile.None);
 
-    public static void CreateForPrimaryIntBuild(string db, Row[] rows)
+    public static void CreateForPrimaryIntBuild(string db, IEnumerable<Row> rows)
     {
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();

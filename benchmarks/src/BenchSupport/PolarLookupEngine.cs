@@ -4,7 +4,7 @@ internal static class PolarLookupEngine
 {
     public static IReadOnlyList<LookupEngineResult> Run(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         IReadOnlyList<LookupPlan> plans)
     {

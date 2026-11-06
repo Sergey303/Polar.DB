@@ -21,6 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkData.cs" Link="BenchmarkSupport\BenchmarkData.cs" />
+    <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkDataset.cs" Link="BenchmarkSupport\BenchmarkDataset.cs" />
     <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkChecksum.cs" Link="BenchmarkSupport\BenchmarkChecksum.cs" />
     <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkFamousKeys.cs" Link="BenchmarkSupport\BenchmarkFamousKeys.cs" />
     <Compile Include="..\..\benchmarks\src\BenchSupport\BenchmarkGuid.cs" Link="BenchmarkSupport\BenchmarkGuid.cs" />

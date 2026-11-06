@@ -2,23 +2,14 @@ namespace PolarDbBenchmarks;
 
 internal static class BenchmarkData
 {
-    public static Row[] Dataset(int count, ExperimentKind kind, long startId = 1)
-    {
-        var rows = new Row[count];
-        for (var i = 0; i < count; i++)
-        {
-            var id = startId + i;
-            rows[i] = CreateRow(id, kind);
-        }
+    public static BenchmarkDataset Dataset(int count, ExperimentKind kind, long startId = 1) =>
+        new(count, kind, startId);
 
-        return rows;
-    }
-
-    public static IEnumerable<object> LookupKeys(Row[] rows, ExperimentKind kind, int count)
+    public static IEnumerable<object> LookupKeys(IReadOnlyList<Row> rows, ExperimentKind kind, int count)
     {
         for (var i = 0; i < count; i++)
         {
-            var row = rows[i % rows.Length];
+            var row = rows[i % rows.Count];
             yield return kind switch
             {
                 ExperimentKind.PkIntLookup => row.Id,
@@ -38,13 +29,13 @@ internal static class BenchmarkData
         }
     }
 
-    public static IEnumerable<long> PrimaryKeys(Row[] rows, int count)
+    public static IEnumerable<long> PrimaryKeys(IReadOnlyList<Row> rows, int count)
     {
         for (var i = 0; i < count; i++)
-            yield return rows[i % rows.Length].Id;
+            yield return rows[i % rows.Count].Id;
     }
 
-    private static Row CreateRow(long id, ExperimentKind kind)
+    internal static Row CreateRow(long id, ExperimentKind kind)
     {
         var famous = kind.IsFamousExternal();
         var externalId = famous ? BenchmarkFamousKeys.ExternalInt(id) : (int)(id % 1000);

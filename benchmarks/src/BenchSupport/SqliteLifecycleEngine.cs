@@ -5,7 +5,7 @@ namespace PolarDbBenchmarks;
 
 internal static class SqliteLifecycleEngine
 {
-    public static EngineResult Run(ExperimentOptions options, Row[] data, string dir)
+    public static EngineResult Run(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         return options.Kind switch
         {
@@ -19,7 +19,7 @@ internal static class SqliteLifecycleEngine
         };
     }
 
-    private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult BuildPrimaryIntOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
@@ -105,7 +105,7 @@ internal static class SqliteLifecycleEngine
         tx.Commit();
     }
 
-    private static EngineResult BuildExternalIndexesOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult BuildExternalIndexesOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         var totalSamples = new List<double>();
@@ -166,7 +166,7 @@ internal static class SqliteLifecycleEngine
             buildAllocationGc: buildAllocationGc.ToImmutable());
     }
 
-    private static EngineResult TraversalOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult TraversalOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -199,7 +199,7 @@ internal static class SqliteLifecycleEngine
             after: liveResources);
     }
 
-    private static EngineResult ReopenWithTail(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult ReopenWithTail(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -254,7 +254,7 @@ internal static class SqliteLifecycleEngine
             after: liveResources);
     }
 
-    private static EngineResult ReopenOnly(ExperimentOptions options, Row[] data, string dir)
+    private static EngineResult ReopenOnly(ExperimentOptions options, BenchmarkDataset data, string dir)
     {
         var before = BenchmarkResources.Capture();
         Directory.CreateDirectory(dir);
@@ -310,12 +310,14 @@ internal static class SqliteLifecycleEngine
         ValidatePrimaryLookup(liveConnection, data[0].Id, expectedLookup, "reopen live snapshot");
         var liveResources = BenchmarkResources.Capture();
         GC.KeepAlive(liveConnection);
+        var actual = ScanAll(liveConnection);
 
         return Result(
             "sqlite",
             "query-ready reopen",
             queryReady,
-            SqliteRows.ReadAll(db),
+            actual.Rows,
+            actual.Checksum,
             dir,
             before,
             after: liveResources,
@@ -324,7 +326,7 @@ internal static class SqliteLifecycleEngine
 
     private static EngineResult Mutation(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         bool append)
     {
@@ -338,7 +340,7 @@ internal static class SqliteLifecycleEngine
         Directory.CreateDirectory(volatileDir);
         var volatileDb = Path.Combine(volatileDir, "data.sqlite");
         SqliteStore.CreateForMutation(volatileDb, data);
-        Row[] actualRows;
+        QueryResult actual;
         var volatileSamples = new List<double>();
         using (var connection = new SqliteConnection($"Data Source={volatileDb}"))
         {
@@ -356,7 +358,7 @@ internal static class SqliteLifecycleEngine
             }
 
             transaction.Commit();
-            actualRows = SqliteRows.ReadAll(connection);
+            actual = ScanAll(connection);
         }
 
         var durableSamples = MeasureDurableBatches(options, data, durableDir, append);
@@ -364,7 +366,8 @@ internal static class SqliteLifecycleEngine
             "sqlite",
             "volatile mutation",
             volatileSamples,
-            actualRows,
+            actual.Rows,
+            actual.Checksum,
             volatileDir,
             before,
             durable: durableSamples,
@@ -377,13 +380,13 @@ internal static class SqliteLifecycleEngine
 
     private static void WarmMutation(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         bool append)
     {
         Directory.CreateDirectory(dir);
         var db = Path.Combine(dir, "data.sqlite");
-        var warmRows = data.Take(Math.Min(data.Length, 50_000)).ToArray();
+        var warmRows = BenchmarkData.Dataset(Math.Min(data.Length, 50_000), options.Kind);
         SqliteStore.CreateForMutation(db, warmRows);
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();
@@ -404,7 +407,7 @@ internal static class SqliteLifecycleEngine
 
     private static IReadOnlyList<double> MeasureDurableBatches(
         ExperimentOptions options,
-        Row[] data,
+        BenchmarkDataset data,
         string dir,
         bool append)
     {
@@ -415,7 +418,7 @@ internal static class SqliteLifecycleEngine
         var measuredBatches = BenchmarkDefaults.MutationDurableMeasuredBatches;
         var batchSize = BenchmarkDefaults.MutationDurableBatchSize;
         var totalOps = (warmupBatches + measuredBatches) * batchSize;
-        var appendRows = append
+        IReadOnlyList<Row> appendRows = append
             ? BenchmarkData.Dataset(totalOps, options.Kind, data.Length + options.MeasuredOps + 1)
             : Array.Empty<Row>();
         var deleteKeys = append
@@ -451,21 +454,21 @@ internal static class SqliteLifecycleEngine
                 samples.Add(stopwatch.Elapsed.TotalMilliseconds / batchSize);
         }
 
-        var actualRows = SqliteRows.ReadAll(connection);
-        ValidateDurableRows(data, appendRows, actualRows, append, totalOps);
+        var actual = ScanAll(connection);
+        ValidateDurableRows(data, appendRows, actual, append, totalOps);
         return samples;
     }
 
     private static void ValidateDurableRows(
-        Row[] original,
-        Row[] appended,
-        Row[] actual,
+        BenchmarkDataset original,
+        IReadOnlyList<Row> appended,
+        QueryResult actual,
         bool append,
         int operationCount)
     {
         var expected = append ? original.Concat(appended) : original.Skip(operationCount);
-        if (actual.LongLength != expected.LongCount() ||
-            BenchmarkChecksum.HashRows(actual) != BenchmarkChecksum.HashRows(expected))
+        if (actual.Rows != expected.LongCount() ||
+            actual.Checksum != BenchmarkChecksum.HashRows(expected))
             throw new InvalidDataException("SQLite durable mutation result failed correctness validation.");
     }
 
@@ -526,7 +529,7 @@ internal static class SqliteLifecycleEngine
             throw new InvalidDataException("SQLite " + scenario + " lookup returned an unexpected row.");
     }
 
-    private static void ValidateExternalIndexes(SqliteConnection connection, Row[] data)
+    private static void ValidateExternalIndexes(SqliteConnection connection, BenchmarkDataset data)
     {
         ValidateExternalIndex(
             connection,
@@ -612,7 +615,7 @@ internal static class SqliteLifecycleEngine
         string engine,
         string metric,
         IReadOnlyList<double> samples,
-        Row[] actualRows,
+        IReadOnlyList<Row> actualRows,
         string dir,
         ResourceSnapshot before,
         ResourceSnapshot? after = null,
@@ -628,7 +631,7 @@ internal static class SqliteLifecycleEngine
             engine,
             metric,
             samples,
-            actualRows.LongLength,
+            actualRows.Count,
             BenchmarkChecksum.HashRows(actualRows),
             dir,
             before,

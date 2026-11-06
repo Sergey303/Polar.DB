@@ -11,7 +11,7 @@ internal static partial class SqliteStore
     }
 
     // One logical primary key + the requested secondary index, without unused indexes.
-    public static void CreateForLookup(string db, Row[] rows, ExperimentKind kind) =>
+    public static void CreateForLookup(string db, IEnumerable<Row> rows, ExperimentKind kind) =>
         Create(db, rows, kind switch
         {
             ExperimentKind.PkIntLookup => IndexProfile.PrimaryId,
@@ -26,13 +26,13 @@ internal static partial class SqliteStore
         });
 
     // Both engines maintain id and exactly four non-unique external indexes.
-    public static void CreateForMutation(string db, Row[] rows) =>
+    public static void CreateForMutation(string db, IEnumerable<Row> rows) =>
         Create(db, rows, IndexProfile.MutationAndReopen);
 
-    public static void CreateForReopen(string db, Row[] rows) =>
+    public static void CreateForReopen(string db, IEnumerable<Row> rows) =>
         Create(db, rows, IndexProfile.MutationAndReopen);
 
-    private static void Create(string db, Row[] rows, IndexProfile profile)
+    private static void Create(string db, IEnumerable<Row> rows, IndexProfile profile)
     {
         using var connection = new SqliteConnection($"Data Source={db}");
         connection.Open();

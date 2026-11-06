@@ -2,7 +2,7 @@ namespace PolarDbBenchmarks;
 
 internal static class LookupPlanner
 {
-    public static IReadOnlyList<LookupPlan> Plans(ExperimentKind kind, Row[] rows)
+    public static IReadOnlyList<LookupPlan> Plans(ExperimentKind kind, BenchmarkDataset rows)
     {
         var lookups = LookupsPerSample(kind, rows);
         return new[]
@@ -17,7 +17,7 @@ internal static class LookupPlanner
         };
     }
 
-    private static int LookupsPerSample(ExperimentKind kind, Row[] rows)
+    private static int LookupsPerSample(ExperimentKind kind, BenchmarkDataset rows)
     {
         if (kind.IsPrimaryLookup()) return BenchmarkDefaults.PrimaryLookupsPerSample;
         if (kind.IsFamousExternal()) return BenchmarkDefaults.FamousLookupsPerSample;
@@ -26,7 +26,7 @@ internal static class LookupPlanner
         return Math.Max(1, BenchmarkDefaults.ExternalTargetRowsPerSample / perQuery);
     }
 
-    private static int RowsPerQuery(ExperimentKind kind, Row[] rows)
+    private static int RowsPerQuery(ExperimentKind kind, BenchmarkDataset rows)
     {
         var key = KeyAt(kind, rows, 0);
         return kind switch
@@ -58,7 +58,7 @@ internal static class LookupPlanner
         kind.IsFamousExternal() ? BenchmarkDefaults.FamousLatencySamples :
         BenchmarkDefaults.ExternalLatencySamples;
 
-    private static object[] Keys(ExperimentKind kind, Row[] rows, int count, int seed)
+    private static object[] Keys(ExperimentKind kind, BenchmarkDataset rows, int count, int seed)
     {
         var keys = new object[count];
         for (var i = 0; i < count; i++)
@@ -66,7 +66,7 @@ internal static class LookupPlanner
         return keys;
     }
 
-    private static object KeyAt(ExperimentKind kind, Row[] rows, int index)
+    private static object KeyAt(ExperimentKind kind, BenchmarkDataset rows, int index)
     {
         var row = rows[(int)(((long)index * 1_000_003L + 97) % rows.Length)];
         return kind switch

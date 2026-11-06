@@ -26,6 +26,21 @@ Each normal benchmark launch is a coordinator. It starts SQLite and Polar.DB in 
 child processes, waits for both workers, validates compatible result shapes and build
 settings, and then creates the combined report.
 
+Input benchmark rows are generated lazily, not retained as an O(N) `Row[]` in RAM.
+The generator is deterministic (same row IDs, values and order) and can be
+re-enumerated independently by each engine. Reopen and mutation result checks
+also stream rows through an order-independent checksum instead of materializing
+all stored rows. This removes harness-side O(N) row retention, but does not
+limit each engine's own index-building memory or OS page cache.
+
+**Measurement boundary:** the current build benchmark's `Load` phase now
+includes on-demand row synthesis and its allocations, whereas older commits
+created the full dataset before starting `Load`. Compare new `Load`
+allocation/GC/timing numbers only with runs from the same implementation.
+The isolated `Build`, lookup, and reopen timers do not include generation.
+The proposed pre-generated-source protocol in `STATE_TRANSITION_PROTOCOL.md`
+remains a separate, not-yet-implemented experiment.
+
 Benchmark working data is disk-bounded. Successful workers delete each completed row-count
 case before moving to the next one. Repeated build scenarios also delete warmup and earlier
 measured `run-*` directories as soon as their metrics have been captured, retaining only the
