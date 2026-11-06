@@ -15,7 +15,9 @@ internal static partial class PreparedLookupRunner
     {
         var protocol = Value(args, "prepared-plan");
         if (protocol is null) return false;
-        if (protocol != "uniform-v3") throw new ArgumentException("Unknown prepared-plan.");
+        if (protocol is not ("uniform-v3" or "uniform-v32"))
+            throw new ArgumentException("Unknown prepared-plan.");
+        var controlledCache = protocol == "uniform-v32";
         if (options.Kind != ExperimentKind.PkIntLookup)
             throw new NotSupportedException("Uniform v3 supports only PkIntLookup.");
         var stage = Value(args, "prepared-stage");
@@ -44,12 +46,13 @@ internal static partial class PreparedLookupRunner
         var seal = ReadSeal(manifest, options, engineName, rows, expectedDatasetSha);
         CheckFilesExist(datasetDir, seal);
         var sidecar = Path.Combine(root, options.ExperimentId,
-            "rows-" + rows, engineName + ".uniform-v3.json");
+            "rows-" + rows, engineName + "." + protocol + ".json");
         if (stage == "verify")
         {
             VerifyFiles(datasetDir, seal);
             if (File.Exists(sidecar)) ReadUniformSeal(sidecar, manifest, options,
-                engineName, rows, expectedDatasetSha, currentSha);
+                engineName, rows, expectedDatasetSha, currentSha,
+                controlledCache ? 32 : 3);
         }
         else if (stage == "plan")
         {
@@ -57,20 +60,22 @@ internal static partial class PreparedLookupRunner
             VerifyFiles(datasetDir, seal);
             var (plan, coverage) = UniformLookupPlanner.Create(rows);
             var expected = UniformLookupPlanner.Expected(plan, options.Kind);
-            var newPlan = new UniformSeal(3, UniformLookupPlanner.Protocol, rows,
+            var newPlan = new UniformSeal(controlledCache ? 32 : 3,
+                UniformLookupPlanner.Protocol, rows,
                 options.ExperimentId, options.Kind.ToString(), engineName,
                 expectedDatasetSha, currentSha, HashFile(manifest),
                 coverage.KeyStreamSha256, UniformLookupPlanner.Seed, coverage,
                 expected.Batch.Rows, expected.Batch.Checksum,
                 expected.Latency.Rows, expected.Latency.Checksum);
             WriteNewJson(sidecar, newPlan);
-            Console.WriteLine($"[uniform-v3] sealed plan, {coverage.UniqueKeys} unique keys, " +
+            Console.WriteLine($"[{protocol}] sealed plan, {coverage.UniqueKeys} unique keys, " +
                 $"50k bins: {coverage.BinsTouched}/{coverage.BinsTotal}: {sidecar}");
         }
         else
         {
             var v3 = ReadUniformSeal(sidecar, manifest, options,
-                engineName, rows, expectedDatasetSha, currentSha);
+                engineName, rows, expectedDatasetSha, currentSha,
+                controlledCache ? 32 : 3);
             var runId = BenchmarkArgs.RunId(args)
                 ?? throw new ArgumentException("Uniform query requires --benchmark-run-id.");
             if (runId.Length is < 1 or > 100 || runId.Any(c =>
@@ -80,8 +85,17 @@ internal static partial class PreparedLookupRunner
             if (IsWithin(resultRoot, root) || IsWithin(root, resultRoot) ||
                 IsWithin(resultRoot, BenchmarkPaths.RepoRoot))
                 throw new ArgumentException("Result root must be separate from prepared files and repo.");
+            var condition = Value(args, "prepared-cache-treatment");
+            if (controlledCache)
+            {
+                if (condition is null)
+                    throw new ArgumentException("v32 requires --prepared-cache-treatment.");
+                PreparedCacheTreatment.Validate(condition, engineName);
+            }
+            else if (condition is not null)
+                throw new ArgumentException("Cache treatments require uniform-v32.");
             Query(options, engine, rows, datasetDir, manifest, seal, runId,
-                resultRoot, "hot", v3);
+                resultRoot, "hot", v3, condition);
         }
         return true;
     }
@@ -94,13 +108,14 @@ internal static partial class PreparedLookupRunner
 
     private static UniformSeal ReadUniformSeal(string sidecar, string datasetManifest,
         ExperimentOptions options, string engine, int rows,
-        string sourceSha, string runnerSha)
+        string sourceSha, string runnerSha, int protocolVersion)
     {
         var record = JsonSerializer.Deserialize<UniformSeal>(File.ReadAllText(sidecar))
             ?? throw new InvalidDataException("Empty uniform plan.");
         var (plan, coverage) = UniformLookupPlanner.Create(rows);
         var expected = UniformLookupPlanner.Expected(plan, options.Kind);
-        if (record.ProtocolVersion != 3 || record.Protocol != UniformLookupPlanner.Protocol ||
+        if (record.ProtocolVersion != protocolVersion ||
+            record.Protocol != UniformLookupPlanner.Protocol ||
             record.Rows != rows || record.Experiment != options.ExperimentId ||
             record.Kind != options.Kind.ToString() || record.Engine != engine ||
             record.DatasetSourceSha != sourceSha || record.RunnerSourceSha != runnerSha ||

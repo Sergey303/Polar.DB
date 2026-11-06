@@ -166,6 +166,62 @@ not evict the shared Linux page cache. No engine-specific RAM superiority or
 memory-performance crossover is presumed. The article is not updated by the
 study. Test: `python3 benchmarks/scripts/test_uniform_lookup.py`.
 
+### Controlled per-file cache treatments (stage 3.2; `uniform-v32`)
+
+This separate, opt-in protocol reuses identical `uniform-v3` key streams and
+immutable **prepared** databases. Its source-runner SHA is intentionally sealed
+in a separate `*.uniform-v32.json` plan so v3 data cannot be silently relabeled.
+No source rows or indexes are regenerated. The query stage first performs its
+normal file/key warmup, then checks `mincore` residency for *each* permanent file.
+Only if all files are >=99.5% resident does it apply the selected Linux
+`posix_fadvise(POSIX_FADV_DONTNEED)` treatment **outside the timed section**.
+It immediately rechecks and records per-file residency before executing the
+same 10,000-query batch and disjoint 2,000-query latency sample.
+
+- Polar.DB: `--prepared-cache-treatment=none|payload|payload-half|hashes|offsets`
+- SQLite: `--prepared-cache-treatment=none|data|data-half`
+
+`payload` evicts `f0.bin` (row data), `hashes` evicts `f1.bin` (disk snapshot
+of hashes already loaded in a managed `int[]`), and `offsets` evicts `f2.bin`
+(offset list read by primary lookup). For `*-half`, the tool evicts the first
+half of each up-to-64-MiB file segment, producing distributed ≈50% resident
+file pages, rather than one contiguous cold file suffix. Nonselected Polar.DB
+index files must remain >=99.5% resident. `data` evicts the whole SQLite
+file, whose rowid B-tree integrates indexed lookup and row data; these
+physical layouts are not equivalent. The selected condition must satisfy
+measured page-residency thresholds or the query is rejected before timing.
+
+Example for prebuilt 20M primary-int data (use separate Docker containers with
+8 GiB/no swap; also verify SHA-256 before and after the series):
+
+```bash
+B=benchmarks/src/PkIntLookup/bin/Release/net10.0/PkIntLookup.dll
+DATA=/work/ram-study/stage3-0fd84e3/prepared-20000000
+SRC=0fd84e3da854aa9f536a75861e7838af41955bdc
+OUT=/work/ram-study/stage3-2-results
+for engine in sqlite polar-db; do
+  dotnet "$B" --prepared-plan=uniform-v32 --prepared-stage=plan \
+    --prepared-root="$DATA" --prepared-source-sha="$SRC" \
+    --benchmark-engine="$engine" --rows=20000000
+done
+# Controlled Polar.DB payload case (a new run ID is required for each run):
+dotnet "$B" --prepared-plan=uniform-v32 --prepared-stage=query \
+  --prepared-root="$DATA" --prepared-results-root="$OUT" \
+  --prepared-source-sha="$SRC" --benchmark-engine=polar-db \
+  --prepared-cache-treatment=payload --rows=20000000 \
+  --benchmark-run-id="v32-polar-payload-r1"
+```
+
+For scientific inference compare **within an engine** across its controlled
+file conditions first. SQLite cannot separately evict index and row pages
+using this protocol. Whole-file `read_bytes` is process-level; per-file
+attribution comes from the selective treatment and verified per-file residency,
+not a kernel per-file physical-I/O counter. Treat code/data-cache differences,
+file layout and host-global page-cache competition as confounders. This is not
+an automatic claim that a nominal RAM ceiling is binding.
+
+Integration regression: `python3 benchmarks/scripts/test_cache_treatments.py`.
+
 Benchmark working data is disk-bounded. Successful workers delete each completed row-count
 case before moving to the next one. Repeated build scenarios also delete warmup and earlier
 measured `run-*` directories as soon as their metrics have been captured, retaining only the

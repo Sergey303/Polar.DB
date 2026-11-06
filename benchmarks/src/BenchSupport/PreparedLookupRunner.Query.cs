@@ -7,7 +7,8 @@ internal static partial class PreparedLookupRunner
 {
     private static void Query(ExperimentOptions options, BenchmarkEngine engine, int rows,
         string dir, string sealPath, DatasetSeal seal, string runId, string resultRoot,
-        string phaseName, UniformSeal? uniform = null)
+        string phaseName, UniformSeal? uniform = null,
+        string? cacheTreatment = null)
     {
         if (phaseName is not ("hot" or "cold"))
             throw new ArgumentException("--prepared-phase must be hot or cold.");
@@ -66,14 +67,22 @@ internal static partial class PreparedLookupRunner
         MetricSnapshot afterWarmup, afterBatch, afterLatency;
         PreparedFileResidency.Snapshot? residencyBeforeBatch = null;
         PreparedFileResidency.Snapshot? residencyAfterBatch = null;
+        PreparedFileResidency.Snapshot? residencyBeforeTreatment = null;
+        MetricSnapshot? afterCacheTreatment = null;
         try
         {
             foreach (var key in plan.WarmupKeys) lookup(key);
             warmup.Stop();
             afterWarmup = Capture();
-            if (uniform is not null)
+            if (cacheTreatment is not null)
+                (residencyBeforeTreatment, residencyBeforeBatch) =
+                    PreparedCacheTreatment.ApplyAndVerify(dir,
+                        BenchmarkPaths.EngineToken(engine), cacheTreatment,
+                        seal.Files.Select(f => f.Name));
+            else if (uniform is not null)
                 residencyBeforeBatch = PreparedFileResidency.Capture(dir,
                     seal.Files.Select(f => f.Name));
+            afterCacheTreatment = Capture();
             var timer = Stopwatch.StartNew();
             batchResult = batch(plan, "prepared " + phaseName + " batch");
             timer.Stop();
@@ -107,6 +116,8 @@ internal static partial class PreparedLookupRunner
             Schema = SchemaVersion, RunId = runId, SourceSha = seal.SourceSha,
             QueryRunnerSha = CurrentCommit(),
             PlanProtocol = uniform?.Protocol ?? "legacy-prepared-v2",
+            CacheTreatment = cacheTreatment,
+            ResidencyBeforeTreatment = residencyBeforeTreatment,
             PlanKeyStreamSha256 = uniform?.KeyStreamSha256,
             PlanCoverage = uniform?.Coverage,
             ResidencyBeforeBatch = residencyBeforeBatch,
@@ -128,12 +139,12 @@ internal static partial class PreparedLookupRunner
             ExpectedBatch = expectedBatch, ExpectedLatency = expectedLatency,
             Snapshots = new { BeforeFileWarmup = beforeFileWarmup,
                 AfterFileWarmup = afterFileWarmup, AfterOpen = afterOpen,
-                AfterKeyWarmup = afterWarmup, AfterBatch = afterBatch,
+                AfterKeyWarmup = afterWarmup,
+                AfterCacheTreatment = afterCacheTreatment, AfterBatch = afterBatch,
                 AfterLatency = afterLatency, AfterClose = afterClose },
             Interpretation = "Metrics include independent process IO and cgroup counters per stage; cgroup includes file cache and other container tasks. Cold means no explicit file warmup, not an OS cache reset. Query never rebuilds the DB. Hashes must be verified separately after querying."
         };
         WriteNewJson(outpath, result);
         Console.WriteLine("[prepared] query verified: " + outpath);
     }
-
 }

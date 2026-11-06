@@ -6,7 +6,9 @@ namespace PolarDbBenchmarks;
 // Linux only; run this between stages, never inside a timed query loop.
 internal static class PreparedFileResidency
 {
-    internal sealed record Snapshot(long Pages, long ResidentPages, double Fraction);
+    internal sealed record FilePageState(string Name, long Pages, long ResidentPages, double Fraction);
+    internal sealed record Snapshot(long Pages, long ResidentPages, double Fraction,
+        IReadOnlyList<FilePageState> Files);
     private const int ProtRead = 1;
     private const int MapPrivate = 2;
 
@@ -24,6 +26,7 @@ internal static class PreparedFileResidency
     {
         if (!OperatingSystem.IsLinux()) return null;
         long pages = 0, resident = 0;
+        var entries = new List<FilePageState>();
         var pageSize = Environment.SystemPageSize;
         foreach (var relative in relativePaths)
         {
@@ -42,8 +45,12 @@ internal static class PreparedFileResidency
                 if (Mincore(mapping, size, vector) != 0)
                     throw new IOException($"mincore failed on {path}: errno={Marshal.GetLastPInvokeError()}");
                 pages += count;
+                long fileResident = 0;
                 foreach (var value in vector)
-                    resident += value & 1;
+                    fileResident += value & 1;
+                resident += fileResident;
+                entries.Add(new FilePageState(relative, count, fileResident,
+                    (double)fileResident / count));
             }
             finally
             {
@@ -51,6 +58,7 @@ internal static class PreparedFileResidency
                     throw new IOException($"munmap failed on {path}: errno={Marshal.GetLastPInvokeError()}");
             }
         }
-        return new Snapshot(pages, resident, pages == 0 ? 0 : (double)resident / pages);
+        return new Snapshot(pages, resident, pages == 0 ? 0 : (double)resident / pages,
+            entries);
     }
 }
