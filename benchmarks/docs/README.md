@@ -166,6 +166,66 @@ not evict the shared Linux page cache. No engine-specific RAM superiority or
 memory-performance crossover is presumed. The article is not updated by the
 study. Test: `python3 benchmarks/scripts/test_uniform_lookup.py`.
 
+### Pinned file-page cache (`uniform-v4`; stage-4 engineering stabilization)
+
+`uniform-v4` is a **new opt-in protocol**, not a repair or reinterpretation of
+stage-4 results. It reuses the same sealed prepared databases and the same
+12,500 independent primary-key requests but requires a **new, source-SHA-bound**
+`<engine>.uniform-v4.json` manifest created by `--prepared-stage=plan`.
+Previous `uniform-v3` and `uniform-v32` results and their runner SHAs remain
+unchanged. Only new v4 runs use pinned cache.
+
+Linux `mmap(MAP_SHARED)` + `mlock` is applied to **every sealed file before
+opening the database**. It forces the file pages into RAM and prevents the
+kernel from evicting them until unlocked. The pins are held across the engine
+open/refresh, key warmup, measured 10k batch and independent 2k latency
+sample. Just before applying the explicit treatment, `mincore` confirms all
+files are resident; the selected file is then `munlock`ed and **unmapped**
+(outside timing) before `POSIX_FADV_DONTNEED` evicts its pages. All other files
+remain locked throughout measurement. A `none` treatment never unlocks any
+file until after measurement. `mincore` checks before and after the batch
+still apply. Output includes `PinnedCacheProtocol: mlock-v1`,
+`PinnedInitiallyBytes` and `PinnedDuringBatchBytes` so accidental unlocks are
+observable. The read-only maps never alter prepared data or database bytes.
+
+In Docker, provision a sufficiently large **per-container locked-memory
+resource limit** (20M Polar.DB needs roughly 2.3 GB locked file pages):
+
+```bash
+docker run --rm --memory=8g --memory-swap=8g \
+  --ulimit memlock=3221225472:3221225472 \
+  --mount type=volume,source=polar-bench-data,target=/work \
+  --workdir /work/Polar.DB mcr.microsoft.com/dotnet/sdk:10.0 \
+  bash -lc 'dotnet ... --prepared-plan=uniform-v4 ...'
+```
+
+`--ulimit memlock=3221225472:3221225472` grants 3 GiB of `RLIMIT_MEMLOCK`
+without requiring `CAP_IPC_LOCK` on common Linux Docker configurations. If
+unsupported by host security policy, `mlock` fails **before** search with an
+explicit errno; do not silently fall back to advisory file-cache warming or
+weaken the mincore requirements. Pinning consumes host and container memory,
+so monitor cgroup memory and terminate/reject attempts that hit `memory.max`
+or OOM. `fadvise` is still advisory for selected pages: reject treatments that
+fail the specified eviction/residency check. The new protocol guarantees only
+the pages successfully pinned, not general cache fairness or equal filesystem
+layouts across engines.
+
+For the 20M sealed databases use the same `--prepared-root` and
+`--prepared-source-sha` as v32, but first generate a new v4 sidecar using the
+**published query runner's exact Git SHA**, then run the corresponding query.
+The `--prepared-cache-treatment` values and per-file checks are the same as
+v32. Test locally using:
+
+```bash
+python3 benchmarks/scripts/test_pinned_cache.py
+```
+
+This test includes successful targeted evictions, checksum parity,
+`none`-retention, half-file treatment, immutability, isolation from legacy
+plans, and a low-`RLIMIT_MEMLOCK` negative case. Do not mix v4 experimental
+samples with the already completed stage-4 confirmation ledger or claim
+statistical replication merely from engineering smoke tests.
+
 ### Controlled per-file cache treatments (stage 3.2; `uniform-v32`)
 
 This separate, opt-in protocol reuses identical `uniform-v3` key streams and

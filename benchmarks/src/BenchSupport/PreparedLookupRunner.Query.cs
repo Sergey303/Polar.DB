@@ -8,7 +8,7 @@ internal static partial class PreparedLookupRunner
     private static void Query(ExperimentOptions options, BenchmarkEngine engine, int rows,
         string dir, string sealPath, DatasetSeal seal, string runId, string resultRoot,
         string phaseName, UniformSeal? uniform = null,
-        string? cacheTreatment = null)
+        string? cacheTreatment = null, bool pinnedCache = false)
     {
         if (phaseName is not ("hot" or "cold"))
             throw new ArgumentException("--prepared-phase must be hot or cold.");
@@ -19,6 +19,9 @@ internal static partial class PreparedLookupRunner
                 BenchmarkData.Dataset(rows, options.Kind), seal.LookupsPerSample)
                 .Single(p => p.FileWarmup == (phaseName == "hot"))
             : UniformLookupPlanner.Create(rows).Plan;
+        // Pin before opening: no gap between preparation and the engine warmup.
+        using var pageLock = pinnedCache
+            ? new PreparedPageLock(dir, seal.Files.Select(f => f.Name)) : null;
         var beforeFileWarmup = Capture();
         if (plan.FileWarmup)
             WarmupSealedFiles(dir, seal.Files);
@@ -78,7 +81,9 @@ internal static partial class PreparedLookupRunner
                 (residencyBeforeTreatment, residencyBeforeBatch) =
                     PreparedCacheTreatment.ApplyAndVerify(dir,
                         BenchmarkPaths.EngineToken(engine), cacheTreatment,
-                        seal.Files.Select(f => f.Name));
+                        seal.Files.Select(f => f.Name),
+                        pageLock is null ? null : () => pageLock.ReleaseTarget(
+                            BenchmarkPaths.EngineToken(engine), cacheTreatment));
             else if (uniform is not null)
                 residencyBeforeBatch = PreparedFileResidency.Capture(dir,
                     seal.Files.Select(f => f.Name));
@@ -117,6 +122,9 @@ internal static partial class PreparedLookupRunner
             QueryRunnerSha = CurrentCommit(),
             PlanProtocol = uniform?.Protocol ?? "legacy-prepared-v2",
             CacheTreatment = cacheTreatment,
+            PinnedCacheProtocol = pageLock is null ? null : "mlock-v1",
+            PinnedInitiallyBytes = pageLock?.InitiallyLockedBytes,
+            PinnedDuringBatchBytes = pageLock?.LockedBytes,
             ResidencyBeforeTreatment = residencyBeforeTreatment,
             PlanKeyStreamSha256 = uniform?.KeyStreamSha256,
             PlanCoverage = uniform?.Coverage,

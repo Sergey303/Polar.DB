@@ -54,6 +54,7 @@
     <Compile Include="UniformLookupPlanner.cs" />
     <Compile Include="PreparedFileResidency.cs" />
     <Compile Include="PreparedCacheTreatment.cs" />
+    <Compile Include="PreparedPageLock.cs" />
     <Compile Include="SqliteStore.cs" />
     <Compile Include="SqliteStore.IndexProfiles.cs" />
     <Compile Include="SqliteRows.cs" />

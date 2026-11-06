@@ -23,11 +23,13 @@ internal static class PreparedCacheTreatment
 
     public static (PreparedFileResidency.Snapshot Before, PreparedFileResidency.Snapshot After)
         ApplyAndVerify(string directory, string engine, string condition,
-            IEnumerable<string> files)
+            IEnumerable<string> files, Action? beforeEviction = null)
     {
         var paths = files.ToArray();
         var before = PreparedFileResidency.Capture(directory, paths)!;
         AssertApplied("none", engine, before);
+        // The selected file stays locked until THIS snapshot has passed.
+        beforeEviction?.Invoke();
         Apply(directory, engine, condition);
         var after = PreparedFileResidency.Capture(directory, paths)!;
         AssertApplied(condition, engine, after);

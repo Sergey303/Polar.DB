@@ -15,9 +15,11 @@ internal static partial class PreparedLookupRunner
     {
         var protocol = Value(args, "prepared-plan");
         if (protocol is null) return false;
-        if (protocol is not ("uniform-v3" or "uniform-v32"))
+        if (protocol is not ("uniform-v3" or "uniform-v32" or "uniform-v4"))
             throw new ArgumentException("Unknown prepared-plan.");
-        var controlledCache = protocol == "uniform-v32";
+        var controlledCache = protocol is "uniform-v32" or "uniform-v4";
+        var pinnedCache = protocol == "uniform-v4";
+        var version = pinnedCache ? 4 : controlledCache ? 32 : 3;
         if (options.Kind != ExperimentKind.PkIntLookup)
             throw new NotSupportedException("Uniform v3 supports only PkIntLookup.");
         var stage = Value(args, "prepared-stage");
@@ -52,7 +54,7 @@ internal static partial class PreparedLookupRunner
             VerifyFiles(datasetDir, seal);
             if (File.Exists(sidecar)) ReadUniformSeal(sidecar, manifest, options,
                 engineName, rows, expectedDatasetSha, currentSha,
-                controlledCache ? 32 : 3);
+                version);
         }
         else if (stage == "plan")
         {
@@ -60,7 +62,7 @@ internal static partial class PreparedLookupRunner
             VerifyFiles(datasetDir, seal);
             var (plan, coverage) = UniformLookupPlanner.Create(rows);
             var expected = UniformLookupPlanner.Expected(plan, options.Kind);
-            var newPlan = new UniformSeal(controlledCache ? 32 : 3,
+            var newPlan = new UniformSeal(version,
                 UniformLookupPlanner.Protocol, rows,
                 options.ExperimentId, options.Kind.ToString(), engineName,
                 expectedDatasetSha, currentSha, HashFile(manifest),
@@ -75,7 +77,7 @@ internal static partial class PreparedLookupRunner
         {
             var v3 = ReadUniformSeal(sidecar, manifest, options,
                 engineName, rows, expectedDatasetSha, currentSha,
-                controlledCache ? 32 : 3);
+                version);
             var runId = BenchmarkArgs.RunId(args)
                 ?? throw new ArgumentException("Uniform query requires --benchmark-run-id.");
             if (runId.Length is < 1 or > 100 || runId.Any(c =>
@@ -89,13 +91,13 @@ internal static partial class PreparedLookupRunner
             if (controlledCache)
             {
                 if (condition is null)
-                    throw new ArgumentException("v32 requires --prepared-cache-treatment.");
+                    throw new ArgumentException("Controlled cache plans require --prepared-cache-treatment.");
                 PreparedCacheTreatment.Validate(condition, engineName);
             }
             else if (condition is not null)
-                throw new ArgumentException("Cache treatments require uniform-v32.");
+                throw new ArgumentException("Cache treatments require uniform-v32 or uniform-v4.");
             Query(options, engine, rows, datasetDir, manifest, seal, runId,
-                resultRoot, "hot", v3, condition);
+                resultRoot, "hot", v3, condition, pinnedCache);
         }
         return true;
     }
