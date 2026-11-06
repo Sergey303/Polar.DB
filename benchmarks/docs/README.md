@@ -116,6 +116,56 @@ merged with the older article series.
 Small integration smoke (after Release build):
 `python3 benchmarks/scripts/test_prepared_lookup.py`.
 
+### Independent uniform lookup plan v3 (stage 3.1; opt-in)
+
+This fixes a discovered workload limitation **without changing** the published
+`LookupPlanner` or original results. The old deterministic arithmetic stride
+clusters its first 10,000 primary-key queries in a few regions, and old latency
+keys overlap the earlier batch. This new plan samples the entire table by
+stable, unbiased SplitMix64 random draws without replacement, seed
+`0x6A09E667F3BCC909`. It creates **disjoint** sets of 500 warmup, 10,000 batch,
+and 2,000 independent latency keys. The 10,000 batch queries use 100 samples
+of 100 each. For 20M rows, all 400 50k-row bins are represented. This is a
+uniform key *distribution*, not a guarantee of identical page-cache footprints
+between engines.
+
+Reuse the prepared 20M DBs from stage 3. Their original source SHA remains
+`0fd84e3da854aa9f536a75861e7838af41955bdc`. An additional, immutable
+`*.uniform-v3.json` plan records the **new** runner SHA, original dataset SHA,
+SHA-256 of the prepared dataset manifest, key-stream fingerprint, distribution
+coverage, and expected rows/checksums. `plan` and `verify` hash the data outside
+the timed query; `query` only checks file names/sizes and authenticated plan
+metadata, relying on post-run `verify` to detect data changes.
+
+```bash
+B=benchmarks/src/PkIntLookup/bin/Release/net10.0/PkIntLookup.dll
+DATA=/work/ram-study/stage3-0fd84e3/prepared-20000000
+OUT=/work/ram-study/stage3-1-results
+SOURCE=0fd84e3da854aa9f536a75861e7838af41955bdc
+for engine in sqlite polar-db; do
+  dotnet "$B" --prepared-plan=uniform-v3 --prepared-stage=plan \
+    --prepared-root="$DATA" --prepared-source-sha="$SOURCE" \
+    --benchmark-engine="$engine" --rows=20000000
+  # Query each engine in its OWN disposable RAM-limited Docker container.
+  dotnet "$B" --prepared-plan=uniform-v3 --prepared-stage=query \
+    --prepared-root="$DATA" --prepared-results-root="$OUT" \
+    --prepared-source-sha="$SOURCE" --benchmark-engine="$engine" \
+    --rows=20000000 --benchmark-run-id="uniform-v3-${engine}-r1"
+  dotnet "$B" --prepared-plan=uniform-v3 --prepared-stage=verify \
+    --prepared-root="$DATA" --prepared-source-sha="$SOURCE" \
+    --benchmark-engine="$engine" --rows=20000000
+done
+```
+
+During v3 `query`, Linux `mincore` snapshots are captured **immediately before
+and after the measured batch** (without reading file contents); phase-specific
+`read_bytes`/refault deltas and the independent 2,000 latency samples are
+recorded separately. The test rig may optionally use file-scoped
+`POSIX_FADV_DONTNEED` before each run, but restarting a container alone does
+not evict the shared Linux page cache. No engine-specific RAM superiority or
+memory-performance crossover is presumed. The article is not updated by the
+study. Test: `python3 benchmarks/scripts/test_uniform_lookup.py`.
+
 Benchmark working data is disk-bounded. Successful workers delete each completed row-count
 case before moving to the next one. Repeated build scenarios also delete warmup and earlier
 measured `run-*` directories as soon as their metrics have been captured, retaining only the

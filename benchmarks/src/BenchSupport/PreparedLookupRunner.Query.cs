@@ -7,15 +7,17 @@ internal static partial class PreparedLookupRunner
 {
     private static void Query(ExperimentOptions options, BenchmarkEngine engine, int rows,
         string dir, string sealPath, DatasetSeal seal, string runId, string resultRoot,
-        string phaseName)
+        string phaseName, UniformSeal? uniform = null)
     {
         if (phaseName is not ("hot" or "cold"))
             throw new ArgumentException("--prepared-phase must be hot or cold.");
         var outpath = Path.Combine(resultRoot, options.ExperimentId, runId + ".json");
         if (File.Exists(outpath)) throw new IOException("Query result exists; refusing overwrite: " + outpath);
-        var dataset = BenchmarkData.Dataset(rows, options.Kind);
-        var plan = LookupPlanner.Plans(options.Kind, dataset, seal.LookupsPerSample)
-            .Single(p => p.FileWarmup == (phaseName == "hot"));
+        var plan = uniform is null
+            ? LookupPlanner.Plans(options.Kind,
+                BenchmarkData.Dataset(rows, options.Kind), seal.LookupsPerSample)
+                .Single(p => p.FileWarmup == (phaseName == "hot"))
+            : UniformLookupPlanner.Create(rows).Plan;
         var beforeFileWarmup = Capture();
         if (plan.FileWarmup)
             WarmupSealedFiles(dir, seal.Files);
@@ -62,16 +64,24 @@ internal static partial class PreparedLookupRunner
         var batchDuration = TimeSpan.Zero;
         var latencyDuration = TimeSpan.Zero;
         MetricSnapshot afterWarmup, afterBatch, afterLatency;
+        PreparedFileResidency.Snapshot? residencyBeforeBatch = null;
+        PreparedFileResidency.Snapshot? residencyAfterBatch = null;
         try
         {
             foreach (var key in plan.WarmupKeys) lookup(key);
             warmup.Stop();
             afterWarmup = Capture();
+            if (uniform is not null)
+                residencyBeforeBatch = PreparedFileResidency.Capture(dir,
+                    seal.Files.Select(f => f.Name));
             var timer = Stopwatch.StartNew();
             batchResult = batch(plan, "prepared " + phaseName + " batch");
             timer.Stop();
             batchDuration = timer.Elapsed;
             afterBatch = Capture();
+            if (uniform is not null)
+                residencyAfterBatch = PreparedFileResidency.Capture(dir,
+                    seal.Files.Select(f => f.Name));
             timer.Restart();
             latencyResult = latency(plan.LatencyKeys, "prepared " + phaseName + " latency");
             timer.Stop();
@@ -83,7 +93,10 @@ internal static partial class PreparedLookupRunner
 
         // The expected checksums are sealed during prepare. Query-only workers
         // do not enumerate all source rows before OR after measured queries.
-        var reference = seal.ExpectedPhases.Single(p => p.Name == plan.Name);
+        var reference = uniform is null
+            ? seal.ExpectedPhases.Single(p => p.Name == plan.Name)
+            : new ExpectedPhase(plan.Name, uniform.BatchRows, uniform.BatchChecksum,
+                uniform.LatencyRows, uniform.LatencyChecksum);
         var expectedBatch = new QueryResult(reference.BatchRows, reference.BatchChecksum);
         var expectedLatency = new QueryResult(reference.LatencyRows, reference.LatencyChecksum);
         if (batchResult.Rows != expectedBatch.Rows || batchResult.Checksum != expectedBatch.Checksum ||
@@ -92,6 +105,12 @@ internal static partial class PreparedLookupRunner
 
         var result = new {
             Schema = SchemaVersion, RunId = runId, SourceSha = seal.SourceSha,
+            QueryRunnerSha = CurrentCommit(),
+            PlanProtocol = uniform?.Protocol ?? "legacy-prepared-v2",
+            PlanKeyStreamSha256 = uniform?.KeyStreamSha256,
+            PlanCoverage = uniform?.Coverage,
+            ResidencyBeforeBatch = residencyBeforeBatch,
+            ResidencyAfterBatch = residencyAfterBatch,
             Environment = BenchmarkEnvironment.Capture(runId, options.ExperimentId,
                 "prepared-query-only", engine),
             PreparedManifest = sealPath, Engine = BenchmarkPaths.EngineToken(engine),

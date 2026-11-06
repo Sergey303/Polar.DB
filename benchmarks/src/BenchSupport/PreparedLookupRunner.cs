@@ -20,6 +20,7 @@ internal static partial class PreparedLookupRunner
 
     public static bool TryRun(ExperimentOptions options, string[] args)
     {
+        if (TryUniform(options, args)) return true;
         var stage = Value(args, "prepared-stage");
         if (stage is null) return false;
         if (!options.Kind.IsLookup()) throw new ArgumentException("Prepared stages require a lookup benchmark.");

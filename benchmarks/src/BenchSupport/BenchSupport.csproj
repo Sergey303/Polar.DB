@@ -50,6 +50,9 @@
     <Compile Include="PreparedLookupRunner.Query.cs" />
     <Compile Include="PreparedLookupRunner.Seal.cs" />
     <Compile Include="PreparedLookupRunner.Infrastructure.cs" />
+    <Compile Include="PreparedLookupRunner.Uniform.cs" />
+    <Compile Include="UniformLookupPlanner.cs" />
+    <Compile Include="PreparedFileResidency.cs" />
     <Compile Include="SqliteStore.cs" />
     <Compile Include="SqliteStore.IndexProfiles.cs" />
     <Compile Include="SqliteRows.cs" />
