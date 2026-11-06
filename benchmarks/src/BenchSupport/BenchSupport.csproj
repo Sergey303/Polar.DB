@@ -46,6 +46,10 @@
     <Compile Include="SearchBenchmarkReportTables.cs" />
     <Compile Include="LookupPlan.cs" />
     <Compile Include="LookupPlanner.cs" />
+    <Compile Include="PreparedLookupRunner.cs" />
+    <Compile Include="PreparedLookupRunner.Query.cs" />
+    <Compile Include="PreparedLookupRunner.Seal.cs" />
+    <Compile Include="PreparedLookupRunner.Infrastructure.cs" />
     <Compile Include="SqliteStore.cs" />
     <Compile Include="SqliteStore.IndexProfiles.cs" />
     <Compile Include="SqliteRows.cs" />

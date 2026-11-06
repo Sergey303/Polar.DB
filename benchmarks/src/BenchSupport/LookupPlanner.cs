@@ -2,9 +2,12 @@ namespace PolarDbBenchmarks;
 
 internal static class LookupPlanner
 {
-    public static IReadOnlyList<LookupPlan> Plans(ExperimentKind kind, BenchmarkDataset rows)
+    public static IReadOnlyList<LookupPlan> Plans(ExperimentKind kind, BenchmarkDataset rows,
+        int? precomputedLookupsPerSample = null)
     {
-        var lookups = LookupsPerSample(kind, rows);
+        if (precomputedLookupsPerSample is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(precomputedLookupsPerSample));
+        var lookups = precomputedLookupsPerSample ?? LookupsPerSample(kind, rows);
         return new[]
         {
             new LookupPlan("Cold after reopen", false, Array.Empty<object>(),

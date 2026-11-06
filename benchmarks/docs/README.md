@@ -41,6 +41,81 @@ The isolated `Build`, lookup, and reopen timers do not include generation.
 The proposed pre-generated-source protocol in `STATE_TRANSITION_PROTOCOL.md`
 remains a separate, not-yet-implemented experiment.
 
+## Prepared databases and query-only lookup pilot (opt-in)
+
+`PreparedLookupRunner` introduces a **separate** `prepare → verify → query → verify`
+protocol for lookup benchmark executables. The normal coordinator's build+lookup
+measurements are unchanged. Prepared files are stored *outside the repository*,
+never under the automatically cleaned `benchmarks/work` directory.
+
+Example in the Linux benchmark container, starting from the repository root:
+
+```bash
+B=benchmarks/src/PkIntLookup/bin/Release/net10.0/PkIntLookup.dll
+PREP=/work/ram-study/prepared-v1
+RESULTS=/work/ram-study/query-results-v1
+
+dotnet build benchmarks/src/PkIntLookup/PkIntLookup.csproj -c Release
+for engine in sqlite polar-db; do
+  python3 benchmarks/scripts/disk_guard.py --min-free-gib 16 --max-growth-gib 3 \
+    --timeout-seconds 300 -- dotnet "$B" --prepared-stage=prepare \
+    --prepared-root="$PREP" --benchmark-engine="$engine" --rows=5000000
+  dotnet "$B" --prepared-stage=verify \
+    --prepared-root="$PREP" --benchmark-engine="$engine" --rows=5000000
+done
+
+# Run each engine/phase in a FRESH process, ideally in its own RAM-limited
+# container with the prepared-data volume mounted. Use distinct run IDs.
+for engine in sqlite polar-db; do
+  for phase in cold hot; do
+    dotnet "$B" --prepared-stage=query --prepared-root="$PREP" \
+      --prepared-results-root="$RESULTS" --benchmark-engine="$engine" \
+      --prepared-phase="$phase" --rows=5000000 \
+      --benchmark-run-id="pilot-${engine}-${phase}"
+  done
+  dotnet "$B" --prepared-stage=verify \
+    --prepared-root="$PREP" --benchmark-engine="$engine" --rows=5000000
+done
+```
+
+`prepare` streams deterministic rows, creates indexes and flushes/ closes the
+storage, computes the expected per-phase row counts and checksums from the
+streamed generator **once**, then seals *permanent* file paths, sizes and SHA-256
+hashes, the key-plan batch size and expected results with the source Git SHA.
+SQLite's WAL is checkpointed before sealing. `verify` checks
+persistent file hashes and rejects any nonempty SQLite WAL; a read-only SQLite
+connection can create harmless empty WAL/SHM auxiliary files. `query` checks
+file names/sizes without hashing or scanning them beforehand, NEVER calls
+`Load`/`Build`, and validates the returned rows/checksums after timing. Re-run
+`verify` after every query series to establish that the sealed source is intact.
+For Polar.DB the current factory opens read/write file handles, so the
+post-query SHA-256 check is especially important. The prepared database is
+not a substitute for the still-unimplemented *pre-generated source* experiment
+in `STATE_TRANSITION_PROTOCOL.md`.
+
+Each query writes a new JSON file under `RESULTS/<experiment>/<run-id>.json`;
+existing outputs are never overwritten. Snapshots before/after file warmup,
+open/refresh, key warmup, measured batch, measured latency and close contain
+process RSS/private/managed bytes, Linux `/proc/self/io` counters, cgroup
+`memory.stat`, `memory.events` and `memory.current`. Timers for opening,
+warmup and querying are separate. `memory.peak` is a **container-lifetime**
+value, not the peak of a query phase. For a true peak, externally poll the
+isolated worker/container. `read_bytes` does not by itself establish physical
+SSD traffic through all Docker/WSL layers.
+
+**Important limitations:** `cold` means no explicit file warmup, NOT that OS
+page cache is cold (restarting a container does not reset kernel page cache);
+`hot` sequentially reads permanent files and warms deterministic query keys,
+which does not guarantee every page remains resident. Both phases should be
+run in independent containers/processes with controlled RAM and cache state
+for a publication study. The checksum oracle and lookup-plan batch size are
+precomputed during `prepare`, so `query` generates only its sampled keys and
+never scans the full input dataset. Query-only pilot results must not be
+merged with the older article series.
+
+Small integration smoke (after Release build):
+`python3 benchmarks/scripts/test_prepared_lookup.py`.
+
 Benchmark working data is disk-bounded. Successful workers delete each completed row-count
 case before moving to the next one. Repeated build scenarios also delete warmup and earlier
 measured `run-*` directories as soon as their metrics have been captured, retaining only the

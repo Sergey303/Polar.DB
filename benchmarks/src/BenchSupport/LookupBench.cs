@@ -2,7 +2,12 @@ namespace PolarDbBenchmarks;
 
 public static class LookupBench
 {
-    public static void Run(ExperimentOptions options) => BenchmarkExecution.Run(options);
+    public static void Run(ExperimentOptions options)
+    {
+        var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        if (!PreparedLookupRunner.TryRun(options, args))
+            BenchmarkExecution.Run(options);
+    }
 
     internal static BenchmarkWorkerResult RunWorker(
         ExperimentOptions options,
