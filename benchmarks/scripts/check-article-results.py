@@ -121,7 +121,7 @@ for n,expected in ((50000,.754),(5000000,.887)):
             for i in range(30)]
     assert abs(median(ratios)-expected)<.0006
 
-assert [int(v) for v in re.findall(r'^Таблица (\d+) —',ARTICLE,re.M)]==list(range(1,10))
+assert [int(v) for v in re.findall(r'^Таблица (\d+) —',ARTICLE,re.M)]==list(range(1,11))
 assert re.findall(r'^Таблица (Д\.\d+) —',SUPPLEMENT,re.M)==['Д.1','Д.2','Д.3','Д.4']
 assert count==204, count
-print('OK: all 9 manuscript + 4 supplementary tables,',count,'numeric cells match archived CSV/JSON; paired reopen share checks pass')
+print('OK: comparative tables 1-9 + 4 supplementary tables,',count,'numeric cells match archived CSV/JSON; paired reopen share checks pass; Stage 4B table 10 is checked separately')

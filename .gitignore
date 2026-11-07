@@ -49,6 +49,7 @@ benchmarks/results/*.raw.json
 benchmarks/results/*.raw.csv
 benchmarks/results/raw/
 benchmarks/results/independent/
+benchmarks/results/final-series/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
