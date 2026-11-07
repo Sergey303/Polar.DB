@@ -19,7 +19,16 @@ mkdir -p research-restored
 tar -xzf ram-study-research-snapshot.tar.gz -C research-restored
 ```
 
-The SHA-256 above is the authoritative integrity check. The original dataset/runner source SHA values and the locked 4B protocol can be found inside the archive in `ram-study/stage4b-pinned-confirmation/`. The original prepared database can only be recreated using the sealed dataset-generation source, then independently verified against its preparation manifest.
+The SHA-256 above is the authoritative integrity check. From the repository
+root, `python3 benchmarks/scripts/check-evidence-provenance.py` additionally
+verifies the internal `LOCK.json` SHA, all 11 locked files, the 48-attempt
+published result status, and the main-series provenance. The original
+dataset/runner source SHA values and locked 4B protocol can be found inside
+the archive in `ram-study/stage4b-pinned-confirmation/`. The original prepared
+database is **not present**: rerunning Stage 4B requires recreating data using
+the historical source, checking the generated database against the preparation
+manifest, and reconstructing the prescribed page-cache treatments and Docker
+runtime. Archive validation by itself does not reproduce those conditions.
 
 ## Fixed results, not to reinterpret
 
