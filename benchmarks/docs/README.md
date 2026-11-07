@@ -40,10 +40,20 @@ The two manuscript figures have **different sources**: the architecture diagram
 is generated from `benchmarks/docs/figures/primary-index-access.dot` with
 Graphviz 2.43.0; the reopen-stage plot is one of four SVGs regenerated from
 the main-series CSV by `python3 benchmarks/scripts/render-article-figures.py`.
-The regenerated SVGs were verified byte-for-byte against committed SVGs in a
-clean export of the published revision. On a matching Graphviz installation,
-run `dot -Tsvg benchmarks/docs/figures/primary-index-access.dot -o /tmp/primary-index-access.svg`
-and compare that file with the committed drawing.
+The reader-facing labels use Russian terms with English technical equivalents
+in parentheses. The displayed decimal commas do not alter the original CSV
+measurements. To check that generated figures still match the committed SVGs,
+first extract the original main-series archive as instructed above, then run:
+
+```bash
+python3 benchmarks/scripts/render-article-figures.py
+git diff --exit-code -- benchmarks/docs/figures/*-5m.svg
+dot -Tsvg benchmarks/docs/figures/primary-index-access.dot -o /tmp/primary-index-access.svg
+cmp /tmp/primary-index-access.svg benchmarks/docs/figures/primary-index-access.svg
+```
+
+Graphviz 2.43.0 was used for the committed architecture diagram; other
+Graphviz versions may produce harmless differences in SVG layout or metadata.
 
 **Three distinct reproduction levels:** (1) archive integrity and historical
 source/protocol metadata; (2) arithmetic recovery of reported tables and

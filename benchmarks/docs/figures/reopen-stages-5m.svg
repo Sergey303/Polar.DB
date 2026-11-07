@@ -1,39 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="498" viewBox="0 0 960 498" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="498" viewBox="0 0 1140 498" role="img">
 <title>Диагностические стадии повторного открытия Polar.DB на 5 млн записей</title>
-<desc>Шесть отдельных измеряемых стадий query-ready reopen. Медианы времен, шкала от нуля. Статистики стадий нельзя арифметически складывать.</desc>
+<desc>Шесть стадий полного цикла повторного открытия (query-ready reopen) с последующим закрытием. Медианы времени, шкала от нуля; суммы медиан стадий не равны медиане цикла.</desc>
 <rect width="100%" height="100%" fill="white"/>
 <style>text{font-family:"DejaVu Sans",Arial,sans-serif;fill:#222;font-size:14px}.head{font-weight:600;font-size:19px}.muted{fill:#565656;font-size:12px}</style>
-<text class="head" x="28" y="30">Стадии query-ready reopen, 5 млн записей</text>
-<line x1="255.00" y1="80" x2="255.00" y2="408" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="255.00" y="433">0</text>
-<line x1="372.00" y1="80" x2="372.00" y2="408" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="372.00" y="433">1</text>
-<line x1="489.00" y1="80" x2="489.00" y2="408" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="489.00" y="433">2</text>
-<line x1="606.00" y1="80" x2="606.00" y2="408" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="606.00" y="433">3</text>
-<line x1="723.00" y1="80" x2="723.00" y2="408" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="723.00" y="433">4</text>
-<line x1="840.00" y1="80" x2="840.00" y2="408" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="840.00" y="433">5</text>
-<text text-anchor="middle" x="547.50" y="456">Медиана времени стадии, с</text>
-<text x="241" y="115" text-anchor="end">Конструирование string</text>
-<rect x="255" y="99" width="447.41" height="26" fill="#254766"/>
-<text x="711.41" y="117">3.824</text>
-<text x="241" y="168" text-anchor="end">Refresh string</text>
-<rect x="255" y="152" width="544.70" height="26" fill="#254766"/>
-<text x="808.70" y="170">4.656</text>
-<text x="241" y="221" text-anchor="end">Refresh Guid</text>
-<rect x="255" y="205" width="36.15" height="26" fill="#7b8790"/>
-<text x="300.15" y="223">0.309</text>
-<text x="241" y="274" text-anchor="end">Refresh int</text>
-<rect x="255" y="258" width="32.24" height="26" fill="#7b8790"/>
-<text x="296.24" y="276">0.276</text>
-<text x="241" y="327" text-anchor="end">Refresh long</text>
-<rect x="255" y="311" width="31.63" height="26" fill="#7b8790"/>
-<text x="295.63" y="329">0.270</text>
-<text x="241" y="380" text-anchor="end">Refresh primary</text>
-<rect x="255" y="364" width="17.45" height="26" fill="#7b8790"/>
-<text x="281.45" y="382">0.149</text>
-<text class="muted" x="28" y="484">Источник: run-id 20261104T075733840Z, 30 повторов каждого этапа; стадии не аддитивны.</text>
+<text class="head" x="28" y="30">Стадии повторного открытия (query-ready reopen), 5 млн записей</text>
+<line x1="435.00" y1="80" x2="435.00" y2="408" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="435.00" y="433">0</text>
+<line x1="552.00" y1="80" x2="552.00" y2="408" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="552.00" y="433">1</text>
+<line x1="669.00" y1="80" x2="669.00" y2="408" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="669.00" y="433">2</text>
+<line x1="786.00" y1="80" x2="786.00" y2="408" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="786.00" y="433">3</text>
+<line x1="903.00" y1="80" x2="903.00" y2="408" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="903.00" y="433">4</text>
+<line x1="1020.00" y1="80" x2="1020.00" y2="408" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="1020.00" y="433">5</text>
+<text text-anchor="middle" x="727.50" y="456">Медиана времени стадии, с</text>
+<text x="421" y="115" text-anchor="end">Создание строкового индекса (construct)</text>
+<rect x="435" y="99" width="447.41" height="26" fill="#254766"/>
+<text x="891.41" y="117">3,824</text>
+<text x="421" y="168" text-anchor="end">Обновление строкового индекса (Refresh)</text>
+<rect x="435" y="152" width="544.70" height="26" fill="#254766"/>
+<text x="988.70" y="170">4,656</text>
+<text x="421" y="221" text-anchor="end">Обновление индекса Guid (Refresh)</text>
+<rect x="435" y="205" width="36.15" height="26" fill="#7b8790"/>
+<text x="480.15" y="223">0,309</text>
+<text x="421" y="274" text-anchor="end">Обновление индекса int (Refresh)</text>
+<rect x="435" y="258" width="32.24" height="26" fill="#7b8790"/>
+<text x="476.24" y="276">0,276</text>
+<text x="421" y="327" text-anchor="end">Обновление индекса long (Refresh)</text>
+<rect x="435" y="311" width="31.63" height="26" fill="#7b8790"/>
+<text x="475.63" y="329">0,270</text>
+<text x="421" y="380" text-anchor="end">Обновление первичного индекса (Refresh)</text>
+<rect x="435" y="364" width="17.45" height="26" fill="#7b8790"/>
+<text x="461.45" y="382">0,149</text>
+<text class="muted" x="28" y="484">Источник: серия 20261104T075733840Z; 30 повторов каждой стадии; медианы не суммируются.</text>
 </svg>

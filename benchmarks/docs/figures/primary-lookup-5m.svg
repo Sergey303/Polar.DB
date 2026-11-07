@@ -1,47 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="910" height="549" viewBox="0 0 910 549" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" width="975" height="549" viewBox="0 0 975 549" role="img">
 <title>Первичный поиск после разогрева, 5 млн записей</title>
 <desc>Медианы отдельных измеряемых стадий Polar.DB и SQLite. Линейная шкала начинается с нуля. Независимые повторения полной серии не выполнялись.</desc>
 <rect width="100%" height="100%" fill="white"/>
 <style>text{font-family:"DejaVu Sans",Arial,sans-serif;fill:#222;font-size:14px}.head{font-weight:600;font-size:19px}.muted{fill:#565656;font-size:12px}</style>
 <text class="head" x="28" y="30">Первичный поиск после разогрева, 5 млн записей</text>
-<rect x="175" y="50" width="17" height="14" fill="#254766"/>
-<text x="198" y="62">Polar.DB</text>
-<rect x="355" y="50" width="17" height="14" fill="#9b6233"/>
-<text x="378" y="62">SQLite</text>
-<line x1="175.0" x2="175.0" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="175.0" y="473">0</text>
-<line x1="278.3" x2="278.3" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="278.3" y="473">2</text>
-<line x1="381.7" x2="381.7" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="381.7" y="473">4</text>
-<line x1="485.0" x2="485.0" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="485.0" y="473">6</text>
-<line x1="588.3" x2="588.3" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="588.3" y="473">8</text>
-<line x1="691.7" x2="691.7" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="691.7" y="473">10</text>
-<line x1="795.0" x2="795.0" y1="105" y2="448" stroke="#e3e3e3"/>
-<text class="muted" text-anchor="middle" x="795.0" y="473">12</text>
-<text text-anchor="middle" x="485.0" y="496">Медиана пакетного среднего, мкс/запрос</text>
-<text x="161" y="140" text-anchor="end">int</text>
-<rect x="175" y="118" width="193.54" height="22" fill="#254766"/>
-<text x="376.54" y="134">3.746</text>
-<rect x="175" y="149" width="251.31" height="22" fill="#9b6233"/>
-<text x="434.31" y="165">4.864</text>
-<text x="161" y="226" text-anchor="end">long</text>
-<rect x="175" y="204" width="190.70" height="22" fill="#254766"/>
-<text x="373.70" y="220">3.691</text>
-<rect x="175" y="235" width="511.11" height="22" fill="#9b6233"/>
-<text x="694.11" y="251">9.892</text>
-<text x="161" y="312" text-anchor="end">Guid</text>
-<rect x="175" y="290" width="183.31" height="22" fill="#254766"/>
-<text x="366.31" y="306">3.548</text>
-<rect x="175" y="321" width="393.91" height="22" fill="#9b6233"/>
-<text x="576.91" y="337">7.624</text>
-<text x="161" y="398" text-anchor="end">string</text>
-<rect x="175" y="376" width="187.47" height="22" fill="#254766"/>
-<text x="370.47" y="392">3.628</text>
-<rect x="175" y="407" width="357.64" height="22" fill="#9b6233"/>
-<text x="540.64" y="423">6.922</text>
-<text class="muted" x="28" y="536">Источник: run-id 20261104T075733840Z; медианы raw CSV, N=5 000 000.</text>
+<rect x="240" y="50" width="17" height="14" fill="#254766"/>
+<text x="263" y="62">Polar.DB</text>
+<rect x="420" y="50" width="17" height="14" fill="#9b6233"/>
+<text x="443" y="62">SQLite</text>
+<line x1="240.0" x2="240.0" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="240.0" y="473">0</text>
+<line x1="343.3" x2="343.3" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="343.3" y="473">2</text>
+<line x1="446.7" x2="446.7" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="446.7" y="473">4</text>
+<line x1="550.0" x2="550.0" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="550.0" y="473">6</text>
+<line x1="653.3" x2="653.3" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="653.3" y="473">8</text>
+<line x1="756.7" x2="756.7" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="756.7" y="473">10</text>
+<line x1="860.0" x2="860.0" y1="105" y2="448" stroke="#e3e3e3"/>
+<text class="muted" text-anchor="middle" x="860.0" y="473">12</text>
+<text text-anchor="middle" x="550.0" y="496">Медиана пакетного среднего, мкс/запрос</text>
+<text x="226" y="140" text-anchor="end">Целое число 32 бита (int)</text>
+<rect x="240" y="118" width="193.54" height="22" fill="#254766"/>
+<text x="441.54" y="134">3,746</text>
+<rect x="240" y="149" width="251.31" height="22" fill="#9b6233"/>
+<text x="499.31" y="165">4,864</text>
+<text x="226" y="226" text-anchor="end">Целое число 64 бита (long)</text>
+<rect x="240" y="204" width="190.70" height="22" fill="#254766"/>
+<text x="438.70" y="220">3,691</text>
+<rect x="240" y="235" width="511.11" height="22" fill="#9b6233"/>
+<text x="759.11" y="251">9,892</text>
+<text x="226" y="312" text-anchor="end">Идентификатор (Guid)</text>
+<rect x="240" y="290" width="183.31" height="22" fill="#254766"/>
+<text x="431.31" y="306">3,548</text>
+<rect x="240" y="321" width="393.91" height="22" fill="#9b6233"/>
+<text x="641.91" y="337">7,624</text>
+<text x="226" y="398" text-anchor="end">Строка (string)</text>
+<rect x="240" y="376" width="187.47" height="22" fill="#254766"/>
+<text x="435.47" y="392">3,628</text>
+<rect x="240" y="407" width="357.64" height="22" fill="#9b6233"/>
+<text x="605.64" y="423">6,922</text>
+<text class="muted" x="28" y="536">Источник: серия 20261104T075733840Z; медианы исходных CSV, 5 000 000 записей.</text>
 </svg>
