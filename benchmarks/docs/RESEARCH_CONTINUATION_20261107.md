@@ -19,7 +19,7 @@
 ## Next work through GitHub, by Pareto
 
 1. Clarify the single scientific thesis, novelty relative to prior cache-aware/database indexing work and suitable type of journal contribution. Verify all new citations independently.
-2. Audit availability of both experimental artifact sets. The snapshot already transfers the available research texts/Stage4B raw JSON, but gigabyte-sized data and the original main-series archive are **not** claimed transferred. Improve re-generation instructions or disclose missing external material.
+2. The original 4 November main-series archive is now published at [20261104 evidence](../evidence/20261104/README.md), separately from the Stage 4B research snapshot. All 160 table values were independently recalculated; prebuilt multi-gigabyte databases are still not transferred. No new runs are needed for arithmetic verification.
 3. Make the comparative scenarios explicit: logical query, same returned outcome, measurement boundaries, unequal physical index work and durability semantics.
 4. Fix ambiguous cross-series wording in §3.7/§4.9, preserving numbers and all decisions. Produce a short audit and commit only reviewed changes.
 5. Leave performance mystery (`hashes` faster than `none`) and other benchmarking for later as requested.

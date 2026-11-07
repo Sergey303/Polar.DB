@@ -8,7 +8,7 @@ This directory preserves a repository-hosted snapshot of the **small, available*
 - SHA-256: `ce53fed176518e3aca32c334d8eb47c7bb72110f4be48267970b020185545a79`.
 - Archived names begin `ram-study/` and preserve the source relative paths. Contains review notes, experimental protocols, run scripts, immutable study locks, logs, condition-level data, the 48 individual Stage 4B result JSON files and 48 raw-query JSON files, the final Stage 4B analysis and editorial notes.
 - A further **83 files** were excluded as binary/data files, large files (>5 MB), or desktop-agent logs. Runtime caches were also excluded. In particular, this does **not** contain the multi-gigabyte prepared databases, SQLite database file, or their page-cache state.
-- The main comparative-series archive `20261104T075733840Z-abbb03c-ext4.tar.gz` was **not located** in the accessible research checkout when this snapshot was made. Do not claim that its original CSV/JSON evidence has been transferred.
+- The main comparative-series archive was **not located when this snapshot was made**. It was subsequently found intact on RDC and [published separately with checksum and recount instructions](../20261104/README.md). It is not part of this Stage 4B snapshot.
 
 Verify and extract:
 
