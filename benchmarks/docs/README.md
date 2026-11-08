@@ -1,5 +1,7 @@
 # Benchmark reports and reproducibility
 
+**Planned next research:** [direct two-snapshot Polar.DB index evolution study, 2021 → November 2026](EVOLUTION_2021_2026_STUDY_PLAN.md). This is a preregistration outline, **not yet experimental evidence**.
+
 The **completed 8 November independent follow-up** contains 8 selected scenario/row-count series, each with 8 accepted paired process runs (64/64 pairs). The [full statistical report](INDEPENDENT_REPLICATIONS_FINAL_20261108.md) links the [new, immutable archive](../evidence/polar-independent-20261108-8-full.tar.gz) (SHA-256 `eb4fa064131bd1a9b3a4c5c4d6e0959e87ac85c987ea670a7883afe890fabc07`). The earlier [partial report](INDEPENDENT_REPLICATIONS_20261108.md) and its immutable raw archive remain available as historical evidence. These selected same-host exploratory replications do not replace the original 19-scenario 4 November tables or independently replicate results on different hardware.
 
 For the index-equivalence contract used by the current benchmark code, see
