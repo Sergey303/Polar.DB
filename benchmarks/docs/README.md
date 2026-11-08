@@ -1,5 +1,7 @@
 # Benchmark reports and reproducibility
 
+**Stage 2: historical index direct comparison:** [frozen-after-pilot protocol](INDEX_EVOLUTION_DIRECT_PROTOCOL_20261108.md), [measurement driver source](../src/IndexEvolutionDirect/Program.cs), and [bounded paired runner](../scripts/run-index-evolution-direct.sh). Full three-block series pending.
+
 **Completed source comparison (stage 1):** [2021 published model → April 2021 historical implementation → November 2026 implementation](INDEX_EVOLUTION_CODE_AUDIT_2021_2026.md). The audit verifies algorithmic differences but does **not** measure historical speedups.
 
 **2021 measurement-code replay:** [historical `Task01` / `Main306` on both Polar.DB versions](LEGACY_2021_MEASUREMENT_REPLAY.md); [small shared-source runner](../scripts/replay-2021-2026-smoke.sh). The one-pass results are diagnostics, not inferential benchmarks.
