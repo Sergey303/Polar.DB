@@ -1,6 +1,6 @@
 # Benchmark reports and reproducibility
 
-**Stage 2: historical index direct comparison:** [frozen-after-pilot protocol](INDEX_EVOLUTION_DIRECT_PROTOCOL_20261108.md), [measurement driver source](../src/IndexEvolutionDirect/Program.cs), and [bounded paired runner](../scripts/run-index-evolution-direct.sh). Full three-block series pending.
+**Completed stage 2:** [direct historical index results](INDEX_EVOLUTION_DIRECT_RESULTS_20261108.md), [12 raw measurements](../evidence/20261108-index-evolution/README.md), [frozen-after-pilot protocol](INDEX_EVOLUTION_DIRECT_PROTOCOL_20261108.md), [shared measurement source](../src/IndexEvolutionDirect/Program.cs), [paired runner](../scripts/run-index-evolution-direct.sh) and [arithmetic checker](../scripts/check-index-evolution-results.py). Three paired blocks per size; these are descriptive single-host results.
 
 **Completed source comparison (stage 1):** [2021 published model → April 2021 historical implementation → November 2026 implementation](INDEX_EVOLUTION_CODE_AUDIT_2021_2026.md). The audit verifies algorithmic differences but does **not** measure historical speedups.
 
