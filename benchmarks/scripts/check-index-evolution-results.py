@@ -9,7 +9,7 @@ root = Path(__file__).resolve().parents[1]
 source = root / "evidence/20261108-index-evolution/results.csv"
 expected_sha = "1d709d1021f2edd4ca3fa0e243fd198b4e6ce3d5c1a1cfd16c9d6fe67d5f9ee4"
 assert hashlib.sha256(source.read_bytes()).hexdigest() == expected_sha
-records = list(csv.DictReader(source.read_text().splitlines()))
+records = list(csv.DictReader(source.read_text(encoding="utf-8").splitlines()))
 assert len(records) == 12
 sha = {"old": "39cefe13db8697cf5f8e15edaa4677ba52a2cdea",
        "new": "09ec0703f476f25ec79baff338843df8a8e83b35"}
@@ -31,7 +31,7 @@ for row in records:
     assert row["checksum"] == sums[n]
     assert all(float(row[x]) > 0 for x in ("load_ms", "prerequisite_ms", "index_build_ms", "lookup_ms"))
 assert len(seen) == 12
-article = (root / "docs/POLAR_DB_ARTICLE_DRAFT.md").read_text()
+article = (root / "docs/POLAR_DB_ARTICLE_DRAFT.md").read_text(encoding="utf-8")
 section = article.split("### 4.8. ", 1)[1].split("### 4.9. ", 1)[0]
 for (n, engine), expected in medians.items():
     sample = [r for r in records if int(r["rows"]) == n and r["engine"] == engine]

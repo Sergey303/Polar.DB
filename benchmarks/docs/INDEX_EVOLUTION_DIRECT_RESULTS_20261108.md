@@ -38,4 +38,4 @@
 
 Эксперимент не распространяется на неуникальные или коллидирующие ключи, строки и Guid, изменения, удаления, холодный файловый кэш, другую платформу и гарантии восстановления после сбоев. Три парных запуска на одном хосте не подтверждают универсального ускорения. Основную серию Polar.DB–SQLite и эксперимент с резидентностью файловых страниц в эту выборку не включали.
 
-Все первичные значения: [results.csv](../evidence/20261108-index-evolution/results.csv), SHA-256 1d709d1021f2edd4ca3fa0e243fd198b4e6ce3d5c1a1cfd16c9d6fe67d5f9ee4. Для воспроизведения — benchmarks/scripts/run-index-evolution-direct.sh 3; для проверки чисел — python3 benchmarks/scripts/check-index-evolution-results.py.
+Все первичные значения: [results.csv](../evidence/20261108-index-evolution/results.csv), SHA-256 1d709d1021f2edd4ca3fa0e243fd198b4e6ce3d5c1a1cfd16c9d6fe67d5f9ee4. Для воспроизведения — python3 benchmarks/scripts/run-index-evolution-direct.py --mode full; для проверки чисел — python3 benchmarks/scripts/check-index-evolution-results.py.

@@ -8,15 +8,15 @@ import re,csv,json,math
 ROOT=Path(__file__).resolve().parents[2]
 RESULTS=Path(os.environ.get('POLAR_DB_MAIN_RESULTS_DIR',
                             ROOT/'benchmarks/results/final-series/20261104T075733840Z-abbb03c-ext4/results'))
-ARTICLE=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_DRAFT.md').read_text()
-SUPPLEMENT=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_TECHNICAL_MATERIALS.md').read_text()
+ARTICLE=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_DRAFT.md').read_text(encoding="utf-8")
+SUPPLEMENT=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_TECHNICAL_MATERIALS.md').read_text(encoding="utf-8")
 TABLE_LOCATIONS={6:(SUPPLEMENT,'Д.1'),7:(ARTICLE,'6'),8:(ARTICLE,'7'),9:(ARTICLE,'8'),10:(SUPPLEMENT,'Д.2'),11:(SUPPLEMENT,'Д.3'),12:(SUPPLEMENT,'Д.4'),13:(ARTICLE,'9')}
 cache={};count=0
 C='Cold after reopen'; H='Hot after file and lookup warmup'
 def values(name,n,engine,metric,phase=''):
     if name not in cache:
         a=defaultdict(list)
-        for r in csv.DictReader((RESULTS/(name+'.raw.csv')).open()):
+        for r in csv.DictReader((RESULTS/(name+'.raw.csv')).open(encoding="utf-8", newline="")):
             a[(int(r['setup_rows']),r['engine'],r['phase'],r['metric'])].append(float(r['value']))
         cache[name]=a
     v=cache[name][(n,'polar-db-current' if engine=='p' else 'sqlite',phase,metric)]
@@ -68,7 +68,7 @@ for row in tab(4):
     check(row[1],md(name,n,'p','build'));check(row[2],md(name,n,'s','build'))
     check(row[3],md(name,n,'p','build-allocated-bytes')/1e6)
     assert row[4]=='/'.join(str(round(md(name,n,'p','build-gen'+str(i)+'-collections'))) for i in range(3))
-    j=json.loads((RESULTS/(name+'.raw.json')).read_text())
+    j=json.loads((RESULTS/(name+'.raw.json')).read_text(encoding="utf-8"))
     r=next(x for x in j['lifecycleRuns'] if x['setupRows']==n)
     e=next(x for x in r['engines'] if x['engine']=='polar-db-current')
     check(row[5],(e['resourcesAfter']['managedBytes']-e['resourcesBefore']['managedBytes'])/1e6)
@@ -86,7 +86,7 @@ for row in tab(7):
     for col,eng,metric in [(1,'p','open-only'),(2,'s','open-only'),(3,'p','query-ready reopen'),(4,'s','query-ready reopen')]:
         check(row[col],md(name,n,eng,metric))
 for row in tab(9):
-    n=base(row[0]);j=json.loads((RESULTS/'reopen-only.raw.json').read_text())
+    n=base(row[0]);j=json.loads((RESULTS/'reopen-only.raw.json').read_text(encoding="utf-8"))
     r=next(x for x in j['lifecycleRuns'] if x['setupRows']==n)
     e=next(x for x in r['engines'] if x['engine']=='polar-db-current')
     bef=e['resourcesBefore'];aft=e['resourcesAfter']
@@ -113,7 +113,7 @@ for row,metric in zip(tab(8),STAGES):
         check(cell,md('reopen-only',n,'p',metric))
 
 # The 88.7% claim is the median of fractions paired by sample_index.
-records=list(csv.DictReader((RESULTS/'reopen-only.raw.csv').open()))
+records=list(csv.DictReader((RESULTS/'reopen-only.raw.csv').open(encoding="utf-8", newline="")))
 for n,expected in ((50000,.754),(5000000,.887)):
     subset={(r['metric'],int(r['sample_index'])):float(r['value']) for r in records
             if r['engine']=='polar-db-current' and int(r['setup_rows'])==n}
