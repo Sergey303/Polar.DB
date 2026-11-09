@@ -53,7 +53,7 @@ python3 benchmarks/scripts/run-legacy2021-replay.py 10000 1000 777
 
 ## Парное подтверждение исторического поиска (R4, 20 пар на размер)
 
-[Серия 9 ноября 2026 года](INDEX_EVOLUTION_PAIRED20_RESULTS_20261109.md) отдельно от прежней трёхпарной серии провела **40 пар / 80 процессов** по **10 000 поисков** на каждый процесс и сохранила [сырые данные и логи](../evidence/20261109-index-evolution-paired20/results.csv). Расписание было закоммичено до запуска. Новую серию можно пересчитать без .NET командой `python3 benchmarks/scripts/verify-publication.py --only paired20`, либо выполнить с нуля через `python3 benchmarks/scripts/run-index-evolution-paired20.py --output <new-directory>` на машине с полным Git, Python и .NET 10. Перепроверка по опубликованному CSV и журналам отличается от независимого физического повторения эксперимента.
+[Независимая проверка архива на Windows, Ubuntu и macOS — SUCCESS](https://github.com/Sergey303/Polar.DB/actions/runs/42562308063). [Серия 9 ноября 2026 года](INDEX_EVOLUTION_PAIRED20_RESULTS_20261109.md) отдельно от прежней трёхпарной серии провела **40 пар / 80 процессов** по **10 000 поисков** на каждый процесс и сохранила [сырые данные и логи](../evidence/20261109-index-evolution-paired20/results.csv). Расписание было закоммичено до запуска. Новую серию можно пересчитать без .NET командой `python3 benchmarks/scripts/verify-publication.py --only paired20`, либо выполнить с нуля через `python3 benchmarks/scripts/run-index-evolution-paired20.py --output <new-directory>` на машине с полным Git, Python и .NET 10. Перепроверка по опубликованному CSV и журналам отличается от независимого физического повторения эксперимента.
 
 ## Научная интерпретация
 
