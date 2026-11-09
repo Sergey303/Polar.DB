@@ -73,14 +73,37 @@ def same_statistics(actual,expected,where='root') -> None:
 
 def verify() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20", "hosted20"),
+    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20", "hosted20", "r2cache"),
                         default="all")
     args = parser.parse_args()
-    selection = ("provenance", "main", "cache", "historical", "paired20", "hosted20") if args.only == "all" else (args.only,)
+    selection = ("provenance", "main", "cache", "historical", "paired20", "hosted20", "r2cache") if args.only == "all" else (args.only,)
     for step in selection:
         print(f"CHECK {step}", flush=True)
         env = os.environ.copy()
-        if step == "hosted20":
+        if step == "r2cache":
+            archive = ROOT / "benchmarks/evidence/20261109-index-evolution-cache-r2"
+            command = [sys.executable, str(SCRIPTS / "analyze-index-evolution-cache-study.py"), str(archive)]
+            completed = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,
+                                       text=True, encoding="utf-8")
+            if completed.returncode:
+                print(completed.stdout, completed.stderr, file=sys.stderr)
+                raise RuntimeError("R2 cache archive reanalysis failed")
+            recalculated = json.loads(completed.stdout)
+            published = json.loads((archive / "summary.json").read_text(encoding="utf-8"))
+            same_statistics(recalculated, published, "r2cache")
+            if recalculated["sourceSha"] != "9ae1546a72ed34cfa6826a768a8f1ab26609f53d":
+                raise RuntimeError("Wrong preregistered Git SHA for R2 cache study")
+            from hashlib import sha256
+            for line in (archive / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+                digest, name = line.split("  ", 1)
+                file = archive / name
+                if not file.is_file() or sha256(file.read_bytes()).hexdigest() != digest:
+                    raise RuntimeError("R2 cache evidence SHA mismatch: " + name)
+            subprocess.run([sys.executable, str(SCRIPTS / "check-index-evolution-cache-report.py")],
+                           cwd=ROOT, env=env, check=True)
+            print("OK: 40 blocks, 160 processes, 160 raw logs, 3 scientific tables, mincore states")
+            result = subprocess.CompletedProcess([], 0)
+        elif step == "hosted20":
             artifact = ROOT / "benchmarks/evidence/20261109-index-evolution-hosted-42573634646"
             summary = []
             for osname in ("ubuntu", "windows", "macos"):

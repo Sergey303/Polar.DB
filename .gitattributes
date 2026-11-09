@@ -9,3 +9,12 @@ benchmarks/scripts/index-evolution-paired20-schedule.json -text
 benchmarks/evidence/20261109-index-evolution-hosted-42573634646/*/* -text
 benchmarks/evidence/20261109-index-evolution-hosted-42573634646/*/*.csv whitespace=cr-at-eol
 benchmarks/evidence/20261109-index-evolution-hosted-42573634646/*/*.json whitespace=cr-at-eol
+
+# R2 preregistered cache study: byte-identical source, protocol and measured evidence on all OS.
+benchmarks/docs/INDEX_EVOLUTION_CACHE_CONTROL_PROTOCOL_20261109.md -text
+benchmarks/scripts/index-evolution-cache-pages.py -text
+benchmarks/scripts/index-evolution-cache-schedule.json -text
+benchmarks/scripts/run-index-evolution-cache-study.py -text
+benchmarks/src/IndexEvolutionCacheDirect/* -text
+benchmarks/evidence/20261109-index-evolution-cache-r2/* -text
+benchmarks/evidence/20261109-index-evolution-cache-r2/*.csv whitespace=cr-at-eol
