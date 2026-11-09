@@ -1,0 +1,56 @@
+name: Portable research reproducibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'benchmarks/scripts/**'
+      - 'benchmarks/src/IndexEvolutionDirect/**'
+      - 'benchmarks/src/Legacy2021Replay/**'
+      - 'benchmarks/docs/POLAR_DB_ARTICLE_DRAFT.md'
+      - 'benchmarks/docs/POLAR_DB_ARTICLE_TECHNICAL_MATERIALS.md'
+      - 'benchmarks/evidence/**'
+      - '.github/workflows/research-reproducibility.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Reproduce on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Checkout full historical Git objects
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test portable runner input and failure guards
+        run: python -m unittest discover -s benchmarks/scripts -p test_index_evolution_portable.py -v
+
+      - name: Verify all published numbers from immutable archives
+        run: python benchmarks/scripts/verify-publication.py
+
+      - name: Build both historical versions and verify smoke results
+        run: python benchmarks/scripts/run-index-evolution-direct.py --mode smoke --rows 10000 --probes 1000 --pairs 1
+
+      - name: Replay legacy Main306 with verified results
+        run: python benchmarks/scripts/run-legacy2021-replay.py 10000 1000 777
