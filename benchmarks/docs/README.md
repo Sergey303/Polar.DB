@@ -1,12 +1,42 @@
 # Benchmark reports and reproducibility
 
+## Универсальное воспроизведение (Linux, macOS, Windows)
+
+Единый стандарт и критерии: [переносимая система воспроизводимости](REPRODUCIBILITY_STANDARD.md).
+
+Для **проверки уже опубликованных данных** достаточно Python **3.10+**, без .NET, Docker и Git-команд (файлы исходных архивов должны находиться в клоне репозитория). Запускайте из **любого рабочего каталога** по пути к скрипту:
+
+```bash
+python3 benchmarks/scripts/verify-publication.py
+# Windows PowerShell после установки Python: python или py -3 вместо python3
+```
+
+Команда проверяет SHA-256 двух архивов, происхождение результатов, **204 числовые ячейки** основных таблиц и дополнений, таблицу 10 и bootstrap серии 4B, все 12 строк и медианы таблицы 11. Архив от 4 ноября извлекается **только во временный каталог** средствами Python, без `tar`, `sha256sum` или заранее созданного `benchmarks/results`. Ошибки дают ненулевой код выхода. Вручную распаковывать или переносить файлы не нужно.
+
+Для **нового измерительного запуска** дополнительно необходимы Git с **полной историей**, .NET **SDK и Runtime 10.x**, Python 3.10+, достаточная память и свободное место на **томе, куда записываются результаты**. Старый (апрель 2021) и новый (ноябрь 2026) исходники берутся из неизменных SHA, временная копия первого проекта адаптируется под net10.0. Идентичный измерительный код для обеих версий, строки, контрольные суммы, manifest.json, журналы сборки и результаты CSV сохраняются в уникальном выходном каталоге:
+
+```bash
+# Короткая проверка корректности двух сборок (не показатель производительности):
+python3 benchmarks/scripts/run-index-evolution-direct.py --mode smoke
+# Полная серия: 50 тыс. и 1 млн записей, 1000 поисков, 3 пары каждого размера:
+python3 benchmarks/scripts/run-index-evolution-direct.py --mode full
+# Другое расположение результатов без /workspace или /root:
+python3 benchmarks/scripts/run-index-evolution-direct.py --mode full --output /path/with/free/space/new-run
+# Исторический диагностический Main306 (НЕ заменяет опыт с внешним индексом):
+python3 benchmarks/scripts/run-legacy2021-replay.py 10000 1000 777
+```
+
+На Windows используйте `python` (или `py -3`) и обычный путь Windows в `--output`, например `C:\research\polar-index-new-run`. Имеющийся выходной каталог **никогда не перезаписывается**. Для полного опыта минимальный свободный резерв — **2 ГиБ** на файловой системе выбранного выхода; перед каждым запуском он проверяется снова. Очистке подлежат **только временные базы, созданные новым скриптом** в его каталоге; результаты, журнал и manifest.json сохраняются даже при ошибке. Числа нового запуска не обязаны совпадать с опубликованными измерениями на другом оборудовании, и их нельзя подставлять в статью вместо исходной архивной серии.
+
+На всех трёх ОС предусмотрено [изолированное CI-задание](../../.github/workflows/research-reproducibility.yml): архивные проверки, тесты безопасных отказов и два небольших smoke-прогона. Его наличие **не является подтверждением успешного запуска на каждой ОС**, пока соответствующие задания не завершатся. Исторические абсолютные пути и настройки среды в старых протоколах сохранены только как свидетельство первоначальных измерений.
+
 **Completed stage 2:** [direct historical index results](INDEX_EVOLUTION_DIRECT_RESULTS_20261108.md), [12 raw measurements](../evidence/20261108-index-evolution/README.md), [frozen-after-pilot protocol](INDEX_EVOLUTION_DIRECT_PROTOCOL_20261108.md), [shared measurement source](../src/IndexEvolutionDirect/Program.cs), [paired runner](../scripts/run-index-evolution-direct.sh) and [arithmetic checker](../scripts/check-index-evolution-results.py). Three paired blocks per size; these are descriptive single-host results.
 
 **Completed source comparison (stage 1):** [2021 published model → April 2021 historical implementation → November 2026 implementation](INDEX_EVOLUTION_CODE_AUDIT_2021_2026.md). The audit verifies algorithmic differences but does **not** measure historical speedups.
 
 **2021 measurement-code replay:** [historical `Task01` / `Main306` on both Polar.DB versions](LEGACY_2021_MEASUREMENT_REPLAY.md); [small shared-source runner](../scripts/replay-2021-2026-smoke.sh). The one-pass results are diagnostics, not inferential benchmarks.
 
-**Planned next research:** [direct two-snapshot Polar.DB index evolution study, 2021 → November 2026](EVOLUTION_2021_2026_STUDY_PLAN.md). This is a preregistration outline, **not yet experimental evidence**.
+**Research design:** [historical 2021 → 2026 plan](EVOLUTION_2021_2026_STUDY_PLAN.md). The direct unique-int index experiment has now been completed; other workloads specified as future work are not measured by that experiment.
 
 The **completed 8 November independent follow-up** contains 8 selected scenario/row-count series, each with 8 accepted paired process runs (64/64 pairs). The [full statistical report](INDEPENDENT_REPLICATIONS_FINAL_20261108.md) links the [new, immutable archive](../evidence/polar-independent-20261108-8-full.tar.gz) (SHA-256 `eb4fa064131bd1a9b3a4c5c4d6e0959e87ac85c987ea670a7883afe890fabc07`). The earlier [partial report](INDEPENDENT_REPLICATIONS_20261108.md) and its immutable raw archive remain available as historical evidence. These selected same-host exploratory replications do not replace the original 19-scenario 4 November tables or independently replicate results on different hardware.
 
@@ -22,18 +52,11 @@ November 4, 2026 Linux/WSL2/ext4 series (`20261104T075733840Z`, source SHA
 separate. The original [4 November raw archive](../evidence/20261104/README.md)
 (19 experiments, SHA-256 published alongside the archive) and the separate
 [Stage 4B research snapshot](../evidence/20261107/README.md) are both available
-in this repository. Reproduce the manuscript and supplementary values without
-rerunning benchmarks from the repository root:
+in this repository. Reproduce all manuscript and supplementary figures of merit **without**
+manual archive extraction or fixed OS-specific commands:
 
 ```bash
-(cd benchmarks/evidence/20261104 && sha256sum -c SHA256SUMS)
-(cd benchmarks/evidence/20261107 && sha256sum -c SHA256SUMS)
-mkdir -p benchmarks/results/final-series
-tar -xzf benchmarks/evidence/20261104/20261104T075733840Z-abbb03c-ext4.tar.gz \
-  -C benchmarks/results/final-series
-python3 benchmarks/scripts/check-article-results.py
-python3 benchmarks/scripts/check-stage4b-article-results.py
-python3 benchmarks/scripts/check-evidence-provenance.py
+python3 benchmarks/scripts/verify-publication.py
 ```
 
 The first checker verifies the 9 main comparative tables and 4 supplementary

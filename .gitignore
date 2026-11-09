@@ -5,6 +5,8 @@
 ## --- .NET / Visual Studio ---
 [Bb]in/
 [Oo]bj/
+__pycache__/
+*.pyc
 [Log]/
 *.user
 *.userosscache
@@ -50,6 +52,7 @@ benchmarks/results/*.raw.csv
 benchmarks/results/raw/
 benchmarks/results/independent/
 benchmarks/results/final-series/
+benchmarks/results/index-evolution/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

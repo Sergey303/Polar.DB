@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Check manuscript and moved supplementary table cells against the pinned final series."""
 from pathlib import Path
+import os
 from collections import defaultdict
 from statistics import median
 import re,csv,json,math
 ROOT=Path(__file__).resolve().parents[2]
-RESULTS=ROOT/'benchmarks/results/final-series/20261104T075733840Z-abbb03c-ext4/results'
+RESULTS=Path(os.environ.get('POLAR_DB_MAIN_RESULTS_DIR',
+                            ROOT/'benchmarks/results/final-series/20261104T075733840Z-abbb03c-ext4/results'))
 ARTICLE=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_DRAFT.md').read_text()
 SUPPLEMENT=(ROOT/'benchmarks/docs/POLAR_DB_ARTICLE_TECHNICAL_MATERIALS.md').read_text()
 TABLE_LOCATIONS={6:(SUPPLEMENT,'Д.1'),7:(ARTICLE,'6'),8:(ARTICLE,'7'),9:(ARTICLE,'8'),10:(SUPPLEMENT,'Д.2'),11:(SUPPLEMENT,'Д.3'),12:(SUPPLEMENT,'Д.4'),13:(ARTICLE,'9')}
