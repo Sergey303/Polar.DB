@@ -1,0 +1,409 @@
+{
+  "schema": 1,
+  "seed": 20261109,
+  "experiment": "R2-2021-Cache-Residency-Control",
+  "probes": 10000,
+  "query_seed": 777,
+  "schedule": [
+    {
+      "rows": 50000,
+      "block": 5,
+      "modes": [
+        "evict",
+        "baseline",
+        "modern",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 2,
+      "modes": [
+        "refresh",
+        "baseline",
+        "modern",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 19,
+      "modes": [
+        "evict",
+        "modern",
+        "refresh",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 3,
+      "modes": [
+        "evict",
+        "baseline",
+        "refresh",
+        "modern"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 4,
+      "modes": [
+        "evict",
+        "modern",
+        "refresh",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 7,
+      "modes": [
+        "modern",
+        "refresh",
+        "baseline",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 18,
+      "modes": [
+        "evict",
+        "baseline",
+        "refresh",
+        "modern"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 12,
+      "modes": [
+        "baseline",
+        "evict",
+        "modern",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 14,
+      "modes": [
+        "evict",
+        "baseline",
+        "modern",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 15,
+      "modes": [
+        "evict",
+        "baseline",
+        "modern",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 6,
+      "modes": [
+        "modern",
+        "refresh",
+        "baseline",
+        "evict"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 10,
+      "modes": [
+        "evict",
+        "modern",
+        "baseline",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 1,
+      "modes": [
+        "evict",
+        "modern",
+        "baseline",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 6,
+      "modes": [
+        "modern",
+        "evict",
+        "refresh",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 9,
+      "modes": [
+        "refresh",
+        "baseline",
+        "evict",
+        "modern"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 13,
+      "modes": [
+        "baseline",
+        "refresh",
+        "modern",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 12,
+      "modes": [
+        "baseline",
+        "modern",
+        "refresh",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 15,
+      "modes": [
+        "evict",
+        "refresh",
+        "modern",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 20,
+      "modes": [
+        "evict",
+        "refresh",
+        "baseline",
+        "modern"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 10,
+      "modes": [
+        "modern",
+        "baseline",
+        "refresh",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 13,
+      "modes": [
+        "modern",
+        "refresh",
+        "baseline",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 11,
+      "modes": [
+        "refresh",
+        "modern",
+        "baseline",
+        "evict"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 18,
+      "modes": [
+        "evict",
+        "baseline",
+        "modern",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 17,
+      "modes": [
+        "modern",
+        "evict",
+        "refresh",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 7,
+      "modes": [
+        "baseline",
+        "evict",
+        "refresh",
+        "modern"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 19,
+      "modes": [
+        "baseline",
+        "refresh",
+        "evict",
+        "modern"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 8,
+      "modes": [
+        "evict",
+        "baseline",
+        "refresh",
+        "modern"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 16,
+      "modes": [
+        "refresh",
+        "evict",
+        "modern",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 9,
+      "modes": [
+        "refresh",
+        "baseline",
+        "modern",
+        "evict"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 2,
+      "modes": [
+        "refresh",
+        "evict",
+        "modern",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 16,
+      "modes": [
+        "evict",
+        "baseline",
+        "refresh",
+        "modern"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 4,
+      "modes": [
+        "refresh",
+        "evict",
+        "baseline",
+        "modern"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 1,
+      "modes": [
+        "modern",
+        "evict",
+        "baseline",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 3,
+      "modes": [
+        "refresh",
+        "evict",
+        "modern",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 8,
+      "modes": [
+        "baseline",
+        "modern",
+        "evict",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 20,
+      "modes": [
+        "modern",
+        "refresh",
+        "evict",
+        "baseline"
+      ]
+    },
+    {
+      "rows": 50000,
+      "block": 11,
+      "modes": [
+        "baseline",
+        "modern",
+        "evict",
+        "refresh"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 17,
+      "modes": [
+        "evict",
+        "refresh",
+        "baseline",
+        "modern"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 14,
+      "modes": [
+        "baseline",
+        "refresh",
+        "evict",
+        "modern"
+      ]
+    },
+    {
+      "rows": 1000000,
+      "block": 5,
+      "modes": [
+        "refresh",
+        "evict",
+        "baseline",
+        "modern"
+      ]
+    }
+  ]
+}
