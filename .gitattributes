@@ -2,3 +2,5 @@
 # Never let core.autocrlf rewrite hashed CSV, JSON or manifest files.
 benchmarks/evidence/20261109-index-evolution-paired20/* -text
 benchmarks/evidence/20261109-index-evolution-paired20/*.csv whitespace=cr-at-eol
+# The preregistered schedule is SHA-pinned and must be identical on Windows.
+benchmarks/scripts/index-evolution-paired20-schedule.json -text
