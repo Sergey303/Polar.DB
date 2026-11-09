@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "status": "complete",
+  "experiment": "paired20-2021-2026",
+  "sourceSnapshots": {
+    "old": "39cefe13db8697cf5f8e15edaa4677ba52a2cdea",
+    "new": "09ec0703f476f25ec79baff338843df8a8e83b35"
+  },
+  "probes": 10000,
+  "seed": 777,
+  "sizes": [
+    50000,
+    1000000
+  ],
+  "pairsPerSize": 20,
+  "plannedPairs": 40,
+  "completedPairs": 40,
+  "acceptedRuns": 80,
+  "scheduleSha256": "1a74af615154658bc1f4185786dd9c57cef83b3f103e97b6e147b102272b9484",
+  "runnerSha256": "619e66e14b613cb3b7ed236d477c3d4509312ee0f0444e832cff919908bd3f89",
+  "supportSha256": "683f65a193383b15001ec9532f47d32215804b493d05b1c69a70a2ff6fd2e3d3",
+  "adapterSha256": {
+    "IndexEvolutionDirect.csproj": "0f505935bd66c4006c0e5dd8db5b62ecb18526d91f2ee97ff511429831ab752d",
+    "Program.cs": "47fadfaf9d8650a6611f986e9407761d67111d5a48cb23e93731f699f7807a72",
+    "IndexAdapter.cs": "31a52bd6a374db0502809507f8f75d5ddbf45190ec63d40a77b93b27ea2dfdbc",
+    "LegacyAdapter.cs": "2da7435d4f4af374a3d23ab3662a7db98e719dbf3e1059d35762df070747a454",
+    "ModernAdapter.cs": "7e0733560fcea23129f79a1884b768fef00f8443153a0b5876c9b4132f839c23"
+  },
+  "gitHead": "f6e8fac0376d5581090a5f29ed2a98cf6da246ba",
+  "gitTrackedDirty": false,
+  "environment": {
+    "platform": "macOS-26.7.2-arm64-arm-64bit",
+    "python": "3.12.10",
+    "sdk": "10.0.103",
+    "sdks": [
+      "8.0.101 [/Users/runner/.dotnet/sdk]",
+      "8.0.204 [/Users/runner/.dotnet/sdk]",
+      "8.0.303 [/Users/runner/.dotnet/sdk]",
+      "8.0.427 [/Users/runner/.dotnet/sdk]",
+      "9.0.102 [/Users/runner/.dotnet/sdk]",
+      "9.0.203 [/Users/runner/.dotnet/sdk]",
+      "9.0.320 [/Users/runner/.dotnet/sdk]",
+      "10.0.103 [/Users/runner/.dotnet/sdk]",
+      "10.0.203 [/Users/runner/.dotnet/sdk]",
+      "10.0.302 [/Users/runner/.dotnet/sdk]",
+      "10.0.403 [/Users/runner/.dotnet/sdk]"
+    ],
+    "runtimes": [
+      "Microsoft.AspNetCore.App 8.0.1 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.4 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.7 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.33 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.1 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.4 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.22 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.3 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.7 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.10 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.14 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.NETCore.App 8.0.1 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.4 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.7 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.33 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.1 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.4 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.22 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.3 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.7 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.10 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.14 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]"
+    ],
+    "cpus": 3,
+    "machine": "arm64"
+  },
+  "resultsSha256": "c2e44545e1cd60cc4119a9759fb20cce10d1e6353e2da5938f2b5b228d0061f0",
+  "invocationsSha256": "6d0ba45d9c492f2b5886701c75a69d609314569e2480b43178b1779959b9d632"
+}

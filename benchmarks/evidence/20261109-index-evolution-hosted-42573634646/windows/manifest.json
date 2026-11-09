@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "status": "complete",
+  "experiment": "paired20-2021-2026",
+  "sourceSnapshots": {
+    "old": "39cefe13db8697cf5f8e15edaa4677ba52a2cdea",
+    "new": "09ec0703f476f25ec79baff338843df8a8e83b35"
+  },
+  "probes": 10000,
+  "seed": 777,
+  "sizes": [
+    50000,
+    1000000
+  ],
+  "pairsPerSize": 20,
+  "plannedPairs": 40,
+  "completedPairs": 40,
+  "acceptedRuns": 80,
+  "scheduleSha256": "1a74af615154658bc1f4185786dd9c57cef83b3f103e97b6e147b102272b9484",
+  "runnerSha256": "18fe15630327350dfd563b76e37add5fac0a6c308913578f12ba1bab5c846634",
+  "supportSha256": "8a775c7b0b8c573da37efaf084c860590b61a5b9e49a53e7dd0e8595e6743c74",
+  "adapterSha256": {
+    "IndexEvolutionDirect.csproj": "57bd8a03a8467c0f7ccbc39d27779fdcc035c467f4275cea80398997c97bc760",
+    "Program.cs": "599ff178e9a4113cb1d22d0ca1dcdf2ec2654ce9bd41b5b06cea835a3647199d",
+    "IndexAdapter.cs": "c2365b6bdf201d894a1e8f997cca9618d3b09cf4a5de3ae27273b2dcc12e2179",
+    "LegacyAdapter.cs": "fbfaee35f0064108cacc994edfe619306cb123f924283c87e9b0cc5bc3930f0a",
+    "ModernAdapter.cs": "5aff061eaec107deaf80bacb027142102392622546137dcf3b7ff8906733e7d4"
+  },
+  "gitHead": "f6e8fac0376d5581090a5f29ed2a98cf6da246ba",
+  "gitTrackedDirty": false,
+  "environment": {
+    "platform": "Windows-2025Server-10.0.26100-SP0",
+    "python": "3.12.10",
+    "sdk": "10.0.114",
+    "sdks": [
+      "8.0.133 [C:\\Program Files\\dotnet\\sdk]",
+      "8.0.206 [C:\\Program Files\\dotnet\\sdk]",
+      "8.0.319 [C:\\Program Files\\dotnet\\sdk]",
+      "8.0.427 [C:\\Program Files\\dotnet\\sdk]",
+      "9.0.123 [C:\\Program Files\\dotnet\\sdk]",
+      "9.0.205 [C:\\Program Files\\dotnet\\sdk]",
+      "9.0.320 [C:\\Program Files\\dotnet\\sdk]",
+      "10.0.114 [C:\\Program Files\\dotnet\\sdk]",
+      "10.0.204 [C:\\Program Files\\dotnet\\sdk]",
+      "10.0.303 [C:\\Program Files\\dotnet\\sdk]",
+      "10.0.403 [C:\\Program Files\\dotnet\\sdk]"
+    ],
+    "runtimes": [
+      "Microsoft.AspNetCore.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.33 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.14 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]",
+      "Microsoft.NETCore.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.33 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.14 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]",
+      "Microsoft.WindowsDesktop.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 8.0.33 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 9.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]",
+      "Microsoft.WindowsDesktop.App 10.0.14 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]"
+    ],
+    "cpus": 4,
+    "machine": "AMD64"
+  },
+  "resultsSha256": "3e71e192716dc54a9ea07c77873ca4df418fe50400aa8f7c4a0f17de8fbd61ad",
+  "invocationsSha256": "3918cc34be5732421f13bc86ad7fa79c4c2ed10cd8430dd9da602d6879f68297"
+}

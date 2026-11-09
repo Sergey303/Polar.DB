@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "status": "complete",
+  "experiment": "paired20-2021-2026",
+  "sourceSnapshots": {
+    "old": "39cefe13db8697cf5f8e15edaa4677ba52a2cdea",
+    "new": "09ec0703f476f25ec79baff338843df8a8e83b35"
+  },
+  "probes": 10000,
+  "seed": 777,
+  "sizes": [
+    50000,
+    1000000
+  ],
+  "pairsPerSize": 20,
+  "plannedPairs": 40,
+  "completedPairs": 40,
+  "acceptedRuns": 80,
+  "scheduleSha256": "1a74af615154658bc1f4185786dd9c57cef83b3f103e97b6e147b102272b9484",
+  "runnerSha256": "619e66e14b613cb3b7ed236d477c3d4509312ee0f0444e832cff919908bd3f89",
+  "supportSha256": "683f65a193383b15001ec9532f47d32215804b493d05b1c69a70a2ff6fd2e3d3",
+  "adapterSha256": {
+    "IndexEvolutionDirect.csproj": "0f505935bd66c4006c0e5dd8db5b62ecb18526d91f2ee97ff511429831ab752d",
+    "Program.cs": "47fadfaf9d8650a6611f986e9407761d67111d5a48cb23e93731f699f7807a72",
+    "IndexAdapter.cs": "31a52bd6a374db0502809507f8f75d5ddbf45190ec63d40a77b93b27ea2dfdbc",
+    "LegacyAdapter.cs": "2da7435d4f4af374a3d23ab3662a7db98e719dbf3e1059d35762df070747a454",
+    "ModernAdapter.cs": "7e0733560fcea23129f79a1884b768fef00f8443153a0b5876c9b4132f839c23"
+  },
+  "gitHead": "f6e8fac0376d5581090a5f29ed2a98cf6da246ba",
+  "gitTrackedDirty": false,
+  "environment": {
+    "platform": "Linux-7.0.0-1019-azure-x86_64-with-glibc2.43",
+    "python": "3.12.16",
+    "sdk": "10.0.114",
+    "sdks": [
+      "8.0.133 [/usr/share/dotnet/sdk]",
+      "8.0.206 [/usr/share/dotnet/sdk]",
+      "8.0.319 [/usr/share/dotnet/sdk]",
+      "8.0.427 [/usr/share/dotnet/sdk]",
+      "9.0.123 [/usr/share/dotnet/sdk]",
+      "9.0.205 [/usr/share/dotnet/sdk]",
+      "9.0.320 [/usr/share/dotnet/sdk]",
+      "10.0.114 [/usr/share/dotnet/sdk]",
+      "10.0.204 [/usr/share/dotnet/sdk]",
+      "10.0.303 [/usr/share/dotnet/sdk]",
+      "10.0.403 [/usr/share/dotnet/sdk]"
+    ],
+    "runtimes": [
+      "Microsoft.AspNetCore.App 8.0.6 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.22 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.33 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.6 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.22 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.8 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.11 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.NETCore.App 8.0.6 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.22 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.33 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.6 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.22 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.8 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.11 [/usr/share/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.NETCore.App]"
+    ],
+    "cpus": 4,
+    "machine": "x86_64"
+  },
+  "resultsSha256": "ce970bd023da489acd2785d1647819a8782909c7a8d0f84b4b51defe7048f16e",
+  "invocationsSha256": "c9b8563f02035c2c657d3b1e7f4b3b856fa6c1acb6fd1e609c001d94877aafd3"
+}

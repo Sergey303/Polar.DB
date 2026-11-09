@@ -536,3 +536,5 @@ measuring only the process after the store has been closed.
 
 Green cells mark winners for comparable metrics. Lower is better for timings and
 memory sizes. Higher is better for rows/sec and available RAM.
+
+**Повторение исторического внешнего индекса на иных вычислительных средах (9 ноября 2026):** [научный отчёт](INDEX_EVOLUTION_HOSTED_COMPARISON_20261109.md), [полные архивы Ubuntu, Windows и macOS](../evidence/20261109-index-evolution-hosted-42573634646/README.md), [запуск GitHub Actions](https://github.com/Sergey303/Polar.DB/actions/runs/42573634646). В каждой облачной среде выполнены 20 пар на размер (всего 120 пар, 240 процессов), направление преимущества поиска 2026 года сохранилось в каждой паре. Пересчёт архивов включён в `python3 benchmarks/scripts/verify-publication.py --only hosted20`. Исходная трёхпарная серия и новая WSL2-серия сохранены отдельно.

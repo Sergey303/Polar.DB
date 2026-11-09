@@ -1,0 +1,253 @@
+{
+  "status": "complete",
+  "experiment": "2021-vs-2026-paired20-10000probes",
+  "rawCsvSha256": "c2e44545e1cd60cc4119a9759fb20cce10d1e6353e2da5938f2b5b228d0061f0",
+  "scheduleSha256": "1a74af615154658bc1f4185786dd9c57cef83b3f103e97b6e147b102272b9484",
+  "manifestGitHead": "f6e8fac0376d5581090a5f29ed2a98cf6da246ba",
+  "host": {
+    "platform": "macOS-26.7.2-arm64-arm-64bit",
+    "python": "3.12.10",
+    "sdk": "10.0.103",
+    "sdks": [
+      "8.0.101 [/Users/runner/.dotnet/sdk]",
+      "8.0.204 [/Users/runner/.dotnet/sdk]",
+      "8.0.303 [/Users/runner/.dotnet/sdk]",
+      "8.0.427 [/Users/runner/.dotnet/sdk]",
+      "9.0.102 [/Users/runner/.dotnet/sdk]",
+      "9.0.203 [/Users/runner/.dotnet/sdk]",
+      "9.0.320 [/Users/runner/.dotnet/sdk]",
+      "10.0.103 [/Users/runner/.dotnet/sdk]",
+      "10.0.203 [/Users/runner/.dotnet/sdk]",
+      "10.0.302 [/Users/runner/.dotnet/sdk]",
+      "10.0.403 [/Users/runner/.dotnet/sdk]"
+    ],
+    "runtimes": [
+      "Microsoft.AspNetCore.App 8.0.1 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.4 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.7 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 8.0.33 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.1 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.4 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.22 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.3 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.7 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.10 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.14 [/Users/runner/.dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.NETCore.App 8.0.1 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.4 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.7 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 8.0.33 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.1 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.4 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.22 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.3 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.7 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.10 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.14 [/Users/runner/.dotnet/shared/Microsoft.NETCore.App]"
+    ],
+    "cpus": 3,
+    "machine": "arm64"
+  },
+  "bySize": {
+    "50000": {
+      "ratioGeomean": 2.2154366323547263,
+      "ratioMedian": 2.1945016194781237,
+      "ratioRange": [
+        1.602612265601471,
+        3.101566185489197
+      ],
+      "bootstrap95": [
+        2.0829069989139923,
+        2.3551085455066763
+      ],
+      "oldFasterPairs": 0,
+      "newFasterPairs": 20,
+      "equalPairs": 0,
+      "pairRatios": [
+        2.2336827010270146,
+        2.322619115225169,
+        2.572449223416965,
+        2.4703008134519844,
+        2.1408668730650153,
+        1.9026721322256077,
+        1.9873439209325134,
+        2.662924851886498,
+        1.9466278833795578,
+        2.3740392991965926,
+        3.101566185489197,
+        2.1301504728103655,
+        1.9249459441385615,
+        2.3480298664935275,
+        2.1553205379292333,
+        2.031930734020846,
+        2.0919487543831505,
+        1.602612265601471,
+        2.451363294644003,
+        2.2983315348219473
+      ],
+      "ratioByOrder": {
+        "old-new": {
+          "n": 10,
+          "geomean": 2.247414501548903,
+          "median": 2.1427355053697994
+        },
+        "new-old": {
+          "n": 10,
+          "geomean": 2.183913767841482,
+          "median": 2.278150908126092
+        }
+      },
+      "lookup_ms": {
+        "old": {
+          "median": 92.60900000000001,
+          "min": 78.831,
+          "max": 133.69
+        },
+        "new": {
+          "median": 43.991,
+          "min": 35.218,
+          "max": 63.087
+        }
+      },
+      "index_build_ms": {
+        "old": {
+          "median": 37.099999999999994,
+          "min": 28.745,
+          "max": 50.84
+        },
+        "new": {
+          "median": 35.6675,
+          "min": 26.396,
+          "max": 60.739
+        }
+      },
+      "load_ms": {
+        "old": {
+          "median": 11.338,
+          "min": 8.07,
+          "max": 19.154
+        },
+        "new": {
+          "median": 10.5935,
+          "min": 8.817,
+          "max": 20.695
+        }
+      },
+      "prerequisite_ms": {
+        "old": {
+          "median": 1.1585,
+          "min": 0.904,
+          "max": 2.056
+        },
+        "new": {
+          "median": 25.929499999999997,
+          "min": 20.236,
+          "max": 100.449
+        }
+      },
+      "checksums": [
+        "248691229"
+      ]
+    },
+    "1000000": {
+      "ratioGeomean": 2.4085443277309713,
+      "ratioMedian": 2.5158354259060767,
+      "ratioRange": [
+        1.2459082046688095,
+        3.314659398733651
+      ],
+      "bootstrap95": [
+        2.1440197227480073,
+        2.671803553522218
+      ],
+      "oldFasterPairs": 0,
+      "newFasterPairs": 20,
+      "equalPairs": 0,
+      "pairRatios": [
+        1.9785739547312164,
+        3.309178048379134,
+        1.2459082046688095,
+        2.3839195617702176,
+        3.314659398733651,
+        2.680686850178376,
+        3.058863328822734,
+        3.0557072998810515,
+        1.6713497145973804,
+        3.186686416310882,
+        2.2277444247886224,
+        2.424149250627572,
+        2.73392368455646,
+        2.4866096182954425,
+        2.277487011737541,
+        2.5847260955204088,
+        2.7169199496660537,
+        2.5450612335167113,
+        1.5269088353151743,
+        2.1988823277007006
+      ],
+      "ratioByOrder": {
+        "old-new": {
+          "n": 10,
+          "geomean": 2.463641272005303,
+          "median": 2.431106553628975
+        },
+        "new-old": {
+          "n": 10,
+          "geomean": 2.354679573103267,
+          "median": 2.5158354259060767
+        }
+      },
+      "lookup_ms": {
+        "old": {
+          "median": 180.3005,
+          "min": 118.218,
+          "max": 230.571
+        },
+        "new": {
+          "median": 71.91499999999999,
+          "min": 45.398,
+          "max": 138.003
+        }
+      },
+      "index_build_ms": {
+        "old": {
+          "median": 524.431,
+          "min": 388.639,
+          "max": 737.351
+        },
+        "new": {
+          "median": 621.4694999999999,
+          "min": 378.285,
+          "max": 1049.494
+        }
+      },
+      "load_ms": {
+        "old": {
+          "median": 185.35250000000002,
+          "min": 140.758,
+          "max": 244.919
+        },
+        "new": {
+          "median": 98.1165,
+          "min": 60.372,
+          "max": 132.435
+        }
+      },
+      "prerequisite_ms": {
+        "old": {
+          "median": 1.2485,
+          "min": 0.973,
+          "max": 2.992
+        },
+        "new": {
+          "median": 266.70050000000003,
+          "min": 193.357,
+          "max": 336.232
+        }
+      },
+      "checksums": [
+        "4973919746"
+      ]
+    }
+  }
+}

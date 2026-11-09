@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path, PurePosixPath
 import subprocess
@@ -48,14 +49,41 @@ def extract_main_results(destination: Path) -> int:
 
 def verify() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20"),
+    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20", "hosted20"),
                         default="all")
     args = parser.parse_args()
-    selection = ("provenance", "main", "cache", "historical", "paired20") if args.only == "all" else (args.only,)
+    selection = ("provenance", "main", "cache", "historical", "paired20", "hosted20") if args.only == "all" else (args.only,)
     for step in selection:
         print(f"CHECK {step}", flush=True)
         env = os.environ.copy()
-        if step == "paired20":
+        if step == "hosted20":
+            artifact = ROOT / "benchmarks/evidence/20261109-index-evolution-hosted-42573634646"
+            summary = []
+            for osname in ("ubuntu", "windows", "macos"):
+                directory = artifact / osname
+                command = [sys.executable, str(SCRIPTS / "analyze-index-evolution-paired20.py"), str(directory)]
+                completed = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,
+                                           text=True, encoding="utf-8")
+                if completed.returncode:
+                    print(completed.stdout, completed.stderr, file=sys.stderr)
+                    raise RuntimeError("Cannot independently analyze hosted experiment: " + osname)
+                recalc = json.loads(completed.stdout)
+                expected = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+                if recalc != expected or recalc["manifestGitHead"] != "f6e8fac0376d5581090a5f29ed2a98cf6da246ba":
+                    raise RuntimeError("Hosted reanalysis/provenance mismatch: " + osname)
+                sums = (directory / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
+                from hashlib import sha256
+                for line in sums:
+                    digest, name = line.split("  ", 1)
+                    file = directory / name
+                    if not file.is_file() or sha256(file.read_bytes()).hexdigest() != digest:
+                        raise RuntimeError("Hosted SHA-256 mismatch: " + osname + "/" + name)
+                summary.append(osname)
+            subprocess.run([sys.executable, str(SCRIPTS / "check-index-evolution-article12.py")],
+                           cwd=ROOT, env=env, check=True)
+            print("OK: 3 hosted OS, 120 pairs, 240 process logs, article Table 12 and all SHA-256 verified")
+            result = subprocess.CompletedProcess([], 0)
+        elif step == "paired20":
             with tempfile.TemporaryDirectory(prefix="polar-paired20-verification-") as directory:
                 artifact = ROOT / "benchmarks/evidence/20261109-index-evolution-paired20"
                 command = [sys.executable, str(SCRIPTS / "analyze-index-evolution-paired20.py"),

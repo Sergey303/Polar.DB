@@ -4,3 +4,8 @@ benchmarks/evidence/20261109-index-evolution-paired20/* -text
 benchmarks/evidence/20261109-index-evolution-paired20/*.csv whitespace=cr-at-eol
 # The preregistered schedule is SHA-pinned and must be identical on Windows.
 benchmarks/scripts/index-evolution-paired20-schedule.json -text
+
+# Byte-exact historical measurements from three GitHub-hosted machines.
+benchmarks/evidence/20261109-index-evolution-hosted-42573634646/*/* -text
+benchmarks/evidence/20261109-index-evolution-hosted-42573634646/*/*.csv whitespace=cr-at-eol
+benchmarks/evidence/20261109-index-evolution-hosted-42573634646/*/*.json whitespace=cr-at-eol
