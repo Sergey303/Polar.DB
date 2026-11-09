@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import subprocess
@@ -47,6 +48,29 @@ def extract_main_results(destination: Path) -> int:
     return count
 
 
+
+def same_statistics(actual,expected,where='root') -> None:
+    """Exact provenance/shape, numeric tolerance only for derived IEEE754 floats."""
+    if type(actual) is not type(expected):
+        raise RuntimeError(f'Type mismatch at {where}: {type(actual).__name__} vs {type(expected).__name__}')
+    if isinstance(actual,dict):
+        if actual.keys()!=expected.keys():
+            raise RuntimeError(f'Keys differ at {where}')
+        for key in actual:
+            same_statistics(actual[key],expected[key],where+'.'+key)
+    elif isinstance(actual,list):
+        if len(actual)!=len(expected):
+            raise RuntimeError(f'List size differs at {where}')
+        for i,(x,y) in enumerate(zip(actual,expected)):
+            same_statistics(x,y,f'{where}[{i}]')
+    elif isinstance(actual,float):
+        if not (math.isfinite(actual) and math.isfinite(expected) and
+                math.isclose(actual,expected,rel_tol=1e-12,abs_tol=1e-12)):
+            raise RuntimeError(f'Numerical mismatch at {where}: {actual} vs {expected}')
+    elif actual!=expected:
+        raise RuntimeError(f'Value mismatch at {where}: {actual} vs {expected}')
+
+
 def verify() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20", "hosted20"),
@@ -69,8 +93,9 @@ def verify() -> int:
                     raise RuntimeError("Cannot independently analyze hosted experiment: " + osname)
                 recalc = json.loads(completed.stdout)
                 expected = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
-                if recalc != expected or recalc["manifestGitHead"] != "f6e8fac0376d5581090a5f29ed2a98cf6da246ba":
-                    raise RuntimeError("Hosted reanalysis/provenance mismatch: " + osname)
+                if recalc["manifestGitHead"] != "f6e8fac0376d5581090a5f29ed2a98cf6da246ba":
+                    raise RuntimeError("Hosted source Git SHA mismatch: " + osname)
+                same_statistics(recalc,expected,where=osname)
                 sums = (directory / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
                 from hashlib import sha256
                 for line in sums:
