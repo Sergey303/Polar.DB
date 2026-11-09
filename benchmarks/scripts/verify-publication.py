@@ -48,14 +48,34 @@ def extract_main_results(destination: Path) -> int:
 
 def verify() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance"),
+    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20"),
                         default="all")
     args = parser.parse_args()
-    selection = ("provenance", "main", "cache", "historical") if args.only == "all" else (args.only,)
+    selection = ("provenance", "main", "cache", "historical", "paired20") if args.only == "all" else (args.only,)
     for step in selection:
         print(f"CHECK {step}", flush=True)
         env = os.environ.copy()
-        if step == "main":
+        if step == "paired20":
+            with tempfile.TemporaryDirectory(prefix="polar-paired20-verification-") as directory:
+                artifact = ROOT / "benchmarks/evidence/20261109-index-evolution-paired20"
+                command = [sys.executable, str(SCRIPTS / "analyze-index-evolution-paired20.py"),
+                           str(artifact), "--out", str(Path(directory) / "summary.json")]
+                result = subprocess.run(command, cwd=ROOT, env=env, check=False,
+                                        capture_output=True, text=True, encoding="utf-8")
+                if result.returncode == 0:
+                    expected=(artifact/"summary.json").read_text(encoding="utf-8")
+                    actual=(Path(directory)/"summary.json").read_text(encoding="utf-8")
+                    if expected != actual:
+                        raise RuntimeError("Paired20 published summary differs from recalculated data")
+                    sums=(artifact/"SHA256SUMS").read_text(encoding="utf-8").splitlines()
+                    from hashlib import sha256
+                    for line in sums:
+                        digest,name=line.split('  ',1)
+                        file=artifact/name
+                        if not file.is_file() or sha256(file.read_bytes()).hexdigest()!=digest:
+                            raise RuntimeError("Paired20 evidence file checksum mismatch: "+name)
+                    print("OK: 40 pairs, 80 logs, frozen schedule, ratio bootstrap, all published file digests")
+        elif step == "main":
             with tempfile.TemporaryDirectory(prefix="polar-main-article-") as directory:
                 extract_main_results(Path(directory))
                 env["POLAR_DB_MAIN_RESULTS_DIR"] = directory

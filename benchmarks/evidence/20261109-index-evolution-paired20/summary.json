@@ -1,0 +1,229 @@
+{
+  "status": "complete",
+  "experiment": "2021-vs-2026-paired20-10000probes",
+  "rawCsvSha256": "338d625b009578211109d310f9e093f704fb4de10a411f2ec34eba43ad4d44d8",
+  "scheduleSha256": "1a74af615154658bc1f4185786dd9c57cef83b3f103e97b6e147b102272b9484",
+  "manifestGitHead": "ef22d0e70a80948c806cbd1f86f2de39c29c0117",
+  "host": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.14",
+    "sdk": "10.0.112",
+    "sdks": [
+      "8.0.131 [/usr/lib/dotnet/sdk]",
+      "9.0.121 [/usr/lib/dotnet/sdk]",
+      "10.0.112 [/usr/lib/dotnet/sdk]"
+    ],
+    "runtimes": [
+      "Microsoft.AspNetCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 9.0.20 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.AspNetCore.App 10.0.12 [/usr/lib/dotnet/shared/Microsoft.AspNetCore.App]",
+      "Microsoft.NETCore.App 8.0.31 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 9.0.20 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]",
+      "Microsoft.NETCore.App 10.0.12 [/usr/lib/dotnet/shared/Microsoft.NETCore.App]"
+    ],
+    "cpus": 12,
+    "machine": "x86_64"
+  },
+  "bySize": {
+    "50000": {
+      "ratioGeomean": 1.2706209198616,
+      "ratioMedian": 1.275324414548216,
+      "ratioRange": [
+        1.1261616837581059,
+        1.383280443447593
+      ],
+      "bootstrap95": [
+        1.238890553240654,
+        1.3018987316000379
+      ],
+      "oldFasterPairs": 0,
+      "newFasterPairs": 20,
+      "equalPairs": 0,
+      "pairRatios": [
+        1.3241564647343345,
+        1.1261616837581059,
+        1.2446651978780519,
+        1.3049751542902228,
+        1.3033903187269438,
+        1.1506334862491068,
+        1.2733563217115338,
+        1.279208025996828,
+        1.3362212849973998,
+        1.2203232146259269,
+        1.2523677857419555,
+        1.3817988175375835,
+        1.383280443447593,
+        1.2010504897756875,
+        1.242742324620446,
+        1.2772925073848986,
+        1.2451904836969654,
+        1.3798967363521555,
+        1.3325407182244897,
+        1.1934020361100752
+      ],
+      "ratioByOrder": {
+        "old-new": {
+          "n": 10,
+          "geomean": 1.28747628550373,
+          "median": 1.264830146563427
+        },
+        "new-old": {
+          "n": 10,
+          "geomean": 1.2539862210807775,
+          "median": 1.276282173854181
+        }
+      },
+      "lookup_ms": {
+        "old": {
+          "median": 4824.3405,
+          "min": 4447.214,
+          "max": 6061.216
+        },
+        "new": {
+          "median": 3760.182,
+          "min": 3538.709,
+          "max": 5092.608
+        }
+      },
+      "index_build_ms": {
+        "old": {
+          "median": 52.6315,
+          "min": 46.941,
+          "max": 115.923
+        },
+        "new": {
+          "median": 58.652,
+          "min": 49.284,
+          "max": 75.872
+        }
+      },
+      "load_ms": {
+        "old": {
+          "median": 18.78,
+          "min": 15.947,
+          "max": 24.031
+        },
+        "new": {
+          "median": 24.115,
+          "min": 20.259,
+          "max": 36.603
+        }
+      },
+      "prerequisite_ms": {
+        "old": {
+          "median": 3.5300000000000002,
+          "min": 3.142,
+          "max": 14.928
+        },
+        "new": {
+          "median": 39.3445,
+          "min": 33.167,
+          "max": 51.106
+        }
+      },
+      "checksums": [
+        "248691229"
+      ]
+    },
+    "1000000": {
+      "ratioGeomean": 1.4614464539424545,
+      "ratioMedian": 1.4758709750025594,
+      "ratioRange": [
+        1.150619059744228,
+        1.6782116963490388
+      ],
+      "bootstrap95": [
+        1.3961670528364634,
+        1.5218237374042738
+      ],
+      "oldFasterPairs": 0,
+      "newFasterPairs": 20,
+      "equalPairs": 0,
+      "pairRatios": [
+        1.5482867142257613,
+        1.5882910640641419,
+        1.6312857025092224,
+        1.5512481058263812,
+        1.4390499991906092,
+        1.4844774835288368,
+        1.4603080843666805,
+        1.4952448565132508,
+        1.270940194532832,
+        1.4131173831036947,
+        1.165451276100163,
+        1.467264466476282,
+        1.4947250116555333,
+        1.6320690715176143,
+        1.150619059744228,
+        1.525836771913529,
+        1.452237573411075,
+        1.4485779759831336,
+        1.6782116963490388,
+        1.465505440035544
+      ],
+      "ratioByOrder": {
+        "old-new": {
+          "n": 10,
+          "geomean": 1.4022621001711906,
+          "median": 1.4749914617821904
+        },
+        "new-old": {
+          "n": 10,
+          "geomean": 1.5231287627899444,
+          "median": 1.4809947390659075
+        }
+      },
+      "lookup_ms": {
+        "old": {
+          "median": 5710.630499999999,
+          "min": 5310.497,
+          "max": 6965.603
+        },
+        "new": {
+          "median": 3882.9719999999998,
+          "min": 3666.007,
+          "max": 5422.811
+        }
+      },
+      "index_build_ms": {
+        "old": {
+          "median": 486.08950000000004,
+          "min": 460.409,
+          "max": 708.14
+        },
+        "new": {
+          "median": 531.9715000000001,
+          "min": 474.412,
+          "max": 679.497
+        }
+      },
+      "load_ms": {
+        "old": {
+          "median": 216.1605,
+          "min": 210.631,
+          "max": 385.067
+        },
+        "new": {
+          "median": 190.2215,
+          "min": 180.325,
+          "max": 353.582
+        }
+      },
+      "prerequisite_ms": {
+        "old": {
+          "median": 3.738,
+          "min": 2.989,
+          "max": 14.777
+        },
+        "new": {
+          "median": 292.5905,
+          "min": 252.651,
+          "max": 365.684
+        }
+      },
+      "checksums": [
+        "4973919746"
+      ]
+    }
+  }
+}

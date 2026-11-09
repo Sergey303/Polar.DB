@@ -1,0 +1,3 @@
+
+# Scientific raw CSV is byte-preserved CRLF from the pinned Python runner.
+benchmarks/evidence/20261109-index-evolution-paired20/*.csv whitespace=cr-at-eol
