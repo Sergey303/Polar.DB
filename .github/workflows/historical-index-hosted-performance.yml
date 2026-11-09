@@ -1,0 +1,57 @@
+name: Polar.DB historical index performance on hosted runners
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Paired20 performance ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Read complete pinned source history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install .NET SDK and runtime
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Preflight frozen protocol and existing evidence
+        run: |
+          python -m unittest discover -s benchmarks/scripts -p test_index_evolution_paired20.py -v
+          python benchmarks/scripts/verify-publication.py --only paired20
+
+      - name: Execute 40 predeclared balanced pairs (80 processes)
+        run: python benchmarks/scripts/run-index-evolution-paired20.py --output "${{ runner.temp }}/polar-historical-paired20-hosted"
+
+      - name: Upload original measurements and all process logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: index-paired20-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/polar-historical-paired20-hosted/manifest.json
+            ${{ runner.temp }}/polar-historical-paired20-hosted/results.csv
+            ${{ runner.temp }}/polar-historical-paired20-hosted/invocations.csv
+            ${{ runner.temp }}/polar-historical-paired20-hosted/build-*.log
+            ${{ runner.temp }}/polar-historical-paired20-hosted/measure-*.log
+          if-no-files-found: error
+          retention-days: 30
