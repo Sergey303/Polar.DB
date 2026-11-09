@@ -1,0 +1,91 @@
+name: R2 old-index page cache on GitHub hosted Linux
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-controlled-cache-study:
+    name: Cache R2 ${{ matrix.id }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ubuntu-24-x64
+            os: ubuntu-24.04
+          - id: ubuntu-22-x64
+            os: ubuntu-22.04
+          - id: ubuntu-24-arm64
+            os: ubuntu-24.04-arm
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Checkout complete history for immutable 2021/2026 source revisions
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exactly pinned .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.112'
+
+      - name: Verify original protocol and Linux ext4 filesystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 benchmarks/scripts/verify-publication.py --only r2cache
+          python3 -m py_compile benchmarks/scripts/run-index-evolution-cache-study.py benchmarks/scripts/index-evolution-cache-pages.py
+          dotnet --list-sdks
+          findmnt -T /root -o TARGET,SOURCE,FSTYPE,OPTIONS
+          test "$(findmnt -T /root -n -o FSTYPE)" = ext4
+          df -h /root
+          sudo git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sudo env PATH="$PATH" HOME=/root git -C "$GITHUB_WORKSPACE" cat-file -e '39cefe13db8697cf5f8e15edaa4677ba52a2cdea^{commit}'
+          sudo env PATH="$PATH" HOME=/root git -C "$GITHUB_WORKSPACE" cat-file -e '09ec0703f476f25ec79baff338843df8a8e83b35^{commit}'
+
+      - name: Run exactly the preregistered 40 blocks and 160 processes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo env PATH="$PATH" HOME=/root DOTNET_ROOT="${DOTNET_ROOT:-}" DOTNET_NOLOGO=true DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+            python3 benchmarks/scripts/run-index-evolution-cache-study.py \
+              --output "/root/polar-r2cache-hosted-${{ github.run_id }}-${{ matrix.id }}"
+
+      - name: Export raw artifacts without changing counted values
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="/root/polar-r2cache-hosted-${{ github.run_id }}-${{ matrix.id }}"
+          dest="${RUNNER_TEMP}/r2cache-hosted"
+          mkdir -p "$dest"
+          if sudo test -d "$src"; then
+            sudo tar -C "$src" --exclude='./_build' -cf - . | tar -C "$dest" -xf -
+            test -f "$dest/manifest.json"
+            test -f "$dest/results.csv"
+            python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print("status",m["status"],"runs",m["acceptedProcesses"])' "$dest/manifest.json"
+          fi
+
+      - name: Upload all logs and measurements even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r2cache-${{ matrix.id }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/r2cache-hosted/manifest.json
+            ${{ runner.temp }}/r2cache-hosted/results.csv
+            ${{ runner.temp }}/r2cache-hosted/build-*.log
+            ${{ runner.temp }}/r2cache-hosted/measure-*.log
+          retention-days: 30
+          if-no-files-found: warn
