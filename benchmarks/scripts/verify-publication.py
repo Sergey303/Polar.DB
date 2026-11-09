@@ -62,6 +62,9 @@ def verify() -> int:
                            str(artifact), "--out", str(Path(directory) / "summary.json")]
                 result = subprocess.run(command, cwd=ROOT, env=env, check=False,
                                         capture_output=True, text=True, encoding="utf-8")
+                if result.returncode != 0:
+                    print(result.stdout, file=sys.stderr)
+                    print(result.stderr, file=sys.stderr)
                 if result.returncode == 0:
                     expected=(artifact/"summary.json").read_text(encoding="utf-8")
                     actual=(Path(directory)/"summary.json").read_text(encoding="utf-8")

@@ -1,3 +1,4 @@
-
-# Scientific raw CSV is byte-preserved CRLF from the pinned Python runner.
+# Preserve byte-exact published research evidence on every operating system.
+# Never let core.autocrlf rewrite hashed CSV, JSON or manifest files.
+benchmarks/evidence/20261109-index-evolution-paired20/* -text
 benchmarks/evidence/20261109-index-evolution-paired20/*.csv whitespace=cr-at-eol
