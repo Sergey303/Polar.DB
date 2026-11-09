@@ -73,14 +73,39 @@ def same_statistics(actual,expected,where='root') -> None:
 
 def verify() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20", "hosted20", "r2cache"),
+    parser.add_argument("--only", choices=("all", "main", "cache", "historical", "provenance", "paired20", "hosted20", "r2cache", "hostedr2cache"),
                         default="all")
     args = parser.parse_args()
-    selection = ("provenance", "main", "cache", "historical", "paired20", "hosted20", "r2cache") if args.only == "all" else (args.only,)
+    selection = ("provenance", "main", "cache", "historical", "paired20", "hosted20", "r2cache", "hostedr2cache") if args.only == "all" else (args.only,)
     for step in selection:
         print(f"CHECK {step}", flush=True)
         env = os.environ.copy()
-        if step == "r2cache":
+        if step == "hostedr2cache":
+            artifact = ROOT / "benchmarks/evidence/20261109-index-evolution-cache-hosted-42593558005"
+            for variant in ("ubuntu-22-x64", "ubuntu-24-x64", "ubuntu-24-arm64"):
+                directory = artifact / variant
+                command = [sys.executable, str(SCRIPTS / "analyze-index-evolution-cache-study.py"), str(directory)]
+                process = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,
+                                         text=True, encoding="utf-8")
+                if process.returncode:
+                    print(process.stdout,process.stderr,file=sys.stderr)
+                    raise RuntimeError("Hosted R2 cache archive failed: " + variant)
+                recalc = json.loads(process.stdout)
+                if recalc["sourceSha"] != "ff0f99eacc91b46cd010cd57b92e65529fd8a732":
+                    raise RuntimeError("Unexpected hosted R2 source Git SHA: " + variant)
+                published = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+                same_statistics(recalc, published, "hostedr2cache." + variant)
+                from hashlib import sha256
+                for entry in (directory / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
+                    expected_sha, name = entry.split("  ", 1)
+                    file = directory / name
+                    if not file.is_file() or sha256(file.read_bytes()).hexdigest() != expected_sha:
+                        raise RuntimeError("Hosted R2 cache SHA-256 mismatch: " + variant + "/" + name)
+            subprocess.run([sys.executable, str(SCRIPTS / "check-index-evolution-cache-hosted-article13.py")],
+                           cwd=ROOT, env=env, check=True)
+            print("OK: 3 independent Linux runners, 120 blocks, 480 process logs, SHA-256 and article Table 13")
+            result = subprocess.CompletedProcess([], 0)
+        elif step == "r2cache":
             archive = ROOT / "benchmarks/evidence/20261109-index-evolution-cache-r2"
             command = [sys.executable, str(SCRIPTS / "analyze-index-evolution-cache-study.py"), str(archive)]
             completed = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,

@@ -1,0 +1,31 @@
+{
+  "status": "complete",
+  "completedBlocks": 40,
+  "acceptedProcesses": 160,
+  "plannedBlocks": 40,
+  "plannedProcesses": 160,
+  "protocolSha256": "157a25ef38ed3a22a60a387700c139132c1406a759771a22a82001bfa5ddd39b",
+  "scheduleSha256": "414803b5d7f5b3e961f14cbf33b4c498ccef35f1b4c5941c50bfe7b58d31b102",
+  "controllerSha256": "ff8793a97a0993011cea6cff0608c0741ce4558f2280ca346a45b045bbb95eb8",
+  "runnerSha256": "32396508b294e202bd2c54f823042c70618dda69ab96090488814510e7311e12",
+  "sourceSha256": {
+    "IndexEvolutionCacheDirect.csproj": "0f505935bd66c4006c0e5dd8db5b62ecb18526d91f2ee97ff511429831ab752d",
+    "Program.cs": "bfd4e1d40383dfc3c75f56a37c60381f4c6f4d5ade926c047534a1fc708f0fec",
+    "IndexAdapter.cs": "31a52bd6a374db0502809507f8f75d5ddbf45190ec63d40a77b93b27ea2dfdbc",
+    "LegacyAdapter.cs": "9eee354dda0edde72004ad7805053794592808bde8c8606f37c2c760b850a2b4",
+    "ModernAdapter.cs": "7e0733560fcea23129f79a1884b768fef00f8443153a0b5876c9b4132f839c23"
+  },
+  "sourceSnapshots": {
+    "old": "39cefe13db8697cf5f8e15edaa4677ba52a2cdea",
+    "new": "09ec0703f476f25ec79baff338843df8a8e83b35"
+  },
+  "gitHead": "ff0f99eacc91b46cd010cd57b92e65529fd8a732",
+  "system": {
+    "platform": "Linux-6.8.0-1070-azure-x86_64-with-glibc2.35",
+    "kernel": "6.8.0-1070-azure",
+    "cpus": 4
+  },
+  "startedUtc": "2026-11-09T09:27:44.822028+00:00",
+  "resultsSha256": "7886c550f7334ac6f7d9ed0e227e46a2264e39ca8a74339ad9b10ec0738a6c86",
+  "finishedUtc": "2026-11-09T09:30:05.126221+00:00"
+}

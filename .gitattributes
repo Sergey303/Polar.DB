@@ -18,3 +18,7 @@ benchmarks/scripts/run-index-evolution-cache-study.py -text
 benchmarks/src/IndexEvolutionCacheDirect/* -text
 benchmarks/evidence/20261109-index-evolution-cache-r2/* -text
 benchmarks/evidence/20261109-index-evolution-cache-r2/*.csv whitespace=cr-at-eol
+
+# Immutable R2 cache experiment on three GitHub-hosted Ubuntu machines.
+benchmarks/evidence/20261109-index-evolution-cache-hosted-42593558005/*/* -text
+benchmarks/evidence/20261109-index-evolution-cache-hosted-42593558005/*/*.csv whitespace=cr-at-eol
