@@ -3,9 +3,9 @@
 <!-- REVIEW WORKFLOW-20261111 | status: pending | article text intentionally unchanged
 Review procedure adopted 2026-11-11.
 Google Docs: https://docs.google.com/document/d/1Cp96qrGSCYZgZs7vL8YDxSyYUn5v3UUohCnVMn1JVxk/edit; review snapshot Google Drive revision 1038, last modifier alexander.g.marchuk.
-Google Docs is the place for discussion, comments, and tracked suggestions. Markdown remains the canonical article text plus this non-rendered editorial log.
+Google Docs is the place for discussion and native tracked suggestions; our edits must use Suggesting mode, not Drive comments. Markdown remains the canonical article text plus this non-rendered editorial log.
 Do not accept, reject, or apply Google Docs suggestions without agreement. Do not overwrite either document by mirroring while suggestions are pending.
-In this Markdown, preserve proposals in HTML comments under IDs G-01..G-07 (Google Docs proposals) and R-OUR-01..03 (our comments).
+In this Markdown, preserve proposals in HTML comments under IDs G-01..G-08 (Google Docs proposals) and R-OUR-01..03 (our native tracked suggestions).
 The Google Docs accepted baseline may differ in small ways from Markdown; reconcile explicitly after decisions. Never treat an inline insertion or deletion as accepted text.
 After approving edits, apply agreed changes to Markdown and reconcile Google Docs against the approved text; archive/resolved IDs in this log. Reviewer attribution is based on user's identification of A. G. Marchuk and revision metadata, not per-suggestion author metadata.
 -->
@@ -477,7 +477,7 @@ Raasveldt и соавторы [9] на примерах показывают, ч
 **Дополнительные нагрузки.** Таблицы 3 и 9 относятся к предельной выдаче 40% записей. В них измеряются также массовое чтение и материализация результата; противоположное направление различий на 50 тыс. и 5 млн записей не может трактоваться как изменение асимптотики индекса. Эти таблицы сохранены для полноты проверки, но не используются как самостоятельное доказательство преимущества поиска. Разведочные независимые повторения выбранных сценариев описаны в [дополнительном отчёте](INDEPENDENT_REPLICATIONS_FINAL_20261108.md) и не заменяют медианы основной серии. Часть их процессов проводилась непосредственно в RDC; последние пять повторов построения индексов на 5 млн записей и все повторы открытия на 5 млн записей — в Docker-образе с зафиксированным SDK/Runtime. Проверяемые характеристики CPU, среды выполнения и сборки совпали, но контейнерные пространства имён и иные условия исполнения могли отличаться. Поэтому такую смешанную разведочную серию нельзя считать полностью однородной выборкой одной вычислительной среды.
 
 <!-- REVIEW R-OUR-01 | status: pending | article text intentionally unchanged
-Источник: наше предложение, оставлено комментарием в Google Docs, thread doco.DhR4ErrNYP9V6igTE6sqFQ; quoted text: «Работа не вводит новый принцип сортировки индексных пар...».
+Источник: наше нативное предложение удаления в Google Docs, suggestion ID suggest.lnmi2jwkfopq; quoted text: «Работа не вводит новый принцип сортировки индексных пар...».
 Место: §4.9. Предложение удалить заключительное защитное предложение о том, какие алгоритмы работа не изобретает и какие индексы не тестирует; достаточно уже имеющихся описаний новизны и границ §4.10.
 Статус: ожидает совместного решения.
 -->
@@ -491,7 +491,7 @@ Raasveldt и соавторы [9] на примерах показывают, ч
 Опыт с управляемой резидентностью страниц использует один набор из 20 млн записей, одну фиксированную последовательность запросов и восемь парных блоков на одном ядре с общим файловым кэшем. Интервал по повторным выборкам описывает вариацию этих блоков, но не межмашинную или межнагрузочную неопределённость; его фактическое покрытие не проверено. В нескольких условиях затрагивалась одна страница служебного файла состояния, тогда как состояние основных файлов удовлетворяло заданному критерию. Прежний опыт без закрепления страниц, не прошедший критерий качества, в выводы не включён.
 
 <!-- REVIEW R-OUR-02 | status: pending | article text intentionally unchanged
-Источник: наше предложение, комментарий Google Docs thread doco.Bch6G9tkMOM4xpviraVUZg.
+Источник: наше нативное предложение замены текста в Google Docs, suggestion ID suggest.816yxf9943uh.
 Место: §4.10. Объединить повторяющиеся замечания об одном детерминированном наборе, bootstrap-интервалах и ограниченной независимости виртуальных машин; сохранить действительные количественные ограничения, без изменения результатов.
 Статус: ожидает совместного решения.
 -->
@@ -505,7 +505,7 @@ Raasveldt и соавторы [9] на примерах показывают, ч
 На современной версии проверены также другие составляющие жизненного цикла. Построение четырёх внешних индексов на 5 млн записей занимает 12,799 с у Polar.DB и 9,803 с у SQLite при разных внутренних алгоритмах. Во время повторного открытия Polar.DB 88,7% измеренного цикла по медиане приходится на создание и обновление строкового внешнего индекса; этот показатель нельзя переносить на другой состав индексов. В отдельном контролируемом опыте вытеснение файла смещений первичного индекса при резидентных хешах привело к существенному замедлению поиска: геометрическое среднее парных отношений — 23,62 на восьми блоках (таблица 10).
 
 <!-- REVIEW R-OUR-03 | status: pending | article text intentionally unchanged
-Источник: наше предложение, комментарий Google Docs thread doco.Si8auDuFkHri58OnEXW2Qg.
+Источник: наше нативное предложение замены текста в Google Docs, suggestion ID suggest.pjci2l7wl4p9.
 Место: заключение. Вместо повторного длинного перечисления того, чего работа не доказывает, оставить одну фразу: «Вклад отдельных изменений алгоритма и применимость результатов к другим нагрузкам требуют дальнейшего исследования».
 Статус: ожидает совместного решения.
 -->
