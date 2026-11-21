@@ -36,7 +36,13 @@ public sealed class AtomicGenerationStore
         if (!File.Exists(pointer))
             return null; // Existing legacy storage can remain active.
 
-        string name = File.ReadAllText(pointer, Encoding.UTF8).Trim();
+        // Allow a concurrent publisher to atomically replace CURRENT on Windows.
+        // Existing readers keep their old file handle; the next read sees new.
+        string name;
+        using (var stream = new FileStream(pointer, FileMode.Open, FileAccess.Read,
+                   FileShare.ReadWrite | FileShare.Delete))
+        using (var reader = new StreamReader(stream, Encoding.UTF8))
+            name = reader.ReadToEnd().Trim();
         if (string.IsNullOrWhiteSpace(name) ||
             name == "." || name == ".." ||
             name != Path.GetFileName(name) ||
